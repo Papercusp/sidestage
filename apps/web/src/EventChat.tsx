@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { FormEvent } from 'react';
 import { SyncProvider, useSyncMutate, useSyncQuery } from '@papercusp/sync';
+import { MESSAGE_IMPORTANCE_ORDER, triageMessages, type MessageImportance, type TriagedMessage } from './message-triage';
 
 export type EventChatRole = 'buyer' | 'seller';
 
@@ -34,6 +35,8 @@ interface MessageInput {
   role: EventChatRole;
   text: string;
 }
+
+type QueueView = 'focused' | 'all';
 
 export interface EventChatProps {
   eventId: string;
@@ -116,6 +119,7 @@ function EventChatSurface({
   const [optimisticMessages, setOptimisticMessages] = useState<EventChatMessage[]>([]);
   const [sendError, setSendError] = useState<string | null>(null);
   const [presenceError, setPresenceError] = useState<string | null>(null);
+  const [queueView, setQueueView] = useState<QueueView>(role === 'seller' ? 'focused' : 'all');
 
   const sendMessageFallback = useCallback(async (input: MessageInput) => {
     return requestJson<EventChatMessage>(`${apiOrigin}/chat/events/${encodeURIComponent(eventId)}/messages`, {
@@ -158,6 +162,20 @@ function EventChatSurface({
     const remoteIds = new Set(remoteMessages.map((message) => message.id));
     return [...remoteMessages, ...optimisticMessages.filter((message) => !remoteIds.has(message.id))];
   }, [optimisticMessages, remoteMessages]);
+  const triagedMessages = useMemo(() => triageMessages(messages), [messages]);
+  const focusedMessages = useMemo(
+    () => triagedMessages
+      .filter(({ triage }) => triage.importance !== 'low')
+      .sort((left, right) => MESSAGE_IMPORTANCE_ORDER[left.triage.importance] - MESSAGE_IMPORTANCE_ORDER[right.triage.importance]),
+    [triagedMessages],
+  );
+  const visibleMessages: readonly TriagedMessage<EventChatMessage>[] = role === 'seller' && queueView === 'focused'
+    ? focusedMessages
+    : triagedMessages;
+  const importanceCounts = useMemo(() => triagedMessages.reduce<Record<MessageImportance, number>>((counts, entry) => {
+    counts[entry.triage.importance] += 1;
+    return counts;
+  }, { high: 0, normal: 0, low: 0 }), [triagedMessages]);
   const presence = presenceQuery.data ?? [];
   const stats = statsQuery.data?.[0] ?? {
     activeUsers: presence.length,
@@ -199,10 +217,43 @@ function EventChatSurface({
         </div>
       </div>
 
+      {role === 'seller' ? (
+        <div className="event-chat-queue" aria-label="Message triage queue">
+          <div className="event-chat-queue-heading">
+            <div>
+              <span className="panel-kicker">Message triage</span>
+              <strong>{importanceCounts.high} priority · {importanceCounts.normal} questions · {importanceCounts.low} social</strong>
+            </div>
+            <div className="event-chat-queue-controls" role="group" aria-label="Message queue view">
+              <button
+                className={queueView === 'focused' ? 'is-active' : ''}
+                type="button"
+                aria-pressed={queueView === 'focused'}
+                onClick={() => setQueueView('focused')}
+              >
+                Focused <span>{focusedMessages.length}</span>
+              </button>
+              <button
+                className={queueView === 'all' ? 'is-active' : ''}
+                type="button"
+                aria-pressed={queueView === 'all'}
+                onClick={() => setQueueView('all')}
+              >
+                All <span>{triagedMessages.length}</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
       <div className="event-chat-messages" aria-live="polite">
-        {messages.length === 0 ? <p className="muted">No messages yet. Start the conversation.</p> : null}
-        {messages.map((message) => (
-          <article className="event-chat-message" key={message.id}>
+        {visibleMessages.length === 0 ? (
+          <p className="muted">
+            {messages.length === 0 ? 'No messages yet. Start the conversation.' : 'No messages need your attention right now.'}
+          </p>
+        ) : null}
+        {visibleMessages.map(({ message, triage }) => (
+          <article className={`event-chat-message event-chat-message-${triage.importance}`} key={message.id}>
             <div className={`event-chat-avatar event-chat-avatar-${message.role}`} aria-hidden="true">
               {message.displayName.slice(0, 1).toUpperCase()}
             </div>
@@ -211,6 +262,11 @@ function EventChatSurface({
                 <strong>{message.displayName}</strong>
                 <span>{formatTimestamp(message.createdAt)}</span>
                 <span className="event-chat-role">{message.role}</span>
+                {role === 'seller' ? (
+                  <span className={`event-chat-importance event-chat-importance-${triage.importance}`} title={triage.reason}>
+                    {triage.label}
+                  </span>
+                ) : null}
               </div>
               <p>{message.text}</p>
             </div>

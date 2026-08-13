@@ -39,5 +39,8 @@ describe('EventChat', () => {
     expect(markup).toContain('Seller view is read-only');
     expect(markup).not.toContain('Message the room');
     expect(markup).toContain('Active participants');
+    expect(markup).toContain('Message triage');
+    expect(markup).toContain('Focused');
+    expect(markup).toContain('All');
   });
 });
