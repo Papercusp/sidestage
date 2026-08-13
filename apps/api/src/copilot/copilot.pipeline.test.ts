@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest';
 
 import { buildGroundingPrompt, GroundedCopilotPipeline } from './copilot.pipeline';
 import type { CopilotPipelineDependencies } from './copilot.pipeline';
+import { CopilotLatencyBudget } from './latency';
+import { ParallelResearchFallback } from './research';
 import type {
   ActionExecutionResult,
   CopilotPolicy,
@@ -71,6 +73,7 @@ describe('GroundedCopilotPipeline', () => {
     expect(response.grounding).toBe('grounded');
     expect(response.citations).toEqual(['event-item:ei-1']);
     expect(response.reply).toContain('blue mug');
+    expect(response.latency).toMatchObject({ completeMs: 5, sampleCount: 1 });
   });
 
   it('fails closed when a model returns no verified citation', async () => {
@@ -209,5 +212,77 @@ describe('GroundedCopilotPipeline', () => {
     expect(prompt).toContain('catalog-product:p-1');
     expect(prompt).toContain('availableQty');
     expect(prompt).toContain('priceFloorCentsByProduct');
+  });
+
+  it('includes web research findings in the provider-neutral prompt', () => {
+    const prompt = buildGroundingPrompt({
+      ...context,
+      webFindings: [{ findingId: 'f-1', title: 'Battery life', snippet: 'Up to 30 hours.' }],
+      sources: [...context.sources, { id: 'web-research:f-1', kind: 'web-research', label: 'Battery life' }],
+    });
+
+    expect(prompt).toContain('web-research:f-1');
+    expect(prompt).toContain('Up to 30 hours.');
+  });
+
+  it('records provider TTFT and exposes rolling p50/p95 complete latency', async () => {
+    const latencyBudget = new CopilotLatencyBudget();
+    let call = 0;
+    const pipeline = new GroundedCopilotPipeline({
+      retriever: { retrieve: async () => context },
+      model: {
+        generate: async () => ({
+          reply: 'The blue mug is in stock.',
+          citations: ['event-item:ei-1'],
+          latency: call++ === 0 ? { ttftMs: 40, completeMs: 120 } : { ttftMs: 20, completeMs: 80 },
+        }),
+      },
+      latencyBudget,
+    });
+
+    await pipeline.respond({ eventId: 'event-1', message: 'Is it in stock?' });
+    const second = await pipeline.respond({ eventId: 'event-1', message: 'How much?' });
+
+    expect(second.latency).toMatchObject({
+      ttftMs: 20,
+      completeMs: 80,
+      sampleCount: 2,
+      p50: { ttftMs: 20, completeMs: 80 },
+      p95: { ttftMs: 40, completeMs: 120 },
+    });
+  });
+
+  it('merges the property-aware parallel research fallback before model generation', async () => {
+    let generatedContext: GroundingContext | undefined;
+    const pipeline = new GroundedCopilotPipeline({
+      retriever: { retrieve: async () => context },
+      researchFallback: new ParallelResearchFallback(
+        {
+          supportsProperties: () => false,
+          search: async () => ({ products: [] }),
+        },
+        {
+          search: async () => [{ findingId: 'f-1', title: 'Battery life', snippet: 'Up to 30 hours.' }],
+        },
+      ),
+      model: {
+        generate: async (request) => {
+          generatedContext = request.context;
+          return { reply: 'Up to 30 hours.', citations: ['web-research:f-1'] };
+        },
+      },
+    });
+
+    const response = await pipeline.respond({
+      eventId: 'event-1',
+      message: 'What is the battery life?',
+      requiredProperties: ['batteryHours'],
+    });
+
+    expect(generatedContext?.webFindings).toEqual([
+      { findingId: 'f-1', title: 'Battery life', snippet: 'Up to 30 hours.' },
+    ]);
+    expect(response.grounding).toBe('grounded');
+    expect(response.citations).toEqual(['web-research:f-1']);
   });
 });
