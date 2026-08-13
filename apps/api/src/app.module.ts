@@ -12,9 +12,10 @@ import { InventoryModule } from './inventory/inventory.module';
 import { JudgeModule } from './judge/judge.module';
 import { ScoutModule } from './scout/scout.module';
 import { ShippingModule } from './shipping/shipping.module';
+import { StatsModule } from './stats/stats.module';
 
 @Module({
-  imports: [DatabaseModule, ActionModule, AuctionModule, CartModule, CatalogModule, ChatModule, CheckoutModule, EventConfigModule, InventoryModule, JudgeModule, ScoutModule, ShippingModule],
+  imports: [DatabaseModule, ActionModule, AuctionModule, CartModule, CatalogModule, ChatModule, CheckoutModule, EventConfigModule, InventoryModule, JudgeModule, ScoutModule, ShippingModule, StatsModule],
   controllers: [HealthController],
 })
 export class AppModule {}
