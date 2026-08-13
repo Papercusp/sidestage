@@ -71,6 +71,14 @@ h1 { margin: 0; max-width: 720px; font-size: clamp(3rem, 7vw, 5.8rem); line-heig
 .event-chat-heading h2 { margin: .45rem 0 0; }
 .event-chat-stats { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: .5rem; color: var(--muted); font-size: .7rem; }
 .event-chat-stats span { padding: .35rem .5rem; border: 1px solid var(--border); border-radius: .4rem; background: rgba(4, 13, 28, .24); }
+.event-chat-queue { display: grid; gap: .65rem; margin-top: 1.2rem; padding: .75rem; border: 1px solid rgba(98, 216, 255, .16); border-radius: .7rem; background: rgba(4, 13, 28, .2); }
+.event-chat-queue-heading { display: flex; align-items: center; justify-content: space-between; gap: 1rem; }
+.event-chat-queue-heading > div:first-child { display: grid; gap: .35rem; }
+.event-chat-queue-heading strong { color: var(--muted); font-size: .7rem; font-weight: 500; }
+.event-chat-queue-controls { display: inline-flex; gap: .35rem; }
+.event-chat-queue-controls button { border: 1px solid var(--border); border-radius: .45rem; padding: .4rem .55rem; color: var(--muted); background: rgba(255, 255, 255, .035); font-size: .68rem; font-weight: 650; }
+.event-chat-queue-controls button:hover, .event-chat-queue-controls button.is-active { border-color: rgba(98, 216, 255, .45); color: var(--accent-strong); background: rgba(98, 216, 255, .1); }
+.event-chat-queue-controls button span { margin-left: .25rem; color: inherit; opacity: .72; }
 .event-chat-messages { display: grid; gap: .7rem; max-height: 22rem; min-height: 6rem; overflow: auto; margin-top: 1.2rem; padding: .8rem; border: 1px solid var(--border); border-radius: .7rem; background: rgba(4, 13, 28, .3); }
 .event-chat-message { display: grid; grid-template-columns: 2rem minmax(0, 1fr); gap: .65rem; align-items: start; padding: .55rem; border-radius: .55rem; background: rgba(255, 255, 255, .035); }
 .event-chat-message p { max-width: none; margin: .25rem 0 0; color: var(--text); font-size: .78rem; line-height: 1.45; }
@@ -79,6 +87,10 @@ h1 { margin: 0; max-width: 720px; font-size: clamp(3rem, 7vw, 5.8rem); line-heig
 .event-chat-message-meta { display: flex; align-items: center; flex-wrap: wrap; gap: .5rem; color: var(--muted); font-size: .68rem; }
 .event-chat-message-meta strong { color: var(--text); }
 .event-chat-role { padding: .15rem .3rem; border-radius: .25rem; color: var(--accent-strong); background: rgba(98, 216, 255, .1); font-size: .6rem; text-transform: uppercase; }
+.event-chat-importance { padding: .15rem .3rem; border-radius: .25rem; font-size: .6rem; font-weight: 700; text-transform: uppercase; }
+.event-chat-importance-high { color: #061525; background: var(--amber); }
+.event-chat-importance-normal { color: var(--accent-strong); background: rgba(98, 216, 255, .12); }
+.event-chat-importance-low { color: var(--muted); background: rgba(255, 255, 255, .06); }
 .event-chat-form { display: flex; gap: .65rem; margin-top: .8rem; }
 .event-chat-form .text-input { min-width: 0; }
 .event-chat-form .button { flex: 0 0 auto; }
@@ -213,7 +225,7 @@ h1 { margin: 0; max-width: 720px; font-size: clamp(3rem, 7vw, 5.8rem); line-heig
 .feature-icon.cyan { color: var(--accent); background: rgba(98,216,255,.12); }
 .footer { display: flex; justify-content: space-between; margin-top: 6rem; padding-top: 1rem; border-top: 1px solid var(--border); color: #627a9e; font-size: .72rem; }
 @media (max-width: 800px) { .topbar { gap: .75rem; padding-inline: 1.25rem; } .tab-nav { gap: 0; } .nav-link { padding-inline: .5rem; } .connection-pill { font-size: .68rem; } .product-grid, .seller-grid, .config-grid { grid-template-columns: 1fr; } .stage-primary { grid-row: auto; } .stream-room-heading { align-items: flex-start; flex-direction: column; } .stream-room-actions { justify-content: flex-start; } }
-@media (max-width: 560px) { .topbar { align-items: flex-start; flex-wrap: wrap; } .tab-nav { order: 3; width: 100%; overflow-x: auto; } .connection-pill { margin-left: auto; } .content { width: min(100% - 1.5rem, 1120px); padding-top: 3rem; } .catalog-toolbar { align-items: flex-start; flex-direction: column; gap: .35rem; margin-top: 3rem; } h1 { font-size: clamp(2.75rem, 14vw, 4.2rem); } .copilot-input-row { flex-direction: column; } .copilot-input-row .button { width: 100%; } .copilot-product { grid-template-columns: 3rem minmax(0, 1fr); } .copilot-product > .button { grid-column: 1 / -1; width: 100%; } .copilot-cart { align-items: flex-start; flex-wrap: wrap; } .copilot-cart strong { margin-left: auto; } .event-chat-heading, .event-chat-form, .transcript-pane-heading { flex-direction: column; } .event-chat-form .button { width: 100%; } .event-chat-stats { justify-content: flex-start; } .transcript-state { white-space: normal; } .transcript-picker { align-items: flex-start; flex-direction: column; } .transcript-picker select, .transcript-suggestion .button { width: 100%; } .transcript-suggestion { align-items: flex-start; flex-direction: column; } }
+@media (max-width: 560px) { .topbar { align-items: flex-start; flex-wrap: wrap; } .tab-nav { order: 3; width: 100%; overflow-x: auto; } .connection-pill { margin-left: auto; } .content { width: min(100% - 1.5rem, 1120px); padding-top: 3rem; } .catalog-toolbar { align-items: flex-start; flex-direction: column; gap: .35rem; margin-top: 3rem; } h1 { font-size: clamp(2.75rem, 14vw, 4.2rem); } .copilot-input-row { flex-direction: column; } .copilot-input-row .button { width: 100%; } .copilot-product { grid-template-columns: 3rem minmax(0, 1fr); } .copilot-product > .button { grid-column: 1 / -1; width: 100%; } .copilot-cart { align-items: flex-start; flex-wrap: wrap; } .copilot-cart strong { margin-left: auto; } .event-chat-heading, .event-chat-form, .transcript-pane-heading { flex-direction: column; } .event-chat-form .button { width: 100%; } .event-chat-stats { justify-content: flex-start; } .transcript-state { white-space: normal; } .transcript-picker { align-items: flex-start; flex-direction: column; } .transcript-picker select, .transcript-suggestion .button { width: 100%; } .transcript-suggestion { align-items: flex-start; flex-direction: column; } .event-chat-queue-heading { align-items: flex-start; flex-direction: column; } .event-chat-queue-controls { width: 100%; } .event-chat-queue-controls button { flex: 1; } }
 
 .buyer-tab { min-height: 650px; }
 .buyer-heading { display: flex; align-items: flex-end; justify-content: space-between; gap: 1.5rem; }
