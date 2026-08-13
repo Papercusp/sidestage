@@ -30,5 +30,7 @@ describe('P-005 product card and shell', () => {
       expect(markup).toContain(`>${tab}</a>`);
     }
     expect(markup).toContain('Buyer view / live catalog');
+    expect(markup).toContain('Verified catalog copilot');
+    expect(markup).toContain('SQUARE SANDBOX');
   });
 });
