@@ -29,8 +29,10 @@ describe('P-005 product card and shell', () => {
     for (const tab of ['Buyer', 'Seller', 'Config', 'Test']) {
       expect(markup).toContain(`>${tab}</a>`);
     }
-    expect(markup).toContain('Buyer view / live catalog');
+    expect(markup).toContain('Join the room');
+    expect(markup).toContain('Event products');
     expect(markup).toContain('Live chat');
     expect(markup).toContain('Message the room');
+    expect(markup).toContain('Share event');
   });
 });

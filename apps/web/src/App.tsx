@@ -1,15 +1,14 @@
 import { useEffect, useRef, useState } from 'react';
+import { BuyerTab } from './BuyerTab';
 import { CopilotPanel } from './CopilotPanel';
-import { ProductCard, type ProductTone } from './components/ProductCard';
+import { type ProductTone } from './components/ProductCard';
 import { EventChat } from './EventChat';
 import { TranscriptPane } from './TranscriptPane';
 import {
   connectPublisher,
-  connectViewer,
   createEventRoom,
   type EventRoom,
   type PublisherSession,
-  type ViewerSession,
 } from './streaming';
 
 export type TabId = 'buyer' | 'seller' | 'config' | 'test';
@@ -148,124 +147,6 @@ function TabHeader({ eyebrow, title, copy }: { eyebrow: string; title: string; c
       <p className="eyebrow">{eyebrow}</p>
       <h1>{title}</h1>
       <p className="tab-copy">{copy}</p>
-    </div>
-  );
-}
-
-function BuyerTab({ onAddToStage, selectedProduct }: { onAddToStage: (id: string) => void; selectedProduct: string | null }) {
-  const eventId = browserEventId();
-  const room = createEventRoom(eventId);
-  const [streamState, setStreamState] = useState<StreamState>('idle');
-  const [streamError, setStreamError] = useState<string | null>(null);
-  const [copyState, setCopyState] = useState<'idle' | 'copied' | 'failed'>('idle');
-  const sessionRef = useRef<ViewerSession | null>(null);
-  const videoRef = useRef<HTMLVideoElement>(null);
-
-  useEffect(() => {
-    return () => {
-      const session = sessionRef.current;
-      sessionRef.current = null;
-      if (session) void session.stop();
-    };
-  }, []);
-
-  const connectStream = async () => {
-    if (sessionRef.current || streamState === 'connecting') return;
-    setStreamState('connecting');
-    setStreamError(null);
-    try {
-      const session = await connectViewer({
-        room,
-        mediaBaseUrl: mediaBaseUrl(),
-        onTrack: (stream) => {
-          if (videoRef.current && videoRef.current.srcObject !== stream) {
-            videoRef.current.srcObject = stream;
-          }
-          setStreamState('live');
-          void videoRef.current?.play().catch(() => undefined);
-        },
-      });
-      sessionRef.current = session;
-      setStreamState('live');
-      if (videoRef.current) videoRef.current.srcObject = session.stream;
-    } catch (error) {
-      setStreamState('error');
-      setStreamError(error instanceof Error ? error.message : 'The stream could not be connected.');
-    }
-  };
-
-  const disconnectStream = () => {
-    const session = sessionRef.current;
-    sessionRef.current = null;
-    setStreamState('idle');
-    if (videoRef.current) videoRef.current.srcObject = null;
-    if (session) void session.stop();
-  };
-
-  const copyShareUrl = async () => {
-    try {
-      if (!navigator.clipboard) throw new Error('Clipboard unavailable');
-      await navigator.clipboard.writeText(room.shareUrl);
-      setCopyState('copied');
-    } catch {
-      setCopyState('failed');
-    }
-    globalThis.setTimeout(() => setCopyState('idle'), 1800);
-  };
-
-  return (
-    <div className="tab-layout">
-      <TabHeader
-        eyebrow="Buyer view / live catalog"
-        title="Find your next favorite."
-        copy="See the products your seller can put in front of you, with the details that make a confident decision easier."
-      />
-      <section className="stream-room" aria-labelledby="buyer-room-title">
-        <div className="stream-room-heading">
-          <div>
-            <p className="eyebrow">Live room · {room.eventId}</p>
-            <h2 id="buyer-room-title">Join the Sunday vintage drop.</h2>
-            <p className="muted">Watch the seller, ask a question, and shop from the verified catalog below.</p>
-          </div>
-          <div className="stream-room-actions">
-            <span className={`stream-state stream-state-${streamState}`}><span aria-hidden="true" /> {streamLabel(streamState)}</span>
-            <button className="button secondary" type="button" onClick={() => void copyShareUrl()}>
-              {copyState === 'copied' ? 'Link copied' : copyState === 'failed' ? 'Copy failed' : 'Share event'}
-            </button>
-          </div>
-        </div>
-        <div className="buyer-stream-preview">
-          <video ref={videoRef} className="stream-video" controls playsInline aria-label="Seller event stream" />
-          <div className="stream-video-overlay">
-            <span className="live-badge">{room.eventId}</span>
-            <p>{streamState === 'error' ? streamError : 'The seller stream appears here when the room is live.'}</p>
-            {sessionRef.current ? (
-              <button className="button secondary" type="button" onClick={disconnectStream}>Disconnect</button>
-            ) : (
-              <button className="button primary" type="button" onClick={() => void connectStream()} disabled={streamState === 'connecting'}>
-                {streamState === 'connecting' ? 'Connecting…' : 'Connect to stream'}
-              </button>
-            )}
-          </div>
-        </div>
-      </section>
-      <div className="catalog-toolbar" aria-label="Catalog tools">
-        <span className="toolbar-label">Sunday vintage drop</span>
-        <span className="toolbar-count">3 products · prices verified</span>
-      </div>
-      <div className="product-grid">
-        {DEMO_PRODUCTS.map((product) => (
-          <ProductCard key={product.id} {...product} selected={product.id === selectedProduct} onSelect={onAddToStage} />
-        ))}
-      </div>
-      <EventChat
-        eventId={eventId}
-        role="buyer"
-        userId="buyer-demo"
-        displayName="Maya"
-        eventTitle={DEFAULT_EVENT_TITLE}
-        apiBaseUrl={import.meta.env.VITE_API_URL}
-      />
     </div>
   );
 }
@@ -500,7 +381,13 @@ export function App() {
       </header>
 
       <main className="content">
-        {tab === 'buyer' ? <BuyerTab onAddToStage={setSelectedProductId} selectedProduct={selectedProductId} /> : null}
+        {tab === 'buyer' ? (
+          <BuyerTab
+            eventId={browserEventId()}
+            eventTitle={DEFAULT_EVENT_TITLE}
+            mediaBaseUrl={mediaBaseUrl()}
+          />
+        ) : null}
         {tab === 'seller' ? <SellerTab selectedProduct={selectedProduct} /> : null}
         {tab === 'config' ? <ConfigTab /> : null}
         {tab === 'test' ? <TestTab /> : null}
