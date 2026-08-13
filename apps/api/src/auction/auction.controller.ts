@@ -1,11 +1,11 @@
-import { Body, Controller, Get, Param, Post, Sse, type MessageEvent } from '@nestjs/common';
+import { Inject, Body, Controller, Get, Param, Post, Sse, type MessageEvent } from '@nestjs/common';
 import { from, interval, merge, type Observable } from 'rxjs';
 import { map } from 'rxjs/operators';
 import { AuctionService, type AuctionSseEvent, type PlaceBidInput, type StartAuctionInput } from './auction.service';
 
 @Controller('auctions')
 export class AuctionController {
-  constructor(private readonly auctions: AuctionService) {}
+  constructor(@Inject(AuctionService) private readonly auctions: AuctionService) {}
 
   @Post('start')
   start(@Body() body: StartAuctionInput) {
