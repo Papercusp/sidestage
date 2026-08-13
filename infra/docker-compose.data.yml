@@ -1,0 +1,40 @@
+name: sidestage-data
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-sidestage}
+      POSTGRES_USER: ${POSTGRES_USER:-sidestage}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-sidestage_dev}
+    ports:
+      - "127.0.0.1:${POSTGRES_PORT:-55434}:5432"
+    volumes:
+      - sidestage-postgres-data:/var/lib/postgresql/data
+      - ../db/schema.sql:/docker-entrypoint-initdb.d/001-schema.sql:ro
+      - ../db/seed/demo.sql:/docker-entrypoint-initdb.d/002-demo.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+
+  typesense:
+    profiles: ["search"]
+    image: typesense/typesense:29.0
+    environment:
+      TYPESENSE_DATA_DIR: /data
+      TYPESENSE_API_KEY: ${TYPESENSE_API_KEY:-sidestage-typesense-dev}
+      TYPESENSE_ENABLE_CORS: "true"
+    ports:
+      - "127.0.0.1:${TYPESENSE_PORT:-8109}:8108"
+    command: >-
+      --data-dir /data
+      --api-key=${TYPESENSE_API_KEY:-sidestage-typesense-dev}
+      --enable-cors
+    volumes:
+      - sidestage-typesense-data:/data
+
+volumes:
+  sidestage-postgres-data:
+  sidestage-typesense-data:

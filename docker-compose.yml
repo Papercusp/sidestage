@@ -1,0 +1,48 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-sidestage}
+      POSTGRES_USER: ${POSTGRES_USER:-sidestage}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-dev-only-change-me}
+    ports:
+      - "5432:5432"
+    volumes:
+      - sidestage-postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  typesense:
+    image: typesense/typesense:27.1
+    restart: unless-stopped
+    command: "--data-dir /data --api-key=${TYPESENSE_API_KEY:-dev-typesense-key} --listen-port 8108 --enable-cors"
+    ports:
+      - "8108:8108"
+    volumes:
+      - sidestage-typesense:/data
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - sidestage-redis:/data
+
+  mediamtx:
+    image: bluenviron/mediamtx:1.13.1
+    restart: unless-stopped
+    environment:
+      MTX_WEBRTCADDITIONALHOSTS: ${MEDIAMTX_HOST:-localhost}
+    ports:
+      - "8889:8889"
+      - "8189:8189/udp"
+
+volumes:
+  sidestage-postgres:
+  sidestage-typesense:
+  sidestage-redis:

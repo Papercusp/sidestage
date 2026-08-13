@@ -1,0 +1,152 @@
+import type {
+  ActionExecutor,
+  ActionGuard,
+  ActionResult,
+  AutomationLevel,
+  CopilotActionProposal,
+  CopilotRequest,
+  CopilotResponse,
+  GroundingContext,
+  GroundingRetriever,
+  ReplyModel,
+} from './copilot.types';
+
+export interface CopilotPipelineDependencies {
+  retriever: GroundingRetriever;
+  model: ReplyModel;
+  guard: ActionGuard;
+  executor?: ActionExecutor;
+  now?: () => number;
+}
+
+const FALLBACK_REPLY =
+  "I don't have enough verified event or catalog information to answer that yet.";
+
+/**
+ * Builds the provider-neutral context sent to the reply model.
+ *
+ * Keeping this representation deterministic makes prompt snapshots and
+ * latency tests independent of the eventual OpenAI SDK adapter.
+ */
+export function buildGroundingPrompt(context: GroundingContext): string {
+  const eventItems = context.eventItems.map((item) => ({
+    sourceId: `event-item:${item.eventItemId}`,
+    productId: item.productId,
+    title: item.title,
+    description: item.description ?? null,
+    priceCents: item.priceCents,
+    availableQty: item.availableQty,
+    attributes: item.attributes,
+  }));
+  const catalogProducts = context.catalogProducts.map((product) => ({
+    sourceId: `catalog-product:${product.productId}`,
+    productId: product.productId,
+    title: product.title,
+    description: product.description ?? null,
+    priceCents: product.priceCents,
+    attributes: product.attributes,
+  }));
+
+  return [
+    'You are the SideStage seller copilot. Answer only from VERIFIED_CONTEXT.',
+    'If the context does not support an answer, say that plainly; do not invent price, stock, or product facts.',
+    'Return citation IDs for every factual answer. Never execute an action; return a proposal for the caller to gate.',
+    'VERIFIED_CONTEXT:',
+    JSON.stringify({
+      eventItems,
+      catalogProducts,
+      policy: context.policy,
+      sources: context.sources,
+    }),
+  ].join('\n');
+}
+
+function validCitations(draftCitations: readonly string[], context: GroundingContext): string[] {
+  const known = new Set(context.sources.map((source) => source.id));
+  return [...new Set(draftCitations)].filter((citation) => known.has(citation));
+}
+
+function effectiveAutomation(context: GroundingContext): AutomationLevel {
+  // The Config snapshot is authoritative. A caller cannot elevate a seller's
+  // policy by sending requestedAutomation:'auto' in a request body.
+  return context.policy.automationLevel;
+}
+
+async function resolveAction(
+  request: CopilotRequest,
+  context: GroundingContext,
+  guard: ActionGuard,
+  executor: ActionExecutor | undefined,
+  action: CopilotActionProposal,
+): Promise<ActionResult> {
+  const guardrail = await guard.evaluate(action, context);
+  if (!guardrail.allowed) {
+    return { proposal: action, disposition: 'blocked', guardrail };
+  }
+
+  const automation = effectiveAutomation(context);
+  if (automation === 'suggest') {
+    return { proposal: action, disposition: 'suggested', guardrail };
+  }
+  if (automation === 'confirm') {
+    return { proposal: action, disposition: 'awaiting-confirmation', guardrail };
+  }
+
+  // Auto mode is fail-closed: a missing executor cannot turn an approved
+  // proposal into an un-audited side effect.
+  if (!context.policy.allowAutoActions || !executor) {
+    return {
+      proposal: action,
+      disposition: 'blocked',
+      guardrail: {
+        allowed: false,
+        code: 'policy',
+        explanation: !context.policy.allowAutoActions
+          ? 'Automatic actions are disabled by seller policy.'
+          : 'No audited action executor is configured.',
+      },
+    };
+  }
+
+  const execution = await executor.execute(action, {
+    eventId: request.eventId,
+    buyerId: request.buyerId,
+  });
+  return { proposal: action, disposition: 'executed', guardrail, execution };
+}
+
+export class GroundedCopilotPipeline {
+  private readonly now: () => number;
+
+  constructor(private readonly dependencies: CopilotPipelineDependencies) {
+    this.now = dependencies.now ?? (() => Date.now());
+  }
+
+  async respond(request: CopilotRequest): Promise<CopilotResponse> {
+    const started = this.now();
+    const context = await this.dependencies.retriever.retrieve({
+      eventId: request.eventId,
+      query: request.message,
+      limit: Math.max(1, Math.min(request.maxSources ?? 8, 20)),
+    });
+    const draft = await this.dependencies.model.generate({
+      event: request,
+      context,
+      groundingPrompt: buildGroundingPrompt(context),
+    });
+    const citations = validCitations(draft.citations, context);
+    const grounded = draft.reply.trim().length > 0 && citations.length > 0;
+    const action = draft.action
+      ? await resolveAction(request, context, this.dependencies.guard, this.dependencies.executor, draft.action)
+      : undefined;
+
+    return {
+      reply: grounded ? draft.reply.trim() : FALLBACK_REPLY,
+      grounding: grounded ? 'grounded' : 'insufficient-context',
+      citations,
+      context,
+      action,
+      latencyMs: Math.max(0, this.now() - started),
+    };
+  }
+}
