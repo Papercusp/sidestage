@@ -3,7 +3,6 @@ import { FormEvent, useEffect, useMemo, useRef, useState } from 'react';
 import {
   availableBuyerProducts,
   buildBuyerShareUrl,
-  DEMO_BUYER_STATS,
   formatBuyerPrice,
   type BuyerProduct,
   type BuyerStats,
@@ -40,10 +39,34 @@ export function BuyerTab({
   eventId = DEFAULT_EVENT_ID,
   eventTitle = DEFAULT_EVENT_TITLE,
   products: productsProp,
-  stats = DEMO_BUYER_STATS,
+  stats: statsProp,
   mediaBaseUrl,
   origin,
 }: BuyerTabProps) {
+  // Live stats (P-111 — no dummy data): real presence + paid orders, polled.
+  const [liveStats, setLiveStats] = useState<BuyerStats | null>(null);
+  useEffect(() => {
+    if (statsProp) return;
+    let cancelled = false;
+    const load = () => {
+      fetch(`${resolveApiBaseUrl()}/events/${encodeURIComponent(eventId)}/stats`)
+        .then(async (response) => {
+          if (!response.ok) throw new Error(`HTTP ${response.status}`);
+          const body = (await response.json()) as { viewers: number; itemsSold: number; totalRaisedCents: number };
+          if (!cancelled) setLiveStats({ viewers: body.viewers, itemsSold: body.itemsSold, totalRaisedCents: body.totalRaisedCents });
+        })
+        .catch(() => {
+          if (!cancelled) setLiveStats({ viewers: 0, itemsSold: 0, totalRaisedCents: 0 });
+        });
+    };
+    load();
+    const timer = setInterval(load, 15_000);
+    return () => {
+      cancelled = true;
+      clearInterval(timer);
+    };
+  }, [eventId, statsProp]);
+  const stats = statsProp ?? liveStats ?? { viewers: 0, itemsSold: 0, totalRaisedCents: 0 };
   // The event's product rail comes from the ONE catalog source (P-102): the
   // API read model when reachable, the shared offline fixture otherwise.
   const [catalogProducts, setCatalogProducts] = useState<readonly BuyerProduct[] | null>(null);
