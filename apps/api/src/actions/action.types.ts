@@ -12,6 +12,8 @@ export type ActionAuditKind = GuardedActionKind | 'rollback';
 /** The mutable event-facing state owned by the guarded action service. */
 export interface ActionEventItem extends EventItemContext {
   eventId: string;
+  /** Quantity currently listed for this event item. */
+  quantity: number;
 }
 
 export interface TargetedOffer {
