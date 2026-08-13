@@ -10,6 +10,8 @@ import {
 } from './buyer';
 import { fetchCatalog, OFFLINE_FIXTURE, resolveApiBaseUrl, variantToBuyerProduct } from './catalog';
 import { EventChat } from './EventChat';
+import { DEFAULT_EVENT_ID, DEFAULT_EVENT_TITLE } from './event-identity';
+import { streamLabel, useCopyState, useStreamSession } from './hooks';
 import { AuctionPanel } from './AuctionPanel';
 import { connectViewer, createEventRoom, type ViewerSession } from './streaming';
 
@@ -33,16 +35,11 @@ function buyerSessionId(): string {
   return created;
 }
 
-type StreamState = 'idle' | 'connecting' | 'live' | 'error';
-
-const DEFAULT_EVENT_ID = 'sunday-drop';
-const DEFAULT_EVENT_TITLE = 'Sunday vintage drop';
 
 export function BuyerTab({
   eventId = DEFAULT_EVENT_ID,
   eventTitle = DEFAULT_EVENT_TITLE,
   products: productsProp,
-  chatMessages = DEMO_BUYER_CHAT,
   stats = DEMO_BUYER_STATS,
   mediaBaseUrl,
   origin,
@@ -67,112 +64,70 @@ export function BuyerTab({
   const products = productsProp ?? catalogProducts ?? [];
   const room = useMemo(() => createEventRoom(eventId, origin), [eventId, origin]);
   const shareUrl = useMemo(() => buildBuyerShareUrl(eventId, origin), [eventId, origin]);
-  const [messages, setMessages] = useState<BuyerChatMessage[]>(() => [...chatMessages]);
-  const [draftMessage, setDraftMessage] = useState('');
-  const [streamState, setStreamState] = useState<StreamState>('idle');
-  const [streamError, setStreamError] = useState<string | null>(null);
-  const [copyState, setCopyState] = useState<'idle' | 'copied' | 'failed'>('idle');
   const [selectedProductId, setSelectedProductId] = useState<string | null>(null);
-  const [session, setSession] = useState<ViewerSession | null>(null);
-  const sessionRef = useRef<ViewerSession | null>(null);
-  const videoRef = useRef<HTMLVideoElement>(null);
+  const [holdNotice, setHoldNotice] = useState<string | null>(null);
+  const [holdOverrides, setHoldOverrides] = useState<Record<string, number>>({});
+  const stream = useStreamSession<ViewerSession>();
+  const { streamState, setStreamState, streamError, session, videoRef } = stream;
+  const { copyState, copy } = useCopyState();
+  const buyerId = useMemo(buyerSessionId, []);
 
   useEffect(() => {
-    setMessages([...chatMessages]);
-  }, [chatMessages]);
-
-  useEffect(() => {
-    return () => {
-      const current = sessionRef.current;
-      sessionRef.current = null;
-      if (current) void current.stop();
-    };
+    return () => stream.stop();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- teardown per room change only
   }, [eventId]);
 
-  const connectStream = async () => {
-    if (sessionRef.current || streamState === 'connecting') return;
-    setStreamState('connecting');
-    setStreamError(null);
-    try {
-      const nextSession = await connectViewer({
-        room,
-        mediaBaseUrl,
-        onTrack: (stream) => {
-          if (videoRef.current && videoRef.current.srcObject !== stream) {
-            videoRef.current.srcObject = stream;
-          }
-          setStreamState('live');
-          void videoRef.current?.play().catch(() => undefined);
-        },
-      });
-      sessionRef.current = nextSession;
-      setSession(nextSession);
-      setStreamState('live');
-      if (videoRef.current) videoRef.current.srcObject = nextSession.stream;
-    } catch (error) {
-      setStreamState('error');
-      setStreamError(error instanceof Error ? error.message : 'The stream could not be connected.');
-    }
-  };
-
-  const disconnectStream = () => {
-    const current = sessionRef.current;
-    sessionRef.current = null;
-    setSession(null);
-    setStreamState('idle');
-    if (videoRef.current) videoRef.current.srcObject = null;
-    if (current) void current.stop();
-  };
-
-  const copyShareUrl = async () => {
-    try {
-      await navigator.clipboard.writeText(shareUrl);
-      setCopyState('copied');
-    } catch {
-      setCopyState('failed');
-    }
-    globalThis.setTimeout(() => setCopyState('idle'), 1800);
-  };
-
-  const submitChat = (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    const body = draftMessage.trim();
-    if (!body) return;
-    setMessages((current) => [
-      ...current,
+  const connectStream = () =>
+    stream.start(
+      () =>
+        connectViewer({
+          room,
+          mediaBaseUrl,
+          onTrack: (mediaStream) => {
+            if (videoRef.current && videoRef.current.srcObject !== mediaStream) {
+              videoRef.current.srcObject = mediaStream;
+            }
+            setStreamState('live');
+            void videoRef.current?.play().catch(() => undefined);
+          },
+        }),
       {
-        id: `chat-local-${current.length + 1}`,
-        author: 'You',
-        body,
-        timestamp: 'now',
-        accent: 'cyan',
+        attach: (viewer) => viewer.stream,
+        fallbackError: 'The stream could not be connected.',
       },
-    ]);
-    setDraftMessage('');
-  };
+    );
 
-  const reserveProduct = (product: BuyerProduct) => {
+  const disconnectStream = () => stream.stop();
+
+  const copyShareUrl = () => void copy(shareUrl);
+
+  /** A real reservation (P-103): the hold hits inventory and decrements availableQty. */
+  const reserveProduct = async (product: BuyerProduct) => {
     if (product.availableQty <= 0) return;
-    setSelectedProductId(product.id);
-    setMessages((current) => [
-      ...current,
-      {
-        id: `chat-product-${product.id}`,
-        author: 'SideStage',
-        body: `${product.title} is held for you in this demo.`,
-        timestamp: 'now',
-        accent: 'violet',
-      },
-    ]);
+    try {
+      const response = await fetch(`${resolveApiBaseUrl()}/inventory/${encodeURIComponent(product.id)}/hold`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ quantity: 1, sourceKind: 'cart', sourceId: buyerId }),
+      });
+      if (response.status === 409) {
+        setHoldNotice(`${product.title} just sold out.`);
+        setHoldOverrides((current) => ({ ...current, [product.id]: 0 }));
+        return;
+      }
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      const result = (await response.json()) as { snapshot?: { availableQty: number } };
+      setSelectedProductId(product.id);
+      setHoldNotice(`${product.title} is held for you.`);
+      if (result.snapshot) {
+        setHoldOverrides((current) => ({ ...current, [product.id]: result.snapshot!.availableQty }));
+      }
+    } catch {
+      setHoldNotice('The hold could not be placed — check your connection and try again.');
+    }
   };
 
-  const liveLabel = streamState === 'live'
-    ? 'Live now'
-    : streamState === 'connecting'
-      ? 'Connecting…'
-      : streamState === 'error'
-        ? 'Stream unavailable'
-        : 'Preview ready';
+  const liveLabel = streamLabel(streamState);
   const visibleProducts = availableBuyerProducts(products);
 
   return (
@@ -225,8 +180,11 @@ export function BuyerTab({
             </div>
             <span className="muted">{visibleProducts.length} available</span>
           </div>
+          {holdNotice ? <p className="buyer-hold-notice" role="status">{holdNotice}</p> : null}
           <div className="buyer-products" aria-label="Event products">
-            {products.map((product) => {
+            {products.map((rawProduct) => {
+              const liveQty = holdOverrides[rawProduct.id];
+              const product = liveQty === undefined ? rawProduct : { ...rawProduct, availableQty: liveQty };
               const soldOut = product.availableQty <= 0;
               return (
                 <article className={`buyer-product-card${selectedProductId === product.id ? ' selected' : ''}`} key={product.id}>
@@ -243,7 +201,7 @@ export function BuyerTab({
                       <strong>{formatBuyerPrice(product.priceCents)}</strong>
                       {product.compareAtPriceCents ? <del>{formatBuyerPrice(product.compareAtPriceCents)}</del> : null}
                     </div>
-                    <button className="button secondary" type="button" disabled={soldOut} onClick={() => reserveProduct(product)}>
+                    <button className="button secondary" type="button" disabled={soldOut} onClick={() => void reserveProduct(product)}>
                       {soldOut ? 'Sold out' : selectedProductId === product.id ? 'Held for you' : 'Hold item'}
                     </button>
                   </div>
@@ -254,23 +212,16 @@ export function BuyerTab({
         </div>
 
         <aside className="buyer-chat-card" aria-label="Event chat">
-          <div className="buyer-chat-heading">
-            <div><p className="eyebrow">In the room</p><h3>Live chat</h3></div>
-            <span className="connection-pill"><span className="connection-dot" /> {stats.viewers} buyers</span>
-          </div>
-          <div className="buyer-messages" aria-live="polite">
-            {messages.map((message) => (
-              <div className="buyer-message" key={message.id}>
-                <span className={`buyer-avatar ${message.accent ?? 'cyan'}`} aria-hidden="true">{message.author.slice(0, 1)}</span>
-                <div><div className="buyer-message-meta"><strong>{message.author}</strong><span>{message.timestamp}</span></div><p>{message.body}</p></div>
-              </div>
-            ))}
-          </div>
-          <form className="buyer-chat-form" onSubmit={submitChat}>
-            <label className="sr-only" htmlFor="buyer-message">Message the room</label>
-            <input id="buyer-message" value={draftMessage} onChange={(event) => setDraftMessage(event.target.value)} placeholder="Say something…" maxLength={240} />
-            <button className="button primary" type="submit" disabled={!draftMessage.trim()}>Send</button>
-          </form>
+          {/* The SAME chat the seller console uses (P-103) — the local demo
+              chat this replaced never reached the room. */}
+          <EventChat
+            eventId={eventId}
+            role="buyer"
+            userId={buyerId}
+            displayName="You"
+            eventTitle={eventTitle}
+            apiBaseUrl={resolveApiBaseUrl()}
+          />
           <p className="buyer-share-note">Share this room: <button type="button" onClick={copyShareUrl}>{shareUrl}</button></p>
         </aside>
       </div>
