@@ -128,7 +128,7 @@ VALUES
   ('demo-espresso-new', 'barista-pro-espresso-new', 'US', 'BH-ESP-200-NEW', 49999, true, 'demo-espresso-machine', 'NEW', 2, 'condition=new|handling=2', '[]', 12),
   ('demo-espresso-refurbished', 'barista-pro-espresso-refurbished', 'US', 'BH-ESP-200-REF', 34999, true, 'demo-espresso-machine', 'REFURBISHED', 4, 'condition=refurbished|handling=4', '[]', 4),
   ('demo-headphones-black', 'cloud-anc-black', 'US', 'NSA-CLOUD-BLK', 19999, true, 'demo-wireless-headphones', 'NEW', 2, 'condition=new|handling=2', '[]', 24),
-  ('demo-headphones-sand', 'cloud-anc-sand', 'US', 'NSA-CLOUD-SND', 20999, true, 'demo-wireless-headphones', 'NEW', 2, 'condition=new|handling=2-sand', '[]', 8),
+  ('demo-headphones-sand', 'cloud-anc-sand', 'US', 'NSA-CLOUD-SND', 20999, true, 'demo-wireless-headphones', 'NEW', 2, 'condition=new|handling=2|legacy=sand', '[]', 8),
   ('demo-camera-body', 'creator-4k-body', 'US', 'FF-C4K-BODY', 89999, true, 'demo-creator-camera', 'NEW', 3, 'condition=new|handling=3', '[]', 6),
   ('demo-camera-kit', 'creator-4k-kit', 'US', 'FF-C4K-KIT', 109999, true, 'demo-creator-camera', 'NEW', 5, 'condition=new|handling=5', '[]', 3),
   ('demo-desk-bamboo', 'lift-desk-bamboo', 'US', 'FO-LIFT-BAMBOO', 54999, true, 'demo-standing-desk', 'NEW', 7, 'condition=new|handling=7', '[]', 10),

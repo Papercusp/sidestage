@@ -46,7 +46,6 @@ export type VariantPickerData = {
 export type VariantSelection = Readonly<Record<string, string | undefined>>;
 
 type AxisLookup = {
-  byId: Map<string, VariantPickerAxis>;
   byValueId: Map<string, { axis: VariantPickerAxis; value: VariantPickerValue }>;
 };
 
@@ -55,17 +54,15 @@ function sortedAxes(axes: readonly VariantPickerAxis[]): VariantPickerAxis[] {
 }
 
 function buildAxisLookup(axes: readonly VariantPickerAxis[]): AxisLookup {
-  const byId = new Map<string, VariantPickerAxis>();
   const byValueId = new Map<string, { axis: VariantPickerAxis; value: VariantPickerValue }>();
 
   for (const axis of axes) {
-    byId.set(axis.id, axis);
     for (const value of axis.values) {
       byValueId.set(value.id, { axis, value });
     }
   }
 
-  return { byId, byValueId };
+  return { byValueId };
 }
 
 function escapeSignaturePart(value: string): string {

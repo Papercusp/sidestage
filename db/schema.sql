@@ -319,21 +319,30 @@ RETURNS boolean
 LANGUAGE sql
 STABLE
 AS $$
-  SELECT NOT EXISTS (
-    SELECT 1
-    FROM storefront_product AS variant
-    JOIN product_option_axes AS axis
-      ON axis.group_id = variant.group_id
-     AND axis.region = variant.region
-     AND axis.required
-    WHERE variant.id = p_variant_id
-      AND NOT EXISTS (
-        SELECT 1
-        FROM storefront_product_option AS selected
-        WHERE selected.variant_id = variant.id
-          AND selected.axis_id = axis.id
-      )
-  );
+  SELECT EXISTS (SELECT 1 FROM storefront_product WHERE id = p_variant_id)
+    AND NOT EXISTS (
+      SELECT 1
+      FROM storefront_product AS variant
+      JOIN product_option_axes AS axis
+        ON axis.group_id = variant.group_id
+       AND axis.region = variant.region
+       AND axis.required
+      WHERE variant.id = p_variant_id
+        AND NOT EXISTS (
+          SELECT 1
+          FROM storefront_product_option AS selected
+          WHERE selected.variant_id = variant.id
+            AND selected.axis_id = axis.id
+        )
+    )
+    AND NOT EXISTS (
+      SELECT 1
+      FROM storefront_product_option AS selected
+      JOIN storefront_product AS variant ON variant.id = selected.variant_id
+      JOIN product_option_axes AS axis ON axis.id = selected.axis_id
+      WHERE selected.variant_id = p_variant_id
+        AND (axis.group_id <> variant.group_id OR axis.region <> variant.region)
+    );
 $$;
 
 -- Atomic compatibility primitive retained for the existing cart/order port.
@@ -428,12 +437,18 @@ BEGIN
   INSERT INTO inventory_reservation (variant_id, source_kind, source_id, quantity, state, expires_at)
   VALUES (p_variant_id, p_source_kind, p_source_id, p_quantity, 'held', p_expires_at)
   ON CONFLICT (source_kind, source_id, variant_id) DO UPDATE
-    SET quantity = EXCLUDED.quantity,
+    SET quantity = CASE
+          WHEN inventory_reservation.state = 'committed' THEN inventory_reservation.quantity
+          ELSE EXCLUDED.quantity
+        END,
         state = CASE
           WHEN inventory_reservation.state = 'committed' THEN inventory_reservation.state
           ELSE 'held'
         END,
-        expires_at = EXCLUDED.expires_at
+        expires_at = CASE
+          WHEN inventory_reservation.state = 'committed' THEN inventory_reservation.expires_at
+          ELSE EXCLUDED.expires_at
+        END
   RETURNING id INTO v_reservation_id;
 
   RETURN v_reservation_id;
