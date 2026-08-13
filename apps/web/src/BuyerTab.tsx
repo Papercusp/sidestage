@@ -3,14 +3,13 @@ import { FormEvent, useEffect, useMemo, useRef, useState } from 'react';
 import {
   availableBuyerProducts,
   buildBuyerShareUrl,
-  DEMO_BUYER_CHAT,
-  DEMO_BUYER_PRODUCTS,
   DEMO_BUYER_STATS,
   formatBuyerPrice,
-  type BuyerChatMessage,
   type BuyerProduct,
   type BuyerStats,
 } from './buyer';
+import { fetchCatalog, OFFLINE_FIXTURE, resolveApiBaseUrl, variantToBuyerProduct } from './catalog';
+import { EventChat } from './EventChat';
 import { AuctionPanel } from './AuctionPanel';
 import { connectViewer, createEventRoom, type ViewerSession } from './streaming';
 
@@ -18,10 +17,20 @@ export interface BuyerTabProps {
   eventId?: string;
   eventTitle?: string;
   products?: readonly BuyerProduct[];
-  chatMessages?: readonly BuyerChatMessage[];
   stats?: BuyerStats;
   mediaBaseUrl?: string;
   origin?: string;
+}
+
+/** A stable per-browser buyer identity, so holds and chat survive reloads. */
+function buyerSessionId(): string {
+  if (typeof window === 'undefined') return 'buyer-server-render';
+  const key = 'sidestage-buyer-id';
+  const existing = window.localStorage.getItem(key);
+  if (existing) return existing;
+  const created = `buyer-${crypto.randomUUID().slice(0, 8)}`;
+  window.localStorage.setItem(key, created);
+  return created;
 }
 
 type StreamState = 'idle' | 'connecting' | 'live' | 'error';
@@ -32,12 +41,30 @@ const DEFAULT_EVENT_TITLE = 'Sunday vintage drop';
 export function BuyerTab({
   eventId = DEFAULT_EVENT_ID,
   eventTitle = DEFAULT_EVENT_TITLE,
-  products = DEMO_BUYER_PRODUCTS,
+  products: productsProp,
   chatMessages = DEMO_BUYER_CHAT,
   stats = DEMO_BUYER_STATS,
   mediaBaseUrl,
   origin,
 }: BuyerTabProps) {
+  // The event's product rail comes from the ONE catalog source (P-102): the
+  // API read model when reachable, the shared offline fixture otherwise.
+  const [catalogProducts, setCatalogProducts] = useState<readonly BuyerProduct[] | null>(null);
+  useEffect(() => {
+    if (productsProp) return;
+    let cancelled = false;
+    fetchCatalog({ availability: 'in-stock', pageSize: 6 })
+      .then((page) => {
+        if (!cancelled) setCatalogProducts(page.rows.map(variantToBuyerProduct));
+      })
+      .catch(() => {
+        if (!cancelled) setCatalogProducts(OFFLINE_FIXTURE.map(variantToBuyerProduct));
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [productsProp]);
+  const products = productsProp ?? catalogProducts ?? [];
   const room = useMemo(() => createEventRoom(eventId, origin), [eventId, origin]);
   const shareUrl = useMemo(() => buildBuyerShareUrl(eventId, origin), [eventId, origin]);
   const [messages, setMessages] = useState<BuyerChatMessage[]>(() => [...chatMessages]);
