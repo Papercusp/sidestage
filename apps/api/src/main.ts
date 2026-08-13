@@ -2,7 +2,6 @@ import 'reflect-metadata';
 import { existsSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { NestFactory } from '@nestjs/core';
-import { AppModule } from './app.module';
 
 // Load the repo-root .env (cp .env.example .env per the README) without a
 // dotenv dependency; already-set variables win, matching dotenv semantics.
@@ -18,6 +17,9 @@ for (const candidate of [resolve(process.cwd(), '.env'), resolve(process.cwd(), 
 }
 
 async function bootstrap() {
+  // AppModule reaches config-backed packages during module evaluation. Import it
+  // only after loading the repo env so those packages observe the intended values.
+  const { AppModule } = await import('./app.module');
   const app = await NestFactory.create(AppModule);
   app.enableCors();
   // Production routes the API behind one hostname under /api (API_PREFIX=api);
