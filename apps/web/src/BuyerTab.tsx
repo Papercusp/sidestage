@@ -131,7 +131,7 @@ export function BuyerTab({
   const visibleProducts = availableBuyerProducts(products);
 
   return (
-    <section className="buyer-tab" id="buyer" aria-labelledby="buyer-title">
+    <section className="buyer-tab density-roomy" id="buyer" aria-labelledby="buyer-title">
       <div className="buyer-heading">
         <div>
           <p className="eyebrow">Join the room</p>
