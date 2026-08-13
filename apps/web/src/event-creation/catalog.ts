@@ -1,3 +1,5 @@
+import { OFFLINE_FIXTURE, variantToCatalogRow } from '../catalog';
+
 export type CatalogAvailabilityFilter = 'all' | 'in-stock';
 
 export interface CatalogRow {
@@ -35,116 +37,13 @@ export interface EventCreationPayload {
 }
 
 /**
- * The clean-clone catalog fixture keeps the event flow useful before the API
- * catalog read model is wired. Consumers can pass API rows through the same
- * shape when that seam is ready.
+ * Offline-only rendering of the single demo fixture (see ../catalog.ts).
+ * Live consumers use useCatalog() against the API read model; this derived
+ * constant exists for tests and API-unreachable fallbacks. The hand-written
+ * rows that used to live here were one of four parallel demo catalogs —
+ * deleted in sidestage-code-quality-2026-08-13 P-102.
  */
-export const DEMO_CATALOG: readonly CatalogRow[] = [
-  {
-    id: 'demo-espresso-new',
-    groupId: 'demo-espresso-machine',
-    title: 'Barista Pro Espresso Machine',
-    brand: 'BrewHaus',
-    productType: 'Kitchen appliance',
-    sku: 'BH-ESP-200-NEW',
-    condition: 'New',
-    handlingDays: 2,
-    priceCents: 49999,
-    availableQty: 12,
-    imageUrl: 'https://placehold.co/96x96/142a4b/9feaff?text=Espresso',
-  },
-  {
-    id: 'demo-espresso-refurbished',
-    groupId: 'demo-espresso-machine',
-    title: 'Barista Pro Espresso Machine',
-    brand: 'BrewHaus',
-    productType: 'Kitchen appliance',
-    sku: 'BH-ESP-200-REF',
-    condition: 'Refurbished',
-    handlingDays: 4,
-    priceCents: 34999,
-    availableQty: 4,
-    imageUrl: 'https://placehold.co/96x96/142a4b/9feaff?text=Espresso',
-  },
-  {
-    id: 'demo-headphones-black',
-    groupId: 'demo-wireless-headphones',
-    title: 'Cloud ANC Wireless Headphones',
-    brand: 'Northstar Audio',
-    productType: 'Audio',
-    sku: 'NSA-CLOUD-BLK',
-    condition: 'New',
-    handlingDays: 2,
-    priceCents: 19999,
-    availableQty: 24,
-    imageUrl: 'https://placehold.co/96x96/142a4b/9feaff?text=Cloud',
-  },
-  {
-    id: 'demo-headphones-sand',
-    groupId: 'demo-wireless-headphones',
-    title: 'Cloud ANC Wireless Headphones',
-    brand: 'Northstar Audio',
-    productType: 'Audio',
-    sku: 'NSA-CLOUD-SND',
-    condition: 'New',
-    handlingDays: 2,
-    priceCents: 20999,
-    availableQty: 8,
-    imageUrl: 'https://placehold.co/96x96/142a4b/9feaff?text=Cloud',
-  },
-  {
-    id: 'demo-camera-body',
-    groupId: 'demo-creator-camera',
-    title: 'Creator 4K Mirrorless Camera',
-    brand: 'FrameForge',
-    productType: 'Camera',
-    sku: 'FF-C4K-BODY',
-    condition: 'New',
-    handlingDays: 3,
-    priceCents: 89999,
-    availableQty: 6,
-    imageUrl: 'https://placehold.co/96x96/142a4b/9feaff?text=Camera',
-  },
-  {
-    id: 'demo-camera-kit',
-    groupId: 'demo-creator-camera',
-    title: 'Creator 4K Mirrorless Camera',
-    brand: 'FrameForge',
-    productType: 'Camera',
-    sku: 'FF-C4K-KIT',
-    condition: 'New',
-    handlingDays: 5,
-    priceCents: 109999,
-    availableQty: 3,
-    imageUrl: 'https://placehold.co/96x96/142a4b/9feaff?text=Camera',
-  },
-  {
-    id: 'demo-desk-bamboo',
-    groupId: 'demo-standing-desk',
-    title: 'Lift Electric Standing Desk',
-    brand: 'Field Office',
-    productType: 'Office furniture',
-    sku: 'FO-LIFT-BAMBOO',
-    condition: 'New',
-    handlingDays: 7,
-    priceCents: 54999,
-    availableQty: 10,
-    imageUrl: 'https://placehold.co/96x96/142a4b/9feaff?text=Desk',
-  },
-  {
-    id: 'demo-desk-open-box',
-    groupId: 'demo-standing-desk',
-    title: 'Lift Electric Standing Desk',
-    brand: 'Field Office',
-    productType: 'Office furniture',
-    sku: 'FO-LIFT-OPEN',
-    condition: 'Open box',
-    handlingDays: 9,
-    priceCents: 39999,
-    availableQty: 2,
-    imageUrl: 'https://placehold.co/96x96/142a4b/9feaff?text=Desk',
-  },
-];
+export const DEMO_CATALOG: readonly CatalogRow[] = OFFLINE_FIXTURE.map(variantToCatalogRow);
 
 export function formatPrice(cents: number): string {
   return `$${(Math.max(0, cents) / 100).toFixed(2)}`;

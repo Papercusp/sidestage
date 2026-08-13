@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { RichGrid, type ColumnDef } from '@papercusp/grid-core';
+import { useCatalog, variantToCatalogRow } from '../catalog';
 import {
-  DEMO_CATALOG,
   clampQuantity,
   createEventPayload,
   draftFromCatalog,
@@ -34,7 +34,7 @@ function ProductCell({ row }: { row: CatalogRow }) {
   );
 }
 
-export function EventCreationPanel({ catalog = DEMO_CATALOG, onCreateEvent }: EventCreationPanelProps) {
+export function EventCreationPanel({ catalog: catalogProp, onCreateEvent }: EventCreationPanelProps) {
   const [eventName, setEventName] = useState('');
   const [query, setQuery] = useState('');
   const [productType, setProductType] = useState(ALL_PRODUCT_TYPES);
@@ -43,13 +43,32 @@ export function EventCreationPanel({ catalog = DEMO_CATALOG, onCreateEvent }: Ev
   const [drafts, setDrafts] = useState<Record<string, EventItemDraft>>({});
   const [error, setError] = useState<string | null>(null);
 
+  // No catalog prop → the ONE product source (P-102): server-side search over
+  // the real catalog. A supplied prop (tests, embedding) keeps the local path.
+  const remote = useCatalog(
+    {
+      q: query,
+      productType: productType === ALL_PRODUCT_TYPES ? undefined : productType,
+      availability,
+      pageSize: 50,
+    },
+    undefined,
+    catalogProp ? Number.MAX_SAFE_INTEGER : 250,
+  );
+  const catalog = useMemo(
+    () => catalogProp ?? remote.rows.map(variantToCatalogRow),
+    [catalogProp, remote.rows],
+  );
+
   const productTypes = useMemo(
-    () => [...new Set(catalog.map((row) => row.productType))].sort(),
-    [catalog],
+    () => (catalogProp
+      ? [...new Set(catalogProp.map((row) => row.productType))].sort()
+      : remote.productTypes),
+    [catalogProp, remote.productTypes],
   );
   const filteredRows = useMemo(
-    () => filterCatalog(catalog, query, productType, availability),
-    [availability, catalog, productType, query],
+    () => (catalogProp ? filterCatalog(catalog, query, productType, availability) : [...catalog]),
+    [availability, catalog, catalogProp, productType, query],
   );
   const rowsById = useMemo(() => new Map(catalog.map((row) => [row.id, row])), [catalog]);
   const selectedRows = useMemo(

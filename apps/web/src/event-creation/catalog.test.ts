@@ -12,8 +12,8 @@ import {
 describe('event creation catalog helpers', () => {
   it('searches across product title, brand, type, sku, and condition', () => {
     expect(filterCatalog(DEMO_CATALOG, 'northstar', 'all', 'all')).toHaveLength(2);
-    expect(filterCatalog(DEMO_CATALOG, 'BH-ESP-200-REF', 'all', 'all')[0]?.condition).toBe('Refurbished');
-    expect(filterCatalog(DEMO_CATALOG, 'camera', 'Camera', 'in-stock')).toHaveLength(2);
+    expect(filterCatalog(DEMO_CATALOG, 'BH-ESP-200-REF', 'all', 'all')[0]?.condition).toBe('REFURBISHED');
+    expect(filterCatalog(DEMO_CATALOG, 'camera', 'CAMERA', 'in-stock')).toHaveLength(2);
   });
 
   it('clamps event quantity to a positive available-stock limit', () => {
