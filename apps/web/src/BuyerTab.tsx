@@ -12,6 +12,7 @@ import { EventChat } from './EventChat';
 import { DEFAULT_EVENT_ID, DEFAULT_EVENT_TITLE } from './event-identity';
 import { streamLabel, useCopyState, useStreamSession } from './hooks';
 import { AuctionPanel } from './AuctionPanel';
+import { BuyerProductRail } from './BuyerProductRail';
 import { connectViewer, createEventRoom, type ViewerSession } from './streaming';
 
 export interface BuyerTabProps {
@@ -204,33 +205,15 @@ export function BuyerTab({
             <span className="muted">{visibleProducts.length} available</span>
           </div>
           {holdNotice ? <p className="buyer-hold-notice" role="status">{holdNotice}</p> : null}
-          <div className="buyer-products" aria-label="Event products">
-            {products.map((rawProduct) => {
-              const liveQty = holdOverrides[rawProduct.id];
-              const product = liveQty === undefined ? rawProduct : { ...rawProduct, availableQty: liveQty };
-              const soldOut = product.availableQty <= 0;
-              return (
-                <article className={`buyer-product-card${selectedProductId === product.id ? ' selected' : ''}`} key={product.id}>
-                  <div className="buyer-product-art" aria-hidden="true">
-                    {product.imageUrl ? <img src={product.imageUrl} alt="" /> : <span>{product.title.slice(0, 1)}</span>}
-                    {product.badge ? <span className="buyer-product-badge">{product.badge}</span> : null}
-                  </div>
-                  <div className="buyer-product-copy">
-                    <div>
-                      <h4>{product.title}</h4>
-                      <p className="muted">{product.subtitle}</p>
-                    </div>
-                    <div className="buyer-price-row">
-                      <strong>{formatBuyerPrice(product.priceCents)}</strong>
-                      {product.compareAtPriceCents ? <del>{formatBuyerPrice(product.compareAtPriceCents)}</del> : null}
-                    </div>
-                    <button className="button secondary" type="button" disabled={soldOut} onClick={() => void reserveProduct(product)}>
-                      {soldOut ? 'Sold out' : selectedProductId === product.id ? 'Held for you' : 'Hold item'}
-                    </button>
-                  </div>
-                </article>
-              );
-            })}
+          <div aria-label="Event products">
+            <BuyerProductRail
+              products={products.map((product) => {
+                const liveQty = holdOverrides[product.id];
+                return liveQty === undefined ? product : { ...product, availableQty: liveQty };
+              })}
+              selectedProductId={selectedProductId}
+              onHold={reserveProduct}
+            />
           </div>
         </div>
 
