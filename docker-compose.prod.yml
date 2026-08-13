@@ -54,7 +54,7 @@ services:
       - traefik.enable=true
       - traefik.docker.network=coolify
       - traefik.http.routers.sidestage-media.rule=Host(`media.${PUBLIC_HOSTNAME:-sidestage.buyrestart.com}`)
-      - traefik.http.routers.sidestage-media.entrypoints=websecure
+      - traefik.http.routers.sidestage-media.entrypoints=https
       - traefik.http.routers.sidestage-media.tls.certresolver=letsencrypt
       - traefik.http.services.sidestage-media.loadbalancer.server.port=8889
 
@@ -78,7 +78,7 @@ services:
       - traefik.enable=true
       - traefik.docker.network=coolify
       - traefik.http.routers.sidestage-api.rule=Host(`${PUBLIC_HOSTNAME:-sidestage.buyrestart.com}`) && (PathPrefix(`/api`) || Path(`/healthz`))
-      - traefik.http.routers.sidestage-api.entrypoints=websecure
+      - traefik.http.routers.sidestage-api.entrypoints=https
       - traefik.http.routers.sidestage-api.tls.certresolver=letsencrypt
       - traefik.http.services.sidestage-api.loadbalancer.server.port=3100
 
@@ -98,7 +98,7 @@ services:
       - traefik.docker.network=coolify
       - traefik.http.routers.sidestage-web.rule=Host(`${PUBLIC_HOSTNAME:-sidestage.buyrestart.com}`)
       - traefik.http.routers.sidestage-web.priority=1
-      - traefik.http.routers.sidestage-web.entrypoints=websecure
+      - traefik.http.routers.sidestage-web.entrypoints=https
       - traefik.http.routers.sidestage-web.tls.certresolver=letsencrypt
       - traefik.http.services.sidestage-web.loadbalancer.server.port=80
 
