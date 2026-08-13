@@ -1,5 +1,5 @@
 import { Body, Controller, Get, Param, Post, Sse, type MessageEvent } from '@nestjs/common';
-import { interval, merge, of, type Observable } from 'rxjs';
+import { from, interval, merge, type Observable } from 'rxjs';
 import { map } from 'rxjs/operators';
 import { AuctionService, type AuctionSseEvent, type PlaceBidInput, type StartAuctionInput } from './auction.service';
 
@@ -19,7 +19,9 @@ export class AuctionController {
 
   @Sse('events/:eventId/stream')
   stream(@Param('eventId') eventId: string): Observable<MessageEvent> {
-    const initial = of(this.auctions.snapshotEvent(eventId) as MessageEvent);
+    const initial = from(this.auctions.snapshotEvent(eventId)).pipe(
+      map((event): MessageEvent => event as AuctionSseEvent as MessageEvent),
+    );
     const updates = this.auctions.updates(eventId).pipe(
       map((event): MessageEvent => event as AuctionSseEvent as MessageEvent),
     );

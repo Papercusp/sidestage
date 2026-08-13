@@ -13,28 +13,37 @@ export interface AuctionInventorySnapshot {
   availableQty: number;
 }
 
+/** Identifies WHO holds inventory, so holds are idempotent and releasable per source. */
+export interface InventoryHoldSource {
+  kind: 'auction' | 'event' | 'cart';
+  id: string;
+}
+
 /**
  * Inventory is intentionally a seam. The clean-clone demo uses the atomic
- * in-memory implementation below; the Postgres implementation can delegate
- * to reserve_storefront_stock/release_storefront_stock in db/schema.sql.
+ * in-memory implementation below; PgAuctionInventory (db/pg-auction-inventory)
+ * delegates to the source-tracked reserve_inventory()/release_inventory()
+ * primitives in db/schema.sql. The contract is async because the durable
+ * implementation is.
  */
 export interface AuctionInventory {
-  get(productId: string): AuctionInventorySnapshot | undefined;
-  seed(productId: string, qty: number, reservedQty?: number): AuctionInventorySnapshot;
-  reserve(productId: string, quantity: number): boolean;
-  release(productId: string, quantity: number): boolean;
+  get(productId: string): Promise<AuctionInventorySnapshot | undefined>;
+  seed(productId: string, qty: number, reservedQty?: number): Promise<AuctionInventorySnapshot>;
+  reserve(productId: string, quantity: number, source: InventoryHoldSource): Promise<boolean>;
+  release(productId: string, quantity: number, source: InventoryHoldSource): Promise<boolean>;
 }
 
 @Injectable()
 export class InMemoryAuctionInventory implements AuctionInventory {
   private readonly items = new Map<string, AuctionInventorySnapshot>();
+  private readonly holds = new Map<string, number>();
 
-  get(productId: string): AuctionInventorySnapshot | undefined {
+  async get(productId: string): Promise<AuctionInventorySnapshot | undefined> {
     const item = this.items.get(productId);
     return item ? { ...item } : undefined;
   }
 
-  seed(productId: string, qty: number, reservedQty = 0): AuctionInventorySnapshot {
+  async seed(productId: string, qty: number, reservedQty = 0): Promise<AuctionInventorySnapshot> {
     const id = this.readId(productId, 'productId');
     if (!Number.isInteger(qty) || qty < 0) throw new BadRequestException('qty must be a non-negative integer');
     if (!Number.isInteger(reservedQty) || reservedQty < 0 || reservedQty > qty) {
@@ -45,22 +54,34 @@ export class InMemoryAuctionInventory implements AuctionInventory {
     return { ...item };
   }
 
-  reserve(productId: string, quantity: number): boolean {
+  async reserve(productId: string, quantity: number, source: InventoryHoldSource): Promise<boolean> {
     if (!Number.isInteger(quantity) || quantity <= 0) throw new BadRequestException('quantity must be a positive integer');
     const item = this.items.get(productId);
-    if (!item || item.availableQty < quantity) return false;
-    item.reservedQty += quantity;
+    if (!item) return false;
+    const holdKey = this.holdKey(productId, source);
+    const previous = this.holds.get(holdKey) ?? 0;
+    // Idempotent per source, like reserve_inventory(): re-reserving replaces the hold.
+    if (item.availableQty + previous < quantity) return false;
+    item.reservedQty += quantity - previous;
     item.availableQty = Math.max(0, item.qty - item.reservedQty);
+    this.holds.set(holdKey, quantity);
     return true;
   }
 
-  release(productId: string, quantity: number): boolean {
+  async release(productId: string, quantity: number, source: InventoryHoldSource): Promise<boolean> {
     if (!Number.isInteger(quantity) || quantity <= 0) throw new BadRequestException('quantity must be a positive integer');
     const item = this.items.get(productId);
-    if (!item || item.reservedQty < quantity) return false;
-    item.reservedQty -= quantity;
+    const holdKey = this.holdKey(productId, source);
+    const held = this.holds.get(holdKey) ?? 0;
+    if (!item || held === 0) return false;
+    item.reservedQty = Math.max(0, item.reservedQty - held);
     item.availableQty = Math.max(0, item.qty - item.reservedQty);
+    this.holds.delete(holdKey);
     return true;
+  }
+
+  private holdKey(productId: string, source: InventoryHoldSource): string {
+    return `${source.kind}:${source.id}:${productId}`;
   }
 
   private readId(value: string, field: string): string {
@@ -143,11 +164,11 @@ export class AuctionService {
 
   constructor(@Inject(AUCTION_INVENTORY) private readonly inventory: AuctionInventory) {}
 
-  startAuction(input: StartAuctionInput): Auction {
+  async startAuction(input: StartAuctionInput): Promise<Auction> {
     const eventId = this.readId(input.eventId, 'eventId');
     const eventItemId = this.readId(input.eventItemId, 'eventItemId');
     const productId = this.readId(input.productId, 'productId');
-    this.expireActive(eventId);
+    await this.expireActive(eventId);
     const activeId = this.activeByEvent.get(eventId);
     if (activeId) throw new ConflictException(`Event ${eventId} already has an active auction`);
 
@@ -158,20 +179,24 @@ export class AuctionService {
       throw new BadRequestException(`durationSec must be an integer between 1 and ${MAX_DURATION_SEC}`);
     }
 
+    // The auction id doubles as the inventory-hold source id, so it is minted
+    // before the hold is placed.
+    const auctionId = `auction_${randomUUID()}`;
+
     // Event-item setup normally seeds this snapshot before the auction call.
     // Accepting it here keeps a clean clone runnable while still reserving only
     // against the inventory-owned quantity, never against a caller's quantity.
-    if (!this.inventory.get(productId)) {
+    if (!(await this.inventory.get(productId))) {
       if (input.availableQty === undefined) throw new NotFoundException(`Inventory item ${productId} was not found`);
-      this.inventory.seed(productId, this.readNonNegativeInt(input.availableQty, 'availableQty'));
+      await this.inventory.seed(productId, this.readNonNegativeInt(input.availableQty, 'availableQty'));
     }
-    if (!this.inventory.reserve(productId, quantity)) {
+    if (!(await this.inventory.reserve(productId, quantity, { kind: 'auction', id: auctionId }))) {
       throw new ConflictException(`Insufficient available quantity for ${productId}`);
     }
 
     const now = Date.now();
     const auction: Auction = {
-      id: `auction_${randomUUID()}`,
+      id: auctionId,
       eventId,
       eventItemId,
       productId,
@@ -189,23 +214,23 @@ export class AuctionService {
     return this.cloneAuction(auction);
   }
 
-  getActiveAuction(eventId: string): Auction | null {
+  async getActiveAuction(eventId: string): Promise<Auction | null> {
     const id = this.activeByEvent.get(this.readId(eventId, 'eventId'));
     if (!id) return null;
-    this.expireActive(eventId);
+    await this.expireActive(eventId);
     const auction = this.auctions.get(id);
     return auction?.status === 'active' ? this.cloneAuction(auction) : null;
   }
 
-  getAuction(id: string): Auction | null {
+  async getAuction(id: string): Promise<Auction | null> {
     const auction = this.requireAuction(id);
-    if (auction.status === 'active' && Date.now() >= Date.parse(auction.endsAt)) this.closeInternal(auction);
+    if (auction.status === 'active' && Date.now() >= Date.parse(auction.endsAt)) await this.closeInternal(auction);
     return this.cloneAuction(auction);
   }
 
-  placeBid(id: string, input: PlaceBidInput): Auction {
+  async placeBid(id: string, input: PlaceBidInput): Promise<Auction> {
     const auction = this.requireAuction(id);
-    if (auction.status === 'active' && Date.now() >= Date.parse(auction.endsAt)) this.closeInternal(auction);
+    if (auction.status === 'active' && Date.now() >= Date.parse(auction.endsAt)) await this.closeInternal(auction);
     if (auction.status !== 'active') throw new ConflictException('Auction is closed');
     const bidderId = this.readId(input.bidderId, 'bidderId');
     const amountCents = this.readMoney(input.amountCents, 'amountCents');
@@ -226,33 +251,33 @@ export class AuctionService {
     return this.cloneAuction(auction);
   }
 
-  closeAuction(id: string): Auction {
+  async closeAuction(id: string): Promise<Auction> {
     const auction = this.requireAuction(id);
-    if (auction.status === 'active') this.closeInternal(auction);
+    if (auction.status === 'active') await this.closeInternal(auction);
     return this.cloneAuction(auction);
   }
 
-  inventorySnapshot(productId: string): AuctionInventorySnapshot | null {
-    return this.inventory.get(this.readId(productId, 'productId')) ?? null;
+  async inventorySnapshot(productId: string): Promise<AuctionInventorySnapshot | null> {
+    return (await this.inventory.get(this.readId(productId, 'productId'))) ?? null;
   }
 
   updates(eventId: string): Observable<AuctionSseEvent> {
     return this.updateSubject(this.readId(eventId, 'eventId')).asObservable();
   }
 
-  snapshotEvent(eventId: string): AuctionSseEvent {
+  async snapshotEvent(eventId: string): Promise<AuctionSseEvent> {
     const resolvedEventId = this.readId(eventId, 'eventId');
-    return this.createAuctionEvent(resolvedEventId, this.getActiveAuction(resolvedEventId));
+    return this.createAuctionEvent(resolvedEventId, await this.getActiveAuction(resolvedEventId));
   }
 
-  private expireActive(eventId: string): void {
+  private async expireActive(eventId: string): Promise<void> {
     const id = this.activeByEvent.get(eventId);
     if (!id) return;
     const auction = this.auctions.get(id);
-    if (auction?.status === 'active' && Date.now() >= Date.parse(auction.endsAt)) this.closeInternal(auction);
+    if (auction?.status === 'active' && Date.now() >= Date.parse(auction.endsAt)) await this.closeInternal(auction);
   }
 
-  private closeInternal(auction: Auction): void {
+  private async closeInternal(auction: Auction): Promise<void> {
     if (auction.status !== 'active') return;
     auction.status = 'closed';
     auction.closedAt = new Date().toISOString();
@@ -260,7 +285,7 @@ export class AuctionService {
     const winner = auction.bids[0];
     if (!winner) {
       // No winner means the start-time hold is no longer needed.
-      this.inventory.release(auction.productId, auction.quantity);
+      await this.inventory.release(auction.productId, auction.quantity, { kind: 'auction', id: auction.id });
       this.emitAuctionUpdate(auction);
       return;
     }
