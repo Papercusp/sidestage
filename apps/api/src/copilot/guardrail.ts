@@ -9,7 +9,11 @@ import type {
 } from './copilot.types';
 
 const MAX_PRICE_CENTS = Number.MAX_SAFE_INTEGER;
-const ACTION_KINDS = new Set<CopilotActionProposal['kind']>(['markdown', 'price-adjust', 'targeted-offer']);
+const ACTION_KINDS = new Set<CopilotActionProposal['kind']>([
+  'markdown', 'price-adjust', 'targeted-offer', 'push', 'swap', 'stock-adjust',
+]);
+/** Kinds that change money and therefore pass the price/floor/markdown gate. */
+const PRICE_KINDS = new Set<CopilotActionProposal['kind']>(['markdown', 'price-adjust', 'targeted-offer']);
 
 function allowed(): GuardrailDecision {
   return { allowed: true };
@@ -84,8 +88,34 @@ export class PolicyActionGuard implements ActionGuard {
           `Only ${eventItem.availableQty} unit${eventItem.availableQty === 1 ? '' : 's'} remain available for ${eventItem.title}.`,
         );
       }
+    } else if (action.kind === 'stock-adjust') {
+      if (!Number.isSafeInteger(action.quantity) || (action.quantity as number) < 0) {
+        return blocked('invalid-action', 'A stock adjustment must specify a non-negative whole-unit quantity.');
+      }
+      if ((action.quantity as number) > eventItem.availableQty) {
+        return blocked(
+          'availability',
+          `Only ${eventItem.availableQty} unit${eventItem.availableQty === 1 ? '' : 's'} exist in verified inventory for ${eventItem.title}.`,
+        );
+      }
     } else if (action.quantity !== undefined) {
       return blocked('invalid-action', `${action.kind} actions cannot include a quantity.`);
+    }
+
+    if (action.kind === 'swap' && !action.swapToProductId?.trim()) {
+      return blocked('invalid-action', 'A swap must name the verified event item that takes the stage.');
+    }
+    if (action.kind !== 'swap' && action.swapToProductId !== undefined) {
+      return blocked('invalid-action', `${action.kind} actions cannot include a swap target.`);
+    }
+
+    // Push, swap, and stock-adjust move no money; the price gate below only
+    // applies to the price-bearing kinds.
+    if (!PRICE_KINDS.has(action.kind)) {
+      if (action.priceCents !== undefined) {
+        return blocked('invalid-action', `${action.kind} actions cannot change the price.`);
+      }
+      return allowed();
     }
 
     if (!isMoney(action.priceCents) || action.priceCents <= 0) {

@@ -8,7 +8,13 @@
 
 export type AutomationLevel = 'suggest' | 'confirm' | 'auto';
 
-export type CopilotActionKind = 'markdown' | 'price-adjust' | 'targeted-offer';
+export type CopilotActionKind =
+  | 'markdown'
+  | 'price-adjust'
+  | 'targeted-offer'
+  | 'push'
+  | 'swap'
+  | 'stock-adjust';
 
 export interface EventItemContext {
   eventItemId: string;
@@ -77,11 +83,13 @@ export interface CopilotRequest {
 export interface CopilotActionProposal {
   kind: CopilotActionKind;
   productId: string;
-  /** Quantity for a targeted offer; omitted for a pure price/markdown change. */
+  /** Quantity for a targeted offer or a stock adjustment; omitted otherwise. */
   quantity?: number;
-  /** Proposed final price, in integer cents. */
+  /** Proposed final price, in integer cents (price-bearing kinds only). */
   priceCents?: number;
   buyerId?: string;
+  /** For a swap: the verified event item that replaces this one on stage. */
+  swapToProductId?: string;
   reason: string;
 }
 
