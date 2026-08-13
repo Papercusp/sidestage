@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { CopilotPanel } from './CopilotPanel';
 import { ProductCard, type ProductTone } from './components/ProductCard';
+import { EventChat } from './EventChat';
 import {
   connectPublisher,
   connectViewer,
@@ -77,7 +78,11 @@ function mediaBaseUrl(): string | undefined {
 function browserEventId(): string {
   if (typeof window === 'undefined') return DEFAULT_EVENT_ID;
   const eventId = new URLSearchParams(window.location.search).get('event');
-  const normalized = eventId?.trim().toLowerCase() ?? '';
+  return chatEventId(eventId ?? '');
+}
+
+function chatEventId(value: string): string {
+  const normalized = value.trim().toLowerCase();
   return /^[a-z0-9][a-z0-9-]{0,63}$/.test(normalized) ? normalized : DEFAULT_EVENT_ID;
 }
 
@@ -252,6 +257,14 @@ function BuyerTab({ onAddToStage, selectedProduct }: { onAddToStage: (id: string
           <ProductCard key={product.id} {...product} selected={product.id === selectedProduct} onSelect={onAddToStage} />
         ))}
       </div>
+      <EventChat
+        eventId={eventId}
+        role="buyer"
+        userId="buyer-demo"
+        displayName="Maya"
+        eventTitle={DEFAULT_EVENT_TITLE}
+        apiBaseUrl={import.meta.env.VITE_API_URL}
+      />
     </div>
   );
 }
@@ -377,6 +390,14 @@ function SellerTab({ selectedProduct }: { selectedProduct: CatalogProduct | null
           <p>The product description and event policy support this suggestion. Nothing is sent without your approval.</p>
         </section>
         <CopilotPanel apiBaseUrl={import.meta.env.VITE_API_URL} />
+        <EventChat
+          eventId={room?.eventId ?? chatEventId(eventId)}
+          role="seller"
+          userId="seller-demo"
+          displayName="Host"
+          eventTitle={DEFAULT_EVENT_TITLE}
+          apiBaseUrl={import.meta.env.VITE_API_URL}
+        />
       </div>
     </div>
   );
