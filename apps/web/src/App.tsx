@@ -5,6 +5,7 @@ import { type ProductTone } from './components/ProductCard';
 import { EventChat } from './EventChat';
 import { TranscriptPane, type TranscriptProductOption } from './TranscriptPane';
 import EventManager from './events/EventManager';
+import { JUDGE_DIMENSIONS, dimensionLabel, runJudgeRehearsal, scorePercent, type JudgeReport } from './judge';
 import { simulateLoad, type LoadSimulationResult } from './load-simulator';
 import {
   connectPublisher,
@@ -356,6 +357,9 @@ export function TestTab() {
   const [durationSeconds, setDurationSeconds] = useState('4');
   const [simulation, setSimulation] = useState<LoadSimulationResult | null>(null);
   const [simulationError, setSimulationError] = useState<string | null>(null);
+  const [judgeReport, setJudgeReport] = useState<JudgeReport | null>(null);
+  const [judgeError, setJudgeError] = useState<string | null>(null);
+  const [judgeRunning, setJudgeRunning] = useState(false);
 
   const runLoadRehearsal = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -370,6 +374,19 @@ export function TestTab() {
     } catch (error) {
       setSimulation(null);
       setSimulationError(error instanceof Error ? error.message : 'Enter positive whole numbers for each field.');
+    }
+  };
+
+  const runJudge = async () => {
+    setJudgeRunning(true);
+    setJudgeError(null);
+    try {
+      setJudgeReport(await runJudgeRehearsal(import.meta.env.VITE_API_URL));
+    } catch (error) {
+      setJudgeReport(null);
+      setJudgeError(error instanceof Error ? error.message : 'The reply judge could not be reached.');
+    } finally {
+      setJudgeRunning(false);
     }
   };
 
@@ -419,6 +436,61 @@ export function TestTab() {
               <div className="load-coverage-list">
                 {simulation.coverage.expectedKinds.map((kind) => <span className={'coverage-chip' + (simulation.coverage.observedKinds.includes(kind) ? ' covered' : '')} key={kind}>{kind} · {simulation.coverage.counts[kind] ?? 0}</span>)}
               </div>
+            </div>
+          </div>
+        ) : null}
+      </section>
+      <section className="judge-panel" aria-labelledby="judge-title">
+        <div className="panel-kicker">Reply judge <span className="panel-status">{judgeReport ? (judgeReport.passed ? 'Passed' : 'Needs review') : judgeRunning ? 'Running' : 'Not run'}</span></div>
+        <h2 id="judge-title">Grade the copilot before buyers do.</h2>
+        <p className="judge-copy">Run the deterministic four-dimension rehearsal against the same grounding, policy, price, and tone seam the API exposes. It stays local to this test surface and sends no reply to buyers.</p>
+        <button className="button secondary" type="button" onClick={() => void runJudge()} disabled={judgeRunning}>
+          {judgeRunning ? 'Running judge…' : 'Run judge rehearsal'}
+        </button>
+        {judgeError ? <p className="judge-error" role="alert">{judgeError}</p> : null}
+        {judgeReport ? (
+          <div className="judge-report" aria-live="polite">
+            <div className="judge-report-summary">
+              <div><strong>{scorePercent(judgeReport.overallScore)}</strong><span>overall score</span></div>
+              <div><strong>{judgeReport.passedCases}/{judgeReport.totalCases}</strong><span>cases passed</span></div>
+              <div><strong>{judgeReport.latencyMs}ms</strong><span>judge latency</span></div>
+            </div>
+            <div className="judge-dimensions">
+              <div className="judge-section-heading"><span>Dimension scores</span><strong>Threshold {scorePercent(judgeReport.passThreshold)}</strong></div>
+              <div className="judge-dimension-grid">
+                {JUDGE_DIMENSIONS.map((dimension) => {
+                  const result = judgeReport.dimensions[dimension];
+                  return (
+                    <div className="judge-dimension" key={dimension}>
+                      <span>{dimensionLabel(dimension)}</span>
+                      <strong className={result.passed ? 'status-success' : 'status-warning'}>{scorePercent(result.score)}</strong>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+            <div className="judge-case-list">
+              {judgeReport.cases.map((testCase) => (
+                <article className={`judge-case ${testCase.passed ? 'is-passed' : 'is-failed'}`} key={testCase.caseId}>
+                  <div className="judge-case-heading">
+                    <div><span className="judge-case-label">{testCase.caseId}</span><strong>{testCase.question}</strong></div>
+                    <span className={testCase.passed ? 'status-success' : 'status-warning'}>{scorePercent(testCase.overallScore)} · {testCase.passed ? 'Pass' : 'Review'}</span>
+                  </div>
+                  <p className="judge-case-reply">“{testCase.reply}”</p>
+                  <div className="judge-case-dimensions">
+                    {JUDGE_DIMENSIONS.map((dimension) => {
+                      const result = testCase.dimensions[dimension];
+                      return (
+                        <div className="judge-case-dimension" key={dimension}>
+                          <span>{dimensionLabel(dimension)}</span>
+                          <strong className={result.passed ? 'status-success' : 'status-warning'}>{scorePercent(result.score)}</strong>
+                          <small>{result.rationale}</small>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </article>
+              ))}
             </div>
           </div>
         ) : null}

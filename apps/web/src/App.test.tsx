@@ -47,5 +47,9 @@ describe('P-022 load simulator tab', () => {
     expect(markup).toContain('Duration (seconds)');
     expect(markup).toContain('Run load rehearsal');
     expect(markup).toContain('without sending anything to buyers');
+    expect(markup).toContain('Reply judge');
+    expect(markup).toContain('Grade the copilot before buyers do.');
+    expect(markup).toContain('Run judge rehearsal');
+    expect(markup).toContain('same grounding, policy, price, and tone seam');
   });
 });
