@@ -4,6 +4,7 @@ import { CopilotPanel } from './CopilotPanel';
 import { type ProductTone } from './components/ProductCard';
 import { EventChat } from './EventChat';
 import { TranscriptPane, type TranscriptProductOption } from './TranscriptPane';
+import EventManager from './events/EventManager';
 import { simulateLoad, type LoadSimulationResult } from './load-simulator';
 import {
   connectPublisher,
@@ -303,6 +304,7 @@ function SellerTab({
           eventTitle={DEFAULT_EVENT_TITLE}
           apiBaseUrl={import.meta.env.VITE_API_URL}
         />
+        <EventManager />
       </div>
     </div>
   );
