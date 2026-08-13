@@ -1,0 +1,21 @@
+.auction-card { display: grid; gap: 1rem; padding: 1.1rem; border: 1px solid rgba(118,231,255,.24); border-radius: 1.15rem; background: linear-gradient(145deg,rgba(10,30,47,.96),rgba(20,18,49,.94)); box-shadow: 0 20px 52px rgba(3,8,21,.28); }
+.auction-card-heading,.auction-bid-row,.auction-leader { display: flex; align-items: center; }
+.auction-card-heading { justify-content: space-between; gap: 1rem; }
+.auction-card-heading h3,.auction-card-heading p { margin: 0; }
+.auction-sync { display: inline-flex; align-items: center; gap: .45rem; padding: .4rem .7rem; border: 1px solid rgba(133,240,205,.2); border-radius: 999px; color: #b7f7e5; font-size: .76rem; font-weight: 700; letter-spacing: .04em; }
+.auction-sync > span { width: .5rem; height: .5rem; border-radius: 50%; background: #65efc4; box-shadow: 0 0 12px rgba(101,239,196,.8); }
+.auction-sync-reconnecting > span,.auction-sync-connecting > span { background: #ffc56e; box-shadow: 0 0 12px rgba(255,197,110,.7); }
+.auction-metrics { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: .6rem; }
+.auction-metrics > div { display: grid; gap: .25rem; padding: .8rem; border: 1px solid rgba(255,255,255,.08); border-radius: .85rem; background: rgba(255,255,255,.035); }
+.auction-metrics span,.auction-bid-form small,.auction-empty span { color: var(--muted); font-size: .78rem; }
+.auction-metrics strong { color: #f7fbff; font-size: 1.3rem; }
+.auction-leader { min-height: 2.6rem; padding: .65rem .8rem; border-left: 3px solid #8f7dff; border-radius: .45rem; background: rgba(143,125,255,.1); color: #dcd6ff; font-weight: 650; }
+.auction-leader.is-you { border-left-color: #65efc4; background: rgba(101,239,196,.1); color: #c9ffef; }
+.auction-bid-form { display: grid; gap: .45rem; }
+.auction-bid-form > label { color: #edf7ff; font-size: .82rem; font-weight: 700; }
+.auction-bid-row { gap: .55rem; }
+.auction-bid-row > span { margin-right: -.25rem; color: #9eb2c6; }
+.auction-bid-row input { min-width: 0; flex: 1; padding: .7rem .8rem; border: 1px solid rgba(138,218,255,.24); border-radius: .72rem; background: rgba(4,12,24,.72); color: #f7fbff; font: inherit; }
+.auction-empty { display: grid; gap: .25rem; margin: 0; padding: 1rem; border: 1px dashed rgba(147,191,221,.24); border-radius: .9rem; color: #eaf5ff; }
+.auction-error { margin: 0; color: #ffb5bd; font-size: .82rem; }
+@media (max-width:560px) { .auction-card-heading,.auction-bid-row { align-items: stretch; flex-direction: column; } .auction-sync { align-self: flex-start; } .auction-metrics { grid-template-columns: 1fr; } }

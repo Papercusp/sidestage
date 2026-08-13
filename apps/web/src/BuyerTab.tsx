@@ -11,6 +11,7 @@ import {
   type BuyerProduct,
   type BuyerStats,
 } from './buyer';
+import { AuctionPanel } from './AuctionPanel';
 import { connectViewer, createEventRoom, type ViewerSession } from './streaming';
 
 export interface BuyerTabProps {
@@ -187,6 +188,8 @@ export function BuyerTab({
             <div><strong>{stats.itemsSold}</strong><span>items sold</span></div>
             <div><strong>{formatBuyerPrice(stats.totalRaisedCents)}</strong><span>raised</span></div>
           </div>
+
+          <AuctionPanel eventId={eventId} products={products} apiBaseUrl={import.meta.env.VITE_API_URL} />
 
           <div className="buyer-products-heading">
             <div>
