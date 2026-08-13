@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { createHmac } from 'node:crypto';
 import { CartService, InMemoryCartStore } from '../cart/cart.service';
-import { CheckoutService, SquareSandboxProvider, verifySquareWebhookSignature, type PaymentProvider } from './checkout.service';
+import { CheckoutService, InMemoryOrderStore, SquareSandboxProvider, verifySquareWebhookSignature, type PaymentProvider } from './checkout.service';
 
 const provider = (result: 'paid' | 'failed' = 'paid'): PaymentProvider => ({
   createSession: async (input) => ({ provider: 'square', mode: 'sandbox', status: 'ready', appId: 'app', locationId: 'loc', currency: input.currency, amountCents: input.amountCents, orderId: input.orderId }),
@@ -12,7 +12,7 @@ describe('CheckoutService', () => {
   it('creates an idempotent pending order from cart snapshots', async () => {
     const carts = new CartService(new InMemoryCartStore());
     const cart = await carts.addItem({ cartId: 'cart-1', productId: 'p-1', title: 'Mug', priceCents: 1250, quantity: 2 });
-    const checkout = new CheckoutService(provider(), carts);
+    const checkout = new CheckoutService(provider(), new InMemoryOrderStore(), carts);
     const first = await checkout.createSession({ cartId: cart.id, shippingCents: 500 });
     const retry = await checkout.createSession({ cartId: cart.id, shippingCents: 500 });
     expect(first.order.totalCents).toBe(3000);
@@ -23,7 +23,7 @@ describe('CheckoutService', () => {
   it('moves an order to paid only after the provider confirms it', async () => {
     const carts = new CartService(new InMemoryCartStore());
     const cart = await carts.addItem({ cartId: 'cart-2', productId: 'p-2', title: 'Headphones', priceCents: 19999 });
-    const checkout = new CheckoutService(provider(), carts);
+    const checkout = new CheckoutService(provider(), new InMemoryOrderStore(), carts);
     const session = await checkout.createSession({ cartId: cart.id });
     const confirmation = await checkout.confirmPayment({ orderId: session.order.id, sourceId: 'cnon:card-nonce-ok' });
     expect(confirmation.payment.status).toBe('paid');

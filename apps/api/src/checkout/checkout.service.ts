@@ -3,6 +3,7 @@ import { createHmac, randomUUID, timingSafeEqual } from 'node:crypto';
 import { CartService, type Cart } from '../cart/cart.service';
 
 export const CHECKOUT_PAYMENT_PROVIDER = Symbol('CHECKOUT_PAYMENT_PROVIDER');
+export const ORDER_STORE = Symbol('ORDER_STORE');
 
 export type PaymentSessionStatus = 'ready' | 'needs-configuration';
 export type PaymentResultStatus = 'paid' | 'failed' | 'needs-configuration';
@@ -30,6 +31,16 @@ export interface PaymentProvider {
 }
 
 export type CheckoutOrderStatus = 'pending' | 'paid' | 'failed';
+
+/**
+ * Order persistence seam: PgOrderStore (db/pg-order-store) keeps orders across
+ * restarts; the in-memory store below backs tests and DB-less clean clones.
+ */
+export interface OrderStore {
+  get(id: string): Promise<CheckoutOrder | undefined>;
+  findPendingByCart(cartId: string): Promise<CheckoutOrder | undefined>;
+  set(order: CheckoutOrder): Promise<void>;
+}
 
 export interface CheckoutOrder {
   id: string;
@@ -117,11 +128,27 @@ export function verifySquareWebhookSignature(rawBody: string, signature: string,
 }
 
 @Injectable()
-export class CheckoutService {
+export class InMemoryOrderStore implements OrderStore {
   private readonly orders = new Map<string, CheckoutOrder>();
 
+  async get(id: string): Promise<CheckoutOrder | undefined> {
+    return this.orders.get(id);
+  }
+
+  async findPendingByCart(cartId: string): Promise<CheckoutOrder | undefined> {
+    return [...this.orders.values()].find((order) => order.cartId === cartId && order.status === 'pending');
+  }
+
+  async set(order: CheckoutOrder): Promise<void> {
+    this.orders.set(order.id, order);
+  }
+}
+
+@Injectable()
+export class CheckoutService {
   constructor(
     @Inject(CHECKOUT_PAYMENT_PROVIDER) private readonly provider: PaymentProvider,
+    @Inject(ORDER_STORE) private readonly orders: OrderStore,
     private readonly carts: CartService,
   ) {}
 
@@ -130,7 +157,7 @@ export class CheckoutService {
     if (!cart || cart.items.length === 0) throw new Error('Cart is empty or not found');
     const shippingCents = input.shippingCents ?? 0;
     if (!Number.isInteger(shippingCents) || shippingCents < 0) throw new Error('shippingCents must be a non-negative integer');
-    const existing = [...this.orders.values()].find((order) => order.cartId === cart.id && order.status === 'pending');
+    const existing = await this.orders.findPendingByCart(cart.id);
     if (existing) return { order: this.cloneOrder(existing), session: existing.paymentSession };
 
     const subtotalCents = cart.subtotalCents;
@@ -148,22 +175,23 @@ export class CheckoutService {
       items: cart.items.map((item) => ({ ...item })),
       paymentSession: session,
     };
-    this.orders.set(order.id, order);
+    await this.orders.set(order);
     return { order: this.cloneOrder(order), session };
   }
 
   async confirmPayment(input: { orderId: string; sourceId: string }): Promise<{ order: CheckoutOrder; payment: PaymentResult }> {
-    const order = this.orders.get(input.orderId);
+    const order = await this.orders.get(input.orderId);
     if (!order) throw new Error('Order not found');
     if (order.status === 'paid') return { order: this.cloneOrder(order), payment: { status: 'paid' } };
     const payment = await this.provider.confirmPayment({ orderId: order.id, sourceId: input.sourceId, amountCents: order.totalCents, currency: order.currency });
     if (payment.status === 'paid') order.status = 'paid';
     if (payment.status === 'failed') order.status = 'failed';
+    await this.orders.set(order);
     return { order: this.cloneOrder(order), payment };
   }
 
-  getOrder(id: string): CheckoutOrder | null {
-    const order = this.orders.get(id);
+  async getOrder(id: string): Promise<CheckoutOrder | null> {
+    const order = await this.orders.get(id);
     return order ? this.cloneOrder(order) : null;
   }
 

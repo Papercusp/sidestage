@@ -493,3 +493,26 @@ BEGIN
   RETURN v_expired;
 END;
 $$;
+
+-- ── Durable service state (P-101, sidestage-code-quality plan) ───────────────
+-- Carts and checkout orders are single-writer session documents; each keeps its
+-- service-level shape whole as jsonb, with hot filter columns lifted out.
+
+CREATE TABLE IF NOT EXISTS cart (
+  id text PRIMARY KEY,
+  payload jsonb NOT NULL,
+  updated_at timestamptz NOT NULL DEFAULT now(),
+  CONSTRAINT cart_payload_object CHECK (jsonb_typeof(payload) = 'object')
+);
+
+CREATE TABLE IF NOT EXISTS checkout_order (
+  id text PRIMARY KEY,
+  cart_id text NOT NULL,
+  status text NOT NULL CHECK (status IN ('pending', 'paid', 'failed')),
+  payload jsonb NOT NULL,
+  updated_at timestamptz NOT NULL DEFAULT now(),
+  CONSTRAINT checkout_order_payload_object CHECK (jsonb_typeof(payload) = 'object')
+);
+
+CREATE INDEX IF NOT EXISTS checkout_order_cart_status_idx
+  ON checkout_order (cart_id, status);

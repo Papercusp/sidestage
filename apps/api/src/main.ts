@@ -1,6 +1,21 @@
 import 'reflect-metadata';
+import { existsSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
+
+// Load the repo-root .env (cp .env.example .env per the README) without a
+// dotenv dependency; already-set variables win, matching dotenv semantics.
+for (const candidate of [resolve(process.cwd(), '.env'), resolve(process.cwd(), '../../.env')]) {
+  if (existsSync(candidate)) {
+    try {
+      process.loadEnvFile(candidate);
+    } catch {
+      // An unreadable .env should not stop the API; env vars simply stay unset.
+    }
+    break;
+  }
+}
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
