@@ -1,0 +1,21 @@
+[submodule "libs/sync"]
+	path = libs/sync
+	url = https://github.com/papercupai/sync.git
+[submodule "libs/papergrid"]
+	path = libs/papergrid
+	url = https://github.com/Papercusp/papergrid.git
+[submodule "libs/ui-primitives"]
+	path = libs/ui-primitives
+	url = https://github.com/papercupai/ui-primitives.git
+[submodule "libs/sse"]
+	path = libs/sse
+	url = https://github.com/Papercusp/sse.git
+[submodule "libs/agent-chat"]
+	path = libs/agent-chat
+	url = https://github.com/Papercusp/agent-chat.git
+[submodule "libs/token-kit"]
+	path = libs/token-kit
+	url = https://github.com/Papercusp/token-kit.git
+[submodule "libs/test-config"]
+	path = libs/test-config
+	url = https://github.com/Papercusp/test-config.git
