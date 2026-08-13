@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { CopilotPanel } from './CopilotPanel';
 import { ProductCard, type ProductTone } from './components/ProductCard';
 import { EventChat } from './EventChat';
+import { TranscriptPane } from './TranscriptPane';
 import {
   connectPublisher,
   connectViewer,
@@ -373,6 +374,11 @@ function SellerTab({ selectedProduct }: { selectedProduct: CatalogProduct | null
             </button>
           </div>
         </section>
+        <TranscriptPane
+          className="seller-transcript"
+          mediaStream={sessionRef.current?.localStream}
+          deepgramToken={import.meta.env.VITE_DEEPGRAM_TOKEN}
+        />
         <section className="stage-panel" aria-labelledby="on-deck-title">
           <div className="panel-kicker">On deck <span className="panel-status">1 slot</span></div>
           {selectedProduct ? (
