@@ -45,7 +45,7 @@ export function SellerTab({
   };
 
   return (
-    <div className="tab-layout">
+    <div className="tab-layout density-console">
       <TabHeader
         eyebrow="Seller view / stage control"
         title="Keep the room moving."

@@ -83,7 +83,7 @@ export function ConfigTab() {
 
   if (!config) {
     return (
-      <div className="tab-layout">
+      <div className="tab-layout density-compact">
         <TabHeader
           eyebrow="Config / event guardrails"
           title="Make the safe choice easy."
@@ -95,7 +95,7 @@ export function ConfigTab() {
   }
 
   return (
-    <div className="tab-layout">
+    <div className="tab-layout density-compact">
       <TabHeader
         eyebrow="Config / event guardrails"
         title="Make the safe choice easy."

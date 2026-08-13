@@ -1,15 +1,71 @@
-import { useState, type FormEvent } from 'react';
+import { useCallback, useEffect, useState, type FormEvent } from 'react';
+import { fetchCatalog, resolveApiBaseUrl } from './catalog';
 import { TabHeader } from './components/TabHeader';
+import { browserEventId, mediaBaseUrl } from './event-identity';
 import { JUDGE_DIMENSIONS, dimensionLabel, runJudgeRehearsal, scorePercent, type JudgeReport } from './judge';
 import { simulateLoad, type LoadSimulationResult } from './load-simulator';
 
+interface PreflightCheck {
+  label: string;
+  value: string;
+  tone: 'success' | 'warning' | 'muted' | 'danger';
+}
+
+const PREFLIGHT_PENDING: readonly PreflightCheck[] = [
+  { label: 'Catalog connection', value: 'Checking…', tone: 'muted' },
+  { label: 'Copilot grounding', value: 'Checking…', tone: 'muted' },
+  { label: 'Stream input', value: 'Checking…', tone: 'muted' },
+  { label: 'Reply approval', value: 'Checking…', tone: 'muted' },
+];
+
+/** Real preflight (P-106): every row is a live probe, not a literal. */
+async function runPreflight(eventId: string): Promise<PreflightCheck[]> {
+  const catalogCheck: PreflightCheck = await fetchCatalog({ pageSize: 1 })
+    .then((page) => (page.rows.length > 0
+      ? { label: 'Catalog connection', value: page.totalIsFloor ? `${page.total.toLocaleString()}+ products` : `${page.total.toLocaleString()} products`, tone: 'success' as const }
+      : { label: 'Catalog connection', value: 'Empty catalog', tone: 'warning' as const }))
+    .catch(() => ({ label: 'Catalog connection', value: 'Unreachable', tone: 'danger' as const }));
+
+  const configCheck: PreflightCheck = await fetch(`${resolveApiBaseUrl()}/events/${encodeURIComponent(eventId)}/config`)
+    .then(async (response) => {
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      const config = (await response.json()) as { policy?: { automationLevel?: string } };
+      return config.policy
+        ? { label: 'Copilot grounding', value: 'Ready', tone: 'success' as const }
+        : { label: 'Copilot grounding', value: 'No policy', tone: 'warning' as const };
+    })
+    .catch(() => ({ label: 'Copilot grounding', value: 'Unreachable', tone: 'danger' as const }));
+
+  const hasMediaDevice = typeof navigator !== 'undefined' && Boolean(navigator.mediaDevices?.getUserMedia);
+  const streamCheck: PreflightCheck = {
+    label: 'Stream input',
+    value: mediaBaseUrl() ? (hasMediaDevice ? 'Media server configured' : 'No camera access') : 'Not configured',
+    tone: mediaBaseUrl() && hasMediaDevice ? 'success' : 'muted',
+  };
+
+  const approvalCheck: PreflightCheck = await fetch(`${resolveApiBaseUrl()}/events/${encodeURIComponent(eventId)}/config`)
+    .then(async (response) => {
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      const config = (await response.json()) as { guardrails?: { priceChanges?: boolean } };
+      return config.guardrails?.priceChanges
+        ? { label: 'Reply approval', value: 'Required', tone: 'warning' as const }
+        : { label: 'Reply approval', value: 'Auto allowed', tone: 'muted' as const };
+    })
+    .catch(() => ({ label: 'Reply approval', value: 'Unknown', tone: 'muted' as const }));
+
+  return [catalogCheck, configCheck, streamCheck, approvalCheck];
+}
+
 export function TestTab() {
-  const checks = [
-    ['Catalog connection', 'Ready', 'success'],
-    ['Copilot grounding', 'Ready', 'success'],
-    ['Stream input', 'Not connected', 'muted'],
-    ['Reply approval', 'Required', 'warning'],
-  ] as const;
+  const eventId = browserEventId();
+  const [checks, setChecks] = useState<readonly PreflightCheck[]>(PREFLIGHT_PENDING);
+  const refreshPreflight = useCallback(() => {
+    void runPreflight(eventId).then(setChecks);
+  }, [eventId]);
+  useEffect(() => {
+    refreshPreflight();
+  }, [refreshPreflight]);
+  const readyCount = checks.filter((check) => check.tone === 'success').length;
   const [users, setUsers] = useState('3');
   const [messagesPerSecond, setMessagesPerSecond] = useState('2');
   const [durationSeconds, setDurationSeconds] = useState('4');
@@ -49,19 +105,19 @@ export function TestTab() {
   };
 
   return (
-    <div className="tab-layout">
+    <div className="tab-layout density-compact">
       <TabHeader
         eyebrow="Test / launch readiness"
         title="Know before you go live."
         copy="Run a quick rehearsal of the hand-offs that matter. A green check means the seam is ready for a real event."
       />
       <section className="readiness-panel" aria-labelledby="readiness-title">
-        <div className="panel-kicker">Preflight <span className="panel-status">3 of 4 ready</span></div>
+        <div className="panel-kicker">Preflight <span className="panel-status">{readyCount} of {checks.length} ready</span></div>
         <h2 id="readiness-title">Sunday vintage drop</h2>
         <div className="readiness-list">
-          {checks.map(([label, value, tone]) => <div className="readiness-row" key={label}><span>{label}</span><strong className={`status-${tone}`}>{value}</strong></div>)}
+          {checks.map(({ label, value, tone }) => <div className="readiness-row" key={label}><span>{label}</span><strong className={`status-${tone}`}>{value}</strong></div>)}
         </div>
-        <button className="button secondary" type="button">Run rehearsal</button>
+        <button className="button secondary" type="button" onClick={refreshPreflight}>Re-run preflight</button>
       </section>
       <section className="load-simulator-panel" aria-labelledby="load-simulator-title">
         <div className="panel-kicker">Load rehearsal <span className="panel-status">{simulation ? 'Completed' : 'Not run'}</span></div>

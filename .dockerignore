@@ -1,0 +1,9 @@
+node_modules
+**/node_modules
+**/dist
+.git
+db/seed/restart-catalog.sql
+.env
+.env.*
+*.log
+coverage

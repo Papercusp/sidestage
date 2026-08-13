@@ -1,0 +1,112 @@
+# SideStage production stack — /opt/SideStage on the shared Hetzner box,
+# modeled on the Restart deploy pattern (rsync + compose + Traefik on the
+# external `coolify` network) but a COMPLETELY INDEPENDENT project: own
+# containers, own volumes, own hostname. Never touches the restart-* stack.
+#
+#   docker compose -f docker-compose.prod.yml --env-file .env.production up -d
+#
+# .env.production lives only on the box (POSTGRES_PASSWORD, TYPESENSE_API_KEY,
+# PUBLIC_HOSTNAME=sidestage.buyrestart.com, …). No secrets in the repo.
+name: sidestage
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-sidestage}
+      POSTGRES_USER: ${POSTGRES_USER:-sidestage}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set in .env.production}
+    volumes:
+      - sidestage-postgres:/var/lib/postgresql/data
+      - ./db/schema.sql:/docker-entrypoint-initdb.d/10-schema.sql:ro
+      - ./db/seed/demo.sql:/docker-entrypoint-initdb.d/20-demo.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  typesense:
+    image: typesense/typesense:27.1
+    restart: unless-stopped
+    command: ["--data-dir", "/data", "--api-key", "${TYPESENSE_API_KEY:?set in .env.production}"]
+    volumes:
+      - sidestage-typesense:/data
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    volumes:
+      - sidestage-redis:/data
+
+  mediamtx:
+    image: bluenviron/mediamtx:1.9.3
+    restart: unless-stopped
+    environment:
+      MTX_WEBRTCADDITIONALHOSTS: ${PUBLIC_HOSTNAME:-sidestage.buyrestart.com}
+    ports:
+      - "8189:8189/udp"   # WebRTC ICE
+    networks:
+      - default
+      - coolify
+    labels:
+      - traefik.enable=true
+      - traefik.docker.network=coolify
+      - traefik.http.routers.sidestage-media.rule=Host(`media.${PUBLIC_HOSTNAME:-sidestage.buyrestart.com}`)
+      - traefik.http.routers.sidestage-media.entrypoints=websecure
+      - traefik.http.routers.sidestage-media.tls.certresolver=letsencrypt
+      - traefik.http.services.sidestage-media.loadbalancer.server.port=8889
+
+  api:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      API_PREFIX: api
+      DATABASE_URL: postgresql://${POSTGRES_USER:-sidestage}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-sidestage}
+      DATA_BACKEND: pg
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - default
+      - coolify
+    labels:
+      - traefik.enable=true
+      - traefik.docker.network=coolify
+      - traefik.http.routers.sidestage-api.rule=Host(`${PUBLIC_HOSTNAME:-sidestage.buyrestart.com}`) && (PathPrefix(`/api`) || Path(`/healthz`))
+      - traefik.http.routers.sidestage-api.entrypoints=websecure
+      - traefik.http.routers.sidestage-api.tls.certresolver=letsencrypt
+      - traefik.http.services.sidestage-api.loadbalancer.server.port=3100
+
+  web:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+      args:
+        VITE_API_URL: https://${PUBLIC_HOSTNAME:-sidestage.buyrestart.com}/api
+        VITE_MEDIAMTX_URL: https://media.${PUBLIC_HOSTNAME:-sidestage.buyrestart.com}
+    restart: unless-stopped
+    networks:
+      - default
+      - coolify
+    labels:
+      - traefik.enable=true
+      - traefik.docker.network=coolify
+      - traefik.http.routers.sidestage-web.rule=Host(`${PUBLIC_HOSTNAME:-sidestage.buyrestart.com}`)
+      - traefik.http.routers.sidestage-web.priority=1
+      - traefik.http.routers.sidestage-web.entrypoints=websecure
+      - traefik.http.routers.sidestage-web.tls.certresolver=letsencrypt
+      - traefik.http.services.sidestage-web.loadbalancer.server.port=80
+
+networks:
+  coolify:
+    external: true
+
+volumes:
+  sidestage-postgres:
+  sidestage-typesense:
+  sidestage-redis:

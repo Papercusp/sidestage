@@ -20,6 +20,10 @@ for (const candidate of [resolve(process.cwd(), '.env'), resolve(process.cwd(), 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
   app.enableCors();
+  // Production routes the API behind one hostname under /api (API_PREFIX=api);
+  // local dev keeps bare paths on :3100. healthz stays unprefixed for probes.
+  const prefix = (process.env.API_PREFIX ?? '').trim().replace(/^\/+|\/+$/g, '');
+  if (prefix) app.setGlobalPrefix(prefix, { exclude: ['healthz'] });
   const port = Number(process.env.API_PORT ?? 3100);
   await app.listen(port, '0.0.0.0');
 }
