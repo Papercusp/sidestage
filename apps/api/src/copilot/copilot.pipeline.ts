@@ -12,6 +12,8 @@ import type {
   ReplyModel,
 } from './copilot.types';
 import { PolicyActionGuard, PolicyReplyGuard } from './guardrail';
+import { CopilotLatencyBudget } from './latency';
+import { mergeResearchIntoGroundingContext, type ParallelResearchFallback } from './research';
 
 export interface CopilotPipelineDependencies {
   retriever: GroundingRetriever;
@@ -20,6 +22,9 @@ export interface CopilotPipelineDependencies {
   replyGuard?: ReplyGuard;
   executor?: ActionExecutor;
   now?: () => number;
+  latencyBudget?: CopilotLatencyBudget;
+  /** Optional property-aware catalog/web fallback for research-style turns. */
+  researchFallback?: ParallelResearchFallback;
 }
 
 const FALLBACK_REPLY =
@@ -49,6 +54,13 @@ export function buildGroundingPrompt(context: GroundingContext): string {
     priceCents: product.priceCents,
     attributes: product.attributes,
   }));
+  const webFindings = (context.webFindings ?? []).map((finding) => ({
+    sourceId: `web-research:${finding.findingId}`,
+    title: finding.title,
+    snippet: finding.snippet,
+    url: finding.url ?? null,
+    attributes: finding.attributes ?? {},
+  }));
 
   return [
     'You are the SideStage seller copilot. Answer only from VERIFIED_CONTEXT.',
@@ -59,6 +71,7 @@ export function buildGroundingPrompt(context: GroundingContext): string {
     JSON.stringify({
       eventItems,
       catalogProducts,
+      webFindings,
       policy: context.policy,
       sources: context.sources,
     }),
@@ -123,20 +136,30 @@ export class GroundedCopilotPipeline {
   private readonly now: () => number;
   private readonly guard: ActionGuard;
   private readonly replyGuard: ReplyGuard;
+  private readonly latencyBudget: CopilotLatencyBudget;
 
   constructor(private readonly dependencies: CopilotPipelineDependencies) {
     this.now = dependencies.now ?? (() => Date.now());
     this.guard = dependencies.guard ?? new PolicyActionGuard();
     this.replyGuard = dependencies.replyGuard ?? new PolicyReplyGuard();
+    this.latencyBudget = dependencies.latencyBudget ?? new CopilotLatencyBudget();
   }
 
   async respond(request: CopilotRequest): Promise<CopilotResponse> {
     const started = this.now();
-    const context = await this.dependencies.retriever.retrieve({
+    const retrievalRequest = {
       eventId: request.eventId,
       query: request.message,
       limit: Math.max(1, Math.min(request.maxSources ?? 8, 20)),
-    });
+      requiredProperties: request.requiredProperties,
+    };
+    const [baseContext, research] = await Promise.all([
+      this.dependencies.retriever.retrieve(retrievalRequest),
+      this.dependencies.researchFallback && request.requiredProperties?.length
+        ? this.dependencies.researchFallback.retrieve(retrievalRequest)
+        : Promise.resolve(undefined),
+    ]);
+    const context = research ? mergeResearchIntoGroundingContext(baseContext, research) : baseContext;
     const draft = await this.dependencies.model.generate({
       event: request,
       context,
@@ -151,6 +174,12 @@ export class GroundedCopilotPipeline {
         : undefined
       : undefined;
 
+    const completeMs = draft.latency?.completeMs ?? Math.max(0, this.now() - started);
+    const ttftMs = typeof draft.latency?.ttftMs === 'number' && Number.isFinite(draft.latency.ttftMs)
+      ? Math.max(0, draft.latency.ttftMs)
+      : null;
+    const latency = this.latencyBudget.record({ ttftMs, completeMs });
+
     return {
       reply: grounded
         ? draft.reply.trim()
@@ -162,7 +191,8 @@ export class GroundedCopilotPipeline {
       context,
       replyGuardrail,
       action,
-      latencyMs: Math.max(0, this.now() - started),
+      latencyMs: latency.completeMs,
+      latency,
     };
   }
 }

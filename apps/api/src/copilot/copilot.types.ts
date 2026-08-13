@@ -30,6 +30,15 @@ export interface CatalogProductContext {
   attributes: Record<string, string | number | boolean>;
 }
 
+/** A provider-neutral fact returned by the research fallback. */
+export interface WebResearchFinding {
+  findingId: string;
+  title: string;
+  snippet: string;
+  url?: string;
+  attributes?: Record<string, string | number | boolean>;
+}
+
 /** The Config tab's policy snapshot used for one copilot turn. */
 export interface CopilotPolicy {
   automationLevel: AutomationLevel;
@@ -42,13 +51,14 @@ export interface CopilotPolicy {
 
 export interface GroundingSource {
   id: string;
-  kind: 'event-item' | 'catalog-product' | 'policy';
+  kind: 'event-item' | 'catalog-product' | 'web-research' | 'policy';
   label: string;
 }
 
 export interface GroundingContext {
   eventItems: readonly EventItemContext[];
   catalogProducts: readonly CatalogProductContext[];
+  webFindings?: readonly WebResearchFinding[];
   policy: CopilotPolicy;
   sources: readonly GroundingSource[];
 }
@@ -60,6 +70,8 @@ export interface CopilotRequest {
   /** The seller's configured ladder; policy.automationLevel remains authoritative. */
   requestedAutomation?: AutomationLevel;
   maxSources?: number;
+  /** Properties needed to answer a research-style question from the catalog. */
+  requiredProperties?: readonly string[];
 }
 
 export interface CopilotActionProposal {
@@ -81,12 +93,18 @@ export interface ModelDraft {
   confidence?: number;
   /** Optional provider assertion used to fail closed on a tone mismatch. */
   tone?: CopilotPolicy['tone'];
+  /** Provider-reported streaming timings, when the adapter can observe them. */
+  latency?: {
+    ttftMs?: number;
+    completeMs?: number;
+  };
 }
 
 export interface RetrievalRequest {
   eventId: string;
   query: string;
   limit: number;
+  requiredProperties?: readonly string[];
 }
 
 export interface GroundingRetriever {
@@ -163,6 +181,21 @@ export interface ActionResult {
   execution?: ActionExecutionResult;
 }
 
+/** The current request sample plus rolling p50/p95 observations. */
+export interface CopilotLatency {
+  ttftMs: number | null;
+  completeMs: number;
+  sampleCount: number;
+  p50: {
+    ttftMs: number | null;
+    completeMs: number | null;
+  };
+  p95: {
+    ttftMs: number | null;
+    completeMs: number | null;
+  };
+}
+
 export interface CopilotResponse {
   reply: string;
   grounding: 'grounded' | 'insufficient-context';
@@ -171,4 +204,5 @@ export interface CopilotResponse {
   replyGuardrail?: GuardrailDecision;
   action?: ActionResult;
   latencyMs: number;
+  latency: CopilotLatency;
 }
