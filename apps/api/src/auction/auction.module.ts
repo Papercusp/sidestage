@@ -1,21 +1,12 @@
 import { Module } from '@nestjs/common';
-import type { Pool } from 'pg';
-import { DatabaseModule, PG_POOL } from '../db/database.module';
-import { PgAuctionInventory } from '../db/pg-auction-inventory';
+import { InventoryModule } from '../inventory/inventory.module';
 import { AuctionController } from './auction.controller';
-import { AUCTION_INVENTORY, AuctionService, InMemoryAuctionInventory } from './auction.service';
+import { AuctionService } from './auction.service';
 
 @Module({
-  imports: [DatabaseModule],
+  imports: [InventoryModule],
   controllers: [AuctionController],
-  providers: [
-    AuctionService,
-    {
-      provide: AUCTION_INVENTORY,
-      inject: [PG_POOL],
-      useFactory: (pool: Pool | null) => (pool ? new PgAuctionInventory(pool) : new InMemoryAuctionInventory()),
-    },
-  ],
+  providers: [AuctionService],
   exports: [AuctionService],
 })
 export class AuctionModule {}
