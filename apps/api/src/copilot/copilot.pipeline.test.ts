@@ -145,6 +145,63 @@ describe('GroundedCopilotPipeline', () => {
     expect(response.action?.execution).toEqual(execution);
   });
 
+  it('uses the server guard by default and blocks a below-floor action with an explanation', async () => {
+    const pipeline = new GroundedCopilotPipeline({
+      retriever: { retrieve: async () => context },
+      model: {
+        generate: async () => ({
+          reply: 'I can make that offer.',
+          citations: ['policy:event'],
+          action: {
+            kind: 'targeted-offer',
+            productId: 'p-1',
+            buyerId: 'buyer-1',
+            quantity: 1,
+            priceCents: 900,
+            reason: 'buyer asked during the live event',
+          },
+        }),
+      },
+    });
+
+    const response = await pipeline.respond({ eventId: 'event-1', message: 'Offer me one.' });
+
+    expect(response.action?.disposition).toBe('blocked');
+    expect(response.action?.guardrail).toMatchObject({
+      code: 'price-floor',
+      explanation: expect.stringContaining('floor'),
+    });
+  });
+
+  it('blocks a tone mismatch before an action can reach the action guard', async () => {
+    const executor = { execute: async () => ({ auditId: 'must-not-run', status: 'executed' as const }) };
+    const pipeline = new GroundedCopilotPipeline({
+      retriever: { retrieve: async () => context },
+      model: {
+        generate: async () => ({
+          reply: 'Proceed with purchase.',
+          tone: 'professional' as const,
+          citations: ['policy:event'],
+          action: {
+            kind: 'targeted-offer' as const,
+            productId: 'p-1',
+            buyerId: 'buyer-1',
+            quantity: 1,
+            priceCents: 1_400,
+            reason: 'approved buyer offer',
+          },
+        }),
+      },
+      executor,
+    });
+
+    const response = await pipeline.respond({ eventId: 'event-1', message: 'Apply it.' });
+
+    expect(response.replyGuardrail).toMatchObject({ allowed: false, code: 'tone' });
+    expect(response.reply).toContain("can't send that yet");
+    expect(response.action).toBeUndefined();
+  });
+
   it('includes event items, catalog facts, policies, and source IDs in the prompt', () => {
     const prompt = buildGroundingPrompt(context);
 
