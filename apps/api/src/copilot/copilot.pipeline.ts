@@ -8,13 +8,16 @@ import type {
   CopilotResponse,
   GroundingContext,
   GroundingRetriever,
+  ReplyGuard,
   ReplyModel,
 } from './copilot.types';
+import { PolicyActionGuard, PolicyReplyGuard } from './guardrail';
 
 export interface CopilotPipelineDependencies {
   retriever: GroundingRetriever;
   model: ReplyModel;
-  guard: ActionGuard;
+  guard?: ActionGuard;
+  replyGuard?: ReplyGuard;
   executor?: ActionExecutor;
   now?: () => number;
 }
@@ -51,6 +54,7 @@ export function buildGroundingPrompt(context: GroundingContext): string {
     'You are the SideStage seller copilot. Answer only from VERIFIED_CONTEXT.',
     'If the context does not support an answer, say that plainly; do not invent price, stock, or product facts.',
     'Return citation IDs for every factual answer. Never execute an action; return a proposal for the caller to gate.',
+    `Use the required ${context.policy.tone} tone and return it as tone when the provider supports tone metadata.`,
     'VERIFIED_CONTEXT:',
     JSON.stringify({
       eventItems,
@@ -117,9 +121,13 @@ async function resolveAction(
 
 export class GroundedCopilotPipeline {
   private readonly now: () => number;
+  private readonly guard: ActionGuard;
+  private readonly replyGuard: ReplyGuard;
 
   constructor(private readonly dependencies: CopilotPipelineDependencies) {
     this.now = dependencies.now ?? (() => Date.now());
+    this.guard = dependencies.guard ?? new PolicyActionGuard();
+    this.replyGuard = dependencies.replyGuard ?? new PolicyReplyGuard();
   }
 
   async respond(request: CopilotRequest): Promise<CopilotResponse> {
@@ -135,16 +143,24 @@ export class GroundedCopilotPipeline {
       groundingPrompt: buildGroundingPrompt(context),
     });
     const citations = validCitations(draft.citations, context);
-    const grounded = draft.reply.trim().length > 0 && citations.length > 0;
+    const replyGuardrail = await this.replyGuard.evaluate({ reply: draft.reply, declaredTone: draft.tone }, context);
+    const grounded = replyGuardrail.allowed && draft.reply.trim().length > 0 && citations.length > 0;
     const action = draft.action
-      ? await resolveAction(request, context, this.dependencies.guard, this.dependencies.executor, draft.action)
+      ? replyGuardrail.allowed
+        ? await resolveAction(request, context, this.guard, this.dependencies.executor, draft.action)
+        : undefined
       : undefined;
 
     return {
-      reply: grounded ? draft.reply.trim() : FALLBACK_REPLY,
+      reply: grounded
+        ? draft.reply.trim()
+        : replyGuardrail.allowed
+          ? FALLBACK_REPLY
+          : `I can't send that yet. ${replyGuardrail.explanation ?? 'The event policy blocked this draft.'}`,
       grounding: grounded ? 'grounded' : 'insufficient-context',
       citations,
       context,
+      replyGuardrail,
       action,
       latencyMs: Math.max(0, this.now() - started),
     };

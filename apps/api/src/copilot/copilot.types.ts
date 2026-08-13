@@ -79,6 +79,8 @@ export interface ModelDraft {
   citations: readonly string[];
   action?: CopilotActionProposal;
   confidence?: number;
+  /** Optional provider assertion used to fail closed on a tone mismatch. */
+  tone?: CopilotPolicy['tone'];
 }
 
 export interface RetrievalRequest {
@@ -104,9 +106,11 @@ export interface ReplyModel {
 
 export type GuardrailCode =
   | 'price-floor'
+  | 'markdown-limit'
   | 'availability'
   | 'policy'
   | 'buyer-target'
+  | 'tone'
   | 'invalid-action';
 
 export interface GuardrailDecision {
@@ -118,6 +122,18 @@ export interface GuardrailDecision {
 export interface ActionGuard {
   evaluate(
     action: CopilotActionProposal,
+    context: GroundingContext,
+  ): Promise<GuardrailDecision>;
+}
+
+export interface ReplyGuardInput {
+  reply: string;
+  declaredTone?: CopilotPolicy['tone'];
+}
+
+export interface ReplyGuard {
+  evaluate(
+    input: ReplyGuardInput,
     context: GroundingContext,
   ): Promise<GuardrailDecision>;
 }
@@ -152,6 +168,7 @@ export interface CopilotResponse {
   grounding: 'grounded' | 'insufficient-context';
   citations: readonly string[];
   context: GroundingContext;
+  replyGuardrail?: GuardrailDecision;
   action?: ActionResult;
   latencyMs: number;
 }
