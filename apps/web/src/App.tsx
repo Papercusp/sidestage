@@ -1,9 +1,10 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { BuyerTab } from './BuyerTab';
 import { CopilotPanel } from './CopilotPanel';
 import { type ProductTone } from './components/ProductCard';
 import { EventChat } from './EventChat';
-import { TranscriptPane } from './TranscriptPane';
+import { TranscriptPane, type TranscriptProductOption } from './TranscriptPane';
+import { simulateLoad, type LoadSimulationResult } from './load-simulator';
 import {
   connectPublisher,
   createEventRoom,
@@ -64,6 +65,12 @@ export const DEMO_PRODUCTS: ReadonlyArray<CatalogProduct> = [
     tone: 'amber',
     glyph: '◌',
   },
+];
+
+export const TRANSCRIPT_PRODUCTS: ReadonlyArray<TranscriptProductOption> = [
+  { id: 'aurora-cup', label: 'Aurora ceramic cup', aliases: ['aurora cup', 'ceramic cup'] },
+  { id: 'cloud-knit', label: 'Cloudline knit', aliases: ['cloudline', 'knit layer'] },
+  { id: 'ember-kit', label: 'Ember ritual kit', aliases: ['ember kit', 'ritual kit'] },
 ];
 
 type StreamState = 'idle' | 'connecting' | 'live' | 'error';
@@ -151,7 +158,15 @@ function TabHeader({ eyebrow, title, copy }: { eyebrow: string; title: string; c
   );
 }
 
-function SellerTab({ selectedProduct }: { selectedProduct: CatalogProduct | null }) {
+function SellerTab({
+  selectedProduct,
+  selectedProductId,
+  onActiveProductChange,
+}: {
+  selectedProduct: CatalogProduct | null;
+  selectedProductId: string | null;
+  onActiveProductChange: (productId: string | null) => void;
+}) {
   const [eventId, setEventId] = useState(DEFAULT_EVENT_ID);
   const [streamState, setStreamState] = useState<StreamState>('idle');
   const [streamError, setStreamError] = useState<string | null>(null);
@@ -259,6 +274,9 @@ function SellerTab({ selectedProduct }: { selectedProduct: CatalogProduct | null
           className="seller-transcript"
           mediaStream={sessionRef.current?.localStream}
           deepgramToken={import.meta.env.VITE_DEEPGRAM_TOKEN}
+          products={TRANSCRIPT_PRODUCTS}
+          activeProductId={selectedProductId}
+          onActiveProductChange={onActiveProductChange}
         />
         <section className="stage-panel" aria-labelledby="on-deck-title">
           <div className="panel-kicker">On deck <span className="panel-status">1 slot</span></div>
@@ -324,13 +342,34 @@ function ConfigTab() {
   );
 }
 
-function TestTab() {
+export function TestTab() {
   const checks = [
     ['Catalog connection', 'Ready', 'success'],
     ['Copilot grounding', 'Ready', 'success'],
     ['Stream input', 'Not connected', 'muted'],
     ['Reply approval', 'Required', 'warning'],
   ] as const;
+  const [users, setUsers] = useState('3');
+  const [messagesPerSecond, setMessagesPerSecond] = useState('2');
+  const [durationSeconds, setDurationSeconds] = useState('4');
+  const [simulation, setSimulation] = useState<LoadSimulationResult | null>(null);
+  const [simulationError, setSimulationError] = useState<string | null>(null);
+
+  const runLoadRehearsal = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    try {
+      const result = simulateLoad({
+        users: Number(users),
+        messagesPerSecond: Number(messagesPerSecond),
+        durationSeconds: Number(durationSeconds),
+      });
+      setSimulation(result);
+      setSimulationError(null);
+    } catch (error) {
+      setSimulation(null);
+      setSimulationError(error instanceof Error ? error.message : 'Enter positive whole numbers for each field.');
+    }
+  };
 
   return (
     <div className="tab-layout">
@@ -346,6 +385,41 @@ function TestTab() {
           {checks.map(([label, value, tone]) => <div className="readiness-row" key={label}><span>{label}</span><strong className={`status-${tone}`}>{value}</strong></div>)}
         </div>
         <button className="button secondary" type="button">Run rehearsal</button>
+      </section>
+      <section className="load-simulator-panel" aria-labelledby="load-simulator-title">
+        <div className="panel-kicker">Load rehearsal <span className="panel-status">{simulation ? 'Completed' : 'Not run'}</span></div>
+        <h2 id="load-simulator-title">Pressure-test the copilot seam.</h2>
+        <p className="load-simulator-copy">Schedule deterministic websocket-client traffic locally before you open the room. This rehearsal checks the scripted price, shipping, policy, variant, stock, offer, and bid prompts without sending anything to buyers.</p>
+        <form className="load-simulator-form" onSubmit={runLoadRehearsal}>
+          <div className="load-simulator-fields">
+            <label className="field-label" htmlFor="load-users">Simulated users
+              <input id="load-users" className="text-input" type="number" min="1" step="1" inputMode="numeric" value={users} onChange={(event) => setUsers(event.target.value)} />
+            </label>
+            <label className="field-label" htmlFor="load-messages-per-second">Messages / user / sec
+              <input id="load-messages-per-second" className="text-input" type="number" min="1" step="1" inputMode="numeric" value={messagesPerSecond} onChange={(event) => setMessagesPerSecond(event.target.value)} />
+            </label>
+            <label className="field-label" htmlFor="load-duration">Duration (seconds)
+              <input id="load-duration" className="text-input" type="number" min="1" step="1" inputMode="numeric" value={durationSeconds} onChange={(event) => setDurationSeconds(event.target.value)} />
+            </label>
+          </div>
+          <button className="button primary" type="submit">Run load rehearsal</button>
+        </form>
+        {simulationError ? <p className="load-simulator-error" role="alert">{simulationError}</p> : null}
+        {simulation ? (
+          <div className="load-simulator-result" aria-live="polite">
+            <div className="load-simulator-stats">
+              <div><strong>{simulation.totalMessages}</strong><span>scheduled messages</span></div>
+              <div><strong>{simulation.clients.length}</strong><span>simulated clients</span></div>
+              <div><strong>{simulation.request.durationSeconds}s</strong><span>rehearsal duration</span></div>
+            </div>
+            <div className="load-coverage">
+              <div className="load-coverage-heading"><span>Scripted corpus coverage</span><strong>{simulation.coverage.observedKinds.length}/{simulation.coverage.expectedKinds.length} scenarios</strong></div>
+              <div className="load-coverage-list">
+                {simulation.coverage.expectedKinds.map((kind) => <span className={'coverage-chip' + (simulation.coverage.observedKinds.includes(kind) ? ' covered' : '')} key={kind}>{kind} · {simulation.coverage.counts[kind] ?? 0}</span>)}
+              </div>
+            </div>
+          </div>
+        ) : null}
       </section>
       <div className="test-note"><span className="feature-icon cyan">⌁</span><p>Tip: connect your stream when you are ready. You can still rehearse catalog and copilot flows without a camera.</p></div>
     </div>
@@ -388,7 +462,13 @@ export function App() {
             mediaBaseUrl={mediaBaseUrl()}
           />
         ) : null}
-        {tab === 'seller' ? <SellerTab selectedProduct={selectedProduct} /> : null}
+        {tab === 'seller' ? (
+          <SellerTab
+            selectedProduct={selectedProduct}
+            selectedProductId={selectedProductId}
+            onActiveProductChange={setSelectedProductId}
+          />
+        ) : null}
         {tab === 'config' ? <ConfigTab /> : null}
         {tab === 'test' ? <TestTab /> : null}
         <footer className="footer"><span>SideStage preview</span><span>Built for the live-selling floor</span></footer>
