@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
 import { TABS, tabHref, useUrlTab } from './app-routing';
+import { AppDownloadButtons } from './components/AppDownloadButtons';
 import { BuyerTab } from './BuyerTab';
 import { ConfigTab } from './ConfigTab';
 import { browserEventId, DEFAULT_EVENT_TITLE, mediaBaseUrl } from './event-identity';
@@ -71,7 +72,11 @@ export function App() {
         ) : null}
         {tab === 'config' ? <ConfigTab /> : null}
         {tab === 'test' ? <TestTab /> : null}
-        <footer className="footer"><span>SideStage preview</span><span>Built for the live-selling floor</span></footer>
+        <footer className="footer">
+          <span>SideStage preview</span>
+          <AppDownloadButtons />
+          <span>Built for the live-selling floor</span>
+        </footer>
       </main>
     </div>
   );
