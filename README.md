@@ -33,6 +33,9 @@ git submodule update --init --recursive
 
 ## Verification
 
+The reviewer-facing submission packet, walkthrough, and AI-use disclosure are in
+[`docs/submission.md`](docs/submission.md).
+
 The contest evaluator can run the project from a clean clone with these exact
 commands:
 
