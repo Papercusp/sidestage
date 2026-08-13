@@ -10,12 +10,13 @@ import { EventConfigModule } from './config/event-config.module';
 import { HealthController } from './health.controller';
 import { InventoryModule } from './inventory/inventory.module';
 import { JudgeModule } from './judge/judge.module';
+import { PolicyModule } from './policies/policy.module';
 import { ScoutModule } from './scout/scout.module';
 import { ShippingModule } from './shipping/shipping.module';
 import { StatsModule } from './stats/stats.module';
 
 @Module({
-  imports: [DatabaseModule, ActionModule, AuctionModule, CartModule, CatalogModule, ChatModule, CheckoutModule, EventConfigModule, InventoryModule, JudgeModule, ScoutModule, ShippingModule, StatsModule],
+  imports: [DatabaseModule, ActionModule, AuctionModule, CartModule, CatalogModule, ChatModule, CheckoutModule, EventConfigModule, InventoryModule, JudgeModule, PolicyModule, ScoutModule, ShippingModule, StatsModule],
   controllers: [HealthController],
 })
 export class AppModule {}
