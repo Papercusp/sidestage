@@ -5,8 +5,11 @@ import { loadAppModule, loadRepoEnv } from './bootstrap-env';
 describe('API bootstrap environment', () => {
   it('loads the repo-root env when launched from apps/api', () => {
     const loadEnvFile = vi.fn();
+    const apiCwd = process.cwd().endsWith('/apps/api')
+      ? process.cwd()
+      : resolve(process.cwd(), 'apps/api');
 
-    const loaded = loadRepoEnv(resolve(process.cwd(), 'apps/api'), loadEnvFile);
+    const loaded = loadRepoEnv(apiCwd, loadEnvFile);
 
     expect(loaded).toBeTruthy();
     expect(loadEnvFile).toHaveBeenCalledOnce();
