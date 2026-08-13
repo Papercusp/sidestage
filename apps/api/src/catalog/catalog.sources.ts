@@ -1,6 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
 import type { Pool } from 'pg';
-import { typesenseService } from '@papercusp/typesense';
 import { DEMO_CATALOG_FIXTURE } from './catalog.fixture';
 import type {
   CatalogPage,
@@ -11,6 +10,20 @@ import type {
 
 const DEFAULT_PAGE_SIZE = 24;
 const MAX_PAGE_SIZE = 100;
+
+/** Lazy-load @papercusp/typesense: the lib is TS-source-only (main: src/index.ts),
+ * so the compiled prod image cannot require it — a static import crash-looped prod
+ * on 2026-08-13 (WI-38629 incident). Search already degrades to SQL on any
+ * Typesense failure; a failed module load is just the earliest such failure. */
+type TypesenseModule = { typesenseService: { search(args: Record<string, unknown>): Promise<{ hits: Array<{ id: string }>; found: number }> } };
+let typesenseLoad: Promise<TypesenseModule | null> | null = null;
+function loadTypesense(logger: Logger): Promise<TypesenseModule | null> {
+  typesenseLoad ??= (import('@papercusp/typesense') as Promise<TypesenseModule>).catch((error: unknown) => {
+    logger.warn(`@papercusp/typesense unavailable — catalog search uses SQL fallback (${(error as { code?: string })?.code ?? error})`);
+    return null;
+  });
+  return typesenseLoad;
+}
 /** Counting 1.1M matching rows on every keystroke is waste; report a floor. */
 const TOTAL_CAP = 10_000;
 
@@ -70,9 +83,10 @@ export class PgCatalogSource implements CatalogSource {
     // typo-tolerant, one hit per product group, true corpus match count — with
     // graceful SQL degradation when Typesense is unavailable (spec parity,
     // sidestage-code-quality P-110).
-    if (q) {
+    const typesense = q ? await loadTypesense(this.logger) : null;
+    if (q && typesense) {
       try {
-        const { hits, found } = await typesenseService.search({
+        const { hits, found } = await typesense.typesenseService.search({
           q,
           category: productType || undefined,
           inStockOnly: availability === 'in-stock',
