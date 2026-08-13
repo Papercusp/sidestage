@@ -188,13 +188,31 @@ export class GuardedActionService implements ActionExecutor {
         status: 'pending',
       };
       this.offers.set(offer.id, offer);
-    } else {
+    } else if (action.kind === 'markdown' || action.kind === 'price-adjust') {
       afterItem.priceCents = assertPositiveInteger(action.priceCents ?? 0, 'priceCents');
       if (action.kind === 'price-adjust' && action.quantity !== undefined) {
         const quantity = assertPositiveInteger(action.quantity, 'quantity');
         if (quantity > current.availableQty) throw new ConflictException(`Quantity cannot exceed ${current.availableQty} available units`);
         afterItem.quantity = quantity;
       }
+    } else if (action.kind === 'push') {
+      // One item on stage per event: pushing clears any previous stage flag.
+      for (const [key, item] of this.items) {
+        if (item.eventId === eventId && item.onStage && item.productId !== current.productId) {
+          this.items.set(key, { ...cloneItem(item), onStage: false });
+        }
+      }
+      afterItem.onStage = true;
+    } else if (action.kind === 'swap') {
+      const targetKey = itemKey(eventId, action.swapToProductId ?? '');
+      const target = this.items.get(targetKey);
+      if (!target) throw new NotFoundException(`Swap target ${action.swapToProductId} is not a verified event item`);
+      afterItem.onStage = false;
+      this.items.set(targetKey, { ...cloneItem(target), onStage: true });
+    } else if (action.kind === 'stock-adjust') {
+      const quantity = assertNonNegativeInteger(action.quantity ?? 0, 'quantity');
+      if (quantity > current.availableQty) throw new ConflictException(`Quantity cannot exceed ${current.availableQty} available units`);
+      afterItem.quantity = quantity;
     }
 
     this.items.set(itemKey(eventId, current.productId), afterItem);
@@ -260,16 +278,17 @@ export class GuardedActionService implements ActionExecutor {
     const availableQty = assertNonNegativeInteger(item.availableQty, 'availableQty');
     const quantity = assertPositiveInteger(item.quantity, 'quantity');
     if (quantity > availableQty && availableQty > 0) throw new BadRequestException('quantity cannot exceed availableQty');
-    return { ...item, eventId, eventItemId, productId, title, priceCents, availableQty, quantity, attributes: { ...item.attributes } };
+    return { ...item, eventId, eventItemId, productId, title, priceCents, availableQty, quantity, onStage: item.onStage ?? false, attributes: { ...item.attributes } };
   }
 
   private normalizeAction(action: GuardedActionProposal): GuardedActionProposal {
-    if (!action || !['markdown', 'price-adjust', 'targeted-offer'].includes(action.kind)) {
+    if (!action || !['markdown', 'price-adjust', 'targeted-offer', 'push', 'swap', 'stock-adjust'].includes(action.kind)) {
       throw new BadRequestException('A supported action kind is required');
     }
     return {
       ...action,
       productId: assertText(action.productId, 'productId'),
+      ...(action.swapToProductId !== undefined ? { swapToProductId: assertText(action.swapToProductId, 'swapToProductId') } : {}),
       reason: assertText(action.reason, 'reason'),
     };
   }

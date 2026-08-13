@@ -109,4 +109,58 @@ describe('GuardedActionService', () => {
     });
     await expect(actions.rollback(first.auditId, 'seller-1')).rejects.toThrow('stale');
   });
+
+  it('pushes an item on stage and swap moves the stage to another verified item', async () => {
+    const actions = new GuardedActionService();
+    actions.registerEvent('event-1', {
+      policy,
+      items: [item, { ...item, eventItemId: 'event-1:cup', productId: 'cup', title: 'Aurora cup' }],
+    });
+
+    const pushed = await actions.apply({
+      eventId: 'event-1',
+      actorId: 'seller-1',
+      action: { kind: 'push', productId: 'mug', reason: 'Mug takes the stage' },
+    });
+    expect(pushed.state.onStage).toBe(true);
+
+    const swapped = await actions.apply({
+      eventId: 'event-1',
+      actorId: 'seller-1',
+      action: { kind: 'swap', productId: 'mug', swapToProductId: 'cup', reason: 'Cup up next' },
+    });
+    expect(swapped.state.onStage).toBe(false);
+    const items = actions.listItems('event-1');
+    expect(items.find((entry) => entry.productId === 'cup')?.onStage).toBe(true);
+    expect(items.find((entry) => entry.productId === 'mug')?.onStage).toBe(false);
+
+    await expect(actions.apply({
+      eventId: 'event-1',
+      actorId: 'seller-1',
+      action: { kind: 'swap', productId: 'cup', swapToProductId: 'ghost', reason: 'Bad target' },
+    })).rejects.toThrow('not a verified event item');
+  });
+
+  it('stock-adjust sets the listed quantity within verified availability and price stays untouched', async () => {
+    const actions = service();
+    const adjusted = await actions.apply({
+      eventId: 'event-1',
+      actorId: 'seller-1',
+      action: { kind: 'stock-adjust', productId: 'mug', quantity: 2, reason: 'Held two back for the auction' },
+    });
+    expect(adjusted.state.quantity).toBe(2);
+    expect(adjusted.state.priceCents).toBe(1_500);
+
+    await expect(actions.apply({
+      eventId: 'event-1',
+      actorId: 'seller-1',
+      action: { kind: 'stock-adjust', productId: 'mug', quantity: 9, reason: 'Too many' },
+    })).rejects.toThrow();
+
+    await expect(actions.apply({
+      eventId: 'event-1',
+      actorId: 'seller-1',
+      action: { kind: 'push', productId: 'mug', priceCents: 1_000, reason: 'Push cannot change price' },
+    })).rejects.toThrow();
+  });
 });

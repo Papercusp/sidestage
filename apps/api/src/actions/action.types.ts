@@ -14,6 +14,11 @@ export interface ActionEventItem extends EventItemContext {
   eventId: string;
   /** Quantity currently listed for this event item. */
   quantity: number;
+  /**
+   * True when this item is the one on stage (set by push / swap). Optional at
+   * the registration boundary; normalizeItem always stores a boolean.
+   */
+  onStage?: boolean;
 }
 
 export interface TargetedOffer {
