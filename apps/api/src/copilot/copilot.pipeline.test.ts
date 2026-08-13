@@ -114,7 +114,10 @@ describe('GroundedCopilotPipeline', () => {
   });
 
   it('auto-executes only through the audited executor after guard approval', async () => {
-    const autoContext = { ...context, policy: { ...policy, automationLevel: 'auto', allowAutoActions: true } };
+    const autoContext: GroundingContext = {
+      ...context,
+      policy: { ...policy, automationLevel: 'auto', allowAutoActions: true },
+    };
     const execution: ActionExecutionResult = { auditId: 'audit-1', status: 'executed' };
     const pipeline = new GroundedCopilotPipeline({
       retriever: { retrieve: async () => autoContext },
