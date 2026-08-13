@@ -1,9 +1,9 @@
-import { Body, Controller, Post } from '@nestjs/common';
+import { Inject, Body, Controller, Post } from '@nestjs/common';
 import { CheckoutService } from './checkout.service';
 
 @Controller('checkout')
 export class CheckoutController {
-  constructor(private readonly checkout: CheckoutService) {}
+  constructor(@Inject(CheckoutService) private readonly checkout: CheckoutService) {}
 
   @Post('sessions')
   createSession(@Body() body: { cartId: string; email?: string; shippingCents?: number }) {

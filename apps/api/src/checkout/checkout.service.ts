@@ -149,7 +149,7 @@ export class CheckoutService {
   constructor(
     @Inject(CHECKOUT_PAYMENT_PROVIDER) private readonly provider: PaymentProvider,
     @Inject(ORDER_STORE) private readonly orders: OrderStore,
-    private readonly carts: CartService,
+    @Inject(CartService) private readonly carts: CartService,
   ) {}
 
   async createSession(input: { cartId: string; email?: string; shippingCents?: number }): Promise<{ order: CheckoutOrder; session: PaymentSession }> {

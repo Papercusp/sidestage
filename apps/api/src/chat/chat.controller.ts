@@ -1,4 +1,5 @@
 import {
+  Inject,
   Body,
   Controller,
   Delete,
@@ -35,7 +36,7 @@ interface SyncResult {
 
 @Controller()
 export class ChatController {
-  constructor(private readonly chat: ChatService) {}
+  constructor(@Inject(ChatService) private readonly chat: ChatService) {}
 
   @Post('chat/events/:eventId/messages')
   sendMessage(@Param('eventId') eventId: string, @Body() body: ChatMessageInput) {
