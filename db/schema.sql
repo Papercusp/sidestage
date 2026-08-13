@@ -516,3 +516,13 @@ CREATE TABLE IF NOT EXISTS checkout_order (
 
 CREATE INDEX IF NOT EXISTS checkout_order_cart_status_idx
   ON checkout_order (cart_id, status);
+
+-- Event configuration (P-105): name, reply tone, guardrail toggles, and the
+-- copilot action policy — the settings the Config tab edits and the guardrail
+-- module enforces. One jsonb document per event.
+CREATE TABLE IF NOT EXISTS event_config (
+  event_id text PRIMARY KEY,
+  payload jsonb NOT NULL,
+  updated_at timestamptz NOT NULL DEFAULT now(),
+  CONSTRAINT event_config_payload_object CHECK (jsonb_typeof(payload) = 'object')
+);

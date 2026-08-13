@@ -25,30 +25,6 @@ export type BuyerStats = {
   totalRaisedCents: number;
 };
 
-export const DEMO_BUYER_CHAT: readonly BuyerChatMessage[] = [
-  {
-    id: 'chat-1',
-    author: 'Maya',
-    body: 'Is the hoodie true to size?',
-    timestamp: 'just now',
-    accent: 'cyan',
-  },
-  {
-    id: 'chat-2',
-    author: 'Jordan',
-    body: 'The mug glaze is gorgeous ✨',
-    timestamp: '1m ago',
-    accent: 'violet',
-  },
-  {
-    id: 'chat-3',
-    author: 'Sam',
-    body: 'Can I bundle the tote with the mug?',
-    timestamp: '2m ago',
-    accent: 'amber',
-  },
-];
-
 export const DEMO_BUYER_STATS: BuyerStats = {
   viewers: 128,
   itemsSold: 14,
