@@ -1,5 +1,6 @@
-import { useEffect, useRef, useState, type FormEvent } from 'react';
+import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import { BuyerTab } from './BuyerTab';
+import { fetchCatalog, OFFLINE_FIXTURE, type CatalogVariant } from './catalog';
 import { CopilotPanel } from './CopilotPanel';
 import { type ProductTone } from './components/ProductCard';
 import { EventChat } from './EventChat';
@@ -35,45 +36,51 @@ export interface CatalogProduct {
   glyph: string;
 }
 
-export const DEMO_PRODUCTS: ReadonlyArray<CatalogProduct> = [
-  {
-    id: 'aurora-cup',
-    name: 'Aurora ceramic cup',
-    price: '$28',
-    compareAt: '$36',
-    description: 'Hand-glazed stoneware with a soft blue frost finish.',
-    badge: 'Featured',
-    stockLabel: '18 available',
-    tone: 'cyan',
-    glyph: '◒',
-  },
-  {
-    id: 'cloud-knit',
-    name: 'Cloudline knit',
-    price: '$64',
-    compareAt: '$78',
-    description: 'A lightweight layer that reads beautifully on camera.',
-    badge: 'Best seller',
-    stockLabel: '7 available',
-    tone: 'violet',
-    glyph: '⌁',
-  },
-  {
-    id: 'ember-kit',
-    name: 'Ember ritual kit',
-    price: '$42',
-    description: 'Three small-batch scents packed for a slow unboxing.',
-    stockLabel: '31 available',
-    tone: 'amber',
-    glyph: '◌',
-  },
-];
+const PRODUCT_TONES: readonly ProductTone[] = ['cyan', 'violet', 'amber'];
+const PRODUCT_GLYPHS = ['◒', '⌁', '◌'] as const;
 
-export const TRANSCRIPT_PRODUCTS: ReadonlyArray<TranscriptProductOption> = [
-  { id: 'aurora-cup', label: 'Aurora ceramic cup', aliases: ['aurora cup', 'ceramic cup'] },
-  { id: 'cloud-knit', label: 'Cloudline knit', aliases: ['cloudline', 'knit layer'] },
-  { id: 'ember-kit', label: 'Ember ritual kit', aliases: ['ember kit', 'ritual kit'] },
-];
+/** Present a catalog variant in the seller shell's visual vocabulary. */
+export function variantToSellerProduct(variant: CatalogVariant, index: number): CatalogProduct {
+  return {
+    id: variant.id,
+    name: variant.title,
+    price: `$${(variant.priceCents / 100).toFixed(2)}`,
+    description: variant.description ?? [variant.brand, variant.condition].filter(Boolean).join(' · '),
+    badge: index === 0 ? 'Featured' : undefined,
+    stockLabel: `${variant.availableQty} available`,
+    tone: PRODUCT_TONES[index % PRODUCT_TONES.length],
+    glyph: PRODUCT_GLYPHS[index % PRODUCT_GLYPHS.length],
+  };
+}
+
+export function variantToTranscriptOption(variant: CatalogVariant): TranscriptProductOption {
+  const words = variant.title.toLowerCase().split(/\s+/).filter((word) => word.length > 2);
+  const aliases = [
+    words.slice(0, 2).join(' '),
+    words.slice(-2).join(' '),
+    variant.brand.toLowerCase(),
+  ].filter((alias, index, all) => alias && all.indexOf(alias) === index);
+  return { id: variant.id, label: variant.title, aliases };
+}
+
+/** The seller shell's on-stage products — the ONE catalog source (P-102). */
+function useSellerCatalog(): CatalogVariant[] {
+  const [variants, setVariants] = useState<CatalogVariant[]>([]);
+  useEffect(() => {
+    let cancelled = false;
+    fetchCatalog({ availability: 'in-stock', pageSize: 3 })
+      .then((page) => {
+        if (!cancelled) setVariants(page.rows);
+      })
+      .catch(() => {
+        if (!cancelled) setVariants([...OFFLINE_FIXTURE.slice(0, 3)]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+  return variants;
+}
 
 type StreamState = 'idle' | 'connecting' | 'live' | 'error';
 
@@ -163,10 +170,12 @@ function TabHeader({ eyebrow, title, copy }: { eyebrow: string; title: string; c
 function SellerTab({
   selectedProduct,
   selectedProductId,
+  transcriptProducts,
   onActiveProductChange,
 }: {
   selectedProduct: CatalogProduct | null;
   selectedProductId: string | null;
+  transcriptProducts: readonly TranscriptProductOption[];
   onActiveProductChange: (productId: string | null) => void;
 }) {
   const [eventId, setEventId] = useState(DEFAULT_EVENT_ID);
@@ -276,7 +285,7 @@ function SellerTab({
           className="seller-transcript"
           mediaStream={sessionRef.current?.localStream}
           deepgramToken={import.meta.env.VITE_DEEPGRAM_TOKEN}
-          products={TRANSCRIPT_PRODUCTS}
+          products={transcriptProducts}
           activeProductId={selectedProductId}
           onActiveProductChange={onActiveProductChange}
         />
@@ -503,7 +512,16 @@ export function TestTab() {
 export function App() {
   const [tab, navigate] = useUrlTab();
   const [selectedProductId, setSelectedProductId] = useState<string | null>(null);
-  const selectedProduct = DEMO_PRODUCTS.find((product) => product.id === selectedProductId) ?? null;
+  const sellerVariants = useSellerCatalog();
+  const sellerProducts = useMemo(
+    () => sellerVariants.map((variant, index) => variantToSellerProduct(variant, index)),
+    [sellerVariants],
+  );
+  const transcriptProducts = useMemo(
+    () => sellerVariants.map(variantToTranscriptOption),
+    [sellerVariants],
+  );
+  const selectedProduct = sellerProducts.find((product) => product.id === selectedProductId) ?? null;
 
   return (
     <div className="app-shell">
@@ -540,6 +558,7 @@ export function App() {
           <SellerTab
             selectedProduct={selectedProduct}
             selectedProductId={selectedProductId}
+            transcriptProducts={transcriptProducts}
             onActiveProductChange={setSelectedProductId}
           />
         ) : null}

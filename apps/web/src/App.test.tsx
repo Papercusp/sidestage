@@ -1,6 +1,7 @@
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
-import { App, DEMO_PRODUCTS, getTabFromUrl, tabHref, TestTab } from './App';
+import { App, getTabFromUrl, tabHref, TestTab, variantToSellerProduct } from './App';
+import { OFFLINE_FIXTURE } from './catalog';
 import { ProductCard } from './components/ProductCard';
 
 describe('SideStage tab state', () => {
@@ -18,10 +19,11 @@ describe('SideStage tab state', () => {
 
 describe('P-005 product card and shell', () => {
   it('renders reusable product data with a stage action', () => {
-    const markup = renderToStaticMarkup(<ProductCard {...DEMO_PRODUCTS[0]} onSelect={() => undefined} />);
-    expect(markup).toContain('Aurora ceramic cup');
+    const product = variantToSellerProduct(OFFLINE_FIXTURE[0], 0);
+    const markup = renderToStaticMarkup(<ProductCard {...product} onSelect={() => undefined} />);
+    expect(markup).toContain('Barista Pro Espresso Machine');
     expect(markup).toContain('Add to stage');
-    expect(markup).toContain('data-product-id="aurora-cup"');
+    expect(markup).toContain('data-product-id="demo-espresso-new"');
   });
 
   it('renders all four tab destinations in the app shell', () => {
