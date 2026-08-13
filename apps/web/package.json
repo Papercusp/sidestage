@@ -11,6 +11,7 @@
     "clean": "rm -rf dist .vite"
   },
   "dependencies": {
+    "@papercusp/grid-core": "*",
     "react": "^19.1.0",
     "react-dom": "^19.1.0"
   },
