@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { CopilotPanel } from './CopilotPanel';
 import { ProductCard, type ProductTone } from './components/ProductCard';
 import {
   connectPublisher,
@@ -375,6 +376,7 @@ function SellerTab({ selectedProduct }: { selectedProduct: CatalogProduct | null
           <h3 id="copilot-note-title">“Lead with the glaze detail.”</h3>
           <p>The product description and event policy support this suggestion. Nothing is sent without your approval.</p>
         </section>
+        <CopilotPanel apiBaseUrl={import.meta.env.VITE_API_URL} />
       </div>
     </div>
   );

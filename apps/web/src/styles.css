@@ -66,6 +66,26 @@ h1 { margin: 0; max-width: 720px; font-size: clamp(3rem, 7vw, 5.8rem); line-heig
 .button.primary { color: #061525; background: var(--accent); border-color: var(--accent); box-shadow: 0 8px 28px rgba(98, 216, 255, .19); }
 .seller-grid, .config-grid { display: grid; grid-template-columns: 1.2fr .8fr; gap: 1rem; margin-top: 4.5rem; }
 .stage-panel, .settings-panel, .readiness-panel { border: 1px solid var(--border); border-radius: .9rem; padding: 1.35rem; background: linear-gradient(145deg, rgba(28, 54, 94, .82), var(--surface)); box-shadow: inset 0 1px 0 rgba(255,255,255,.04), 0 18px 50px rgba(0,0,0,.17); }
+.copilot-panel { grid-column: 1 / -1; border: 1px solid rgba(98, 216, 255, .24); border-radius: .9rem; padding: 1.35rem; background: linear-gradient(145deg, rgba(22, 57, 88, .88), rgba(18, 34, 62, .8)); box-shadow: inset 0 1px 0 rgba(255,255,255,.05), 0 18px 50px rgba(0,0,0,.18); }
+.copilot-panel-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 1rem; }
+.copilot-panel h2 { margin: .55rem 0 0; font-size: 1.45rem; letter-spacing: -.04em; }
+.copilot-reply { margin: 1.25rem 0 1.4rem; padding: .85rem 1rem; border-left: 2px solid var(--accent); border-radius: .35rem; color: var(--accent-strong); background: rgba(98, 216, 255, .07); font-size: .84rem; line-height: 1.55; }
+.copilot-form label { display: block; margin-bottom: .45rem; color: var(--muted); font-size: .72rem; font-weight: 650; }
+.copilot-input-row { display: flex; align-items: stretch; gap: .65rem; }
+.copilot-input-row input { flex: 1; min-width: 0; border: 1px solid var(--border); border-radius: .55rem; padding: .72rem .8rem; color: var(--text); background: rgba(4, 13, 28, .45); }
+.copilot-input-row input:focus { outline: 2px solid rgba(98, 216, 255, .36); outline-offset: 1px; border-color: var(--accent); }
+.copilot-products { display: grid; gap: .65rem; margin-top: 1rem; }
+.copilot-product { display: grid; grid-template-columns: 3rem minmax(0, 1fr) auto; align-items: center; gap: .85rem; padding: .75rem; border: 1px solid var(--border); border-radius: .65rem; background: rgba(4, 13, 28, .28); }
+.copilot-product img, .copilot-product-placeholder { width: 3rem; height: 3rem; border-radius: .55rem; object-fit: cover; background: radial-gradient(circle at 40% 35%, rgba(98, 216, 255, .32), transparent 52%), rgba(98, 216, 255, .08); }
+.copilot-product-copy { min-width: 0; }
+.copilot-product-copy h3 { margin: 0 0 .2rem; font-size: .82rem; }
+.copilot-product-copy p { overflow: hidden; margin: 0 0 .35rem; color: var(--muted); font-size: .72rem; line-height: 1.4; text-overflow: ellipsis; white-space: nowrap; }
+.copilot-product-copy strong { margin-right: .55rem; font-size: .76rem; }
+.copilot-product-copy small { color: var(--muted); font-size: .68rem; }
+.copilot-cart { display: flex; align-items: center; gap: .8rem; margin-top: .85rem; padding-top: .85rem; border-top: 1px solid var(--border); color: var(--muted); font-size: .74rem; }
+.copilot-cart strong { margin-left: auto; color: var(--text); font-size: .9rem; }
+.copilot-error { margin: .8rem 0 0; color: #ff9caa; font-size: .74rem; }
+.copilot-checkout { margin: .8rem 0 0; color: var(--success); font-size: .74rem; line-height: 1.45; }
 .stage-primary { grid-row: span 2; min-height: 330px; }
 .panel-kicker { display: flex; align-items: center; gap: .48rem; color: var(--muted); font-size: .7rem; font-weight: 700; letter-spacing: .09em; text-transform: uppercase; }
 .panel-status { margin-left: auto; color: var(--success); letter-spacing: 0; text-transform: none; }
@@ -129,4 +149,4 @@ h1 { margin: 0; max-width: 720px; font-size: clamp(3rem, 7vw, 5.8rem); line-heig
 .feature-icon.cyan { color: var(--accent); background: rgba(98,216,255,.12); }
 .footer { display: flex; justify-content: space-between; margin-top: 6rem; padding-top: 1rem; border-top: 1px solid var(--border); color: #627a9e; font-size: .72rem; }
 @media (max-width: 800px) { .topbar { gap: .75rem; padding-inline: 1.25rem; } .tab-nav { gap: 0; } .nav-link { padding-inline: .5rem; } .connection-pill { font-size: .68rem; } .product-grid, .seller-grid, .config-grid { grid-template-columns: 1fr; } .stage-primary { grid-row: auto; } .stream-room-heading { align-items: flex-start; flex-direction: column; } .stream-room-actions { justify-content: flex-start; } }
-@media (max-width: 560px) { .topbar { align-items: flex-start; flex-wrap: wrap; } .tab-nav { order: 3; width: 100%; overflow-x: auto; } .connection-pill { margin-left: auto; } .content { width: min(100% - 1.5rem, 1120px); padding-top: 3rem; } .catalog-toolbar { align-items: flex-start; flex-direction: column; gap: .35rem; margin-top: 3rem; } h1 { font-size: clamp(2.75rem, 14vw, 4.2rem); } }
+@media (max-width: 560px) { .topbar { align-items: flex-start; flex-wrap: wrap; } .tab-nav { order: 3; width: 100%; overflow-x: auto; } .connection-pill { margin-left: auto; } .content { width: min(100% - 1.5rem, 1120px); padding-top: 3rem; } .catalog-toolbar { align-items: flex-start; flex-direction: column; gap: .35rem; margin-top: 3rem; } h1 { font-size: clamp(2.75rem, 14vw, 4.2rem); } .copilot-input-row { flex-direction: column; } .copilot-input-row .button { width: 100%; } .copilot-product { grid-template-columns: 3rem minmax(0, 1fr); } .copilot-product > .button { grid-column: 1 / -1; width: 100%; } .copilot-cart { align-items: flex-start; flex-wrap: wrap; } .copilot-cart strong { margin-left: auto; } }
