@@ -5,6 +5,9 @@ the reviewer-facing answer sheet for the contest submission: it records the
 clean-clone commands, the shortest product walkthrough, the implementation
 evidence, and the required AI-use disclosure.
 
+Read first: [`PRD.md`](PRD.md) (product requirements) and [`TDD.md`](TDD.md)
+(technical design) — then verify against the prototype and source.
+
 ## Submission fields
 
 | Field | Answer |

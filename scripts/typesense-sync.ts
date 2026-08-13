@@ -96,7 +96,7 @@ async function main() {
   const flushDocs = async (force = false) => {
     while (docs.length >= IMPORT_BATCH || (force && docs.length > 0)) {
       const batch = docs.splice(0, IMPORT_BATCH);
-      await retryCall(() => typesenseService.importDocuments(batch), `import@${imported}`);
+      await retryCall(() => typesenseService.indexDocuments(batch), `import@${imported}`);
       imported += batch.length;
       if (imported % 25_000 < IMPORT_BATCH) console.log(`  … ${imported.toLocaleString()} groups indexed`);
     }

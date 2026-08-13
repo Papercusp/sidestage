@@ -105,11 +105,6 @@ export function SellerTab({
             <div className="empty-state"><span className="empty-state-icon">＋</span><h3 id="on-deck-title">Choose a product</h3><p>Use the Buyer tab to place the first item on stage.</p></div>
           )}
         </section>
-        <section className="stage-panel insight-panel" aria-labelledby="copilot-note-title">
-          <div className="panel-kicker">Copilot note <span className="confidence-pill">Grounded</span></div>
-          <h3 id="copilot-note-title">“Lead with the glaze detail.”</h3>
-          <p>The product description and event policy support this suggestion. Nothing is sent without your approval.</p>
-        </section>
         <CopilotPanel apiBaseUrl={import.meta.env.VITE_API_URL} />
         <EventChat
           eventId={room?.eventId ?? chatEventId(eventId)}

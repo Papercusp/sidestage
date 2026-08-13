@@ -1,5 +1,6 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import type { Pool } from 'pg';
+import { typesenseService } from '@papercusp/typesense';
 import { DEMO_CATALOG_FIXTURE } from './catalog.fixture';
 import type {
   CatalogPage,
@@ -59,11 +60,51 @@ function rowToVariant(row: VariantRow): CatalogVariant {
 /** The real catalog: storefront variants joined to their catalog groups. */
 @Injectable()
 export class PgCatalogSource implements CatalogSource {
+  private readonly logger = new Logger(PgCatalogSource.name);
+
   constructor(private readonly pool: Pool) {}
 
   async search(query: CatalogQuery): Promise<CatalogPage> {
-    const { q, productType, availability } = normalizeQuery(query);
-    // Primary: the GIN-indexed tsvector. An OR with a slug ILIKE defeats both
+    const { q, productType, availability, page, pageSize } = normalizeQuery(query);
+    // The SAME search the Restart wholesale grid uses (@papercusp/typesense):
+    // typo-tolerant, one hit per product group, true corpus match count — with
+    // graceful SQL degradation when Typesense is unavailable (spec parity,
+    // sidestage-code-quality P-110).
+    if (q) {
+      try {
+        const { hits, found } = await typesenseService.search({
+          q,
+          category: productType || undefined,
+          inStockOnly: availability === 'in-stock',
+          limit: pageSize,
+          page,
+        });
+        if (hits.length > 0) {
+          const groupKeys = hits.map((hit) => (hit as { groupId?: string }).groupId ?? hit.id);
+          const rows = await this.pool.query<VariantRow>(
+            `SELECT v.id, v.group_id AS "groupId", c.title, c.brand, c.product_type AS "productType",
+                    v.sku, v.condition, v.handling AS "handlingDays", v.price_cents AS "priceCents",
+                    v."availableQty", c.images->0->>'url' AS "imageUrl", c.description
+             FROM storefront_product v
+             LEFT JOIN product_catalog c ON c.group_id = v.group_id AND c.region = v.region
+             WHERE v.active AND COALESCE(v.group_id, v.id) = ANY($1)
+             ORDER BY array_position($1, COALESCE(v.group_id, v.id)), v."availableQty" > 0 DESC, v.id`,
+            [groupKeys],
+          );
+          return {
+            rows: rows.rows.map(rowToVariant),
+            page,
+            pageSize,
+            // `found` is Typesense's true group-match count across the corpus.
+            total: Math.min(found, TOTAL_CAP),
+            totalIsFloor: found > TOTAL_CAP,
+          };
+        }
+      } catch (err) {
+        this.logger.warn(`Typesense search unavailable, falling back to SQL: ${(err as Error).message}`);
+      }
+    }
+    // SQL path: the GIN-indexed tsvector. An OR with a slug ILIKE defeats both
     // indexes and full-scans 1.1M rows, so the slug match is a FALLBACK query
     // (own gin_trgm index) used only when the text search finds nothing.
     const primary = await this.runSearch(query, q ? `c.search_tsv @@ plainto_tsquery('simple', $Q)` : null);

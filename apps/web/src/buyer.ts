@@ -25,11 +25,6 @@ export type BuyerStats = {
   totalRaisedCents: number;
 };
 
-export const DEMO_BUYER_STATS: BuyerStats = {
-  viewers: 128,
-  itemsSold: 14,
-  totalRaisedCents: 124800,
-};
 
 export function formatBuyerPrice(cents: number, currency = 'USD'): string {
   return new Intl.NumberFormat('en-US', {
