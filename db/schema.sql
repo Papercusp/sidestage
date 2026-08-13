@@ -526,3 +526,69 @@ CREATE TABLE IF NOT EXISTS event_config (
   updated_at timestamptz NOT NULL DEFAULT now(),
   CONSTRAINT event_config_payload_object CHECK (jsonb_typeof(payload) = 'object')
 );
+
+-- ── Seller policies (P-114, docs/config-policies.md) ─────────────────────────
+-- Immutable revisions behind draft→validated→published→superseded (\→rejected).
+-- The whole revision is jsonb with hot columns lifted; the DB enforces one
+-- published revision + monotonic revision numbers per (seller, event) scope.
+-- COALESCE(event_id,'') makes NULL (seller-wide) participate in uniqueness.
+
+CREATE TABLE IF NOT EXISTS seller_policy_revision (
+  id text PRIMARY KEY,
+  seller_id text NOT NULL,
+  event_id text,
+  revision integer NOT NULL CHECK (revision > 0),
+  state text NOT NULL CHECK (state IN ('draft', 'validated', 'published', 'superseded', 'rejected')),
+  fingerprint text NOT NULL,
+  payload jsonb NOT NULL,
+  updated_at timestamptz NOT NULL DEFAULT now(),
+  CONSTRAINT seller_policy_revision_payload_object CHECK (jsonb_typeof(payload) = 'object')
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS seller_policy_revision_scope_rev
+  ON seller_policy_revision (seller_id, COALESCE(event_id, ''), revision);
+
+CREATE UNIQUE INDEX IF NOT EXISTS seller_policy_one_published
+  ON seller_policy_revision (seller_id, COALESCE(event_id, ''))
+  WHERE state = 'published';
+
+-- Immutable audit trail: every draft/validate/publish/automation decision.
+CREATE TABLE IF NOT EXISTS policy_audit_entry (
+  id text PRIMARY KEY,
+  seller_id text NOT NULL,
+  event_id text,
+  policy_revision_id text,
+  action text NOT NULL,
+  payload jsonb NOT NULL,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  CONSTRAINT policy_audit_entry_payload_object CHECK (jsonb_typeof(payload) = 'object')
+);
+
+CREATE INDEX IF NOT EXISTS policy_audit_entry_scope_idx
+  ON policy_audit_entry (seller_id, policy_revision_id, created_at);
+
+-- Transactional outbox: written in the SAME transaction as the revision +
+-- audit row; the sync layer drains it idempotently by event id.
+CREATE TABLE IF NOT EXISTS policy_outbox_event (
+  id text PRIMARY KEY,
+  name text NOT NULL,
+  payload jsonb NOT NULL,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  delivered_at timestamptz,
+  CONSTRAINT policy_outbox_event_payload_object CHECK (jsonb_typeof(payload) = 'object')
+);
+
+CREATE INDEX IF NOT EXISTS policy_outbox_event_undelivered_idx
+  ON policy_outbox_event (created_at) WHERE delivered_at IS NULL;
+
+-- Idempotency keys scoped to seller + route: a replay with the same request
+-- hash returns the original response; a different hash is IDEMPOTENCY_REPLAY.
+CREATE TABLE IF NOT EXISTS policy_idempotency (
+  seller_id text NOT NULL,
+  route text NOT NULL,
+  key text NOT NULL,
+  request_hash text NOT NULL,
+  response jsonb NOT NULL,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  PRIMARY KEY (seller_id, route, key)
+);

@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import type { Pool } from 'pg';
 import { DatabaseModule, PG_POOL } from '../db/database.module';
+import { PolicyModule } from '../policies/policy.module';
 import { EventConfigController } from './event-config.controller';
 import {
   EVENT_CONFIG_STORE,
@@ -10,7 +11,7 @@ import {
 } from './event-config.service';
 
 @Module({
-  imports: [DatabaseModule],
+  imports: [DatabaseModule, PolicyModule],
   controllers: [EventConfigController],
   providers: [
     EventConfigService,
