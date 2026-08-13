@@ -33,6 +33,9 @@ git submodule update --init --recursive
 
 ## Verification
 
+Start with the product and technical design documents:
+[`docs/PRD.md`](docs/PRD.md) and [`docs/TDD.md`](docs/TDD.md).
+
 The reviewer-facing submission packet, walkthrough, and AI-use disclosure are in
 [`docs/submission.md`](docs/submission.md).
 
