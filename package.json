@@ -14,7 +14,8 @@
     "dev:web": "npm run dev --workspace @papercusp/sidestage-web",
     "build": "npm run build --workspaces --if-present",
     "typecheck": "npm run typecheck --workspaces --if-present",
-    "test": "npm run test --workspaces --if-present",
+    "test": "npm run test:apps",
+    "test:apps": "npm run test --workspace @papercusp/sidestage-api && npm run test --workspace @papercusp/sidestage-web",
     "check": "npm run typecheck && npm test",
     "clean": "npm run clean --workspaces --if-present"
   },

@@ -1,0 +1,38 @@
+name: SideStage CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    name: Test, typecheck, and build
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Check out the app and pinned shared libraries
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20.19.x
+          cache: npm
+
+      - name: Install dependencies from the lockfile
+        run: npm ci
+
+      - name: Run the SideStage app Vitest suites
+        run: npm test
+
+      - name: Typecheck every workspace
+        run: npm run typecheck
+
+      - name: Build every workspace
+        run: npm run build

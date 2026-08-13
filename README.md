@@ -33,6 +33,24 @@ git submodule update --init --recursive
 
 ## Verification
 
+The contest evaluator can run the project from a clean clone with these exact
+commands:
+
+Run command:
+
+```bash
+npm run dev
+```
+
+Test command:
+
+```bash
+npm test
+```
+
+For the complete local gate, run the test command plus the workspace typechecks
+and production builds:
+
 ```bash
 npm run check
 npm run build
