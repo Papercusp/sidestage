@@ -25,34 +25,6 @@ export type BuyerStats = {
   totalRaisedCents: number;
 };
 
-export const DEMO_BUYER_PRODUCTS: readonly BuyerProduct[] = [
-  {
-    id: 'linen-hoodie-blue-m',
-    title: 'Linen hoodie',
-    subtitle: 'Blue · M',
-    priceCents: 6800,
-    compareAtPriceCents: 8900,
-    availableQty: 4,
-    badge: 'Featured',
-  },
-  {
-    id: 'stoneware-mug-matte-12oz',
-    title: 'Stoneware mug',
-    subtitle: 'Matte · 12 oz',
-    priceCents: 2400,
-    availableQty: 12,
-  },
-  {
-    id: 'woven-market-tote',
-    title: 'Woven market tote',
-    subtitle: 'Natural cotton',
-    priceCents: 4200,
-    compareAtPriceCents: 5200,
-    availableQty: 0,
-    badge: 'Sold out',
-  },
-];
-
 export const DEMO_BUYER_CHAT: readonly BuyerChatMessage[] = [
   {
     id: 'chat-1',

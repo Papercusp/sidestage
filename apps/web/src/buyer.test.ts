@@ -3,8 +3,8 @@ import { describe, expect, it } from 'vitest';
 import {
   availableBuyerProducts,
   buildBuyerShareUrl,
-  DEMO_BUYER_PRODUCTS,
   formatBuyerPrice,
+  type BuyerProduct,
 } from './buyer';
 
 describe('buyer surface model', () => {
@@ -20,9 +20,14 @@ describe('buyer surface model', () => {
   });
 
   it('does not count sold-out cards as available inventory', () => {
-    expect(availableBuyerProducts(DEMO_BUYER_PRODUCTS).map((product) => product.id)).toEqual([
-      'linen-hoodie-blue-m',
-      'stoneware-mug-matte-12oz',
+    const products: readonly BuyerProduct[] = [
+      { id: 'in-stock-a', title: 'A', subtitle: 'a', priceCents: 100, availableQty: 4 },
+      { id: 'in-stock-b', title: 'B', subtitle: 'b', priceCents: 200, availableQty: 1 },
+      { id: 'sold-out', title: 'C', subtitle: 'c', priceCents: 300, availableQty: 0 },
+    ];
+    expect(availableBuyerProducts(products).map((product) => product.id)).toEqual([
+      'in-stock-a',
+      'in-stock-b',
     ]);
   });
 });
