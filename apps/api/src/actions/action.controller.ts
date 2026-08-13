@@ -1,10 +1,10 @@
-import { Body, Controller, Get, Param, Post } from '@nestjs/common';
+import { Inject, Body, Controller, Get, Param, Post } from '@nestjs/common';
 import { GuardedActionService } from './action.service';
 import type { ApplyActionInput, RegisterActionEventInput } from './action.types';
 
 @Controller('actions')
 export class ActionController {
-  constructor(private readonly actions: GuardedActionService) {}
+  constructor(@Inject(GuardedActionService) private readonly actions: GuardedActionService) {}
 
   @Post('events/:eventId/register')
   register(@Param('eventId') eventId: string, @Body() body: RegisterActionEventInput) {
