@@ -4,6 +4,10 @@ coverage/
 .env
 .env.*
 !.env.example
+# Real Restart production catalog export — local-only, never committed to the
+# public repo (the committed fixture is db/seed/demo.sql; see plan
+# sidestage-code-quality-2026-08-13 D-001).
+db/seed/restart-catalog.sql
 .DS_Store
 *.log
 apps/*/dist/
