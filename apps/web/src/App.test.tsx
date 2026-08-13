@@ -1,6 +1,6 @@
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
-import { App, DEMO_PRODUCTS, getTabFromUrl, tabHref } from './App';
+import { App, DEMO_PRODUCTS, getTabFromUrl, tabHref, TestTab } from './App';
 import { ProductCard } from './components/ProductCard';
 
 describe('SideStage tab state', () => {
@@ -34,5 +34,18 @@ describe('P-005 product card and shell', () => {
     expect(markup).toContain('Live chat');
     expect(markup).toContain('Message the room');
     expect(markup).toContain('Share event');
+  });
+});
+
+describe('P-022 load simulator tab', () => {
+  it('renders deterministic load controls and keeps the rehearsal local', () => {
+    const markup = renderToStaticMarkup(<TestTab />);
+
+    expect(markup).toContain('Pressure-test the copilot seam.');
+    expect(markup).toContain('Simulated users');
+    expect(markup).toContain('Messages / user / sec');
+    expect(markup).toContain('Duration (seconds)');
+    expect(markup).toContain('Run load rehearsal');
+    expect(markup).toContain('without sending anything to buyers');
   });
 });
