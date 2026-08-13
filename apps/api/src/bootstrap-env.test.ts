@@ -1,11 +1,12 @@
 import { describe, expect, it, vi } from 'vitest';
+import { resolve } from 'node:path';
 import { loadAppModule, loadRepoEnv } from './bootstrap-env';
 
 describe('API bootstrap environment', () => {
   it('loads the repo-root env when launched from apps/api', () => {
     const loadEnvFile = vi.fn();
 
-    const loaded = loadRepoEnv(new URL('..', import.meta.url).pathname, loadEnvFile);
+    const loaded = loadRepoEnv(resolve(process.cwd(), 'apps/api'), loadEnvFile);
 
     expect(loaded).toBeTruthy();
     expect(loadEnvFile).toHaveBeenCalledOnce();
