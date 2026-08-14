@@ -19,8 +19,8 @@
 # Requirements on the dev box: ssh key ($SSH_KEY, default the papercusp frame
 # key) authorized as root on the prod host. Requirements on prod (one-time):
 # /opt/SideStage/.env.production with the database/search, checkout-provider,
-# warehouse-origin, public-hostname, and MediaMTX public-IPv4 values required by
-# docker-compose.prod.yml.
+# warehouse-origin, public-hostname, MediaMTX public-IPv4, and TURN authentication
+# values required by docker-compose.prod.yml.
 set -euo pipefail
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
 source "$SCRIPT_DIR/deploy-lock.sh"
@@ -170,6 +170,7 @@ say "Checking .env.production exists on prod"
   echo "  SQUARE_APP_ID=… SQUARE_LOCATION_ID=… SQUARE_ACCESS_TOKEN=…" >&2
   echo "  PUBLIC_HOSTNAME=sidestage.buyrestart.com" >&2
   echo "  MEDIAMTX_PUBLIC_IP=178.156.254.59" >&2
+  echo "  TURN_AUTH_SECRET=<strong random secret>" >&2
   exit 2
 }
 
