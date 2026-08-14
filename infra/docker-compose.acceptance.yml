@@ -14,6 +14,10 @@ services:
     restart: "no"
     ports: !override []
     volumes: !override []
+    # Typesense refuses to start when /data is absent. Keep its required data
+    # directory ephemeral without reintroducing the production named volume.
+    tmpfs:
+      - /data
 
   redis:
     restart: "no"
