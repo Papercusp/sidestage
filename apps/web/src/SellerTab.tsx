@@ -170,6 +170,16 @@ export function SellerTab({
       apiBaseUrl: import.meta.env.VITE_API_URL,
       embedded: true,
     },
+    'run-of-show': {
+      eventId,
+      activeProductId: selectedProductId,
+      onActiveProductChange,
+      apiBaseUrl: import.meta.env.VITE_API_URL,
+    },
+    'run-of-show-planner': {
+      eventId,
+      apiBaseUrl: import.meta.env.VITE_API_URL,
+    },
   };
 
   const { layoutName, layoutSeed, resetEventName } = studioBoardConfig(studioView);

@@ -43,7 +43,13 @@ describe('Studio dock board seeds', () => {
     const layout = sellerActiveEventDockDefaultLayout();
     const placed = panelsIn(layout);
 
-    expect(placed).toEqual(['stage-status', 'copilot', 'transcript', 'on-deck']);
+    expect(placed).toEqual([
+      'stage-status',
+      'copilot',
+      'transcript',
+      'on-deck',
+      'run-of-show',
+    ]);
     expect(new Set(placed)).toEqual(new Set(SELLER_ACTIVE_PANEL_IDS));
     expect(placed).not.toContain('event-chat');
     expect(placed).not.toContain('event-manager');

@@ -11,6 +11,8 @@ import EventManager from './events/EventManager';
 import { SELLER_PANEL_IDS, SELLER_PANEL_TITLES, type SellerPanelId } from './seller-dock-layout';
 import { useSellerDockPanels } from './SellerDock';
 import { OnDeckPanel } from './seller/OnDeckPanel';
+import { RunOfShowPanel } from './seller/RunOfShowPanel';
+import { RunOfShowPlannerPanel } from './seller/RunOfShowPlannerPanel';
 import { StageStatusPanel } from './seller/StageStatusPanel';
 import { TranscriptPane } from './TranscriptPane';
 
@@ -117,6 +119,24 @@ const EventSettingsDockPanel: PanelComponent = function EventSettingsDockPanel()
   );
 };
 
+const RunOfShowDockPanel: PanelComponent = function RunOfShowDockPanel() {
+  const panels = useSellerDockPanels();
+  return (
+    <PanelBody>
+      <RunOfShowPanel {...panels['run-of-show']} />
+    </PanelBody>
+  );
+};
+
+const RunOfShowPlannerDockPanel: PanelComponent = function RunOfShowPlannerDockPanel() {
+  const panels = useSellerDockPanels();
+  return (
+    <PanelBody>
+      <RunOfShowPlannerPanel {...panels['run-of-show-planner']} />
+    </PanelBody>
+  );
+};
+
 /**
  * Every panel id mapped to its component.
  *
@@ -134,6 +154,8 @@ export const SELLER_PANEL_COMPONENTS: Record<SellerPanelId, PanelComponent> = {
   'event-chat': EventChatDockPanel,
   'event-manager': EventManagerDockPanel,
   'event-settings': EventSettingsDockPanel,
+  'run-of-show': RunOfShowDockPanel,
+  'run-of-show-planner': RunOfShowPlannerDockPanel,
 };
 
 /**

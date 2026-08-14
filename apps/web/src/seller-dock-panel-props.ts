@@ -49,6 +49,8 @@ export type SellerDockPanelContextValue = {
   'event-chat': ComponentProps<typeof EventChat>;
   'event-manager': ComponentProps<typeof EventManager>;
   'event-settings': ComponentProps<typeof EventSettingsPanel>;
+  'run-of-show': ComponentProps<typeof RunOfShowPanel>;
+  'run-of-show-planner': ComponentProps<typeof RunOfShowPlannerPanel>;
 };
 
 /**
