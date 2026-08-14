@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { FormEvent } from 'react';
 import { useSyncMutate, useSyncQuery } from '@papercusp/sync';
 import { requestChatJson } from './chat-api';
@@ -61,6 +61,8 @@ export interface EventChatProps {
   userId: string;
   displayName: string;
   eventTitle?: string;
+  /** Dense dock management by default; video mounts opt into the lightweight audience surface. */
+  surface?: 'management' | 'audience-overlay';
   /** API origin without a trailing slash. Defaults to the local API port. */
   apiBaseUrl?: string;
 }
@@ -108,6 +110,7 @@ function EventChatSurface({
   userId,
   displayName,
   eventTitle = 'Live event',
+  surface = 'management',
   apiBaseUrl,
 }: EventChatProps) {
   const apiOrigin = resolveApiOrigin(apiBaseUrl);
@@ -132,6 +135,7 @@ function EventChatSurface({
   const [sendError, setSendError] = useState<string | null>(null);
   const [presenceError, setPresenceError] = useState<string | null>(null);
   const [queueView, setQueueView] = useState<QueueView>(role === 'seller' ? 'focused' : 'all');
+  const audienceMessagesRef = useRef<HTMLDivElement>(null);
 
   const sendMessage = useEventChatSender({ eventId, apiBaseUrl });
   const touchPresenceFallback = useCallback((input: EventChatPresenceInput) => (
@@ -185,6 +189,11 @@ function EventChatSurface({
     return [...remoteMessages, ...optimisticMessages.filter((message) => !remoteIds.has(message.id))];
   }, [optimisticMessages, remoteMessages]);
   const triagedMessages = useMemo(() => triageMessages(messages), [messages]);
+  useEffect(() => {
+    if (surface !== 'audience-overlay') return;
+    const list = audienceMessagesRef.current;
+    if (list) list.scrollTop = list.scrollHeight;
+  }, [messages.length, surface]);
   const focusedMessages = useMemo(
     () => triagedMessages
       .filter(({ message, triage }) => (
@@ -224,6 +233,67 @@ function EventChatSurface({
       setSendError(error instanceof Error ? error.message : 'Message could not be sent.');
     }
   };
+
+  if (surface === 'audience-overlay') {
+    return (
+      <section
+        className="event-chat-audience"
+        data-surface="audience-overlay"
+        aria-label={`${eventTitle} audience chat`}
+      >
+        <div className="event-chat-audience-messages" ref={audienceMessagesRef} aria-live="polite">
+          {triagedMessages.length === 0 ? (
+            <p className="event-chat-audience-empty">Chat will appear here when the room starts talking.</p>
+          ) : null}
+          {triagedMessages.map(({ message, triage }) => (
+            <article
+              className={`event-chat-audience-message event-chat-audience-message-${triage.importance}`}
+              key={message.id}
+            >
+              <div className={`event-chat-audience-avatar event-chat-audience-avatar-${message.role}`} aria-hidden="true">
+                {message.displayName.slice(0, 1).toUpperCase()}
+              </div>
+              <div className="event-chat-audience-copy">
+                <div className="event-chat-audience-meta">
+                  <strong>{message.displayName}</strong>
+                  {triage.importance !== 'low' ? (
+                    <span className={`event-chat-audience-tag event-chat-audience-tag-${triage.importance}`}>
+                      {triage.label}
+                    </span>
+                  ) : null}
+                </div>
+                <p>{message.text}</p>
+                {message.grounding?.status === 'answered' ? (
+                  <span className="event-chat-audience-state">Answered from transcript</span>
+                ) : null}
+                {message.grounding?.status === 'seller-queue' ? (
+                  <span className="event-chat-audience-state">Queued for seller</span>
+                ) : null}
+              </div>
+            </article>
+          ))}
+        </div>
+
+        {canSend ? (
+          <form className="event-chat-audience-form" onSubmit={(event) => void submit(event)}>
+            <label className="sr-only" htmlFor={`event-chat-audience-message-${eventId}`}>Message the room</label>
+            <input
+              id={`event-chat-audience-message-${eventId}`}
+              className="event-chat-audience-input"
+              value={draft}
+              onChange={(event) => setDraft(event.target.value)}
+              placeholder="Say something…"
+              maxLength={500}
+            />
+            <button className="event-chat-audience-send" type="submit" disabled={!draft.trim()}>Send</button>
+          </form>
+        ) : null}
+
+        {sendError ? <p className="event-chat-audience-error" role="alert">{sendError}</p> : null}
+        {presenceError ? <p className="event-chat-audience-error" role="status">{presenceError}</p> : null}
+      </section>
+    );
+  }
 
   return (
     <section className="stage-panel event-chat-card" aria-label={`${eventTitle} chat`}>
