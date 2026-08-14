@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Rehearse — SideStage concept</title><link rel="stylesheet" href="shared.css"></head>
+<body>
+  <a class="skip-link" href="#main">Skip to test workbench</a>
+  <header class="app-header"><div class="app-header-inner">
+    <a class="brand" href="buyer.html"><span class="brand-mark">S</span><span class="brand-copy"><strong>SideStage</strong><small>Live commerce</small></span></a>
+    <nav class="primary-nav" aria-label="SideStage pages"><span class="nav-cluster"><a class="nav-link" href="buyer.html">Watch</a><a class="nav-link" href="orders.html">Orders</a></span><span class="nav-cluster"><a class="nav-link" href="seller.html">Studio</a><a class="nav-link" href="build-history.html">Releases</a><a class="nav-link" href="config.html">Settings</a><a class="nav-link" aria-current="page" href="test.html">Rehearse</a></span></nav>
+    <div class="header-actions"><span class="status failed">Not ready</span><span class="avatar">NK</span></div>
+  </div></header>
+
+  <main class="shell" id="main">
+    <header class="page-head"><div><span class="page-kicker">Testing workbench</span><h1>Rehearse</h1><p>Choose a focused suite from the rail, scan dense evidence, and run only what advances tonight’s go-live decision.</p></div><div class="head-actions"><label class="field" style="min-width:240px"><span class="field-label">Event under test</span><select class="select"><option>Tonight’s live drop</option><option>September archive sale</option></select></label></div></header>
+
+    <section class="test-workbench" data-drawer="closed" aria-label="Event rehearsal workbench">
+      <button class="suite-scrim" type="button" aria-label="Close suite navigation"></button>
+      <aside class="suite-rail" aria-label="Test suites">
+        <div class="suite-rail-head"><strong>Test suites</strong><span class="badge red">2 failed</span></div>
+        <div class="suite-group"><div class="suite-group-label"><span>Go live</span><span>3</span></div><nav class="suite-nav" aria-label="Go live suites">
+          <button class="suite-button active" aria-current="page" data-suite="preflight"><strong>Preflight</strong><small>Required configuration</small><span class="suite-count">2/4</span></button>
+          <button class="suite-button" data-suite="full"><strong>Full rehearsal</strong><small>Buyer-to-order journey</small><span class="suite-count">8</span></button>
+          <button class="suite-button" data-suite="failed"><strong>Failed only</strong><small>Fast corrective loop</small><span class="suite-count">2</span></button>
+        </nav></div>
+        <div class="suite-group"><div class="suite-group-label"><span>Capabilities</span><span>4</span></div><nav class="suite-nav" aria-label="Capability suites">
+          <button class="suite-button" data-suite="stream"><strong>Stream &amp; captions</strong><small>Media and transcript</small><span class="suite-count">5</span></button>
+          <button class="suite-button" data-suite="commerce"><strong>Commerce seams</strong><small>Hold, offer, checkout</small><span class="suite-count">6</span></button>
+          <button class="suite-button" data-suite="fulfillment"><strong>Fulfillment</strong><small>Rates and receipts</small><span class="suite-count">4</span></button>
+          <button class="suite-button" data-suite="copilot"><strong>Copilot replies</strong><small>Grounding and guardrails</small><span class="suite-count">3</span></button>
+        </nav></div>
+        <div class="suite-group"><div class="suite-group-label"><span>Advanced</span><span>2</span></div><nav class="suite-nav" aria-label="Advanced suites"><button class="suite-button" data-suite="load"><strong>Load rehearsal</strong><small>Room at 500 viewers</small><span class="suite-count">3</span></button><button class="suite-button" data-suite="chaos"><strong>Recovery drills</strong><small>Disconnect and resume</small><span class="suite-count">4</span></button></nav></div>
+      </aside>
+
+      <div class="test-main">
+        <div class="test-mobile-head"><button class="button small" id="open-suites" type="button" aria-expanded="false">☰ Suites</button><strong>Preflight · 2 of 4 passed</strong><span class="status failed">Blocked</span></div>
+        <header class="test-panel-head"><div><div class="meta-row"><span class="status failed">Not ready</span><span>2 blockers</span><span>Last run 7:18 PM</span><span>Config cfg_8f31</span></div><h1 style="margin-top:9px" id="suite-title">Preflight</h1><p id="suite-description">The four required checks before a rehearsal can begin. Resolve configuration blockers here, then rerun only the failures.</p><div class="health-strip"><span class="chip">4 checks</span><span class="chip">2 passed</span><span class="chip" style="color:var(--red-dark)">2 failed</span><span class="chip">Evidence fresh · 27m</span></div></div><div class="button-row"><button class="button">Run failed only</button><button class="button primary">Run preflight</button></div></header>
+
+        <div class="banner danger" style="margin-top:12px"><span class="banner-mark">!</span><div><strong>First fix: add a price floor</strong><p>Checkout and private-offer tests are disabled until Settings defines the minimum allowed sale price.</p></div><a class="button small" href="config.html">Fix in Settings</a></div>
+
+        <div class="test-columns">
+          <section class="card suite-card" aria-label="Preflight checks">
+            <header class="suite-card-head"><h2>Required before live</h2><span class="row-meta">2 / 4 passed</span><button class="button ghost small">Copy report link</button></header>
+            <ul class="dense-list">
+              <li class="dense-row"><span class="row-icon pass">✓</span><div class="row-title"><strong>Event identity is complete</strong><small>Title, seller, start time, and visibility</small></div><span class="row-meta">183ms</span><button class="button ghost small">Details</button></li>
+              <li class="dense-row"><span class="row-icon fail">×</span><div class="row-title"><strong>Price floor protects every sale path</strong><small>Missing value disables checkout and offers</small></div><span class="row-meta">91ms</span><button class="button small">Fix</button></li>
+              <li class="dense-row"><span class="row-icon fail">×</span><div class="row-title"><strong>Checkout can quote shipping</strong><small>Blocked by missing price floor</small></div><span class="row-meta">—</span><button class="button ghost small">Why?</button></li>
+              <li class="dense-row"><span class="row-icon pass">✓</span><div class="row-title"><strong>Copilot guardrails are explicit</strong><small>Review-first replies and 20% discount cap</small></div><span class="row-meta">204ms</span><button class="button ghost small">Details</button></li>
+            </ul>
+            <header class="suite-card-head" style="border-top:1px solid var(--line)"><h2>Advanced confidence</h2><span class="row-meta">Collapsed by default</span><button class="button ghost small">Show 5</button></header>
+          </section>
+
+          <aside class="card focus-pane" aria-label="Selected check details">
+            <div class="card-header"><div><span class="eyebrow">Focused check</span><h2>Price floor</h2></div><span class="status failed">Failed</span></div>
+            <p><strong style="color:var(--ink)">Why it matters</strong><br>A private offer or bid result must never cross below the seller’s intended minimum.</p>
+            <div class="meta-row"><span>Capability: Commerce</span><span>Freshness: 27m</span><span>Duration: 91ms</span></div>
+            <pre class="run-log" aria-label="Check output">19:18:02  config snapshot cfg_8f31
+19:18:02  ✓ event resolved
+19:18:02  × commerce.priceFloor missing
+19:18:02  blocked: checkout, private offers
+
+Next: Settings → Commerce guardrails</pre>
+            <div class="button-row"><a class="button primary" href="config.html">Fix in Settings</a><button class="button">Re-check</button></div>
+          </aside>
+        </div>
+      </div>
+    </section>
+
+    <footer class="mockup-note"><span>Responsive concept · Compact sidebar-driven testing workbench · 2026-08-14</span><nav class="review-links" aria-label="Review mockups"><a href="buyer.html">Buyer</a><a href="orders.html">Orders</a><a href="seller.html">Seller</a><a href="build-history.html">Build history</a><a href="config.html">Config</a><a aria-current="page" href="test.html">Test</a></nav></footer>
+  </main>
+  <script>
+    const workbench = document.querySelector('.test-workbench');
+    const openSuites = document.getElementById('open-suites');
+    const closeDrawer = () => { workbench.dataset.drawer = 'closed'; openSuites.setAttribute('aria-expanded', 'false'); };
+    openSuites.addEventListener('click', () => { workbench.dataset.drawer = 'open'; openSuites.setAttribute('aria-expanded', 'true'); });
+    document.querySelector('.suite-scrim').addEventListener('click', closeDrawer);
+    const suiteCopy = {
+      preflight: ['Preflight', 'The four required checks before a rehearsal can begin. Resolve configuration blockers here, then rerun only the failures.'],
+      full: ['Full rehearsal', 'Walk through stream, buyer hold, checkout, order provenance, and seller handoff as one launch sequence.'],
+      failed: ['Failed only', 'Keep the corrective loop tight by rerunning only checks that failed in the latest configuration snapshot.'],
+      stream: ['Stream & captions', 'Inspect media connection, caption latency, transcript capture, and reconnect behavior.'],
+      commerce: ['Commerce seams', 'Exercise product holds, auctions, private offers, checkout, and price guardrails.'],
+      fulfillment: ['Fulfillment', 'Verify shipping quotes, address validation, receipts, and order status transitions.'],
+      copilot: ['Copilot replies', 'Judge grounding, tone, discount boundaries, and seller-review requirements.'],
+      load: ['Load rehearsal', 'Measure the room, chat, and state updates under a 500-viewer synthetic audience.'],
+      chaos: ['Recovery drills', 'Practice disconnect, stale client, and service recovery without losing the live run-of-show.']
+    };
+    document.querySelectorAll('[data-suite]').forEach((button) => button.addEventListener('click', () => {
+      document.querySelectorAll('[data-suite]').forEach((item) => { item.classList.toggle('active', item === button); item.toggleAttribute('aria-current', item === button); });
+      const [title, description] = suiteCopy[button.dataset.suite]; document.getElementById('suite-title').textContent = title; document.getElementById('suite-description').textContent = description; closeDrawer();
+    }));
+  </script>
+</body>
+</html>

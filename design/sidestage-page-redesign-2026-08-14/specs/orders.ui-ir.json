@@ -1,0 +1,45 @@
+{
+  "irVersion": "0.1",
+  "surface": "sidestage-orders",
+  "ecosystem": "*",
+  "layout": {
+    "kind": "stack",
+    "direction": "vertical",
+    "children": [
+      { "kind": "header", "title": { "key": "orders.title", "default": "Your orders" }, "slots": { "summary": { "kind": "text", "copy": { "key": "orders.summary", "default": "4 orders · $364 total · 1 needs action" } }, "action": { "kind": "component", "ref": "continue-shopping" } } },
+      { "kind": "grid", "responsive": { "viewport.narrow": { "kind": "stack", "direction": "vertical" } }, "children": [
+        { "kind": "input", "placeholder": { "key": "orders.search.placeholder", "default": "Search item, event, or order ID" }, "a11y": { "role": "searchbox", "ariaLabel": { "key": "orders.search.a11y", "default": "Search orders" } } },
+        { "kind": "tabs", "label": { "key": "orders.filter", "default": "All, Needs action, In progress, or Completed" }, "interactions": ["select"], "a11y": { "role": "tablist", "ariaLabel": { "key": "orders.filter.a11y", "default": "Filter orders by status" } } },
+        { "kind": "component", "ref": "sort-orders" }
+      ] },
+      {
+        "kind": "list",
+        "binding": { "slot": "orders", "repeats": true, "shape": "OrderSummary" },
+        "emptyState": { "kind": "empty-state", "title": { "key": "orders.empty.title", "default": "No orders yet" }, "slots": { "action": { "kind": "component", "ref": "continue-shopping" } } },
+        "item": {
+          "kind": "card",
+          "interactions": ["expand", "collapse"],
+          "slots": {
+            "item": { "kind": "heading", "copy": { "key": "orders.item.title", "default": "Purchased item" } },
+            "source": { "kind": "text", "copy": { "key": "orders.item.source", "default": "Source live event and purchase type" } },
+            "status": { "kind": "badge", "label": { "key": "orders.item.status", "default": "Fulfillment status" } },
+            "nextAction": { "kind": "component", "ref": "order-action" },
+            "timeline": { "kind": "list", "binding": { "slot": "fulfillmentSteps", "repeats": true, "shape": "FulfillmentStep" }, "item": { "kind": "text", "copy": { "key": "orders.timeline.step", "default": "Fulfillment step" } } },
+            "moment": { "kind": "component", "ref": "purchase-moment" }
+          }
+        }
+      }
+    ]
+  },
+  "components": [
+    { "id": "continue-shopping", "registry": "action.primary", "props": { "label": "Continue shopping" } },
+    { "id": "sort-orders", "registry": "control.select", "props": { "label": "Sort orders", "default": "Newest first" } },
+    { "id": "order-action", "registry": "action.primary", "props": { "label": "Next order action" } },
+    { "id": "purchase-moment", "registry": "action.secondary", "props": { "label": "Watch purchase moment" } }
+  ],
+  "states": {
+    "loading": { "kind": "spinner", "label": { "key": "orders.loading", "default": "Loading orders" }, "a11y": { "role": "status", "ariaLive": "polite" } },
+    "error": { "kind": "stack", "children": [{ "kind": "text", "copy": { "key": "orders.error", "default": "Orders could not be refreshed." } }, { "kind": "button", "label": { "key": "orders.retry", "default": "Refresh again" }, "interactions": ["retry"], "a11y": { "role": "button" } }] }
+  },
+  "a11y": { "landmark": "main", "headingLevel": 1 }
+}

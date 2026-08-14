@@ -1,0 +1,62 @@
+{
+  "irVersion": "0.1",
+  "surface": "sidestage-buyer-room",
+  "ecosystem": "*",
+  "layout": {
+    "kind": "stack",
+    "direction": "vertical",
+    "responsive": { "viewport.narrow": { "direction": "vertical", "mode": "single-active-panel" } },
+    "children": [
+      {
+        "kind": "header",
+        "title": { "key": "buyer.room.title", "default": "Studio Finds: August drop" },
+        "slots": {
+          "status": { "kind": "badge", "label": { "key": "buyer.room.status.live", "default": "Live" } },
+          "actions": { "kind": "component", "ref": "share-room" }
+        }
+      },
+      {
+        "kind": "grid",
+        "responsive": { "viewport.narrow": { "kind": "stack", "direction": "vertical" } },
+        "children": [
+          { "kind": "image", "label": { "key": "buyer.stage.video", "default": "Live video stage" }, "a11y": { "role": "img", "ariaLabel": { "key": "buyer.stage.video.a11y", "default": "Live video showing the current weekender bag" } } },
+          {
+            "kind": "card",
+            "title": { "key": "buyer.offer.title", "default": "Hand-finished weekender" },
+            "slots": {
+              "price": { "kind": "text", "copy": { "key": "buyer.offer.price", "default": "$148 · 4 left" } },
+              "fulfillment": { "kind": "text", "copy": { "key": "buyer.offer.fulfillment", "default": "Free U.S. shipping" } },
+              "action": { "kind": "component", "ref": "hold-item" }
+            }
+          }
+        ]
+      },
+      {
+        "kind": "tabs",
+        "label": { "key": "buyer.mobile.mode", "default": "Shop or Chat" },
+        "interactions": ["select"],
+        "a11y": { "role": "tablist", "ariaLabel": { "key": "buyer.mobile.mode.a11y", "default": "Choose shop or chat" } },
+        "responsive": { "viewport.wide": { "hidden": true } }
+      },
+      {
+        "kind": "grid",
+        "responsive": { "viewport.narrow": { "kind": "stack", "activeChildFrom": "buyer.mobile.mode" } },
+        "children": [
+          { "kind": "list", "label": { "key": "buyer.catalog.upcoming", "default": "Coming up" }, "binding": { "slot": "products", "repeats": true, "shape": "ProductPreview" }, "item": { "kind": "card", "slots": { "title": { "kind": "heading", "copy": { "key": "buyer.product.name", "default": "Product name" } }, "price": { "kind": "text", "copy": { "key": "buyer.product.price", "default": "Price" } }, "action": { "kind": "component", "ref": "preview-item" } } } },
+          { "kind": "card", "title": { "key": "buyer.chat.title", "default": "Room chat" }, "slots": { "messages": { "kind": "list", "binding": { "slot": "messages", "repeats": true, "shape": "ChatMessage" }, "item": { "kind": "text", "copy": { "key": "buyer.chat.message", "default": "Buyer message" } } }, "composer": { "kind": "input", "placeholder": { "key": "buyer.chat.placeholder", "default": "Ask about this item" }, "a11y": { "role": "textbox", "ariaLabel": { "key": "buyer.chat.input", "default": "Chat message" } } } } }
+        ]
+      }
+    ]
+  },
+  "components": [
+    { "id": "share-room", "registry": "action.secondary", "props": { "label": "Share room" } },
+    { "id": "hold-item", "registry": "action.primary", "props": { "label": "Hold this weekender · $148" } },
+    { "id": "preview-item", "registry": "action.secondary", "props": { "label": "Preview" } }
+  ],
+  "states": {
+    "loading": { "kind": "spinner", "label": { "key": "buyer.loading", "default": "Loading live room" }, "a11y": { "role": "status", "ariaLive": "polite" } },
+    "error": { "kind": "stack", "children": [{ "kind": "text", "copy": { "key": "buyer.error", "default": "The room could not load." } }, { "kind": "button", "label": { "key": "buyer.retry", "default": "Try again" }, "interactions": ["retry"], "a11y": { "role": "button" } }] },
+    "offline": { "kind": "empty-state", "title": { "key": "buyer.offline", "default": "The room starts at 8:00 PM" }, "slots": { "action": { "kind": "component", "ref": "share-room" } } }
+  },
+  "a11y": { "landmark": "main", "headingLevel": 1 }
+}

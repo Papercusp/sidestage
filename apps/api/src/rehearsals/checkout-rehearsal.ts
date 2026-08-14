@@ -8,6 +8,7 @@ import {
   type PaymentSession,
 } from '../checkout/checkout.service';
 import { MAX_WEIGHT_OZ, packItems } from '../shipping/box-packer';
+import { ShippingService, type AggregatedRate } from '../shipping/shipping.service';
 import {
   buildRehearsalReport,
   centsToDollars,
@@ -71,13 +72,27 @@ interface ScriptedCheckout {
 function scripted(outcome: PaymentResultStatus = 'paid'): ScriptedCheckout {
   const carts = new CartService(new InMemoryCartStore());
   const provider = new RecordingPaymentProvider(outcome);
-  return { carts, provider, checkout: new CheckoutService(provider, new InMemoryOrderStore(), carts) };
+  const shipping = {
+    resolveRate: async (_input: unknown, rateId: string) => {
+      if (rateId !== REHEARSAL_RATE.id) throw new Error('Shipping rate is unavailable or expired');
+      return { ...REHEARSAL_RATE };
+    },
+  } as unknown as ShippingService;
+  return { carts, provider, checkout: new CheckoutService(provider, new InMemoryOrderStore(), carts, shipping) };
 }
 
 const CUP_CENTS = 2_800;
 const PLATE_CENTS = 1_950;
 const SHIPPING_CENTS = 795;
 const REHEARSAL_ORDER_CONTEXT = { buyerId: 'rehearsal-buyer', eventId: 'rehearsal-event' } as const;
+const REHEARSAL_RATE: AggregatedRate = {
+  id: 'rehearsal:ground', carrier: 'Rehearsal', service: 'Ground', totalCents: SHIPPING_CENTS,
+  deliveryDays: 3, parcelCount: 1, quotedAt: '2026-08-14T00:00:00.000Z',
+};
+const REHEARSAL_SHIPPING_CONTEXT = {
+  shippingAddress: { name: 'Rehearsal Buyer', line1: '99 Main St', city: 'New York', state: 'NY', postalCode: '10001', country: 'US' },
+  shippingRateId: REHEARSAL_RATE.id,
+} as const;
 
 /** Two cups + one plate. */
 async function scriptedCart(carts: CartService): Promise<string> {
@@ -102,7 +117,7 @@ export async function runCheckoutRehearsal(options: { now?: () => number } = {})
     async () => {
       const context = scripted();
       const cartId = await scriptedCart(context.carts);
-      const { order } = await context.checkout.createSession({ cartId, ...REHEARSAL_ORDER_CONTEXT, shippingCents: SHIPPING_CENTS });
+      const { order } = await context.checkout.createSession({ cartId, ...REHEARSAL_ORDER_CONTEXT, ...REHEARSAL_SHIPPING_CONTEXT });
       const identityHolds = order.subtotalCents === EXPECTED_SUBTOTAL
         && order.totalCents === order.subtotalCents + order.shippingCents;
       return {
@@ -126,7 +141,7 @@ export async function runCheckoutRehearsal(options: { now?: () => number } = {})
     async () => {
       const context = scripted();
       const cartId = await scriptedCart(context.carts);
-      const { order } = await context.checkout.createSession({ cartId, ...REHEARSAL_ORDER_CONTEXT, shippingCents: SHIPPING_CENTS });
+      const { order } = await context.checkout.createSession({ cartId, ...REHEARSAL_ORDER_CONTEXT, ...REHEARSAL_SHIPPING_CONTEXT });
       await context.checkout.confirmPayment({ orderId: order.id, sourceId: 'rehearsal-card' });
       const charged = context.provider.confirmCharges[0];
       const matches = charged === order.totalCents;
@@ -149,8 +164,8 @@ export async function runCheckoutRehearsal(options: { now?: () => number } = {})
     async () => {
       const context = scripted();
       const cartId = await scriptedCart(context.carts);
-      const first = await context.checkout.createSession({ cartId, ...REHEARSAL_ORDER_CONTEXT, shippingCents: SHIPPING_CENTS });
-      const second = await context.checkout.createSession({ cartId, ...REHEARSAL_ORDER_CONTEXT, shippingCents: SHIPPING_CENTS });
+      const first = await context.checkout.createSession({ cartId, ...REHEARSAL_ORDER_CONTEXT, ...REHEARSAL_SHIPPING_CONTEXT });
+      const second = await context.checkout.createSession({ cartId, ...REHEARSAL_ORDER_CONTEXT, ...REHEARSAL_SHIPPING_CONTEXT });
       const same = first.order.id === second.order.id;
       return {
         passed: same,
@@ -169,7 +184,7 @@ export async function runCheckoutRehearsal(options: { now?: () => number } = {})
     async () => {
       const context = scripted();
       const cartId = await scriptedCart(context.carts);
-      const { order } = await context.checkout.createSession({ cartId, ...REHEARSAL_ORDER_CONTEXT, shippingCents: SHIPPING_CENTS });
+      const { order } = await context.checkout.createSession({ cartId, ...REHEARSAL_ORDER_CONTEXT, ...REHEARSAL_SHIPPING_CONTEXT });
       await context.checkout.confirmPayment({ orderId: order.id, sourceId: 'rehearsal-card' });
       const repeat = await context.checkout.confirmPayment({ orderId: order.id, sourceId: 'rehearsal-card' });
       const chargedOnce = context.provider.confirmCharges.length === 1;
@@ -192,7 +207,7 @@ export async function runCheckoutRehearsal(options: { now?: () => number } = {})
     async () => {
       const context = scripted('failed');
       const cartId = await scriptedCart(context.carts);
-      const { order } = await context.checkout.createSession({ cartId, ...REHEARSAL_ORDER_CONTEXT, shippingCents: SHIPPING_CENTS });
+      const { order } = await context.checkout.createSession({ cartId, ...REHEARSAL_ORDER_CONTEXT, ...REHEARSAL_SHIPPING_CONTEXT });
       const result = await context.checkout.confirmPayment({ orderId: order.id, sourceId: 'rehearsal-card' });
       const correct = result.order.status === 'failed' && result.payment.status === 'failed';
       return {
@@ -212,20 +227,22 @@ export async function runCheckoutRehearsal(options: { now?: () => number } = {})
     async () => {
       const context = scripted();
       const empty = await context.carts.getCart();
-      return context.checkout.createSession({ cartId: empty.id, ...REHEARSAL_ORDER_CONTEXT, shippingCents: SHIPPING_CENTS });
+      return context.checkout.createSession({ cartId: empty.id, ...REHEARSAL_ORDER_CONTEXT, ...REHEARSAL_SHIPPING_CONTEXT });
     },
   ));
 
   cases.push(await expectRefusal(
     {
-      caseId: 'negative-shipping-refused',
-      title: 'Shipping cannot be negative',
-      expectation: 'A negative shipping amount must be refused — it would silently discount the order below the item total.',
+      caseId: 'client-shipping-refused',
+      title: 'The browser cannot author shipping cost',
+      expectation: 'A client-authored shipping amount must be refused — only a server-resolved shipping-rate id can determine the order total.',
     },
     async () => {
       const context = scripted();
       const cartId = await scriptedCart(context.carts);
-      return context.checkout.createSession({ cartId, ...REHEARSAL_ORDER_CONTEXT, shippingCents: -500 });
+      return context.checkout.createSession({
+        cartId, ...REHEARSAL_ORDER_CONTEXT, ...REHEARSAL_SHIPPING_CONTEXT, shippingCents: -500,
+      } as never);
     },
   ));
 

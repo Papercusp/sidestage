@@ -63,7 +63,7 @@ export interface BuyerCheckoutOrder {
   createdAt: string;
   items: BuyerCartItem[];
   shippingAddress?: BuyerShippingAddress;
-  shippingRate?: BuyerShippingRate;
+  selectedShippingRate?: BuyerShippingRate;
   paymentSession: BuyerPaymentSession;
 }
 

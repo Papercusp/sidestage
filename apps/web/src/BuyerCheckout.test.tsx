@@ -56,7 +56,7 @@ const order: BuyerCheckoutOrder = {
   createdAt: '2026-08-14T06:00:00Z',
   items: cart.items,
   shippingAddress: draft,
-  shippingRate: rate,
+  selectedShippingRate: rate,
   paymentSession: {
     provider: 'square', mode: 'sandbox', status: 'needs-configuration',
     appId: null, locationId: null, orderId: 'order-1', amountCents: 3599, currency: 'USD',

@@ -538,11 +538,12 @@ details > summary { cursor: pointer; }
   .buyer-stage, .buy-grid, .studio-grid { grid-template-columns: 1fr; }
   .buyer-stage .now-selling { order: 2; }
   .media-placeholder { min-height: 230px; }
+  .product-zone { min-width: 0; max-width: 100%; overflow: hidden; }
   .buy-grid .companion { display: none; }
   .buy-grid[data-mode="chat"] > .product-zone { display: none; }
   .buy-grid[data-mode="chat"] > .companion { display: block; }
   .mode-switch { display: flex; margin: 12px 0; }
-  .product-grid { display: flex; overflow-x: auto; scroll-snap-type: x mandatory; }
+  .product-grid { display: flex; width: 100%; min-width: 0; max-width: 100%; overflow-x: auto; scroll-snap-type: x mandatory; }
   .product-card { min-width: min(78vw, 270px); scroll-snap-align: start; }
   .mobile-sticky { position: fixed; z-index: 25; right: 12px; bottom: 12px; left: 12px; display: grid; grid-template-columns: 1fr auto; gap: 8px; padding: 9px; border: 1px solid var(--line-strong); border-radius: 14px; background: rgba(255,255,255,.94); box-shadow: var(--shadow); backdrop-filter: blur(16px); }
 

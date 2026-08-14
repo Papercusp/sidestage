@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Event settings — SideStage concept</title><link rel="stylesheet" href="shared.css"></head>
+<body>
+  <a class="skip-link" href="#main">Skip to settings</a>
+  <header class="app-header"><div class="app-header-inner">
+    <a class="brand" href="buyer.html"><span class="brand-mark">S</span><span class="brand-copy"><strong>SideStage</strong><small>Live commerce</small></span></a>
+    <nav class="primary-nav" aria-label="SideStage pages"><span class="nav-cluster"><a class="nav-link" href="buyer.html">Watch</a><a class="nav-link" href="orders.html">Orders</a></span><span class="nav-cluster"><a class="nav-link" href="seller.html">Studio</a><a class="nav-link" href="build-history.html">Releases</a><a class="nav-link" aria-current="page" href="config.html">Settings</a><a class="nav-link" href="test.html">Rehearse</a></span></nav>
+    <div class="header-actions"><span class="status warning">1 blocker</span><span class="avatar">NK</span></div>
+  </div></header>
+
+  <main class="shell" id="main">
+    <header class="page-head"><div><span class="page-kicker">Event configuration</span><h1>Settings</h1><p>Every control explains its scope and consequence, with readiness tied directly to the same event rehearsal checks.</p></div><div class="head-actions"><label class="field" style="min-width:250px"><span class="field-label">Editing event</span><select class="select"><option>Tonight’s live drop</option><option>September archive sale</option></select></label></div></header>
+
+    <div class="banner danger"><span class="banner-mark">!</span><div><strong>Not ready to rehearse — price floor is missing</strong><p>Add a minimum price under Commerce guardrails. Rehearse reads this exact value; the pages cannot contradict one another.</p></div><button class="button small" onclick="document.getElementById('price-floor').focus()">Fix price floor</button></div>
+
+    <div class="config-layout">
+      <section class="config-main" aria-label="Event settings">
+        <details class="card config-section" open><summary><div><h2>Event identity</h2><p>What buyers see before and during the room.</p></div><span class="status pass">Complete</span></summary><div class="config-content"><div class="field-grid"><label class="field"><span>Event title</span><input value="Studio Finds: August drop"><small>Shown in the guide, room header, and receipts.</small></label><label class="field"><span>Seller display name</span><input value="Nia K. Studio"><small>Shown beside host messages and offers.</small></label><label class="field"><span>Starts at</span><input type="datetime-local" value="2026-08-14T20:00"><small>Buyer reminders use this timezone.</small></label><label class="field"><span>Room visibility</span><select><option>Public guide</option><option>Private link</option></select><small>Public rooms appear in Watch.</small></label></div></div></details>
+
+        <details class="card config-section" open><summary><div><h2>Commerce guardrails</h2><p>Boundaries the seller and copilot must honor.</p></div><span class="status failed">1 blocker</span></summary><div class="config-content"><div class="field-grid"><label class="field"><span>Price floor <span style="color:var(--red-dark)">*</span></span><input id="price-floor" aria-invalid="true" placeholder="Required, e.g. 25.00"><small style="color:var(--red-dark)">Required. No item or private offer may sell below this amount.</small></label><label class="field"><span>Maximum discount</span><div style="display:flex;align-items:center;gap:8px"><input value="20"><span>%</span></div><small>Copilot may suggest smaller discounts, never larger.</small></label></div><label class="check-row"><input type="checkbox" checked><span><strong>Require confirmation before private offers</strong><p>The seller sees buyer, item, price, and expiry before an offer is sent.</p></span><span class="badge">Safer</span></label><label class="check-row"><input type="checkbox" checked><span><strong>Protect reserved inventory</strong><p>Held units are unavailable to other buyers until the hold expires.</p></span><span class="badge">12 min</span></label></div></details>
+
+        <details class="card config-section"><summary><div><h2>Copilot behavior</h2><p>Tone, suggestion boundary, and automatic cues.</p></div><span class="status pass">Complete</span></summary><div class="config-content"><label class="field"><span>Seller tone</span><textarea>Warm, concise, and product-specific. Never invent scarcity or hide a flaw.</textarea></label><label class="check-row"><input type="checkbox" checked><span><strong>Suggest replies, never send them</strong><p>Every buyer-facing copilot message requires a seller action.</p></span><span class="badge">Review first</span></label></div></details>
+
+        <details class="card config-section"><summary><div><h2>Automation</h2><p>Routine stage transitions and reminders.</p></div><span class="status warning">Review</span></summary><div class="config-content"><label class="check-row"><input type="checkbox"><span><strong>Advance sold-out items automatically</strong><p>Moves to the next lineup item after a 10-second seller cancel window.</p></span><span class="badge yellow">Off</span></label><label class="check-row"><input type="checkbox" checked><span><strong>Announce low stock in chat</strong><p>Posts once when an item reaches three available units.</p></span><span class="badge">3 units</span></label></div></details>
+      </section>
+
+      <aside class="config-aside" aria-label="Readiness summary">
+        <article class="card pad"><div class="card-header"><div><span class="eyebrow">Readiness</span><h2>3 of 4 sections</h2></div><span class="status failed">Blocked</span></div><div class="progress" style="width:100%;margin-top:12px" aria-label="75 percent complete"><span style="width:75%;background:var(--yellow-dark)"></span></div><div class="readiness-list"><div class="readiness-row"><span>Event identity</span><strong style="color:var(--green)">Complete</strong></div><div class="readiness-row"><span>Copilot behavior</span><strong style="color:var(--green)">Complete</strong></div><div class="readiness-row"><span>Commerce guardrails</span><strong style="color:var(--red-dark)">1 blocker</strong></div><div class="readiness-row"><span>Automation</span><strong>Optional</strong></div></div><a class="button" style="width:100%;margin-top:14px" href="test.html">Open Rehearse</a></article>
+        <article class="card pad"><div class="card-header"><div><h2>Last saved</h2><p>Today · 7:12 PM by Nia K.</p></div></div><div class="meta-row" style="margin-top:10px"><span>Snapshot cfg_8f31</span><button class="button ghost small">View changes</button></div></article>
+      </aside>
+    </div>
+
+    <footer class="mockup-note"><span>Responsive concept · Event settings · 2026-08-14</span><nav class="review-links" aria-label="Review mockups"><a href="buyer.html">Buyer</a><a href="orders.html">Orders</a><a href="seller.html">Seller</a><a href="build-history.html">Build history</a><a aria-current="page" href="config.html">Config</a><a href="test.html">Test</a></nav></footer>
+  </main>
+  <div class="save-bar"><p><strong>2 unsaved changes</strong> · Price floor is still required</p><div class="button-row"><button class="button">Run preflight</button><button class="button primary">Save event defaults</button></div></div>
+</body>
+</html>

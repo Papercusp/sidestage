@@ -1,0 +1,69 @@
+{
+  "irVersion": "0.1",
+  "surface": "sidestage-seller-studio",
+  "ecosystem": "*",
+  "layout": {
+    "kind": "stack",
+    "direction": "vertical",
+    "children": [
+      {
+        "kind": "header",
+        "title": { "key": "seller.studio.title", "default": "Tonight’s live drop" },
+        "slots": {
+          "mode": { "kind": "tabs", "label": { "key": "seller.mode", "default": "Prepare or Live" }, "interactions": ["select"], "a11y": { "role": "tablist", "ariaLabel": { "key": "seller.mode.a11y", "default": "Choose studio mode" } } },
+          "status": { "kind": "badge", "label": { "key": "seller.live.status", "default": "On air · 42:18" } },
+          "advance": { "kind": "component", "ref": "advance-item" }
+        }
+      },
+      {
+        "kind": "tabs",
+        "label": { "key": "seller.mobile.panel", "default": "Stage, Lineup, Chat, or Copilot" },
+        "interactions": ["select"],
+        "a11y": { "role": "tablist", "ariaLabel": { "key": "seller.mobile.panel.a11y", "default": "Choose active seller panel" } },
+        "responsive": { "viewport.wide": { "hidden": true } }
+      },
+      {
+        "kind": "grid",
+        "responsive": { "viewport.narrow": { "kind": "stack", "activeChildFrom": "seller.mobile.panel" } },
+        "children": [
+          {
+            "kind": "card",
+            "title": { "key": "seller.stage.current", "default": "Hand-finished weekender" },
+            "slots": {
+              "preview": { "kind": "image", "label": { "key": "seller.stage.preview", "default": "Program preview" }, "a11y": { "role": "img", "ariaLabel": { "key": "seller.stage.preview.a11y", "default": "Current live program preview" } } },
+              "priority": { "kind": "component", "ref": "priority-banner" },
+              "pin": { "kind": "component", "ref": "pin-detail" }
+            }
+          },
+          {
+            "kind": "card",
+            "title": { "key": "seller.lineup.title", "default": "Run of show" },
+            "slots": {
+              "items": { "kind": "list", "binding": { "slot": "lineup", "repeats": true, "shape": "LineupItem" }, "item": { "kind": "card", "slots": { "order": { "kind": "text", "copy": { "key": "seller.lineup.order", "default": "Item position" } }, "title": { "kind": "heading", "copy": { "key": "seller.lineup.item", "default": "Lineup item" } }, "state": { "kind": "badge", "label": { "key": "seller.lineup.state", "default": "Next" } } } } },
+              "edit": { "kind": "component", "ref": "edit-lineup" }
+            }
+          }
+        ]
+      },
+      {
+        "kind": "card",
+        "title": { "key": "seller.activity.title", "default": "Priority activity" },
+        "slots": {
+          "tabs": { "kind": "tabs", "label": { "key": "seller.activity.tabs", "default": "Chat, Transcript, or Copilot" }, "interactions": ["select"], "a11y": { "role": "tablist", "ariaLabel": { "key": "seller.activity.tabs.a11y", "default": "Choose activity view" } } },
+          "items": { "kind": "list", "binding": { "slot": "activity", "repeats": true, "shape": "PriorityActivity" }, "item": { "kind": "text", "copy": { "key": "seller.activity.item", "default": "Priority buyer activity" } } }
+        }
+      }
+    ]
+  },
+  "components": [
+    { "id": "advance-item", "registry": "action.primary", "props": { "label": "End item and advance" } },
+    { "id": "priority-banner", "registry": "feedback.banner", "props": { "tone": "warning", "message": "One unanswered buyer question" } },
+    { "id": "pin-detail", "registry": "action.primary", "props": { "label": "Pin product detail" } },
+    { "id": "edit-lineup", "registry": "action.secondary", "props": { "label": "Edit lineup" } }
+  ],
+  "states": {
+    "loading": { "kind": "spinner", "label": { "key": "seller.loading", "default": "Loading seller studio" }, "a11y": { "role": "status", "ariaLive": "polite" } },
+    "error": { "kind": "stack", "children": [{ "kind": "text", "copy": { "key": "seller.error", "default": "The studio could not connect." } }, { "kind": "button", "label": { "key": "seller.retry", "default": "Reconnect" }, "interactions": ["retry"], "a11y": { "role": "button" } }] }
+  },
+  "a11y": { "landmark": "main", "headingLevel": 1 }
+}

@@ -1,0 +1,69 @@
+{
+  "irVersion": "0.1",
+  "surface": "sidestage-test-workbench",
+  "ecosystem": "*",
+  "layout": {
+    "kind": "stack",
+    "direction": "vertical",
+    "children": [
+      { "kind": "header", "title": { "key": "test.title", "default": "Rehearse" }, "slots": { "event": { "kind": "component", "ref": "event-select" }, "verdict": { "kind": "badge", "label": { "key": "test.verdict", "default": "Not ready · 2 blockers" } } } },
+      {
+        "kind": "grid",
+        "responsive": { "viewport.narrow": { "kind": "stack", "suiteNavigation": "drawer" } },
+        "children": [
+          {
+            "kind": "card",
+            "title": { "key": "test.suites.title", "default": "Test suites" },
+            "responsive": { "viewport.wide": { "position": "persistent-sidebar", "width": "228-256" }, "viewport.narrow": { "kind": "drawer" } },
+            "slots": {
+              "selector": { "kind": "select", "label": { "key": "test.suites.mobile", "default": "Choose test suite" }, "a11y": { "role": "combobox" }, "responsive": { "viewport.wide": { "hidden": true } } },
+              "groups": { "kind": "list", "binding": { "slot": "suiteGroups", "repeats": true, "shape": "TestSuiteGroup" }, "item": { "kind": "list", "binding": { "slot": "suites", "repeats": true, "shape": "TestSuite" }, "item": { "kind": "button", "label": { "key": "test.suite.name", "default": "Suite name and concise hint" }, "interactions": ["select", "deep-link"], "a11y": { "role": "tab", "ariaLabel": { "key": "test.suite.a11y", "default": "Open test suite" } } } } }
+            }
+          },
+          {
+            "kind": "stack",
+            "direction": "vertical",
+            "children": [
+              { "kind": "card", "title": { "key": "test.active.title", "default": "Preflight" }, "slots": { "description": { "kind": "text", "copy": { "key": "test.active.description", "default": "Four required checks before a rehearsal can begin" } }, "health": { "kind": "text", "copy": { "key": "test.active.health", "default": "4 checks · 2 passed · 2 failed · evidence fresh 27m" } }, "failedOnly": { "kind": "component", "ref": "run-failed" }, "run": { "kind": "component", "ref": "run-suite" } } },
+              { "kind": "component", "ref": "blocker-banner" },
+              {
+                "kind": "grid",
+                "responsive": { "viewport.narrow": { "kind": "stack", "direction": "vertical" } },
+                "children": [
+                  {
+                    "kind": "card",
+                    "title": { "key": "test.required.title", "default": "Required before live" },
+                    "slots": {
+                      "checks": {
+                        "kind": "list",
+                        "binding": { "slot": "checks", "repeats": true, "shape": "TestCheck" },
+                        "item": { "kind": "text", "copy": { "key": "test.check.row", "default": "Status, check name, duration, freshness, and affected capability" } }
+                      },
+                      "checkAction": { "kind": "component", "ref": "check-action" }
+                    }
+                  },
+                  { "kind": "card", "title": { "key": "test.focus.title", "default": "Focused check" }, "slots": { "purpose": { "kind": "text", "copy": { "key": "test.focus.purpose", "default": "Why this check matters" } }, "output": { "kind": "text", "copy": { "key": "test.focus.output", "default": "Timestamped run output" }, "a11y": { "role": "log", "ariaLive": "polite" } }, "fix": { "kind": "component", "ref": "fix-settings" }, "recheck": { "kind": "component", "ref": "recheck" } } }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "components": [
+    { "id": "event-select", "registry": "control.select", "props": { "label": "Event under test", "default": "Tonight’s live drop" } },
+    { "id": "run-failed", "registry": "action.secondary", "props": { "label": "Run failed only" } },
+    { "id": "run-suite", "registry": "action.primary", "props": { "label": "Run preflight" } },
+    { "id": "blocker-banner", "registry": "feedback.banner", "props": { "tone": "error", "message": "First fix: add a price floor" } },
+    { "id": "check-action", "registry": "action.secondary", "props": { "label": "Check details" } },
+    { "id": "fix-settings", "registry": "action.primary", "props": { "label": "Fix in Settings" } },
+    { "id": "recheck", "registry": "action.secondary", "props": { "label": "Re-check" } }
+  ],
+  "states": {
+    "loading": { "kind": "spinner", "label": { "key": "test.loading", "default": "Loading test workbench" }, "a11y": { "role": "status", "ariaLive": "polite" } },
+    "error": { "kind": "stack", "children": [{ "kind": "text", "copy": { "key": "test.error", "default": "Test evidence could not load." } }, { "kind": "button", "label": { "key": "test.retry", "default": "Reload evidence" }, "interactions": ["retry"], "a11y": { "role": "button" } }] },
+    "running": { "kind": "progress", "label": { "key": "test.running", "default": "Test suite in progress" }, "a11y": { "role": "progressbar", "ariaLive": "polite" } }
+  },
+  "a11y": { "landmark": "main", "headingLevel": 1 }
+}

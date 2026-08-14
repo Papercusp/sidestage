@@ -1,0 +1,55 @@
+{
+  "irVersion": "0.1",
+  "surface": "sidestage-build-history",
+  "ecosystem": "*",
+  "layout": {
+    "kind": "stack",
+    "direction": "vertical",
+    "children": [
+      { "kind": "header", "title": { "key": "history.title", "default": "Build history" }, "slots": { "latest": { "kind": "badge", "label": { "key": "history.latest", "default": "Production verified" } }, "action": { "kind": "component", "ref": "view-live" } } },
+      { "kind": "grid", "responsive": { "viewport.narrow": { "columns": 2 } }, "children": [
+        { "kind": "card", "title": { "key": "history.metric.latest", "default": "Latest verified" }, "copy": { "key": "history.metric.latest.value", "default": "Theme R3 · 18m ago" } },
+        { "kind": "card", "title": { "key": "history.metric.week", "default": "Completed this week" }, "copy": { "key": "history.metric.week.value", "default": "37 work items" } },
+        { "kind": "card", "title": { "key": "history.metric.active", "default": "Active plans" }, "copy": { "key": "history.metric.active.value", "default": "3 plans" } },
+        { "kind": "card", "title": { "key": "history.metric.sync", "default": "Last sync" }, "copy": { "key": "history.metric.sync.value", "default": "2m ago · green" } }
+      ] },
+      { "kind": "component", "ref": "production-banner" },
+      { "kind": "grid", "responsive": { "viewport.narrow": { "kind": "stack", "direction": "vertical" } }, "children": [
+        { "kind": "input", "placeholder": { "key": "history.search.placeholder", "default": "Search plan, work item, outcome, or file" }, "a11y": { "role": "searchbox", "ariaLabel": { "key": "history.search.a11y", "default": "Search build history" } } },
+        { "kind": "component", "ref": "status-filter" },
+        { "kind": "component", "ref": "date-filter" }
+      ] },
+      {
+        "kind": "list",
+        "binding": { "slot": "plans", "repeats": true, "shape": "BuildPlanSummary" },
+        "emptyState": { "kind": "empty-state", "title": { "key": "history.empty", "default": "No plans match these filters" } },
+        "item": {
+          "kind": "card",
+          "interactions": ["expand", "collapse", "deep-link"],
+          "slots": {
+            "title": { "kind": "heading", "copy": { "key": "history.plan.title", "default": "Plan title" } },
+            "outcome": { "kind": "text", "copy": { "key": "history.plan.outcome", "default": "Concise plan outcome" } },
+            "status": { "kind": "badge", "label": { "key": "history.plan.status", "default": "Plan status" } },
+            "progress": { "kind": "progress", "label": { "key": "history.plan.progress", "default": "Work-item completion" }, "a11y": { "role": "progressbar", "ariaLabel": { "key": "history.plan.progress.a11y", "default": "Plan completion progress" } } },
+            "changed": { "kind": "text", "copy": { "key": "history.plan.changed", "default": "What changed" } },
+            "verification": { "kind": "text", "copy": { "key": "history.plan.verification", "default": "Verification summary" } },
+            "files": { "kind": "text", "copy": { "key": "history.plan.files", "default": "Changed files" } },
+            "fullEvidence": { "kind": "component", "ref": "full-evidence" }
+          }
+        }
+      }
+    ]
+  },
+  "components": [
+    { "id": "view-live", "registry": "action.primary", "props": { "label": "View live site" } },
+    { "id": "production-banner", "registry": "feedback.banner", "props": { "tone": "success", "message": "Production matches the latest green checkpoint" } },
+    { "id": "status-filter", "registry": "control.select", "props": { "label": "Status", "default": "All statuses" } },
+    { "id": "date-filter", "registry": "control.select", "props": { "label": "Date", "default": "Last 30 days" } },
+    { "id": "full-evidence", "registry": "action.secondary", "props": { "label": "View full evidence" } }
+  ],
+  "states": {
+    "loading": { "kind": "spinner", "label": { "key": "history.loading", "default": "Loading build history" }, "a11y": { "role": "status", "ariaLive": "polite" } },
+    "error": { "kind": "stack", "children": [{ "kind": "text", "copy": { "key": "history.error", "default": "Build history could not load." } }, { "kind": "button", "label": { "key": "history.retry", "default": "Refresh history" }, "interactions": ["retry"], "a11y": { "role": "button" } }] }
+  },
+  "a11y": { "landmark": "main", "headingLevel": 1 }
+}

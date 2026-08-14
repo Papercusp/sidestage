@@ -19,7 +19,7 @@ describe('checkout rehearsal', () => {
       'no-double-charge',
       'declined-is-not-a-sale',
       'empty-cart-refused',
-      'negative-shipping-refused',
+      'client-shipping-refused',
       'combined-shipping-one-box',
       'heavy-order-splits',
       'oversized-ships-alone',

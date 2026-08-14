@@ -13,7 +13,11 @@ describe('CheckoutController', () => {
   it('passes buyer and event identity into checkout session creation', async () => {
     const checkout = { createSession: vi.fn().mockResolvedValue({ order: { id: 'order-1' } }) };
     const controller = new CheckoutController(checkout as never, {} as never);
-    const body = { cartId: 'cart-1', buyerId: 'buyer-1', eventId: 'event-1' };
+    const body = {
+      cartId: 'cart-1', buyerId: 'buyer-1', eventId: 'event-1',
+      shippingAddress: { line1: '99 Main St', city: 'New York', state: 'NY', postalCode: '10001' },
+      shippingRateId: 'UPS:Ground',
+    };
 
     await expect(controller.createSession(body)).resolves.toEqual({ order: { id: 'order-1' } });
     expect(checkout.createSession).toHaveBeenCalledWith(body);

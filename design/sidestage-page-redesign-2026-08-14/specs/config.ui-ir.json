@@ -1,0 +1,47 @@
+{
+  "irVersion": "0.1",
+  "surface": "sidestage-event-config",
+  "ecosystem": "*",
+  "layout": {
+    "kind": "stack",
+    "direction": "vertical",
+    "children": [
+      { "kind": "header", "title": { "key": "config.title", "default": "Settings" }, "slots": { "event": { "kind": "component", "ref": "event-select" }, "status": { "kind": "badge", "label": { "key": "config.status", "default": "1 blocker" } } } },
+      { "kind": "component", "ref": "readiness-banner" },
+      {
+        "kind": "grid",
+        "responsive": { "viewport.narrow": { "kind": "stack", "direction": "vertical", "asideOrder": "first" } },
+        "children": [
+          {
+            "kind": "form",
+            "title": { "key": "config.form.title", "default": "Event settings" },
+            "children": [
+              { "kind": "fieldset", "title": { "key": "config.identity.title", "default": "Event identity" }, "children": [{ "kind": "input", "label": { "key": "config.identity.eventTitle", "default": "Event title" }, "a11y": { "role": "textbox" } }, { "kind": "input", "label": { "key": "config.identity.seller", "default": "Seller display name" }, "a11y": { "role": "textbox" } }, { "kind": "select", "label": { "key": "config.identity.visibility", "default": "Room visibility" }, "a11y": { "role": "combobox" } }] },
+              { "kind": "fieldset", "title": { "key": "config.guardrails.title", "default": "Commerce guardrails" }, "children": [{ "kind": "input", "label": { "key": "config.guardrails.priceFloor", "default": "Price floor" }, "a11y": { "role": "spinbutton", "ariaDescribedBy": "price-floor-error" } }, { "kind": "input", "label": { "key": "config.guardrails.discount", "default": "Maximum discount" }, "a11y": { "role": "spinbutton" } }, { "kind": "component", "ref": "offer-confirmation" }, { "kind": "component", "ref": "inventory-protection" }] },
+              { "kind": "fieldset", "title": { "key": "config.copilot.title", "default": "Copilot behavior" }, "children": [{ "kind": "textarea", "label": { "key": "config.copilot.tone", "default": "Seller tone" }, "a11y": { "role": "textbox" } }, { "kind": "component", "ref": "review-first" }] },
+              { "kind": "fieldset", "title": { "key": "config.automation.title", "default": "Automation" }, "children": [{ "kind": "component", "ref": "auto-advance" }] }
+            ]
+          },
+          { "kind": "card", "title": { "key": "config.readiness.title", "default": "Readiness · 3 of 4 sections" }, "slots": { "progress": { "kind": "progress", "label": { "key": "config.readiness.progress", "default": "75 percent complete" }, "a11y": { "role": "progressbar", "ariaLabel": { "key": "config.readiness.progress.a11y", "default": "Configuration readiness" } } }, "rehearse": { "kind": "component", "ref": "open-rehearse" } } }
+        ]
+      },
+      { "kind": "card", "title": { "key": "config.save.title", "default": "2 unsaved changes" }, "slots": { "preflight": { "kind": "component", "ref": "run-preflight" }, "save": { "kind": "component", "ref": "save-settings" } }, "responsive": { "viewport.narrow": { "position": "sticky-safe-area" } } }
+    ]
+  },
+  "components": [
+    { "id": "event-select", "registry": "control.select", "props": { "label": "Editing event", "default": "Tonight’s live drop" } },
+    { "id": "readiness-banner", "registry": "feedback.banner", "props": { "tone": "error", "message": "Not ready to rehearse — price floor is missing" } },
+    { "id": "offer-confirmation", "registry": "control.checkbox", "props": { "label": "Require confirmation before private offers", "checked": true } },
+    { "id": "inventory-protection", "registry": "control.checkbox", "props": { "label": "Protect reserved inventory", "checked": true } },
+    { "id": "review-first", "registry": "control.checkbox", "props": { "label": "Suggest replies, never send them", "checked": true } },
+    { "id": "auto-advance", "registry": "control.checkbox", "props": { "label": "Advance sold-out items automatically", "checked": false } },
+    { "id": "open-rehearse", "registry": "action.secondary", "props": { "label": "Open Rehearse" } },
+    { "id": "run-preflight", "registry": "action.secondary", "props": { "label": "Run preflight" } },
+    { "id": "save-settings", "registry": "action.primary", "props": { "label": "Save event defaults" } }
+  ],
+  "states": {
+    "loading": { "kind": "spinner", "label": { "key": "config.loading", "default": "Loading event settings" }, "a11y": { "role": "status", "ariaLive": "polite" } },
+    "error": { "kind": "stack", "children": [{ "kind": "text", "copy": { "key": "config.error", "default": "Settings could not be saved." } }, { "kind": "button", "label": { "key": "config.retry", "default": "Try saving again" }, "interactions": ["retry"], "a11y": { "role": "button" } }] }
+  },
+  "a11y": { "landmark": "form", "headingLevel": 1 }
+}

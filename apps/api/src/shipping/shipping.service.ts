@@ -46,7 +46,7 @@ export interface AggregatedRate {
   quotedAt: string;
 }
 
-interface NormalizedShippingAddress {
+export interface NormalizedShippingAddress {
   name: string;
   line1: string;
   line2?: string;
