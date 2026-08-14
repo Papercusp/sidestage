@@ -5,8 +5,8 @@
   padding: clamp(1.1rem, 3vw, 2rem);
   border: 1px solid var(--border);
   border-radius: 1.15rem;
-  background: linear-gradient(150deg, rgba(27, 53, 91, .86), rgba(13, 27, 52, .9));
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .045), 0 24px 70px rgba(0, 0, 0, .2);
+  background: var(--panel-grad);
+  box-shadow: 0 24px 70px rgb(var(--shadow-hue) / 20%);
 }
 
 .event-manager-heading,
@@ -42,9 +42,9 @@
 .event-lineup-grid {
   min-height: 260px;
   overflow: hidden;
-  border: 1px solid rgba(155, 191, 235, .13);
+  border: 1px solid var(--border);
   border-radius: .75rem;
-  background: rgba(7, 17, 34, .3);
+  background: var(--surface-sunken);
 }
 
 .event-row-actions,
@@ -59,7 +59,7 @@
   padding: .25rem .4rem;
   border-radius: .35rem;
   color: var(--muted);
-  background: rgba(155, 191, 235, .08);
+  background: var(--surface-sunken);
   font-size: .62rem;
   font-weight: 700;
   white-space: nowrap;
@@ -67,26 +67,26 @@
 
 .event-stage-badge.is-live {
   color: var(--success);
-  background: rgba(116, 224, 173, .12);
+  background: color-mix(in srgb, var(--success) 12%, transparent);
 }
 
 .event-inline-action input {
   width: 58px;
   min-height: 1.9rem;
-  border: 1px solid rgba(155, 191, 235, .22);
+  border: 1px solid var(--border);
   border-radius: .45rem;
   color: var(--text);
-  background: rgba(7, 17, 34, .55);
+  background: var(--surface);
   text-align: right;
 }
 
 .button.tertiary {
   min-height: 1.9rem;
   padding: .35rem .52rem;
-  border: 1px solid rgba(155, 191, 235, .2);
+  border: 1px solid var(--border);
   border-radius: .45rem;
   color: var(--text);
-  background: rgba(155, 191, 235, .07);
+  background: var(--surface-sunken);
   font-size: .66rem;
 }
 
@@ -120,10 +120,10 @@
 .event-status-control select,
 .event-number-field input,
 .event-markdown-control input {
-  border: 1px solid rgba(155, 191, 235, .22);
+  border: 1px solid var(--border);
   outline: none;
   color: var(--text);
-  background: rgba(7, 17, 34, .55);
+  background: var(--surface);
   transition: border-color .2s ease, box-shadow .2s ease;
 }
 
@@ -142,8 +142,8 @@
 .event-status-control select:focus,
 .event-number-field:focus-within,
 .event-markdown-control label:focus-within {
-  border-color: rgba(98, 216, 255, .75);
-  box-shadow: 0 0 0 3px rgba(98, 216, 255, .12);
+  border-color: color-mix(in srgb, var(--brand-red) 75%, transparent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--brand-red) 12%, transparent);
 }
 
 .event-manager-layout {
@@ -156,16 +156,16 @@
 .event-list-panel,
 .event-detail-panel {
   min-width: 0;
-  border: 1px solid rgba(155, 191, 235, .13);
+  border: 1px solid var(--border);
   border-radius: .8rem;
-  background: rgba(7, 17, 34, .3);
+  background: var(--surface-sunken);
 }
 
 .event-list-panel { align-self: start; overflow: hidden; }
 
 .event-list-heading {
   padding: .9rem;
-  border-bottom: 1px solid rgba(155, 191, 235, .13);
+  border-bottom: 1px solid var(--border);
 }
 
 .event-list-heading > div { display: grid; gap: .3rem; }
@@ -196,8 +196,8 @@
 
 .event-list-row:hover,
 .event-list-row.is-selected {
-  border-color: rgba(98, 216, 255, .35);
-  background: rgba(98, 216, 255, .08);
+  border-color: color-mix(in srgb, var(--brand-red) 35%, transparent);
+  background: color-mix(in srgb, var(--brand-red) 8%, transparent);
 }
 
 .event-list-row:hover { transform: translateY(-1px); }
@@ -207,10 +207,10 @@
   display: grid;
   place-items: center;
   flex: 0 0 auto;
-  border: 1px solid rgba(98, 216, 255, .35);
+  border: 1px solid color-mix(in srgb, var(--brand-red) 35%, transparent);
   border-radius: .55rem;
-  color: var(--accent-strong);
-  background: rgba(98, 216, 255, .1);
+  color: var(--red-text);
+  background: color-mix(in srgb, var(--brand-red) 10%, transparent);
   font-size: .63rem;
   font-weight: 750;
 }
@@ -252,10 +252,10 @@
   text-transform: uppercase;
 }
 
-.event-status-draft { color: #b9c9df; background: rgba(185, 201, 223, .1); }
-.event-status-scheduled { color: var(--accent-strong); background: rgba(98, 216, 255, .1); }
-.event-status-live { color: var(--success); background: rgba(116, 224, 173, .1); }
-.event-status-ended { color: var(--muted); background: rgba(155, 191, 235, .08); }
+.event-status-draft { color: var(--muted); background: var(--surface-sunken); }
+.event-status-scheduled { color: var(--red-text); background: color-mix(in srgb, var(--brand-red) 10%, transparent); }
+.event-status-live { color: var(--success); background: color-mix(in srgb, var(--success) 10%, transparent); }
+.event-status-ended { color: var(--muted); background: var(--surface-sunken); }
 
 .event-detail-panel { padding: clamp(1rem, 2.5vw, 1.35rem); }
 .event-detail-heading { align-items: flex-start; }
@@ -308,9 +308,9 @@
   gap: .85rem;
   margin: 1rem 0;
   padding: .9rem;
-  border: 1px solid rgba(98, 216, 255, .22);
+  border: 1px solid color-mix(in srgb, var(--brand-red) 22%, transparent);
   border-radius: .7rem;
-  background: rgba(4, 13, 28, .3);
+  background: var(--surface-sunken);
 }
 
 .event-catalog-drawer-heading { align-items: start; }
@@ -333,7 +333,7 @@
   position: absolute;
   left: .75rem;
   z-index: 1;
-  color: var(--accent);
+  color: var(--red-text);
   font-size: 1.1rem;
   line-height: 1;
 }
@@ -346,7 +346,7 @@
   display: grid;
   max-height: 15rem;
   overflow: auto;
-  border: 1px solid rgba(155, 191, 235, .13);
+  border: 1px solid var(--border);
   border-radius: .55rem;
 }
 
@@ -356,7 +356,7 @@
   align-items: center;
   gap: .65rem;
   padding: .65rem .7rem;
-  border-bottom: 1px solid rgba(155, 191, 235, .1);
+  border-bottom: 1px solid var(--border);
   font-size: .76rem;
 }
 
@@ -372,7 +372,7 @@
 .event-catalog-option small { color: var(--muted); font-size: .66rem; }
 
 .event-catalog-option em {
-  color: var(--accent-strong);
+  color: var(--red-text);
   font-size: .72rem;
   font-style: normal;
   white-space: nowrap;
@@ -390,9 +390,9 @@
   gap: .65rem;
   margin-top: 1rem;
   padding: .75rem;
-  border: 1px solid rgba(98, 216, 255, .16);
+  border: 1px solid color-mix(in srgb, var(--brand-red) 16%, transparent);
   border-radius: .6rem;
-  background: rgba(98, 216, 255, .05);
+  background: color-mix(in srgb, var(--brand-red) 5%, transparent);
 }
 
 .event-guardrail-banner > span:last-child { display: grid; gap: .25rem; }
@@ -402,9 +402,9 @@
 .event-items-table-wrap {
   overflow-x: auto;
   margin-top: 1rem;
-  border: 1px solid rgba(155, 191, 235, .13);
+  border: 1px solid var(--border);
   border-radius: .65rem;
-  background: rgba(7, 17, 34, .24);
+  background: var(--surface-sunken);
 }
 
 .event-items-table {
@@ -416,7 +416,7 @@
 .event-items-table th,
 .event-items-table td {
   padding: .72rem .75rem;
-  border-bottom: 1px solid rgba(155, 191, 235, .1);
+  border-bottom: 1px solid var(--border);
   text-align: left;
   vertical-align: middle;
 }
@@ -449,9 +449,9 @@
   gap: .15rem;
   min-height: 2.05rem;
   padding: .2rem .35rem .2rem .45rem;
-  border: 1px solid rgba(155, 191, 235, .22);
+  border: 1px solid var(--border);
   border-radius: .5rem;
-  background: rgba(7, 17, 34, .42);
+  background: var(--surface);
 }
 
 .event-number-field input,
@@ -488,7 +488,7 @@
 
 .event-manager-message {
   margin: .85rem 0 0;
-  color: var(--accent-strong);
+  color: var(--red-text);
   font-size: .74rem;
 }
 
