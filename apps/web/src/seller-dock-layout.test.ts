@@ -57,12 +57,13 @@ describe('Studio dock board seeds', () => {
     expect(placed).not.toContain('transcript');
   });
 
-  it('puts Event Manager and Event settings in one tab strip on the manager board', () => {
+  it('seeds Event Manager and run-of-show while settings live inside the selected event', () => {
     const layout = sellerEventManagerDockDefaultLayout();
     const root = layout.root as AnyNode;
 
     expect(root.kind).toBe('tabs');
     expect(panelsIn(layout)).toEqual([...SELLER_MANAGER_PANEL_IDS]);
+    expect(panelsIn(layout)).not.toContain('event-settings');
     expect(root.activePanelId).toBe('event-manager');
   });
 
