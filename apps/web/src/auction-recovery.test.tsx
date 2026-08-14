@@ -27,12 +27,122 @@ const LEADING_AUCTION: BuyerAuction = {
   }],
 };
 
+const OTHER_LEADER_AUCTION: BuyerAuction = {
+  ...LEADING_AUCTION,
+  bids: [{
+    id: 'bid-other',
+    bidderId: 'guest_other',
+    displayName: 'Maya',
+    amountCents: 2_400,
+    createdAt: '2026-08-14T12:00:10.000Z',
+  }],
+};
+
 afterEach(() => {
   vi.unstubAllGlobals();
   delete (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT;
 });
 
 describe('AuctionPanel recovery announcements', () => {
+  it('shows the submitted bid immediately and keeps the accepted result until sync catches up', async () => {
+    let auction = OTHER_LEADER_AUCTION;
+    let resolveBid!: (response: Response) => void;
+    const bidResponse = new Promise<Response>((resolve) => { resolveBid = resolve; });
+    const invalidate = vi.fn();
+    const useDataImpl = vi.fn(() => ({
+      data: [auction],
+      loading: false,
+      fetching: false,
+      transport: 'SSE',
+      invalidate,
+      error: null,
+    }));
+    vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.endsWith('/auctions/access/guest')) {
+        return {
+          ok: true,
+          json: async () => ({ bidderId: 'guest_viewer', expiresAt: '2099-01-01T00:00:00.000Z' }),
+        } as Response;
+      }
+      return bidResponse;
+    }));
+    (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
+
+    const container = document.createElement('div');
+    document.body.append(container);
+    const root = createRoot(container);
+    const renderPanel = () => (
+      <SyncContext.Provider value={{ transport: 'SSE', useDataImpl, prefetch: vi.fn() } as never}>
+        <AuctionPanel
+          eventId="sunday-drop"
+          bidderId="guest_viewer"
+          displayName="You"
+          apiBaseUrl="https://optimistic.sidestage.example"
+        />
+      </SyncContext.Provider>
+    );
+    const accepted: BuyerAuction = {
+      ...OTHER_LEADER_AUCTION,
+      currentPriceCents: 2_600,
+      viewerBidderId: 'guest_viewer',
+      bids: [{
+        id: 'bid-accepted',
+        bidderId: 'guest_viewer',
+        displayName: 'You',
+        amountCents: 2_600,
+        createdAt: '2026-08-14T12:00:20.000Z',
+      }, ...OTHER_LEADER_AUCTION.bids],
+    };
+
+    try {
+      await act(async () => {
+        root.render(renderPanel());
+        await Promise.resolve();
+        await Promise.resolve();
+      });
+      expect(container.querySelector('.auction-leader')?.textContent).toBe('Maya leads at $24.00.');
+
+      await act(async () => {
+        container.querySelector('form')?.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+        await Promise.resolve();
+        await Promise.resolve();
+      });
+
+      expect(container.querySelector('.auction-price')?.textContent).toBe('$26.00');
+      expect(container.querySelector('.auction-leader')?.textContent).toBe('You’re leading at $26.00.');
+      expect(container.querySelector('.auction-call')?.textContent).toBe('2 bids');
+      expect(container.querySelectorAll('.auction-feed-row')).toHaveLength(2);
+      expect(container.querySelector('button[type="submit"]')?.textContent).toBe('Placing…');
+
+      await act(async () => {
+        resolveBid({ ok: true, json: async () => accepted } as Response);
+        await bidResponse;
+        await Promise.resolve();
+        await Promise.resolve();
+      });
+
+      // The named query is deliberately still stale here. The sender keeps
+      // the server-authored result visible instead of waiting for its own echo.
+      expect(container.querySelector('.auction-price')?.textContent).toBe('$26.00');
+      expect(container.querySelectorAll('.auction-feed-row')).toHaveLength(2);
+      expect(container.querySelector('[role="status"]')?.textContent)
+        .toContain('bid was accepted and is syncing to the room');
+      expect(invalidate).toHaveBeenCalledTimes(1);
+
+      auction = accepted;
+      await act(async () => {
+        root.render(renderPanel());
+        await Promise.resolve();
+      });
+      expect(container.querySelector('.auction-price')?.textContent).toBe('$26.00');
+      expect(container.querySelectorAll('.auction-feed-row')).toHaveLength(2);
+    } finally {
+      await act(async () => root.unmount());
+      container.remove();
+    }
+  });
+
   it('announces when an authoritative snapshot replaces the viewer as leader', async () => {
     let auction = LEADING_AUCTION;
     const invalidate = vi.fn();
@@ -97,6 +207,8 @@ describe('AuctionPanel recovery announcements', () => {
   });
 
   it('surfaces a bid conflict and invalidates the snapshot before inviting a retry', async () => {
+    let resolveBid!: (response: Response) => void;
+    const bidResponse = new Promise<Response>((resolve) => { resolveBid = resolve; });
     const invalidate = vi.fn();
     const useDataImpl = vi.fn(() => ({
       data: [LEADING_AUCTION],
@@ -114,11 +226,7 @@ describe('AuctionPanel recovery announcements', () => {
           json: async () => ({ bidderId: 'guest_viewer', expiresAt: '2099-01-01T00:00:00.000Z' }),
         } as Response;
       }
-      return {
-        ok: false,
-        status: 409,
-        text: async () => JSON.stringify({ message: 'Bid must be greater than the current price' }),
-      } as Response;
+      return bidResponse;
     }));
     (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -147,8 +255,24 @@ describe('AuctionPanel recovery announcements', () => {
         await Promise.resolve();
       });
 
+      expect(container.querySelector('.auction-price')?.textContent).toBe('$26.00');
+      expect(container.querySelector('.auction-call')?.textContent).toBe('2 bids');
+
+      await act(async () => {
+        resolveBid({
+          ok: false,
+          status: 409,
+          text: async () => JSON.stringify({ message: 'Bid must be greater than the current price' }),
+        } as Response);
+        await bidResponse;
+        await Promise.resolve();
+        await Promise.resolve();
+      });
+
       expect(container.querySelector('[role="alert"]')?.textContent)
         .toContain('current price is refreshing');
+      expect(container.querySelector('.auction-price')?.textContent).toBe('$24.00');
+      expect(container.querySelectorAll('.auction-feed-row')).toHaveLength(1);
       expect(invalidate).toHaveBeenCalledTimes(1);
     } finally {
       await act(async () => root.unmount());

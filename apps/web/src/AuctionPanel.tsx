@@ -30,6 +30,13 @@ interface PlaceBidMutation {
   bid: { displayName?: string; amountCents: number; idempotencyKey: string };
 }
 
+interface OptimisticAuctionOverlay {
+  requestKey: string;
+  auction: BuyerAuction;
+  /** Present only while the local-only bid is waiting for the server. */
+  optimisticBidId?: string;
+}
+
 function requestKey(): string {
   if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') return crypto.randomUUID();
   return `bid-${Date.now()}-${Math.random().toString(36).slice(2)}`;
@@ -102,6 +109,7 @@ export function AuctionPanel({
   const [bidNotice, setBidNotice] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [viewerBidderId, setViewerBidderId] = useState<string | null>(null);
+  const [optimisticAuction, setOptimisticAuction] = useState<OptimisticAuctionOverlay | null>(null);
   const [nowMs, setNowMs] = useState(Date.now());
   const suggestedFor = useRef('');
   const pendingBid = useRef<{ fingerprint: string; key: string } | null>(null);
@@ -117,7 +125,18 @@ export function AuctionPanel({
     pollIntervalMs: 2_000,
     staleTime: 0,
   });
-  const auction = activeAuctionFromSyncRows(auctionQuery.data);
+  const syncedAuction = activeAuctionFromSyncRows(auctionQuery.data);
+  // The sender does not necessarily receive its own sync echo. Keep the local
+  // result in front until the named query reaches (or passes) its price; a
+  // higher snapshot means another buyer already moved the auction again.
+  const optimisticIsAhead = Boolean(
+    optimisticAuction
+      && syncedAuction
+      && syncedAuction.id === optimisticAuction.auction.id
+      && syncedAuction.status === 'active'
+      && syncedAuction.currentPriceCents < optimisticAuction.auction.currentPriceCents,
+  );
+  const auction = optimisticIsAhead ? optimisticAuction!.auction : syncedAuction;
   const loading = auctionQuery.loading;
   const syncState: SyncState = auctionQuery.loading
     ? 'connecting'
@@ -132,6 +151,18 @@ export function AuctionPanel({
     [apiBaseUrl],
   );
   const mutateBid = useSyncMutate<PlaceBidMutation, BuyerAuction>('auction.placeBid', placeBidFallback);
+
+  useEffect(() => {
+    if (!optimisticAuction || auctionQuery.data === undefined) return;
+    if (
+      !syncedAuction
+      || syncedAuction.id !== optimisticAuction.auction.id
+      || syncedAuction.status !== 'active'
+      || syncedAuction.currentPriceCents >= optimisticAuction.auction.currentPriceCents
+    ) {
+      setOptimisticAuction(null);
+    }
+  }, [auctionQuery.data, optimisticAuction, syncedAuction]);
 
   useEffect(() => {
     let active = true;
@@ -169,7 +200,8 @@ export function AuctionPanel({
   const product = useMemo(() => products.find((candidate) => candidate.id === auction?.productId), [auction?.productId, products]);
   const leadingBid = auction?.bids[0];
   const effectiveBidderId = viewerBidderId ?? auction?.viewerBidderId ?? bidderId;
-  const isLeading = leadingBid?.bidderId === effectiveBidderId;
+  const isLeading = leadingBid?.bidderId === effectiveBidderId
+    || leadingBid?.id === optimisticAuction?.optimisticBidId;
   const parsedBid = parseBidDollars(bidDraft);
   const canBid = Boolean(auction && phase === 'live' && parsedBid !== null && parsedBid > auction.currentPriceCents && !submitting);
 
@@ -193,14 +225,18 @@ export function AuctionPanel({
         : `Bid more than ${formatBuyerPrice(auction?.currentPriceCents ?? 0)}. The latest accepted bid syncs to every buyer.`;
 
   useEffect(() => {
-    if (!auction) {
+    // Outbid announcements follow only authoritative snapshots. A rejected
+    // optimistic bid must roll back to the prior leader without claiming the
+    // viewer was outbid.
+    if (!syncedAuction) {
       leaderObservation.current = null;
       return;
     }
+    const syncedLeadingBid = syncedAuction.bids[0];
     const current = {
-      auctionId: auction.id,
+      auctionId: syncedAuction.id,
       viewerBidderId: effectiveBidderId,
-      leaderBidderId: leadingBid?.bidderId ?? null,
+      leaderBidderId: syncedLeadingBid?.bidderId ?? null,
     };
     const previous = leaderObservation.current;
     leaderObservation.current = current;
@@ -212,9 +248,9 @@ export function AuctionPanel({
       && current.leaderBidderId !== null
       && current.leaderBidderId !== current.viewerBidderId
     ) {
-      setBidNotice(`You were outbid. The current bid is ${formatBuyerPrice(auction.currentPriceCents)}.`);
+      setBidNotice(`You were outbid. The current bid is ${formatBuyerPrice(syncedAuction.currentPriceCents)}.`);
     }
-  }, [auction, effectiveBidderId, leadingBid?.bidderId, phase]);
+  }, [effectiveBidderId, phase, syncedAuction]);
 
   const submitBid = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -222,20 +258,41 @@ export function AuctionPanel({
     setSubmitting(true);
     setBidError(null);
     setBidNotice(null);
+    const fingerprint = `${auction.id}:${parsedBid}`;
+    if (pendingBid.current?.fingerprint !== fingerprint) {
+      pendingBid.current = { fingerprint, key: requestKey() };
+    }
+    const requestKeyForBid = pendingBid.current.key;
+    const optimisticBidId = `optimistic-${requestKeyForBid}`;
+    setOptimisticAuction({
+      requestKey: requestKeyForBid,
+      optimisticBidId,
+      auction: {
+        ...auction,
+        currentPriceCents: parsedBid,
+        bids: [{
+          id: optimisticBidId,
+          bidderId: effectiveBidderId,
+          displayName,
+          amountCents: parsedBid,
+          createdAt: new Date().toISOString(),
+        }, ...auction.bids],
+      },
+    });
     try {
-      const fingerprint = `${auction.id}:${parsedBid}`;
-      if (pendingBid.current?.fingerprint !== fingerprint) {
-        pendingBid.current = { fingerprint, key: requestKey() };
-      }
       const updated = await mutateBid({
         auctionId: auction.id,
-        bid: { displayName, amountCents: parsedBid, idempotencyKey: pendingBid.current.key },
+        bid: { displayName, amountCents: parsedBid, idempotencyKey: requestKeyForBid },
       });
       setViewerBidderId(updated.viewerBidderId ?? effectiveBidderId);
+      // Replace the fabricated bid with the server-authored snapshot, but keep
+      // displaying it until the submitting client's sync query catches up.
+      setOptimisticAuction({ requestKey: requestKeyForBid, auction: updated });
       setBidNotice(`Your ${formatBuyerPrice(parsedBid)} bid was accepted and is syncing to the room.`);
       pendingBid.current = null;
       auctionQuery.invalidate();
     } catch (cause) {
+      setOptimisticAuction((current) => current?.requestKey === requestKeyForBid ? null : current);
       setBidError(auctionBidErrorMessage(cause));
       auctionQuery.invalidate();
     } finally {
