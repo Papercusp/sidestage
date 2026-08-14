@@ -55,7 +55,6 @@ export const SELLER_ACTIVE_PANEL_IDS = [
 /** Panels on the independently persisted Event Manager board. */
 export const SELLER_MANAGER_PANEL_IDS = [
   'event-manager',
-  'event-settings',
   'run-of-show-planner',
 ] as const satisfies readonly SellerPanelId[];
 
@@ -126,7 +125,7 @@ export function sellerActiveEventDockDefaultLayout(): LayoutDoc {
 export function sellerEventManagerDockDefaultLayout(): LayoutDoc {
   return {
     schemaVersion: 1,
-    root: strip(['event-manager', 'event-settings', 'run-of-show-planner'], 1000, 'event-manager'),
+    root: strip(['event-manager', 'run-of-show-planner'], 1000, 'event-manager'),
   };
 }
 
