@@ -51,6 +51,8 @@ interface VariantRow {
   availableQty: number;
   imageUrl: string | null;
   description: string | null;
+  weight: CatalogVariant['weight'] | null;
+  dimensions: CatalogVariant['dimensions'] | null;
 }
 
 function rowToVariant(row: VariantRow): CatalogVariant {
@@ -67,6 +69,8 @@ function rowToVariant(row: VariantRow): CatalogVariant {
     availableQty: row.availableQty,
     imageUrl: row.imageUrl ?? undefined,
     description: row.description ?? undefined,
+    weight: row.weight ?? undefined,
+    dimensions: row.dimensions ?? undefined,
   };
 }
 
@@ -98,7 +102,8 @@ export class PgCatalogSource implements CatalogSource {
           const rows = await this.pool.query<VariantRow>(
             `SELECT v.id, v.group_id AS "groupId", c.title, c.brand, c.product_type AS "productType",
                     v.sku, v.condition, v.handling AS "handlingDays", v.price_cents AS "priceCents",
-                    v."availableQty", c.images->0->>'url' AS "imageUrl", c.description
+                    v."availableQty", c.images->0->>'url' AS "imageUrl", c.description,
+                    c.weight, c.dimensions
              FROM storefront_product v
              LEFT JOIN product_catalog c ON c.group_id = v.group_id AND c.region = v.region
              WHERE v.active AND COALESCE(v.group_id, v.id) = ANY($1)
@@ -161,7 +166,8 @@ export class PgCatalogSource implements CatalogSource {
     const rows = await this.pool.query<VariantRow>(
       `SELECT v.id, v.group_id AS "groupId", c.title, c.brand, c.product_type AS "productType",
               v.sku, v.condition, v.handling AS "handlingDays", v.price_cents AS "priceCents",
-              v."availableQty", c.images->0->>'url' AS "imageUrl", c.description
+              v."availableQty", c.images->0->>'url' AS "imageUrl", c.description,
+              c.weight, c.dimensions
        ${fromSql}
        WHERE ${whereSql}
        ORDER BY v."availableQty" > 0 DESC, v.id
@@ -185,7 +191,8 @@ export class PgCatalogSource implements CatalogSource {
     const result = await this.pool.query<VariantRow>(
       `SELECT v.id, v.group_id AS "groupId", c.title, c.brand, c.product_type AS "productType",
               v.sku, v.condition, v.handling AS "handlingDays", v.price_cents AS "priceCents",
-              v."availableQty", c.images->0->>'url' AS "imageUrl", c.description
+              v."availableQty", c.images->0->>'url' AS "imageUrl", c.description,
+              c.weight, c.dimensions
        FROM storefront_product v
        LEFT JOIN product_catalog c ON c.group_id = v.group_id AND c.region = v.region
        WHERE v.id = $1`,

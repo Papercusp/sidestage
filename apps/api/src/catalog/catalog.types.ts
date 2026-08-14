@@ -1,5 +1,18 @@
 export const CATALOG_SOURCE = Symbol('CATALOG_SOURCE');
 
+export interface CatalogMeasurement {
+  value: number;
+  unit?: string;
+}
+
+export interface CatalogDimensions {
+  length?: number | CatalogMeasurement;
+  width?: number | CatalogMeasurement;
+  height?: number | CatalogMeasurement;
+  /** Some imported rows store one unit for all three numeric dimensions. */
+  unit?: string;
+}
+
 /** One sellable variant, priced and counted — the unit the UI lists and holds. */
 export interface CatalogVariant {
   id: string;
@@ -14,6 +27,9 @@ export interface CatalogVariant {
   availableQty: number;
   imageUrl?: string;
   description?: string;
+  /** Raw product_catalog values; consumers perform unit-aware conversion. */
+  weight?: number | CatalogMeasurement;
+  dimensions?: CatalogDimensions;
 }
 
 export type CatalogAvailability = 'all' | 'in-stock';
