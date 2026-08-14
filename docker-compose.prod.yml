@@ -31,6 +31,10 @@ services:
     image: typesense/typesense:27.1
     restart: unless-stopped
     command: ["--data-dir", "/data", "--api-key", "${TYPESENSE_API_KEY:?set in .env.production}"]
+    ulimits:
+      nofile:
+        soft: 65536
+        hard: 65536
     volumes:
       - sidestage-typesense:/data
 
