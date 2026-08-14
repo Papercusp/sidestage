@@ -529,6 +529,18 @@ CREATE TABLE IF NOT EXISTS cart (
   CONSTRAINT cart_payload_object CHECK (jsonb_typeof(payload) = 'object')
 );
 
+-- Scout conversation transcripts (P-007). Single-writer session documents like
+-- the cart: the message list is stored whole as jsonb, since no query ever
+-- reads one message independently of its conversation. last_active_at is not
+-- bookkeeping — it is half of the transcript's ETag (count + last-write), so an
+-- in-place edit of the final message still changes the version.
+CREATE TABLE IF NOT EXISTS scout_session (
+  id text PRIMARY KEY,
+  messages jsonb NOT NULL DEFAULT '[]'::jsonb,
+  last_active_at timestamptz NOT NULL DEFAULT now(),
+  CONSTRAINT scout_session_messages_array CHECK (jsonb_typeof(messages) = 'array')
+);
+
 CREATE TABLE IF NOT EXISTS checkout_order (
   id text PRIMARY KEY,
   cart_id text NOT NULL,
