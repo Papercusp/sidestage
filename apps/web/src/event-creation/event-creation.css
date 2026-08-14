@@ -438,11 +438,54 @@
   align-items: center;
 }
 
-/* The file input itself is never shown — the <label> IS the button, so the
-   control keeps native keyboard + screen-reader behaviour without the
-   unstyleable default "Choose file" widget. */
+/* The thumbnail tile IS the file button. The native input remains in the
+   accessibility tree while the label supplies the full pointer target. */
 .event-thumbnail-choose {
+  position: relative;
+  display: inline-grid;
+  flex: 0 0 auto;
+  border-radius: .6rem;
+  color: var(--accent-strong);
   cursor: pointer;
+}
+
+.event-thumbnail-choose .event-thumbnail-placeholder {
+  opacity: 0;
+}
+
+.event-thumbnail-upload-icon {
+  position: absolute;
+  inset: 50% auto auto 50%;
+  width: 1.75rem;
+  height: 1.75rem;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+}
+
+.event-thumbnail-choose .event-thumbnail-preview {
+  transition: border-color .15s ease, background .15s ease, box-shadow .15s ease;
+}
+
+.event-thumbnail-choose:hover .event-thumbnail-preview {
+  border-color: color-mix(in srgb, var(--brand-red) 52%, var(--border));
+  background: color-mix(in srgb, var(--brand-red) 6%, var(--surface));
+  box-shadow: 0 8px 22px color-mix(in srgb, var(--brand-red) 14%, transparent);
+}
+
+.event-thumbnail-choose:focus-within {
+  outline: 3px solid color-mix(in srgb, var(--brand-red) 32%, transparent);
+  outline-offset: 2px;
+}
+
+.event-thumbnail-choose.is-disabled {
+  opacity: .58;
+  cursor: not-allowed;
+}
+
+.event-thumbnail-choose.is-disabled:hover .event-thumbnail-preview {
+  border-color: var(--border);
+  background: var(--surface);
+  box-shadow: none;
 }
 
 .event-thumbnail-choose input[type='file'] {

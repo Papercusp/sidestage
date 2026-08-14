@@ -56,20 +56,38 @@ function previewBox(html: string): string {
   return html.slice(open, close + '</div>'.length);
 }
 
+function chooserBox(html: string): string {
+  const open = html.search(/<label class="[^"]*\bevent-thumbnail-choose\b/);
+  expect(open).toBeGreaterThan(-1);
+  const close = html.indexOf('</label>', open);
+  return html.slice(open, close + '</label>'.length);
+}
+
 describe('EventCreationPanel thumbnail control', () => {
   it('offers a file input restricted to the accepted image types', () => {
-    const html = render();
-    expect(html).toContain('type="file"');
-    expect(html).toContain(`accept="${ALLOWED_THUMBNAIL_TYPES.join(',')}"`);
+    const chooser = chooserBox(render());
+    expect(chooser).toContain('type="file"');
+    expect(chooser).toContain(`accept="${ALLOWED_THUMBNAIL_TYPES.join(',')}"`);
     // The accept attribute is a convenience filter, never the check — the real
     // gate is validateThumbnailFile, and the API re-validates independently.
     expect(ALLOWED_THUMBNAIL_TYPES).not.toContain('image/svg+xml');
   });
 
-  it('labels the control and states the limits so the seller reads them before picking', () => {
+  it('makes the thumbnail tile the image chooser without redundant visible action text', () => {
+    const html = render();
+    const chooser = chooserBox(html);
+    expect(chooser).toContain('event-thumbnail-preview');
+    expect(chooser).toContain('event-thumbnail-upload-icon');
+    expect(chooser).toContain('type="file"');
+    expect(html).not.toContain('>Upload image<');
+    expect(html).not.toContain('>Replace image<');
+  });
+
+  it('labels the icon-only control and states the limits before picking', () => {
     const html = render();
     expect(html).toContain('Event thumbnail');
-    expect(html).toContain('Upload image');
+    expect(html).toContain('aria-label="Choose an event thumbnail"');
+    expect(html).toContain('aria-describedby="event-thumbnail-status"');
     expect(html).toContain('JPEG, PNG, WebP, or GIF');
     expect(html).toContain('512KB');
   });
@@ -85,9 +103,9 @@ describe('EventCreationPanel thumbnail control', () => {
     expect(html).not.toContain('>Remove<');
   });
 
-  it('associates the file input with its visible label for assistive tech', () => {
+  it('keeps the field label and status available to assistive tech', () => {
     const html = render();
     expect(html).toContain('id="event-thumbnail-label"');
-    expect(html).toContain('aria-labelledby="event-thumbnail-label"');
+    expect(html).toContain('id="event-thumbnail-status"');
   });
 });

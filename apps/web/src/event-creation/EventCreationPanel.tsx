@@ -196,30 +196,50 @@ export function EventCreationPanel({
         <div className="event-thumbnail-field">
           <span id="event-thumbnail-label">Event thumbnail</span>
           <div className="event-thumbnail-picker">
-            {/* The SAME component the buyer sees, so the seller's preview is
-                the real render — including the fallback — not a lookalike. */}
-            <EventThumbnail
-              url={thumbnailUrl}
-              eventName={eventName.trim() || 'this event'}
-              className="event-thumbnail-preview"
-            />
+            <label
+              className={`event-thumbnail-choose${readingThumbnail || submitting ? ' is-disabled' : ''}`}
+            >
+              {/* The SAME component the buyer sees, so the seller's preview is
+                  the real render — including the fallback — not a lookalike. */}
+              <EventThumbnail
+                url={thumbnailUrl}
+                eventName={eventName.trim() || 'this event'}
+                className="event-thumbnail-preview"
+              />
+              {!thumbnailUrl ? (
+                <svg
+                  className="event-thumbnail-upload-icon"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.8"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  aria-hidden="true"
+                >
+                  <path d="M10.3 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v10.3" />
+                  <path d="m16 19 3-3 3 3" />
+                  <path d="M19 22v-6" />
+                  <circle cx="9" cy="9" r="2" />
+                  <path d="m21 15-3.1-3.1a2 2 0 0 0-2.8 0L6 21" />
+                </svg>
+              ) : null}
+              <input
+                type="file"
+                aria-label={thumbnailUrl ? 'Choose a replacement event thumbnail' : 'Choose an event thumbnail'}
+                aria-describedby="event-thumbnail-status"
+                accept={ALLOWED_THUMBNAIL_TYPES.join(',')}
+                disabled={readingThumbnail || submitting}
+                onChange={(event) => void handleThumbnailPick(event.currentTarget)}
+              />
+            </label>
             <div className="event-thumbnail-actions">
-              <label className="button tertiary event-thumbnail-choose">
-                {thumbnailUrl ? 'Replace image' : 'Upload image'}
-                <input
-                  type="file"
-                  aria-labelledby="event-thumbnail-label"
-                  accept={ALLOWED_THUMBNAIL_TYPES.join(',')}
-                  disabled={readingThumbnail || submitting}
-                  onChange={(event) => void handleThumbnailPick(event.currentTarget)}
-                />
-              </label>
               {thumbnailUrl ? (
                 <button className="button tertiary" type="button" onClick={clearThumbnail} disabled={submitting}>
                   Remove
                 </button>
               ) : null}
-              <span className="event-thumbnail-status">
+              <span className="event-thumbnail-status" id="event-thumbnail-status">
                 {readingThumbnail
                   ? 'Reading image…'
                   : thumbnailName ?? 'JPEG, PNG, WebP, or GIF · up to 512KB'}
