@@ -14,6 +14,7 @@
     "dev:web": "npm run dev --workspace @papercusp/sidestage-web",
     "build": "npm run build --workspaces --if-present",
     "typecheck": "npm run typecheck --workspaces --if-present",
+    "db:apply": "bash scripts/db-apply.sh",
     "test": "npm run test:apps",
     "test:apps": "npm run test --workspace @papercusp/sidestage-api && npm run test --workspace @papercusp/sidestage-web",
     "check": "npm run typecheck && npm test",
