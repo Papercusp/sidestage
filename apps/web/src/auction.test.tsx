@@ -1,5 +1,6 @@
 import { renderToStaticMarkup } from 'react-dom/server';
-import { describe, expect, it } from 'vitest';
+import { SyncContext } from '@papercusp/sync';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { activeAuctionFromSyncRows, auctionPhase, AuctionPanel } from './AuctionPanel';
 import { activeAuctionUrl, auctionStreamUrl, parseAuctionEvent, parseBidDollars, secondsRemaining, suggestedBidCents, type BuyerAuction } from './auction';
 
@@ -30,6 +31,8 @@ describe('buyer auction model', () => {
 
 const PRODUCTS = [{ id: 'stoneware-mug-matte-12oz', title: 'Stoneware mug', subtitle: 'Matte · 12 oz' }];
 
+afterEach(() => vi.unstubAllGlobals());
+
 /** An auction ending `ms` from now, with `bids` newest/highest first. */
 function auctionEndingIn(ms: number, overrides: Partial<BuyerAuction> = {}): BuyerAuction {
   return {
@@ -41,8 +44,18 @@ function auctionEndingIn(ms: number, overrides: Partial<BuyerAuction> = {}): Buy
 }
 
 function render(auction: BuyerAuction, bidderId?: string): string {
+  const useDataImpl = vi.fn().mockReturnValue({
+    data: [auction],
+    loading: false,
+    fetching: false,
+    transport: 'SSE',
+    invalidate: vi.fn(),
+    error: null,
+  });
   return renderToStaticMarkup(
-    <AuctionPanel eventId="sunday-drop" initialAuction={auction} products={PRODUCTS} bidderId={bidderId} />,
+    <SyncContext.Provider value={{ transport: 'SSE', useDataImpl, prefetch: vi.fn() } as never}>
+      <AuctionPanel eventId="sunday-drop" products={PRODUCTS} bidderId={bidderId} />
+    </SyncContext.Provider>,
   );
 }
 
@@ -77,6 +90,52 @@ describe('AuctionPanel', () => {
     expect(markup).toContain('You’re leading');
     expect(markup).toContain('Place bid');
     expect(markup).toContain('latest accepted bid syncs to every buyer');
+  });
+
+  it('uses the named query as its only read authority and scopes retry to query errors', () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal('fetch', fetchMock);
+    const invalidate = vi.fn();
+    const useDataImpl = vi.fn().mockReturnValue({
+      data: [ACTIVE_AUCTION],
+      loading: false,
+      fetching: false,
+      transport: 'SSE',
+      invalidate,
+      error: null,
+    });
+    const liveMarkup = renderToStaticMarkup(
+      <SyncContext.Provider value={{ transport: 'SSE', useDataImpl, prefetch: vi.fn() } as never}>
+        <AuctionPanel eventId="sunday-drop" products={PRODUCTS} />
+      </SyncContext.Provider>,
+    );
+
+    expect(useDataImpl).toHaveBeenCalledWith({
+      queryName: 'event.auction.active',
+      args: { eventId: 'sunday-drop' },
+      pollIntervalMs: 2_000,
+      staleTime: 0,
+    });
+    expect(liveMarkup).not.toContain('Try again');
+    expect(fetchMock).not.toHaveBeenCalled();
+
+    useDataImpl.mockReturnValue({
+      data: [],
+      loading: false,
+      fetching: false,
+      transport: 'SSE',
+      invalidate,
+      error: new Error('auction sync unavailable'),
+    });
+    const errorMarkup = renderToStaticMarkup(
+      <SyncContext.Provider value={{ transport: 'SSE', useDataImpl, prefetch: vi.fn() } as never}>
+        <AuctionPanel eventId="sunday-drop" products={PRODUCTS} />
+      </SyncContext.Provider>,
+    );
+    expect(errorMarkup).toContain('auction sync unavailable');
+    expect(errorMarkup).toContain('Try again');
+    expect(errorMarkup).not.toContain('Refresh auction');
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 
   // The bid array was always in hand; the panel used to render bids[0] and drop

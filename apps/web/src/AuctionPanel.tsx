@@ -4,7 +4,6 @@ import { useSyncMutate, useSyncQuery } from '@papercusp/sync';
 import type { BuyerProduct } from './buyer';
 import { formatBuyerPrice } from './buyer';
 import {
-  fetchActiveAuction,
   parseBidDollars,
   placeAuctionBid,
   secondsRemaining,
@@ -20,7 +19,6 @@ export interface AuctionPanelProps {
   bidderId?: string;
   displayName?: string;
   apiBaseUrl?: string;
-  initialAuction?: BuyerAuction | null;
 }
 
 type SyncState = 'connecting' | 'live' | 'reconnecting' | 'polling';
@@ -91,29 +89,12 @@ export function AuctionPanel({
   bidderId = 'buyer-demo',
   displayName = 'You',
   apiBaseUrl,
-  initialAuction,
 }: AuctionPanelProps) {
-  const [auction, setAuction] = useState<BuyerAuction | null>(initialAuction ?? null);
-  const [loading, setLoading] = useState(initialAuction === undefined);
-  const [syncState, setSyncState] = useState<SyncState>('connecting');
-  const [error, setError] = useState<string | null>(null);
-  const [bidDraft, setBidDraft] = useState(() => initialAuction ? (suggestedBidCents(initialAuction.currentPriceCents) / 100).toFixed(2) : '');
+  const [bidDraft, setBidDraft] = useState('');
+  const [bidError, setBidError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [nowMs, setNowMs] = useState(Date.now());
-  const suggestedFor = useRef(
-    initialAuction ? `${initialAuction.id}:${initialAuction.currentPriceCents}` : '',
-  );
-
-  const applyAuction = useCallback((next: BuyerAuction | null) => {
-    setAuction(next);
-    setLoading(false);
-    setError(null);
-    const quoteKey = next ? `${next.id}:${next.currentPriceCents}` : '';
-    if (next && quoteKey !== suggestedFor.current) {
-      suggestedFor.current = quoteKey;
-      setBidDraft((suggestedBidCents(next.currentPriceCents) / 100).toFixed(2));
-    }
-  }, []);
+  const suggestedFor = useRef('');
 
   const auctionQuery = useSyncQuery<BuyerAuction>({
     queryName: 'event.auction.active',
@@ -121,17 +102,15 @@ export function AuctionPanel({
     pollIntervalMs: 2_000,
     staleTime: 0,
   });
-
-  const refreshFromRest = useCallback(async () => {
-    try {
-      const next = await fetchActiveAuction(eventId, apiBaseUrl);
-      applyAuction(next);
-      setSyncState('polling');
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : 'The live auction could not be refreshed.');
-      setLoading(false);
-    }
-  }, [apiBaseUrl, applyAuction, eventId]);
+  const auction = activeAuctionFromSyncRows(auctionQuery.data);
+  const loading = auctionQuery.loading;
+  const syncState: SyncState = auctionQuery.loading
+    ? 'connecting'
+    : auctionQuery.error
+      ? 'reconnecting'
+      : auctionQuery.transport === 'POLLING'
+        ? 'polling'
+        : 'live';
 
   const placeBidFallback = useCallback(
     async ({ auctionId, bid }: PlaceBidMutation) => placeAuctionBid(auctionId, bid, apiBaseUrl),
@@ -140,15 +119,12 @@ export function AuctionPanel({
   const mutateBid = useSyncMutate<PlaceBidMutation, BuyerAuction>('auction.placeBid', placeBidFallback);
 
   useEffect(() => {
-    if (auctionQuery.loading) return;
-    if (auctionQuery.error) {
-      setSyncState('reconnecting');
-      void refreshFromRest();
-      return;
+    const quoteKey = auction ? `${auction.id}:${auction.currentPriceCents}` : '';
+    if (auction && quoteKey !== suggestedFor.current) {
+      suggestedFor.current = quoteKey;
+      setBidDraft((suggestedBidCents(auction.currentPriceCents) / 100).toFixed(2));
     }
-    applyAuction(activeAuctionFromSyncRows(auctionQuery.data));
-    setSyncState(auctionQuery.transport === 'POLLING' ? 'polling' : 'live');
-  }, [applyAuction, auctionQuery.data, auctionQuery.error, auctionQuery.loading, auctionQuery.transport, refreshFromRest]);
+  }, [auction]);
 
   useEffect(() => {
     const timer = globalThis.setInterval(() => setNowMs(Date.now()), 250);
@@ -188,17 +164,14 @@ export function AuctionPanel({
     event.preventDefault();
     if (!auction || !canBid || parsedBid === null) return;
     setSubmitting(true);
-    setError(null);
+    setBidError(null);
     try {
-      applyAuction(await mutateBid({
+      await mutateBid({
         auctionId: auction.id,
         bid: { bidderId, displayName, amountCents: parsedBid },
-      }));
-      auctionQuery.invalidate();
+      });
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : 'Your bid could not be placed.');
-      auctionQuery.invalidate();
-      if (auctionQuery.error) await refreshFromRest();
+      setBidError(cause instanceof Error ? cause.message : 'Your bid could not be placed.');
     } finally {
       setSubmitting(false);
     }
@@ -218,7 +191,7 @@ export function AuctionPanel({
       </div>
 
       {loading ? <p className="auction-empty">Checking the auction stage…</p> : null}
-      {!loading && !auction ? (
+      {!loading && !auction && !auctionQuery.error ? (
         <div className="auction-empty"><strong>No auction is live yet.</strong><span>Stay here—the panel updates as soon as the seller starts one.</span></div>
       ) : null}
 
@@ -331,7 +304,13 @@ export function AuctionPanel({
           {isClosed && leadingBid ? <span className="auction-stamp" aria-hidden="true">SOLD</span> : null}
         </>
       ) : null}
-      {error ? <p className="auction-error" role="alert">{error}</p> : null}
+      {auctionQuery.error ? (
+        <div className="auction-error" role="alert">
+          <span>{auctionQuery.error.message}</span>
+          <button className="button small" type="button" onClick={auctionQuery.invalidate}>Try again</button>
+        </div>
+      ) : null}
+      {bidError ? <p className="auction-error" role="alert">{bidError}</p> : null}
     </section>
   );
 }
