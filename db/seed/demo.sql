@@ -205,4 +205,64 @@ VALUES
 ON CONFLICT (variant_id, axis_id) DO UPDATE SET
   value_id = EXCLUDED.value_id;
 
+-- ── Event directory (P-118 / D-019) ──────────────────────────────────────────
+-- The "What's on" Channel Guide groups by state, so the demo set covers all
+-- three buyer-visible states plus a draft that must NOT appear — the draft row
+-- is the fixture that proves the read path filters rather than the client
+-- hiding rows.
+--
+-- Times are relative to now() rather than fixed timestamps: a seeded "starts in
+-- two hours" event stays genuinely upcoming whenever the demo is run, where a
+-- hardcoded date silently rots into the past and the Up-next group empties out.
+--
+-- sunday-drop is the pre-existing real event (it already has an event_config
+-- row); it is inserted here so the guide lists it alongside the rest, and the
+-- ON CONFLICT keeps a seller's later edits from being clobbered by a re-seed.
+INSERT INTO event (
+  event_id, title, seller_id, seller_name, status, starts_at, ended_at, thumbnail_url
+)
+VALUES
+  -- Live now
+  ('sunday-drop', 'Sunday vintage drop', 'seller-marsh', 'Marsh & Co Vintage',
+   'live', now() - interval '35 minutes', NULL,
+   'https://placehold.co/400x400/D62B1F/FFF8EF/png?text=Vintage'),
+  ('midnight-sneaker-vault', 'Midnight sneaker vault', 'seller-sole', 'Sole Provisions',
+   'live', now() - interval '12 minutes', NULL,
+   'https://placehold.co/400x400/2A1F1A/FFC400/png?text=Sneakers'),
+  ('estate-jewels-hour', 'Estate jewels hour', 'seller-ashgrove', 'Ashgrove Estate',
+   'live', now() - interval '1 hour 20 minutes', NULL,
+   'https://placehold.co/400x400/8A7A6C/FFF8EF/png?text=Jewels'),
+
+  -- Up next
+  ('tuesday-tool-run', 'Tuesday tool run', 'seller-ironbark', 'Ironbark Supply',
+   'scheduled', now() + interval '2 hours', NULL,
+   'https://placehold.co/400x400/A66A00/FFF8EF/png?text=Tools'),
+  ('denim-archive-drop', 'Denim archive drop', 'seller-blueloom', 'Blue Loom Archive',
+   'scheduled', now() + interval '6 hours', NULL,
+   'https://placehold.co/400x400/1E7F4F/FFF8EF/png?text=Denim'),
+  ('weekend-ceramics', 'Weekend ceramics studio sale', 'seller-kiln', 'Kiln & Coast',
+   'scheduled', now() + interval '2 days', NULL,
+   'https://placehold.co/400x400/E8D3BC/2A1F1A/png?text=Ceramics'),
+
+  -- Ended (replay)
+  ('friday-flash-audio', 'Friday flash: hi-fi audio', 'seller-northstar', 'Northstar Audio',
+   'ended', now() - interval '19 hours', now() - interval '18 hours',
+   'https://placehold.co/400x400/2A1F1A/FFF8EF/png?text=Audio'),
+  ('warehouse-clearout', 'Warehouse clear-out marathon', 'seller-restart', 'Restart Outfitters',
+   'ended', now() - interval '3 days 2 hours', now() - interval '3 days',
+   'https://placehold.co/400x400/C2271C/FFF8EF/png?text=Clearout'),
+
+  -- Draft: unpublished, and must never surface in the buyer guide.
+  ('spring-preview-draft', 'Spring preview (unpublished)', 'seller-marsh', 'Marsh & Co Vintage',
+   'draft', NULL, NULL, NULL)
+ON CONFLICT (event_id) DO UPDATE SET
+  title = EXCLUDED.title,
+  seller_id = EXCLUDED.seller_id,
+  seller_name = EXCLUDED.seller_name,
+  status = EXCLUDED.status,
+  starts_at = EXCLUDED.starts_at,
+  ended_at = EXCLUDED.ended_at,
+  thumbnail_url = EXCLUDED.thumbnail_url,
+  updated_at = now();
+
 COMMIT;

@@ -7,6 +7,7 @@ import { CartModule } from './cart/cart.module';
 import { ChatModule } from './chat/chat.module';
 import { CheckoutModule } from './checkout/checkout.module';
 import { EventConfigModule } from './config/event-config.module';
+import { EventModule } from './events/event.module';
 import { HealthController } from './health.controller';
 import { InventoryModule } from './inventory/inventory.module';
 import { JudgeModule } from './judge/judge.module';
@@ -17,7 +18,7 @@ import { ShippingModule } from './shipping/shipping.module';
 import { StatsModule } from './stats/stats.module';
 
 @Module({
-  imports: [DatabaseModule, ActionModule, AuctionModule, CartModule, CatalogModule, ChatModule, CheckoutModule, EventConfigModule, InventoryModule, JudgeModule, PolicyModule, RehearsalModule, ScoutModule, ShippingModule, StatsModule],
+  imports: [DatabaseModule, ActionModule, AuctionModule, CartModule, CatalogModule, ChatModule, CheckoutModule, EventConfigModule, EventModule, InventoryModule, JudgeModule, PolicyModule, RehearsalModule, ScoutModule, ShippingModule, StatsModule],
   controllers: [HealthController],
 })
 export class AppModule {}

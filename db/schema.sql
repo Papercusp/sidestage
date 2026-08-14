@@ -592,3 +592,41 @@ CREATE TABLE IF NOT EXISTS policy_idempotency (
   created_at timestamptz NOT NULL DEFAULT now(),
   PRIMARY KEY (seller_id, route, key)
 );
+
+-- ── The event directory (P-118 / D-019) ──────────────────────────────────────
+-- The buyer "What's on" Channel Guide lists events across ALL sellers, so the
+-- directory is its own table rather than a projection of event_config: config
+-- is per-event copilot settings keyed by an id the caller already knows, while
+-- THIS answers "which events exist at all", which nothing could answer before.
+--
+-- `status` carries the seller-controlled lifecycle and reuses the vocabulary
+-- the web already speaks (EventStatus in apps/web/src/events/events.ts), so the
+-- API does not invent a second set of names for the same four states. The
+-- buyer-visible mapping is live→"Live now", scheduled→"Up next", ended→
+-- "Ended"; `draft` is deliberately NOT buyer-visible — an unpublished event
+-- must never appear in the guide, which is why the read path filters on status
+-- rather than returning everything and hiding rows in the client.
+--
+-- viewer counts are NOT stored here: they are live chat presence, read at
+-- request time from ChatService the same way /events/:id/stats does. A stored
+-- counter would be a second source of truth that goes stale the moment a
+-- viewer leaves.
+CREATE TABLE IF NOT EXISTS event (
+  event_id text PRIMARY KEY,
+  title text NOT NULL,
+  seller_id text NOT NULL,
+  seller_name text NOT NULL,
+  status text NOT NULL DEFAULT 'draft',
+  starts_at timestamptz,
+  ended_at timestamptz,
+  thumbnail_url text,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now(),
+  CONSTRAINT event_status_known
+    CHECK (status IN ('draft', 'scheduled', 'live', 'ended'))
+);
+
+-- The guide's default ordering: live first, then soonest-upcoming, then most
+-- recently ended. Indexed on the two columns that ordering actually reads.
+CREATE INDEX IF NOT EXISTS event_status_starts_at_idx
+  ON event (status, starts_at);
