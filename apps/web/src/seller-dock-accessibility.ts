@@ -33,6 +33,13 @@ export function syncSellerDockAccessibility(root: HTMLElement, layoutName: strin
 
     tabList.setAttribute('role', 'tablist');
     tabList.setAttribute('aria-label', 'Dock panels');
+    tabList.setAttribute(
+      'aria-orientation',
+      group.classList.contains('dv-groupview-header-left') ||
+        group.classList.contains('dv-groupview-header-right')
+        ? 'vertical'
+        : 'horizontal',
+    );
     panel.id = panelId;
     panel.setAttribute('role', 'tabpanel');
 
@@ -64,7 +71,30 @@ export function observeSellerDockAccessibility(
 
   const sync = () => syncSellerDockAccessibility(root, layoutName);
   sync();
-  const observer = new MutationObserver(sync);
+  const dockStructureSelector = [
+    '.dv-groupview',
+    '.dv-tabs-container',
+    '.dv-tab',
+    '.dv-content-container',
+    '.dv-default-tab-content',
+  ].join(',');
+  const touchesDockStructure = (node: Node): boolean => (
+    node instanceof Element &&
+    (node.matches(dockStructureSelector) || node.querySelector(dockStructureSelector) !== null)
+  );
+  const observer = new MutationObserver((records) => {
+    const needsSync = records.some((record) => {
+      if (record.type === 'attributes') {
+        return record.target instanceof Element && record.target.classList.contains(TAB_CLASS);
+      }
+      return (
+        touchesDockStructure(record.target) ||
+        Array.from(record.addedNodes).some(touchesDockStructure) ||
+        Array.from(record.removedNodes).some(touchesDockStructure)
+      );
+    });
+    if (needsSync) sync();
+  });
   observer.observe(root, {
     childList: true,
     subtree: true,

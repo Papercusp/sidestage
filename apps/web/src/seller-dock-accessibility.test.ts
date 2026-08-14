@@ -37,6 +37,7 @@ describe('syncSellerDockAccessibility', () => {
 
     expect(tabList.getAttribute('role')).toBe('tablist');
     expect(tabList.getAttribute('aria-label')).toBe('Dock panels');
+    expect(tabList.getAttribute('aria-orientation')).toBe('horizontal');
     expect(tabs[0]!.getAttribute('role')).toBe('tab');
     expect(tabs[0]!.getAttribute('aria-selected')).toBe('true');
     expect(tabs[1]!.getAttribute('aria-selected')).toBe('false');

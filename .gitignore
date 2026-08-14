@@ -13,3 +13,5 @@ db/seed/restart-catalog.sql
 apps/*/dist/
 apps/*/.vite/
 apps/*/.turbo/
+# Generated from node_modules/vditor by the web predev/prebuild hook.
+apps/web/public/vditor/
