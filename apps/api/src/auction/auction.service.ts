@@ -228,6 +228,20 @@ export class AuctionService {
     return this.cloneAuction(auction);
   }
 
+  /** Completed and active auctions for one product, newest first. */
+  async listByProduct(productIdInput: string): Promise<Auction[]> {
+    const productId = this.readId(productIdInput, 'productId');
+    const matches: Auction[] = [];
+    for (const auction of this.auctions.values()) {
+      if (auction.productId !== productId) continue;
+      if (auction.status === 'active' && Date.now() >= Date.parse(auction.endsAt)) {
+        await this.closeInternal(auction);
+      }
+      matches.push(this.cloneAuction(auction));
+    }
+    return matches.sort((left, right) => right.startedAt.localeCompare(left.startedAt));
+  }
+
   async placeBid(id: string, input: PlaceBidInput): Promise<Auction> {
     const auction = this.requireAuction(id);
     if (auction.status === 'active' && Date.now() >= Date.parse(auction.endsAt)) await this.closeInternal(auction);

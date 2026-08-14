@@ -101,6 +101,24 @@ describe('AuctionService', () => {
     expect(snapshots.map((snapshot) => snapshot.auction?.status)).toEqual(['active', 'active', 'closed']);
   });
 
+  it('lists active and completed outcomes only for the requested product', async () => {
+    const inventory = new InMemoryAuctionInventory();
+    await inventory.seed('product-1', 3);
+    await inventory.seed('product-2', 1);
+    const auctions = new AuctionService(inventory);
+    const sold = await auctions.startAuction({ eventId: 'event-1', eventItemId: 'item-1', productId: 'product-1', quantity: 1, startingPriceCents: 1_000 });
+    await auctions.placeBid(sold.id, { bidderId: 'buyer-a', amountCents: 1_200 });
+    await auctions.closeAuction(sold.id);
+    const active = await auctions.startAuction({ eventId: 'event-2', eventItemId: 'item-2', productId: 'product-1', quantity: 1, startingPriceCents: 900 });
+    await auctions.startAuction({ eventId: 'event-3', eventItemId: 'item-3', productId: 'product-2', quantity: 1, startingPriceCents: 500 });
+
+    const history = await auctions.listByProduct('product-1');
+
+    expect(history.map(({ id }) => id).sort()).toEqual([active.id, sold.id].sort());
+    expect(history.find(({ id }) => id === sold.id)?.winnerOrder?.bidderId).toBe('buyer-a');
+    expect(history.every(({ productId }) => productId === 'product-1')).toBe(true);
+  });
+
   it('re-reserving under the same source replaces the hold instead of stacking it', async () => {
     const inventory = new InMemoryAuctionInventory();
     await inventory.seed('product-1', 5);
