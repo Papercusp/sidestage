@@ -1,6 +1,6 @@
 import react from '@vitejs/plugin-react';
 import { existsSync, realpathSync } from 'node:fs';
-import { dirname, isAbsolute, join, relative, resolve } from 'node:path';
+import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { defineConfig, loadEnv, type Plugin } from 'vite';
 
@@ -23,7 +23,7 @@ export function findNearestDependencyRuntime(
   const start = resolve(startDirectory);
   const boundary = resolve(repositoryBoundary);
   const relativeStart = relative(boundary, start);
-  if (relativeStart.startsWith('..') || isAbsolute(relativeStart)) {
+  if (relativeStart === '..' || relativeStart.startsWith(`..${sep}`) || isAbsolute(relativeStart)) {
     throw new Error(`Dependency lookup start must be inside ${boundary}; received ${start}`);
   }
 
@@ -54,6 +54,12 @@ export function createDependencyTopologyGuard({
     findNearestDependencyRuntime(webRoot, repositoryRoot, reactRefreshRuntime),
   fileExists = existsSync,
 }: DependencyTopologyGuardOptions = {}): Plugin {
+  let timer: ReturnType<typeof setInterval> | null = null;
+  const stop = () => {
+    if (timer) clearInterval(timer);
+    timer = null;
+  };
+
   return {
     name: 'sidestage-dependency-topology-guard',
     apply: 'serve',
@@ -68,7 +74,7 @@ export function createDependencyTopologyGuard({
 
       let restartInFlight = false;
       let reportedInstallWindow = false;
-      const timer = setInterval(() => {
+      timer = setInterval(() => {
         if (restartInFlight || fileExists(startupRuntime)) return;
 
         const currentRuntime = findRuntime();
@@ -86,17 +92,21 @@ export function createDependencyTopologyGuard({
         server.config.logger.warn(
           `[sidestage] React refresh runtime re-hoisted from ${startupRuntime} to ${currentRuntime}; restarting Vite.`,
         );
-        void server.restart(true).catch((error: unknown) => {
-          restartInFlight = false;
-          server.config.logger.error(
-            `[sidestage] Vite restart after dependency re-hoist failed: ${error instanceof Error ? error.message : String(error)}`,
-          );
-        });
+        void server
+          .restart(true)
+          .catch((error: unknown) => {
+            server.config.logger.error(
+              `[sidestage] Vite restart after dependency re-hoist failed: ${error instanceof Error ? error.message : String(error)}`,
+            );
+          })
+          .finally(() => {
+            restartInFlight = false;
+          });
       }, intervalMs);
       timer.unref?.();
-
-      return () => clearInterval(timer);
+      server.httpServer?.once('close', stop);
     },
+    closeBundle: stop,
   };
 }
 

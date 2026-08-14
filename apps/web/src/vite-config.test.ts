@@ -97,15 +97,21 @@ describe('dependency topology guard', () => {
     if (typeof configureServer !== 'function') {
       throw new Error('dependency topology guard must configure the Vite dev server');
     }
-    const cleanup = await configureServer.call(
+    const postConfigureHook = await configureServer.call(
       {} as never,
-      { restart, config: { logger: { warn, error } } } as never,
+      { restart, httpServer: null, config: { logger: { warn, error } } } as never,
     );
+    expect(postConfigureHook).toBeUndefined();
 
     rmSync(join(repository, 'node_modules', '@vitejs', 'plugin-react'), {
       recursive: true,
       force: true,
     });
+    await vi.advanceTimersByTimeAsync(25);
+
+    expect(restart).not.toHaveBeenCalled();
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining('waiting for the replacement'));
+
     mkdirSync(join(workspaceRuntime, '..'), { recursive: true });
     writeFileSync(workspaceRuntime, 'workspace runtime');
     await vi.advanceTimersByTimeAsync(25);
@@ -114,6 +120,8 @@ describe('dependency topology guard', () => {
     expect(restart).toHaveBeenCalledWith(true);
     expect(warn).toHaveBeenCalledWith(expect.stringContaining('re-hoisted'));
     expect(error).not.toHaveBeenCalled();
-    cleanup?.();
+    if (typeof plugin.closeBundle === 'function') {
+      await plugin.closeBundle.call({} as never);
+    }
   });
 });
