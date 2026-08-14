@@ -4,11 +4,14 @@ import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 import {
+  REQUIRED_OWNERSHIP_STRUCTURES,
   REQUIRED_TABLES,
   SCHEMA_APPLY_REMEDY,
   type SchemaQueryable,
   assertSchemaCurrent,
+  findMissingOwnershipStructures,
   findMissingTables,
+  formatOwnershipDriftMessage,
   formatSchemaDriftMessage,
 } from './schema-guard';
 
@@ -22,11 +25,17 @@ function tablesDeclaredInSchemaSql(sql: string): string[] {
 }
 
 /** A pg Pool stand-in that reports exactly `present` as existing. */
-function poolWithTables(present: readonly string[]): SchemaQueryable {
+function poolWithTables(
+  present: readonly string[],
+  ownership: readonly string[] = REQUIRED_OWNERSHIP_STRUCTURES,
+): SchemaQueryable {
   return {
-    query: async (_sql: string, params: unknown[]) => {
+    query: async (sql: string, params: unknown[]) => {
       const asked = (params[0] as string[] | undefined) ?? [];
-      return { rows: asked.filter((t) => present.includes(t)).map((table_name) => ({ table_name })) };
+      if (sql.includes('WITH present AS')) {
+        return { rows: asked.filter((marker) => ownership.includes(marker)).map((marker) => ({ marker })) };
+      }
+      return { rows: asked.filter((table) => present.includes(table)).map((table_name) => ({ table_name })) };
     },
   };
 }
@@ -109,6 +118,38 @@ describe('findMissingTables', () => {
     };
     await expect(findMissingTables(pool, [])).resolves.toEqual([]);
     expect(called).toBe(false);
+  });
+});
+
+describe('ownership schema guard', () => {
+  it('tracks the columns, foreign keys, and immutable-owner triggers introduced by P-002', () => {
+    expect(REQUIRED_OWNERSHIP_STRUCTURES).toEqual(
+      expect.arrayContaining([
+        'column:storefront_product.seller_id',
+        'column:inventory_reservation.seller_id',
+        'column:scout_session.buyer_id',
+        'constraint:event_config_event_fk',
+        'constraint:auction_state_event_owner_fk',
+        'trigger:event_preserve_seller',
+        'trigger:scout_session_preserve_buyer',
+      ]),
+    );
+  });
+
+  it('reports a partially-applied ownership migration even when every table exists', async () => {
+    const present = REQUIRED_OWNERSHIP_STRUCTURES.filter(
+      (marker) => marker !== 'constraint:event_config_event_fk',
+    );
+    await expect(findMissingOwnershipStructures(poolWithTables(REQUIRED_TABLES, present))).resolves.toEqual([
+      'constraint:event_config_event_fk',
+    ]);
+    await expect(assertSchemaCurrent(poolWithTables(REQUIRED_TABLES, present))).rejects.toThrow(
+      /constraint:event_config_event_fk/,
+    );
+  });
+
+  it('names the apply remedy for ownership drift', () => {
+    expect(formatOwnershipDriftMessage(['column:scout_session.buyer_id'])).toContain(SCHEMA_APPLY_REMEDY);
   });
 });
 
