@@ -85,11 +85,10 @@ export function BuyerTab({
   guideEvents: guideEventsProp,
 }: BuyerTabProps) {
   /* ── Channel Guide (P-118 / D-019) ──────────────────────────────────────
-     The directory stays subscribed even while the drawer is closed because
-     the button exposes its live-room count. Config and chat-presence writers
-     invalidate this query, so title, thumbnail, status, ordering, and viewer
-     counts update without an event switch or component-owned refresh state. */
-  const [guideOpen, setGuideOpen] = useState(false);
+     The directory stays subscribed while its persistent left sidebar is
+     visible. Config and chat-presence writers invalidate this query, so title,
+     thumbnail, status, ordering, and viewer counts update without an event
+     switch or component-owned refresh state. */
   const guideQuery = useSyncQuery<GuideEvent>({
     queryName: 'events.guide',
     args: {},
@@ -102,11 +101,6 @@ export function BuyerTab({
     ? 'Could not load the event guide.'
     : null;
 
-  const liveEventCount = useMemo(
-    () => guideEvents.filter((event) => event.status === 'live').length,
-    [guideEvents],
-  );
-
   // The guide is the authority on an event's title once loaded: an event
   // reached from the guide has no config fetch behind it yet, and falling back
   // to the caller's title would label every room "Sunday vintage drop".
@@ -117,7 +111,6 @@ export function BuyerTab({
   const resolvedTitle = activeGuideEvent?.title ?? eventTitle;
 
   const selectEvent = (nextEventId: string) => {
-    setGuideOpen(false);
     if (nextEventId !== eventId) onEventChange?.(nextEventId);
   };
   // Live stats (P-111 — no dummy data): real presence + paid orders through
@@ -255,16 +248,6 @@ export function BuyerTab({
           </div>
         </div>
         <div className="buyer-room-actions">
-          <button
-            className="whats-on-button"
-            type="button"
-            onClick={() => setGuideOpen(true)}
-            aria-haspopup="dialog"
-            aria-expanded={guideOpen}
-          >
-            What&rsquo;s on
-            {liveEventCount > 0 ? <span className="whats-on-count">{liveEventCount}</span> : null}
-          </button>
           <button className="button secondary" type="button" onClick={copyShareUrl}>
             {copyState === 'copied' ? 'Link copied' : copyState === 'failed' ? 'Copy failed' : 'Share room'}
           </button>
@@ -283,17 +266,17 @@ export function BuyerTab({
         </div>
       </header>
 
-      <ChannelGuide
-        open={guideOpen}
-        onClose={() => setGuideOpen(false)}
-        events={guideEvents}
-        currentEventId={eventId}
-        onSelect={selectEvent}
-        loading={guideLoading}
-        error={guideError}
-      />
+      <div className="buyer-layout">
+        <ChannelGuide
+          events={guideEvents}
+          currentEventId={eventId}
+          onSelect={selectEvent}
+          loading={guideLoading}
+          error={guideError}
+        />
 
-      <section className="buyer-stage-grid" aria-label="Live video and current offer">
+        <div className="buyer-main-column">
+          <section className="buyer-stage-grid" aria-label="Live video and current offer">
         <div className="buyer-player-card">
           <video
             ref={videoRef}
@@ -385,14 +368,14 @@ export function BuyerTab({
             <p className="muted">Stay in the room—the offer updates when the seller brings an item on stage.</p>
           )}
         </article>
-      </section>
+          </section>
 
-      <div className="buyer-mode-switch" role="group" aria-label="Buyer mobile view">
+          <div className="buyer-mode-switch" role="group" aria-label="Buyer mobile view">
         <button type="button" aria-pressed={buyerMode === 'shop'} onClick={() => setBuyerMode('shop')}>Shop</button>
         <button type="button" aria-pressed={buyerMode === 'chat'} onClick={() => setBuyerMode('chat')}>Chat</button>
-      </div>
+          </div>
 
-      <div className="buyer-lower-grid" data-buyer-mode={buyerMode}>
+          <div className="buyer-lower-grid" data-buyer-mode={buyerMode}>
         <div className="buyer-shop-panel">
           <ReplayChapters eventId={eventId} videoRef={videoRef} apiBaseUrl={resolveApiBaseUrl()} />
 
@@ -436,6 +419,8 @@ export function BuyerTab({
           </div>
         </div>
 
+          </div>
+        </div>
       </div>
 
       {currentProduct ? (

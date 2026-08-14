@@ -1,12 +1,9 @@
-import { useEffect, useRef } from 'react';
 import { EventThumbnail } from '../event-creation/EventThumbnail';
 import type { GuideEvent } from './api';
 import { groupGuideEvents, rowMetaLabel } from './channel-guide';
 import './channel-guide.css';
 
 export interface ChannelGuideProps {
-  open: boolean;
-  onClose: () => void;
   events: readonly GuideEvent[];
   /** The event the buyer is currently watching — check-marked in the list. */
   currentEventId: string;
@@ -20,19 +17,16 @@ export interface ChannelGuideProps {
 }
 
 /**
- * The "What's on" Channel Guide drawer (P-118 / D-019).
+ * The persistent "What's on" Channel Guide sidebar (P-118 / D-019).
  *
- * Renders as an overlay panel: per D-019 the guide "steals no space from the
- * stream until opened", so it is absent from the layout entirely while closed
- * rather than collapsed to zero width — a zero-width flex child still
- * participates in sizing and would nudge the video.
+ * The guide is the leftmost child of the buyer grid, so it always occupies
+ * layout space and never obscures the stream. At narrow widths the grid stacks
+ * this same landmark above the room rather than turning it back into a drawer.
  *
  * Every colour comes from the R3 :root tokens (D-004). No hex literal appears
  * in this component or its stylesheet.
  */
 export function ChannelGuide({
-  open,
-  onClose,
   events,
   currentEventId,
   onSelect,
@@ -40,63 +34,19 @@ export function ChannelGuide({
   error = null,
   now,
 }: ChannelGuideProps) {
-  const panelRef = useRef<HTMLDivElement | null>(null);
-  const closeRef = useRef<HTMLButtonElement | null>(null);
-
-  // Escape closes. Bound while open only, so the buyer view does not carry a
-  // key listener for a panel nobody opened.
-  useEffect(() => {
-    if (!open) return undefined;
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') onClose();
-    };
-    window.addEventListener('keydown', onKeyDown);
-    return () => window.removeEventListener('keydown', onKeyDown);
-  }, [open, onClose]);
-
-  // Move focus into the panel when it opens so keyboard and screen-reader users
-  // land inside the thing that just appeared instead of staying on the button
-  // behind it.
-  useEffect(() => {
-    if (open) closeRef.current?.focus();
-  }, [open]);
-
-  if (!open) return null;
-
   const groups = groupGuideEvents(events);
   const clock = now ?? new Date();
 
   return (
-    <div className="channel-guide-layer">
-      {/* Scrim: clicking outside closes. aria-hidden because the close button
-          below is the accessible way out; a labelled backdrop would announce a
-          second, redundant control. */}
-      <div className="channel-guide-scrim" onClick={onClose} aria-hidden="true" />
+    <aside className="channel-guide-panel" aria-labelledby="channel-guide-title">
+      <header className="channel-guide-header">
+        <div>
+          <p className="channel-guide-eyebrow">What&rsquo;s on</p>
+          <h2 className="channel-guide-title" id="channel-guide-title">Every live room</h2>
+        </div>
+      </header>
 
-      <div
-        className="channel-guide-panel"
-        ref={panelRef}
-        role="dialog"
-        aria-modal="true"
-        aria-label="What's on"
-      >
-        <header className="channel-guide-header">
-          <div>
-            <p className="channel-guide-eyebrow">What&rsquo;s on</p>
-            <h2 className="channel-guide-title">Every live room</h2>
-          </div>
-          <button
-            type="button"
-            className="channel-guide-close"
-            onClick={onClose}
-            ref={closeRef}
-            aria-label="Close what's on"
-          >
-            ✕
-          </button>
-        </header>
-
-        <div className="channel-guide-body">
+      <div className="channel-guide-body">
           {loading ? <p className="channel-guide-note">Loading events…</p> : null}
 
           {/* An unreadable directory is stated as such. Falling through to the
@@ -155,9 +105,8 @@ export function ChannelGuide({
                 </section>
               ))
             : null}
-        </div>
       </div>
-    </div>
+    </aside>
   );
 }
 
