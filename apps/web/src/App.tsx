@@ -1,5 +1,5 @@
 import { useCallback, useMemo, useState } from 'react';
-import { TABS, tabHref, type TabId, useUrlTab } from './app-routing';
+import { TAB_GROUPS, tabHref, type TabId, useUrlTab } from './app-routing';
 import { AppDownloadButtons } from './components/AppDownloadButtons';
 import { BuildHistoryTab } from './BuildHistoryTab';
 import { BuyerTab } from './BuyerTab';
@@ -16,7 +16,7 @@ import {
 import { TestTab } from './TestTab';
 
 // Test-compat re-exports: the app shell remains the public face of these.
-export { getTabFromUrl, tabHref, TABS, type TabId } from './app-routing';
+export { getTabFromUrl, TAB_GROUPS, tabHref, TABS, type TabId } from './app-routing';
 export { variantToSellerProduct, variantToTranscriptOption, type CatalogProduct } from './seller-products';
 export { TestTab } from './TestTab';
 
@@ -63,28 +63,38 @@ export function App() {
 
   return (
     <div className={layout.shellClassName}>
+      <a className="skip-link" href="#main-content">Skip to main content</a>
       <header className="topbar">
-        <a className="wordmark" href={tabHref('buyer')} onClick={(event) => { event.preventDefault(); navigate('buyer'); }} aria-label="SideStage home">
-          <span className="wordmark-mark" aria-hidden="true">✦</span>
-          SideStage
-        </a>
-        <nav className="tab-nav" aria-label="Primary navigation">
-          {TABS.map((item) => (
-            <a
-              className={`nav-link${tab === item.id ? ' active' : ''}`}
-              href={tabHref(item.id)}
-              aria-current={tab === item.id ? 'page' : undefined}
-              key={item.id}
-              onClick={(event) => { event.preventDefault(); navigate(item.id); }}
-            >
-              {item.label}
-            </a>
-          ))}
-        </nav>
-        <span className="connection-pill"><span className="connection-dot" /> Ready for your next event</span>
+        <div className="topbar-inner">
+          <a className="wordmark" href={tabHref('buyer')} onClick={(event) => { event.preventDefault(); navigate('buyer'); }} aria-label="SideStage home">
+            <span className="wordmark-mark" aria-hidden="true">S</span>
+            <span className="wordmark-copy">
+              <strong>SideStage</strong>
+              <small>Live commerce</small>
+            </span>
+          </a>
+          <nav className="tab-nav" aria-label="SideStage pages">
+            {TAB_GROUPS.map((group) => (
+              <span className="nav-cluster" role="group" aria-label={group.label} key={group.id}>
+                {group.tabs.map((item) => (
+                  <a
+                    className={`nav-link${tab === item.id ? ' active' : ''}`}
+                    href={tabHref(item.id)}
+                    aria-current={tab === item.id ? 'page' : undefined}
+                    key={item.id}
+                    onClick={(event) => { event.preventDefault(); navigate(item.id); }}
+                  >
+                    {item.label}
+                  </a>
+                ))}
+              </span>
+            ))}
+          </nav>
+          <span className="connection-pill"><span className="connection-dot" /> Ready for your next event</span>
+        </div>
       </header>
 
-      <main className={layout.contentClassName}>
+      <main className={layout.contentClassName} id="main-content" tabIndex={-1}>
         {tab === 'buyer' ? (
           <BuyerCheckoutProvider eventId={activeEventId}>
             <BuyerTab

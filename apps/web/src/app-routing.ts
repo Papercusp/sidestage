@@ -2,13 +2,31 @@ import { useEffect, useState } from 'react';
 
 export type TabId = 'buyer' | 'orders' | 'seller' | 'history' | 'config' | 'test';
 
-export const TABS: ReadonlyArray<{ id: TabId; label: string; description: string }> = [
-  { id: 'buyer', label: 'Buyer', description: 'Browse the live catalog' },
-  { id: 'orders', label: 'Orders', description: 'Review purchases and product moments' },
-  { id: 'seller', label: 'Seller', description: 'Run the stage' },
-  { id: 'history', label: 'Build history', description: 'Review shipped work' },
-  { id: 'config', label: 'Config', description: 'Set event guardrails' },
-  { id: 'test', label: 'Test', description: 'Check your setup' },
+export type TabGroupId = 'buyer-work' | 'operator-work';
+
+export interface TabDefinition {
+  id: TabId;
+  label: string;
+  description: string;
+  group: TabGroupId;
+}
+
+export const TABS: ReadonlyArray<TabDefinition> = [
+  { id: 'buyer', label: 'Watch', description: 'Browse the live catalog', group: 'buyer-work' },
+  { id: 'orders', label: 'Orders', description: 'Review purchases and product moments', group: 'buyer-work' },
+  { id: 'seller', label: 'Studio', description: 'Run the stage', group: 'operator-work' },
+  { id: 'history', label: 'Releases', description: 'Review shipped work', group: 'operator-work' },
+  { id: 'config', label: 'Settings', description: 'Set event guardrails', group: 'operator-work' },
+  { id: 'test', label: 'Rehearse', description: 'Check your setup', group: 'operator-work' },
+];
+
+export const TAB_GROUPS: ReadonlyArray<{
+  id: TabGroupId;
+  label: string;
+  tabs: ReadonlyArray<TabDefinition>;
+}> = [
+  { id: 'buyer-work', label: 'Buyer work', tabs: TABS.filter((tab) => tab.group === 'buyer-work') },
+  { id: 'operator-work', label: 'Operator work', tabs: TABS.filter((tab) => tab.group === 'operator-work') },
 ];
 
 function isTabId(value: string | null): value is TabId {

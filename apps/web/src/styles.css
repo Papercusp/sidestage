@@ -25,7 +25,13 @@
   --bg: #FFF8EF;                 /* warm cream ground */
   --surface: #FFFFFF;
   --surface-raised: #FFFFFF;     /* raised = white card + border/shadow on cream */
+  --surface-soft: #FDF8F0;
   --border: #EBDFCC;
+  --border-strong: #CDB9A4;
+  --content-max: 80rem;
+  --radius-card: 1.125rem;
+  --radius-control: .7rem;
+  --shadow-card: 0 8px 24px rgb(var(--shadow-hue) / 8%);
   --text: #2A1F1A;               /* espresso — ~13.9:1 on --bg */
   /* Secondary text. The mockup's #8A7A6C measured 3.54–4.13:1 against the light surfaces it
      actually lands on (worst: a tinted well at #FAEBE2), i.e. below the 4.5:1 AA floor for
@@ -162,24 +168,34 @@
 }
 
 * { box-sizing: border-box; }
+html { min-width: 320px; scroll-padding-top: 5.25rem; }
 /* Page ground on the R3 "Ticket" cream (D-004): warm red/yellow glows at low
    alpha replace the old navy/cyan/violet stack (leader hotfix ahead of the
    P-003 sweep — WI-38659 covers the remaining component strays). */
 body { margin: 0; min-width: 320px; min-height: 100vh; background: radial-gradient(circle at 50% -15%, color-mix(in srgb, var(--brand-red) 7%, transparent), transparent 40%), radial-gradient(circle at 100% 25%, color-mix(in srgb, var(--brand-yellow) 9%, transparent), transparent 35%), linear-gradient(180deg, var(--bg-top) 0%, var(--bg) 70%); }
 body::before { content: ""; position: fixed; inset: 0; pointer-events: none; opacity: .25; background-image: linear-gradient(color-mix(in srgb, var(--text) 4%, transparent) 1px, transparent 1px), linear-gradient(90deg, color-mix(in srgb, var(--text) 4%, transparent) 1px, transparent 1px); background-size: 48px 48px; mask-image: linear-gradient(to bottom, black, transparent 85%); }
 a { color: inherit; text-decoration: none; }
-button, input, select { font: inherit; }
+button, input, select, textarea { font: inherit; }
 button { cursor: pointer; }
+:where(a, button, input, select, textarea):focus-visible { outline: 3px solid color-mix(in srgb, var(--brand-red) 32%, transparent); outline-offset: 2px; }
+.skip-link { position: fixed; z-index: 100; top: .5rem; left: .5rem; padding: .65rem .9rem; border-radius: .5rem; color: var(--surface); background: var(--text); transform: translateY(-160%); transition: transform .15s ease; }
+.skip-link:focus { transform: translateY(0); }
 .app-shell { min-height: 100vh; }
-.topbar { position: sticky; top: 0; z-index: 5; display: flex; align-items: center; gap: 2rem; padding: 1.05rem clamp(1.25rem, 5vw, 5rem); border-bottom: 1px solid var(--border); background: color-mix(in srgb, var(--surface) 86%, transparent); backdrop-filter: blur(18px); }
-.wordmark { display: inline-flex; align-items: center; gap: .6rem; font-size: 1.05rem; font-weight: 720; letter-spacing: -.02em; }
-.wordmark-mark { display: grid; place-items: center; width: 1.7rem; height: 1.7rem; border: 1px solid color-mix(in srgb, var(--brand-red) 50%, transparent); border-radius: .55rem; color: var(--red-text); box-shadow: 0 0 24px color-mix(in srgb, var(--brand-red) 22%, transparent); }
-.tab-nav { display: flex; align-items: center; gap: .35rem; }
-.nav-link { padding: .5rem .75rem; border-radius: .55rem; color: var(--muted); font-size: .82rem; }
-.nav-link:hover, .nav-link.active { color: var(--text); background: color-mix(in srgb, var(--brand-red) 9%, transparent); }
-.connection-pill { margin-left: auto; display: inline-flex; align-items: center; gap: .45rem; color: var(--muted); font-size: .75rem; }
+.topbar { position: sticky; z-index: 30; top: 0; border-bottom: 1px solid color-mix(in srgb, var(--border-strong) 78%, transparent); background: color-mix(in srgb, var(--surface) 88%, transparent); backdrop-filter: blur(18px); }
+.topbar-inner { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 1.35rem; width: min(calc(100% - 2.5rem), var(--content-max)); min-height: 4.25rem; margin: 0 auto; }
+.wordmark { display: inline-flex; align-items: center; gap: .65rem; white-space: nowrap; }
+.wordmark-mark { display: grid; place-items: center; width: 2rem; height: 2rem; border: 1px solid color-mix(in srgb, var(--brand-red) 30%, transparent); border-radius: .625rem; color: var(--red-text); background: color-mix(in srgb, var(--brand-red) 8%, var(--surface)); font-size: .8rem; font-weight: 900; box-shadow: inset 0 -3px 0 color-mix(in srgb, var(--brand-red) 10%, transparent); }
+.wordmark-copy { display: grid; line-height: 1; }
+.wordmark-copy strong { font-size: .95rem; letter-spacing: -.025em; }
+.wordmark-copy small { margin-top: .25rem; color: var(--muted); font-size: .56rem; font-weight: 800; letter-spacing: .13em; text-transform: uppercase; }
+.tab-nav { display: flex; align-items: center; justify-content: center; gap: .4rem; min-width: 0; }
+.nav-cluster { display: flex; gap: .2rem; padding: .2rem; border-radius: .75rem; background: color-mix(in srgb, var(--surface-sunken) 72%, transparent); }
+.nav-link { min-height: 2.125rem; padding: .52rem .68rem; border-radius: .56rem; color: var(--muted); font-size: .75rem; font-weight: 720; white-space: nowrap; }
+.nav-link:hover, .nav-link.active, .nav-link[aria-current="page"] { color: var(--text); background: var(--surface); box-shadow: var(--shadow-card); }
+.nav-link[aria-current="page"] { color: var(--red-text); }
+.connection-pill { display: inline-flex; align-items: center; gap: .45rem; color: var(--muted); font-size: .72rem; white-space: nowrap; }
 .connection-dot, .live-dot { width: .45rem; height: .45rem; border-radius: 50%; background: var(--success); box-shadow: 0 0 10px var(--success); }
-.content { width: min(1120px, calc(100% - 2.5rem)); margin: 0 auto; padding: clamp(3.5rem, 8vw, 6.5rem) 0 2rem; }
+.content { width: min(var(--content-max), calc(100% - 2.5rem)); margin: 0 auto; padding: clamp(2.75rem, 6vw, 5rem) 0 2rem; }
 .tab-layout { min-height: 650px; font-size: var(--ss-font); }
 .tab-layout h1 { font-size: clamp(2.2rem, 6vw, var(--ss-h1-max)); }
 .tab-header { max-width: 720px; }
@@ -206,8 +222,11 @@ h1 { margin: 0; max-width: 720px; font-size: clamp(3rem, 7vw, 5.8rem); line-heig
 .product-price del { color: var(--muted); font-size: .75rem; }
 .card-action { border: 1px solid var(--border); border-radius: .45rem; padding: .48rem .65rem; color: var(--text); background: var(--surface-glass); font-size: .72rem; font-weight: 680; }
 .card-action:hover { border-color: var(--red-text); color: var(--red-text); }
-.button { border: 1px solid var(--border); border-radius: .65rem; padding: .72rem 1rem; color: var(--text); background: var(--surface-glass); font-weight: 650; transition: transform .2s ease, border-color .2s ease, background .2s ease; }
+.button { display: inline-flex; min-height: 2.5rem; align-items: center; justify-content: center; gap: .45rem; padding: .65rem .9rem; border: 1px solid var(--border-strong); border-radius: var(--radius-control); color: var(--text); background: var(--surface); font-size: .78rem; font-weight: 700; line-height: 1; text-align: center; transition: transform .15s ease, border-color .15s ease, background .15s ease, box-shadow .15s ease; }
 .button:hover { transform: translateY(-1px); border-color: color-mix(in srgb, var(--brand-red) 55%, transparent); }
+.button.secondary { background: var(--surface); }
+.button.tertiary { border-color: transparent; color: var(--muted); background: transparent; box-shadow: none; }
+.button.small { min-height: 2rem; padding: .45rem .65rem; border-radius: .55rem; font-size: .7rem; }
 /* The primary CTA is a brand-red FILL, which makes it a small theme island like the video
    inset: a descendant asking for --text or --muted must get an on-red value or it disappears
    into the fill. Concretely, `.event-creation-footer span { color: var(--muted) }` also
@@ -487,8 +506,8 @@ a.app-badge:hover { transform: translateY(-1px); border-color: color-mix(in srgb
 .app-badge-hint { font-size: .56rem; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); }
 .app-badge-name { font-size: .78rem; font-weight: 650; }
 .app-badge.is-soon { opacity: .62; cursor: default; }
-@media (max-width: 800px) { .topbar { gap: .75rem; padding-inline: 1.25rem; } .tab-nav { gap: 0; } .nav-link { padding-inline: .5rem; } .connection-pill { font-size: .68rem; } .product-grid, .seller-grid, .config-grid { grid-template-columns: 1fr; } .stage-primary { grid-row: auto; } .stream-room-heading { align-items: flex-start; flex-direction: column; } .stream-room-actions { justify-content: flex-start; } }
-@media (max-width: 560px) { .topbar { align-items: flex-start; flex-wrap: wrap; } .tab-nav { order: 3; width: 100%; overflow-x: auto; } .connection-pill { margin-left: auto; } .content { width: min(100% - 1.5rem, 1120px); padding-top: 3rem; } .catalog-toolbar { align-items: flex-start; flex-direction: column; gap: .35rem; margin-top: 3rem; } h1 { font-size: clamp(2.75rem, 14vw, 4.2rem); } .copilot-input-row { flex-direction: column; } .copilot-input-row .button { width: 100%; } .copilot-product { grid-template-columns: 3rem minmax(0, 1fr); } .copilot-product > .button { grid-column: 1 / -1; width: 100%; } .copilot-cart { align-items: flex-start; flex-wrap: wrap; } .copilot-cart strong { margin-left: auto; } .event-chat-heading, .event-chat-form, .transcript-pane-heading, .copilot-review-heading { flex-direction: column; } .event-chat-form .button { width: 100%; } .event-chat-stats { justify-content: flex-start; } .transcript-state { white-space: normal; } .transcript-picker { align-items: flex-start; flex-direction: column; } .transcript-picker select, .transcript-suggestion .button, .transcript-mention-chip { width: 100%; } .transcript-suggestion, .transcript-suggestion-actions { align-items: stretch; flex-direction: column; width: 100%; } .event-chat-queue-heading { align-items: flex-start; flex-direction: column; } .event-chat-queue-controls { width: 100%; } .event-chat-queue-controls button { flex: 1; } }
+@media (max-width: 900px) { .topbar-inner { gap: .75rem; } .tab-nav { justify-content: flex-start; gap: .3rem; overflow-x: auto; scrollbar-width: thin; } .nav-link { padding-inline: .5rem; } .connection-pill { font-size: .68rem; } .product-grid, .seller-grid, .config-grid { grid-template-columns: 1fr; } .stage-primary { grid-row: auto; } .stream-room-heading { align-items: flex-start; flex-direction: column; } .stream-room-actions { justify-content: flex-start; } }
+@media (max-width: 760px) { .topbar-inner { grid-template-columns: minmax(0, 1fr) auto; gap: .6rem .75rem; width: min(100% - 1.5rem, var(--content-max)); padding: .6rem 0; } .tab-nav { grid-column: 1 / -1; grid-row: 2; width: 100%; } .connection-pill { justify-self: end; } .content { width: min(100% - 1.5rem, var(--content-max)); padding-top: 3rem; } .catalog-toolbar { align-items: flex-start; flex-direction: column; gap: .35rem; margin-top: 3rem; } h1 { font-size: clamp(2.75rem, 14vw, 4.2rem); } .copilot-input-row { flex-direction: column; } .copilot-input-row .button { width: 100%; } .copilot-product { grid-template-columns: 3rem minmax(0, 1fr); } .copilot-product > .button { grid-column: 1 / -1; width: 100%; } .copilot-cart { align-items: flex-start; flex-wrap: wrap; } .copilot-cart strong { margin-left: auto; } .event-chat-heading, .event-chat-form, .transcript-pane-heading, .copilot-review-heading { flex-direction: column; } .event-chat-form .button { width: 100%; } .event-chat-stats { justify-content: flex-start; } .transcript-state { white-space: normal; } .transcript-picker { align-items: flex-start; flex-direction: column; } .transcript-picker select, .transcript-suggestion .button, .transcript-mention-chip { width: 100%; } .transcript-suggestion, .transcript-suggestion-actions { align-items: stretch; flex-direction: column; width: 100%; } .event-chat-queue-heading { align-items: flex-start; flex-direction: column; } .event-chat-queue-controls { width: 100%; } .event-chat-queue-controls button { flex: 1; } }
 
 @media (max-width: 800px) {
   .judge-dimension-grid, .judge-case-dimensions { grid-template-columns: repeat(2, minmax(0, 1fr)); }

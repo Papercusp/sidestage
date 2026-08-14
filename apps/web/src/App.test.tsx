@@ -4,6 +4,7 @@ import {
   App,
   appLayoutForTab,
   getTabFromUrl,
+  TAB_GROUPS,
   tabHref,
   TestTab,
   variantToSellerProduct,
@@ -35,11 +36,20 @@ describe('P-005 product card and shell', () => {
     expect(markup).toContain('data-product-id="demo-espresso-matte-black"');
   });
 
-  it('renders all six tab destinations in the app shell', () => {
+  it('renders the approved buyer and operator navigation groups in the app shell', () => {
     const markup = renderToStaticMarkup(<App />);
-    for (const tab of ['Buyer', 'Orders', 'Seller', 'Build history', 'Config', 'Test']) {
+    expect(TAB_GROUPS.map((group) => group.tabs.map((tab) => tab.id))).toEqual([
+      ['buyer', 'orders'],
+      ['seller', 'history', 'config', 'test'],
+    ]);
+    for (const tab of ['Watch', 'Orders', 'Studio', 'Releases', 'Settings', 'Rehearse']) {
       expect(markup).toContain(`>${tab}</a>`);
     }
+    expect(markup).toContain('aria-label="Buyer work"');
+    expect(markup).toContain('aria-label="Operator work"');
+    expect(markup).toContain('aria-current="page"');
+    expect(markup).toContain('href="#main-content"');
+    expect(markup).toContain('Live commerce');
     expect(markup).toContain('Join the room');
     expect(markup).toContain('Event products');
     expect(markup).toContain('Live chat');
