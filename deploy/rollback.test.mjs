@@ -18,6 +18,16 @@ const composeFile =
   process.env.PROBE_COMPOSE_FILE ?? path.join(here, '..', 'docker-compose.prod.yml');
 
 const deploySource = readFileSync(deployScript, 'utf8');
+// deploy.sh with comment lines stripped. Source-text guards MUST assert on this
+// rather than on deploySource: the script's own header quotes the retired
+// argument-parsing idiom verbatim so the next reader knows what was wrong, and
+// a guard that cannot tell code from prose either goes red against a correct
+// script or -- worse -- is satisfied by a comment DESCRIBING the behaviour it
+// is supposed to be proving. Both happened here (WI-38905).
+const deployCode = deploySource
+  .split('\n')
+  .filter((line) => !/^\s*#/.test(line))
+  .join('\n');
 const rollbackSource = readFileSync(rollbackScript, 'utf8');
 const composeSource = readFileSync(composeFile, 'utf8');
 
@@ -25,6 +35,61 @@ const composeSource = readFileSync(composeFile, 'utf8');
 function lineIndex(source, pattern) {
   return source.split('\n').findIndex((line) => pattern.test(line));
 }
+
+function shellFunction(source, name) {
+  const start = source.indexOf(`${name}() {`);
+  const end = source.indexOf('\n}\n', start);
+  if (start < 0 || end < 0) throw new Error(`${name} function not found`);
+  return source.slice(start, end + 3);
+}
+
+function runHealthProbe(source, mode, target = '547c47e4dac6b10e8c9c164b1e73275744b34712') {
+  const probe = shellFunction(source, 'health_probe');
+  return execFileSync('bash', ['-c', `
+    set -euo pipefail
+    PROBE_MODE=${mode}
+    HEALTH_URL=https://sidestage.example/healthz
+    PROD_DIR=/opt/SideStage
+    COMPOSE='docker compose -f docker-compose.prod.yml'
+    TARGET=${target}
+    curl() {
+      if [[ "$PROBE_MODE" == public ]]; then
+        printf '{"sha":"%s"}' "$TARGET"
+      else
+        return 22
+      fi
+    }
+    ssh_stub() { printf '{"sha":"%s"}' "$TARGET"; }
+    SSH=(ssh_stub)
+    HEALTH_LEG=none
+    HEALTH_BODY=''
+    ${probe}
+    health_probe "$TARGET"
+    printf '%s\n%s\n' "$HEALTH_LEG" "$HEALTH_BODY"
+  `], { encoding: 'utf8' });
+}
+
+describe.each([
+  ['deploy.sh', deploySource],
+  ['rollback.sh', rollbackSource],
+])('%s preserves the health-probe result in the caller shell', (_name, source) => {
+  it('reports the public leg and body', () => {
+    expect(runHealthProbe(source, 'public')).toBe(
+      'public\n{"sha":"547c47e4dac6b10e8c9c164b1e73275744b34712"}\n',
+    );
+  });
+
+  it('reports the container fallback and body', () => {
+    expect(runHealthProbe(source, 'container')).toBe(
+      'container\n{"sha":"547c47e4dac6b10e8c9c164b1e73275744b34712"}\n',
+    );
+  });
+
+  it('never calls health_probe through command substitution', () => {
+    expect(source).not.toMatch(/[A-Z_a-z]+="\$\(health_probe(?: [^)]*)?\)"/);
+    expect(source).toMatch(/if health_probe/);
+  });
+});
 
 describe('deploy.sh records the deployed sha only after the health check', () => {
   // REGRESSION GUARD. Before 2026-08-14 deploy.sh wrote .deployed-sha
@@ -424,11 +489,8 @@ describe('deploy.sh argument handling', () => {
     // retired idiom verbatim so the next reader knows what was wrong -- and the
     // first version of this test matched that citation and went red against a
     // correct script. A source-text guard that cannot tell code from prose
-    // punishes documenting the very fix it protects.
-    const deployCode = deploySource
-      .split('\n')
-      .filter((line) => !/^\s*#/.test(line))
-      .join('\n');
+    // punishes documenting the very fix it protects. (deployCode is hoisted to
+    // module scope so every source-text guard in this file shares it.)
 
     expect(deployCode).not.toMatch(/\[\[\s*"\$\{1:-\}"\s*==\s*"--dry-run"\s*\]\]/);
     expect(deployCode).toMatch(/while\s*\[\[\s*\$#\s*-gt\s*0\s*\]\]/);
@@ -436,7 +498,22 @@ describe('deploy.sh argument handling', () => {
 
   it('refuses rather than ignores — the unknown-arg branch exits non-zero', () => {
     // Guard against a "fix" that prints a warning and deploys anyway.
-    expect(deploySource).toMatch(/unknown argument/);
-    expect(deploySource).toMatch(/exit 2/);
+    //
+    // Asserted on the CATCH-ALL BRANCH, not on the whole file. The first
+    // version of this guard tested `deploySource` for /unknown argument/ and
+    // /exit 2/ anywhere in the script, and a mutation probe proved it VACUOUS
+    // against the very regression it names: replacing this branch's `exit 2`
+    // with `shift` -- warn, then deploy anyway -- left it GREEN, because
+    // /exit 2/ was still satisfied by the header comment that DESCRIBES the
+    // refusal and by an unrelated `exit 2` further down. A guard that a
+    // comment can satisfy is prose, not a guard. Scope it to the branch.
+    const argLoop = deployCode.slice(deployCode.indexOf('while [[ $# -gt 0 ]]'));
+    const catchAll = argLoop.slice(argLoop.indexOf('*)'), argLoop.indexOf('esac'));
+
+    // Guard is not vacuous: the slice really is the catch-all branch.
+    expect(catchAll).toMatch(/unknown argument/);
+    expect(catchAll.length).toBeGreaterThan(0);
+    // The branch must LEAVE the script non-zero, not fall through to a deploy.
+    expect(catchAll).toMatch(/\bexit\s+[1-9]\d*/);
   });
 });

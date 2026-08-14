@@ -162,26 +162,31 @@ say "Health check"
 # a run could never tell you WHICH leg answered -- and since the host leg can
 # never pass, every "healthy" verdict was really the fallback. Report the leg.
 HEALTH_LEG=none
+HEALTH_BODY=""
 health_probe() {
   local body
+  # Call this function directly. Command substitution would run it in a
+  # subshell and discard the leg/body assignments that make fallback visible.
+  HEALTH_LEG=none
+  HEALTH_BODY=""
   if body="$(curl -sf --max-time 6 "$HEALTH_URL" 2>/dev/null)"; then
     HEALTH_LEG=public
-    printf '%s' "$body"
+    HEALTH_BODY="$body"
     return 0
   fi
   if body="$("${SSH[@]}" "cd $PROD_DIR && SIDESTAGE_SHA=$TARGET $COMPOSE exec -T api node -e 'fetch(\"http://127.0.0.1:3100/healthz\").then(r=>{if(!r.ok)process.exit(1);return r.text()}).then(t=>process.stdout.write(t)).catch(()=>process.exit(1))'" 2>/dev/null)"; then
     HEALTH_LEG=container
-    printf '%s' "$body"
+    HEALTH_BODY="$body"
     return 0
   fi
-  HEALTH_LEG=none
   return 1
 }
 
 healthy=false
 served=""
 for attempt in $(seq 1 20); do
-  if served="$(health_probe)"; then
+  if health_probe; then
+    served="$HEALTH_BODY"
     say "API healthy via $HEALTH_LEG leg (attempt $attempt)"
     if [[ "$HEALTH_LEG" != public ]]; then
       echo "WARN: $HEALTH_URL did not answer; health was confirmed only INSIDE the" >&2
@@ -207,9 +212,14 @@ fi
 say "Verifying /healthz reports the rolled-back sha"
 sha_ok=false
 for attempt in $(seq 1 5); do
-  if served="$(health_probe)" && [[ "$served" == *"$TARGET"* ]]; then
-    sha_ok=true
-    break
+  if health_probe; then
+    served="$HEALTH_BODY"
+    if [[ "$served" == *"$TARGET"* ]]; then
+      sha_ok=true
+      break
+    fi
+  else
+    served="$HEALTH_BODY"
   fi
   sleep 3
 done
