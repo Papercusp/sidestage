@@ -48,11 +48,15 @@ function ProductCard({
           <button
             className="button secondary buyer-rail-action"
             type="button"
-            disabled={soldOut}
-            aria-label={soldOut ? `${product.title} is sold out` : `Hold ${product.title}`}
+            disabled={soldOut && !selected}
+            aria-label={selected
+              ? `Open held ${product.title}`
+              : soldOut
+                ? `${product.title} is sold out`
+                : `Hold ${product.title}`}
             onClick={() => void onHold(product)}
           >
-            {soldOut ? "Sold out" : selected ? "Held for you" : "Hold item"}
+            {selected ? "Held for you" : soldOut ? "Sold out" : "Hold item"}
           </button>
         </div>
       </div>

@@ -40,7 +40,7 @@ describe("BuyerProductRail", () => {
     expect(markup).toContain("12 available");
     expect(markup).toContain("Held for you");
     expect(markup).toContain("Sold out");
-    expect(markup).toContain('aria-label="Hold Barista Pro Espresso Machine"');
+    expect(markup).toContain('aria-label="Open held Barista Pro Espresso Machine"');
     expect(markup).not.toContain('data-rg-screen-grid="true"');
   });
 
@@ -49,5 +49,19 @@ describe("BuyerProductRail", () => {
       <BuyerProductRail products={[]} onHold={() => undefined} />,
     );
     expect(markup).toContain("No products are on stage yet.");
+  });
+
+  it("keeps a selected held item reopenable when no unreserved stock remains", () => {
+    const markup = renderToStaticMarkup(
+      <BuyerProductRail
+        products={[PRODUCTS[1]]}
+        selectedProductId="espresso-sold"
+        onHold={() => undefined}
+      />,
+    );
+
+    expect(markup).toContain('aria-label="Open held Barista Pro Espresso Machine"');
+    expect(markup).toContain(">Held for you</button>");
+    expect(markup).not.toContain('disabled=""');
   });
 });
