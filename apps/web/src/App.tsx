@@ -4,6 +4,7 @@ import { AppDownloadButtons } from './components/AppDownloadButtons';
 import { BuyerTab } from './BuyerTab';
 import { ConfigTab } from './ConfigTab';
 import { browserEventId, DEFAULT_EVENT_TITLE, mediaBaseUrl } from './event-identity';
+import { OrdersTab } from './OrdersTab';
 import { SellerTab } from './SellerTab';
 import {
   useSellerCatalog,
@@ -80,6 +81,7 @@ export function App() {
             onEventChange={selectEvent}
           />
         ) : null}
+        {tab === 'orders' ? <OrdersTab /> : null}
         {tab === 'seller' ? (
           <SellerTab
             selectedProduct={selectedProduct}
