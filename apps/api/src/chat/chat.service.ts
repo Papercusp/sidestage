@@ -50,6 +50,8 @@ export interface ReplayChapter {
   startMs: number;
   endMs?: number;
   previewText: string;
+  evidenceKind?: 'condition';
+  evidenceLabel?: string;
 }
 
 export interface ChatPresence {
@@ -104,6 +106,16 @@ const STOP_WORDS = new Set([
   'have', 'into', 'just', 'that', 'their', 'there', 'these', 'they', 'this',
   'what', 'when', 'where', 'which', 'with', 'would', 'your',
 ]);
+
+const CONDITION_EVIDENCE_PATTERNS: ReadonlyArray<{ label: string; pattern: RegExp }> = [
+  { label: 'Serial or model number', pattern: /\b(serial|model number|sku|identifier)\b/i },
+  { label: 'Item tag or label', pattern: /\b(tag|label|maker(?:'s)? mark)\b/i },
+  { label: 'Condition or flaw', pattern: /\b(flaw|scratch|dent|chip|crack|stain|wear|damage|defect|condition)\b/i },
+];
+
+export function conditionEvidenceLabel(text: string): string | undefined {
+  return CONDITION_EVIDENCE_PATTERNS.find(({ pattern }) => pattern.test(text))?.label;
+}
 
 function questionTokens(value: string): string[] {
   return value
@@ -175,7 +187,8 @@ export class ChatService {
         activeChapter = undefined;
         continue;
       }
-      if (activeChapter?.productId === moment.productId) {
+      const evidenceLabel = conditionEvidenceLabel(moment.text);
+      if (activeChapter?.productId === moment.productId && !evidenceLabel) {
         activeChapter.endMs = moment.endMs ?? activeChapter.endMs;
         continue;
       }
@@ -186,6 +199,8 @@ export class ChatService {
         startMs: moment.startMs,
         endMs: moment.endMs,
         previewText: moment.text,
+        evidenceKind: evidenceLabel ? 'condition' : undefined,
+        evidenceLabel,
       };
       chapters.push(activeChapter);
     }

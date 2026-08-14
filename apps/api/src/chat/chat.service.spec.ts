@@ -131,6 +131,28 @@ describe('ChatService', () => {
     ]);
   });
 
+  it('preserves condition disclosures as distinct provenance chapters', () => {
+    const service = new ChatService();
+    service.addTranscriptMoment('demo-event', {
+      text: 'Here is the Aurora cup from every angle.', startMs: 10_000, endMs: 18_000,
+      productId: 'aurora-cup', productTitle: 'Aurora cup',
+    });
+    service.addTranscriptMoment('demo-event', {
+      text: 'This tag shows serial AC-2048.', startMs: 19_000, endMs: 24_000,
+      productId: 'aurora-cup', productTitle: 'Aurora cup',
+    });
+    service.addTranscriptMoment('demo-event', {
+      text: 'There is a small scratch on the base.', startMs: 25_000, endMs: 31_000,
+      productId: 'aurora-cup', productTitle: 'Aurora cup',
+    });
+
+    expect(service.getReplayChapters('demo-event')).toEqual([
+      expect.objectContaining({ startMs: 10_000, evidenceKind: undefined }),
+      expect.objectContaining({ startMs: 19_000, evidenceKind: 'condition', evidenceLabel: 'Serial or model number' }),
+      expect.objectContaining({ startMs: 25_000, evidenceKind: 'condition', evidenceLabel: 'Condition or flaw' }),
+    ]);
+  });
+
   it('rejects blank or oversized messages before mutating state', () => {
     const service = new ChatService();
     expect(() => service.addMessage('demo-event', {
