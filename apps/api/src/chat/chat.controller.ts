@@ -104,6 +104,9 @@ export class ChatController {
         case 'event.chat.stats':
           rows = [this.chat.getStats(eventId)];
           break;
+        case 'event.replay.chapters':
+          rows = this.chat.getReplayChapters(eventId);
+          break;
         default:
           return { rows: [], version: String(Date.now()), error: `unknown sync query: ${name || '<empty>'}` };
       }

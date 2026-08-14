@@ -111,7 +111,7 @@ export function SellerTab({
       onActiveProductChange,
       onFinalSegment: recordTranscriptMoment,
     },
-    'on-deck': { selectedProduct },
+    'on-deck': { selectedProduct, eventId, apiBaseUrl: import.meta.env.VITE_API_URL },
     copilot: { apiBaseUrl: import.meta.env.VITE_API_URL },
     'event-chat': {
       eventId: room?.eventId ?? chatEventId(eventId),

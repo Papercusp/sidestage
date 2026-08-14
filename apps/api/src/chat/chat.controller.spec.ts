@@ -51,4 +51,23 @@ describe('ChatController sync contract', () => {
       text: 'How long does shipping take?',
     }).grounding).toMatchObject({ status: 'answered' });
   });
+
+  it('serves product moments through the replay chapter sync query', () => {
+    const service = new ChatService();
+    const controller = new ChatController(service);
+    controller.addTranscriptMoment('demo-event', {
+      text: 'The Aurora cup glaze catches the light here.',
+      startMs: 24_000,
+      productId: 'aurora-cup',
+      productTitle: 'Aurora cup',
+    });
+
+    const response = controller.restQueryBatch({
+      queries: [{ name: 'event.replay.chapters', args: { eventId: 'demo-event' } }],
+    });
+
+    expect(response.results[0]?.rows).toEqual([
+      expect.objectContaining({ productId: 'aurora-cup', productTitle: 'Aurora cup', startMs: 24_000 }),
+    ]);
+  });
 });

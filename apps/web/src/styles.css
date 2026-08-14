@@ -318,6 +318,22 @@ h1 { margin: 0; max-width: 720px; font-size: clamp(3rem, 7vw, 5.8rem); line-heig
 .mini-product-mark.tone-amber, .product-card-media.tone-amber { --product-accent: var(--amber); color: var(--yellow-text); }
 .on-deck-product h3 { margin: 0 0 .25rem; font-size: .9rem; }
 .on-deck-product p { font-size: .74rem; }
+.pricing-history { margin-top: 1.2rem; padding-top: 1rem; border-top: 1px solid var(--border); }
+.pricing-history-heading { display: flex; align-items: baseline; justify-content: space-between; gap: .75rem; }
+.pricing-history-heading h3 { margin: 0; font-size: .82rem; }
+.pricing-history-heading span { color: var(--muted); font-size: .62rem; text-transform: uppercase; letter-spacing: .08em; }
+.pricing-history-sections { display: grid; gap: .9rem; margin-top: .85rem; }
+.pricing-history-sections h4 { margin: 0 0 .45rem; color: var(--muted); font-size: .66rem; letter-spacing: .06em; text-transform: uppercase; }
+.pricing-history-sections ul { display: grid; gap: .35rem; margin: 0; padding: 0; list-style: none; }
+.pricing-history-sections li { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: center; gap: .55rem; padding: .45rem .55rem; border-radius: .45rem; background: var(--surface-sunken); font-size: .66rem; }
+.pricing-history-sections li strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pricing-history-sections li > span:not(.history-outcome) { color: var(--muted); }
+.history-outcome { padding: .16rem .3rem; border-radius: .3rem; font-weight: 700; text-transform: uppercase; }
+.history-accepted, .history-sold { color: var(--success); background: color-mix(in srgb, var(--success) 10%, transparent); }
+.history-rejected, .history-no-sale { color: var(--danger); background: color-mix(in srgb, var(--danger) 10%, transparent); }
+.history-pending, .history-active { color: var(--yellow-text); background: color-mix(in srgb, var(--brand-yellow) 10%, transparent); }
+.pricing-history-empty, .pricing-history-error { max-width: none !important; margin-top: .75rem !important; font-size: .7rem !important; }
+.pricing-history-error { color: var(--danger) !important; }
 .empty-state { margin-top: 1.8rem; padding: 1.2rem; border: 1px dashed var(--border); border-radius: .7rem; text-align: center; }
 .empty-state-icon { color: var(--red-text); font-size: 1.5rem; }
 .empty-state h3 { margin: .45rem 0 .35rem; font-size: .9rem; }
