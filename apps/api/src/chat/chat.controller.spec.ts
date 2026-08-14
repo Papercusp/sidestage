@@ -3,7 +3,7 @@ import { ChatController } from './chat.controller';
 import { ChatService } from './chat.service';
 
 describe('ChatController', () => {
-  it('accepts seller transcript moments for grounded chat answers', () => {
+  it('accepts seller transcript moments while queuing buyer questions for Copilot review', () => {
     const service = new ChatService();
     const controller = new ChatController(service);
     const moment = controller.addTranscriptMoment('demo-event', {
@@ -17,7 +17,8 @@ describe('ChatController', () => {
       displayName: 'Maya',
       role: 'buyer',
       text: 'How long does shipping take?',
-    }).grounding).toMatchObject({ status: 'answered' });
+    }).grounding).toEqual({ status: 'seller-queue' });
+    expect(service.getTranscript('demo-event')).toEqual([moment]);
   });
 
   it('accepts product-tagged transcript moments through the legacy REST route', () => {
