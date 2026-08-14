@@ -1,5 +1,12 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { adjustSellerEventStock, executeSellerAction, setupSellerEvent, startSellerAuction, type SellerEventItem } from './api';
+import {
+  adjustSellerEventStock,
+  closeSellerAuction,
+  executeSellerAction,
+  setupSellerEvent,
+  startSellerAuction,
+  type SellerEventItem,
+} from './api';
 
 function json(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {
@@ -168,6 +175,42 @@ describe('seller event API orchestration', () => {
 
     expect(auction.quantity).toBe(3);
     expect(offer.offer?.quantity).toBe(2);
+  });
+
+  it('authenticates both seller start and close without persisting the credential in a request body', async () => {
+    const calls: Array<{ url: string; init?: RequestInit }> = [];
+    vi.stubGlobal('fetch', vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
+      const url = String(input);
+      calls.push({ url, init });
+      if (url.endsWith('/auctions/start')) {
+        return json({
+          id: 'auction-secure', eventId: 'drop', eventItemId: ITEM.eventItemId,
+          productId: ITEM.productId, quantity: 1, startingPriceCents: 1_100,
+          currentPriceCents: 1_100, status: 'active', startedAt: 'now', endsAt: 'later',
+        });
+      }
+      if (url.endsWith('/auctions/auction-secure/close')) {
+        return json({
+          id: 'auction-secure', eventId: 'drop', eventItemId: ITEM.eventItemId,
+          productId: ITEM.productId, quantity: 1, startingPriceCents: 1_100,
+          currentPriceCents: 1_100, status: 'closed', startedAt: 'now', endsAt: 'later',
+        });
+      }
+      throw new Error(`Unexpected URL ${url}`);
+    }));
+
+    await startSellerAuction('drop', ITEM, 1, 1_100, undefined, 'seller-secret');
+    await closeSellerAuction('auction-secure', undefined, 'seller-secret');
+
+    expect(calls).toHaveLength(2);
+    for (const call of calls) {
+      expect(call.init?.headers).toEqual(expect.objectContaining({ authorization: 'Bearer seller-secret' }));
+      expect(String(call.init?.body ?? '')).not.toContain('seller-secret');
+    }
+    expect(calls[1]).toMatchObject({
+      url: 'http://localhost:3100/auctions/auction-secure/close',
+      init: { method: 'POST' },
+    });
   });
 });
 

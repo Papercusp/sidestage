@@ -60,6 +60,14 @@ export interface SellerAuction {
   status: 'active' | 'closed';
   startedAt: string;
   endsAt: string;
+  closedAt?: string;
+  winnerOrder?: {
+    bidderId: string;
+    quantity: number;
+    unitPriceCents: number;
+    totalCents: number;
+    status: 'pending';
+  };
 }
 
 interface EventConfigResponse {
