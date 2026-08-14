@@ -23,7 +23,8 @@
     "@papercusp/typesense": "*",
     "pg": "^8.23.0",
     "reflect-metadata": "^0.2.2",
-    "rxjs": "^7.8.2"
+    "rxjs": "^7.8.2",
+    "stripe": "^22.5.0"
   },
   "devDependencies": {
     "@types/pg": "^8.15.6",
