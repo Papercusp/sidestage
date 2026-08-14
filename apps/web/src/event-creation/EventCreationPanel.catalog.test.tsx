@@ -40,10 +40,17 @@ describe('EventCreationPanel catalog source loss', () => {
   it('contains the sticky toolbar inside a phone-width seller dock', () => {
     const mobileCss = eventCreationCss.match(/@media \(max-width: 560px\) \{([\s\S]*)\}\s*$/)?.[1] ?? '';
 
-    expect(mobileCss).toMatch(/\.event-creation\s*\{[^}]*min-width:\s*0;[^}]*width:\s*100%;/s);
+    expect(mobileCss).toMatch(
+      /\.event-creation\s*\{[^}]*grid-template-columns:\s*minmax\(0,\s*1fr\);[^}]*min-width:\s*0;[^}]*width:\s*100%;/s,
+    );
+    expect(mobileCss).toMatch(
+      /\.event-creation-toolbar\s*\{[^}]*box-sizing:\s*border-box;[^}]*min-width:\s*0;[^}]*width:\s*100%;/s,
+    );
     expect(mobileCss).toMatch(
       /\.event-creation-toolbar-action\s*\{[^}]*align-items:\s*stretch;[^}]*flex-direction:\s*column;/s,
     );
-    expect(mobileCss).toMatch(/\.event-creation-toolbar \.button\s*\{[^}]*width:\s*100%;/s);
+    expect(mobileCss).toMatch(
+      /\.event-creation-toolbar \.button\s*\{[^}]*min-width:\s*0;[^}]*width:\s*100%;/s,
+    );
   });
 });

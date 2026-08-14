@@ -533,9 +533,16 @@
 
 @media (max-width: 560px) {
   .event-creation {
+    grid-template-columns: minmax(0, 1fr);
     min-width: 0;
     width: 100%;
     padding: 1rem;
+  }
+
+  .event-creation-toolbar {
+    box-sizing: border-box;
+    min-width: 0;
+    width: 100%;
   }
 
   .event-creation-toolbar-action {
@@ -548,6 +555,7 @@
   }
 
   .event-creation-toolbar .button {
+    min-width: 0;
     width: 100%;
     padding-inline: .5rem;
   }
