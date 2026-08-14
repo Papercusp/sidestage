@@ -91,13 +91,16 @@ export function App() {
         <a className="skip-link" href="#main-content">Skip to main content</a>
         <header className="topbar">
           <div className="topbar-inner">
-            <a className="wordmark" href={tabHref('buyer')} onClick={(event) => { event.preventDefault(); navigate('buyer'); }} aria-label="SideStage home">
-              <span className="wordmark-mark" aria-hidden="true">S</span>
-              <span className="wordmark-copy">
-                <strong>SideStage</strong>
-                <small>Live commerce</small>
-              </span>
-            </a>
+            <div className="topbar-brand-group">
+              <a className="wordmark" href={tabHref('buyer')} onClick={(event) => { event.preventDefault(); navigate('buyer'); }} aria-label="SideStage home">
+                <span className="wordmark-mark" aria-hidden="true">S</span>
+                <span className="wordmark-copy">
+                  <strong>SideStage</strong>
+                  <small>Live commerce</small>
+                </span>
+              </a>
+              <AppDownloadButtons />
+            </div>
             <nav className="tab-nav" aria-label="SideStage pages">
               {TAB_GROUPS.map((group) => (
                 <span className="nav-cluster" role="group" aria-label={group.label} key={group.id}>
@@ -143,7 +146,6 @@ export function App() {
             {layout.showFooter ? (
               <footer className="footer">
                 <span>SideStage preview</span>
-                <AppDownloadButtons />
                 <span>Built for the live-selling floor</span>
               </footer>
             ) : null}

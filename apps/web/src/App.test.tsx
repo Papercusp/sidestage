@@ -84,6 +84,7 @@ describe('P-005 product card and shell', () => {
     expect(stylesCss).toMatch(/:where\(a, button, input, select, textarea\):focus-visible/);
     expect(stylesCss).toMatch(/\.app-shell\s*\{[^}]*grid-template-columns:\s*var\(--channel-guide-width\) minmax\(0, 1fr\)/);
     expect(stylesCss).toMatch(/\.app-site-column\s*\{[^}]*min-width:\s*0/);
+    expect(stylesCss).toMatch(/@media \(max-width: 600px\)\s*\{\s*\.app-shell\s*\{[^}]*--channel-guide-width:\s*10rem/);
   });
 });
 
