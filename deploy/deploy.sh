@@ -14,8 +14,8 @@
 #
 # Requirements on the dev box: ssh key ($SSH_KEY, default the papercusp frame
 # key) authorized as root on the prod host. Requirements on prod (one-time):
-# /opt/SideStage/.env.production with POSTGRES_PASSWORD, TYPESENSE_API_KEY,
-# PUBLIC_HOSTNAME.
+# /opt/SideStage/.env.production with the database/search, checkout-provider,
+# warehouse-origin, and public-hostname values required by docker-compose.prod.yml.
 set -euo pipefail
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
 cd "$(git rev-parse --show-toplevel)"
@@ -72,9 +72,17 @@ rsync -az --delete "${RSYNC_EXCLUDES[@]}" \
 say "Checking .env.production exists on prod"
 "${SSH[@]}" "test -f $PROD_DIR/.env.production" || {
   echo "ERROR: $PROD_DIR/.env.production is missing on prod. Create it with:" >&2
-  echo "  POSTGRES_PASSWORD=… TYPESENSE_API_KEY=… PUBLIC_HOSTNAME=sidestage.buyrestart.com" >&2
+  echo "  POSTGRES_PASSWORD=… TYPESENSE_API_KEY=… EASYPOST_API_KEY=…" >&2
+  echo "  WAREHOUSE_FROM_STREET1=… WAREHOUSE_FROM_CITY=… WAREHOUSE_FROM_STATE=… WAREHOUSE_FROM_ZIP=…" >&2
+  echo "  SQUARE_APP_ID=… SQUARE_LOCATION_ID=… SQUARE_ACCESS_TOKEN=…" >&2
+  echo "  PUBLIC_HOSTNAME=sidestage.buyrestart.com" >&2
   exit 2
 }
+
+# Compose owns the required-variable contract. Validate it before the expensive
+# build so checkout can never silently deploy with empty rates or payments.
+say "Validating required production configuration"
+"${SSH[@]}" "cd $PROD_DIR && SIDESTAGE_SHA=config-check $COMPOSE config --quiet"
 
 SHA="$(git rev-parse HEAD)"
 # Capture what is live BEFORE we overwrite anything, so a failed health check
