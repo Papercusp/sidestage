@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { SyncInvalidationService } from '../sync/sync-invalidation.service';
 import { SyncQueryRegistry } from '../sync/sync-query.registry';
+import { EventOwnershipGuard } from '../events/event-ownership.guard';
+import { EventService, InMemoryEventStore } from '../events/event.service';
 import { ChatSyncQueries } from './chat.module';
 import { ChatService } from './chat.service';
 
@@ -46,7 +48,19 @@ describe('ChatService', () => {
   it('registers chat, transcript, and replay reads with the shared sync query registry', async () => {
     const service = new ChatService();
     const queries = new SyncQueryRegistry();
-    new ChatSyncQueries(service, queries).onModuleInit();
+    const ownership = new EventOwnershipGuard(new EventService(
+      new InMemoryEventStore([{
+        eventId: 'demo-event',
+        title: 'Demo event',
+        sellerId: 'seller-demo',
+        sellerName: 'Demo seller',
+        status: 'live',
+        startsAt: null,
+        endedAt: null,
+      }]),
+      service,
+    ));
+    new ChatSyncQueries(service, queries, ownership).onModuleInit();
     await service.addMessage('demo-event', {
       userId: 'buyer-1', displayName: 'Maya', role: 'buyer', text: 'Hello host',
     });
@@ -56,7 +70,16 @@ describe('ChatService', () => {
     });
 
     await expect(queries.resolve('event.chat.messages', { eventId: 'demo-event' })).resolves.toHaveLength(1);
-    await expect(queries.resolve('event.chat.transcript', { eventId: 'demo-event' })).resolves.toEqual([transcript]);
+    await expect(queries.resolve(
+      'event.chat.transcript',
+      { eventId: 'demo-event' },
+      { principal: 'seller-demo' },
+    )).resolves.toEqual([transcript]);
+    await expect(queries.resolve(
+      'event.chat.transcript',
+      { eventId: 'demo-event' },
+      { principal: 'seller-other' },
+    )).rejects.toThrow('Event not found for this seller.');
     await expect(queries.resolve('event.chat.stats', { eventId: 'demo-event' })).resolves.toEqual([
       { activeUsers: 1, buyers: 1, sellers: 0, totalMessages: 1 },
     ]);
