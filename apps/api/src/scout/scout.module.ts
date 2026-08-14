@@ -1,5 +1,5 @@
 import { Logger, Module } from '@nestjs/common';
-import { VertexGeminiAdapter } from '@papercusp/scout-runtime/vertex';
+import { VertexGeminiAdapter } from '@papercusp/scout-runtime';
 import type { Pool } from 'pg';
 import { CartModule } from '../cart/cart.module';
 import { CatalogModule } from '../catalog/catalog.module';
