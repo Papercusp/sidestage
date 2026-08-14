@@ -9,14 +9,15 @@ import {
   useRef,
   useState,
 } from 'react';
+import { useSyncMutate, useSyncQuery } from '@papercusp/sync';
 import type { BuyerProduct } from './buyer';
 import { formatBuyerPrice } from './buyer';
 import {
   addHeldProductToCart,
   confirmBuyerSquarePayment,
   createBuyerCheckoutSession,
-  fetchBuyerCart,
   fetchBuyerShippingRates,
+  persistBuyerCartId,
   readBuyerCartId,
   removeBuyerCartItem,
   setBuyerCartQuantity,
@@ -51,6 +52,8 @@ const EMPTY_DRAFT: CheckoutDraft = {
 export interface BuyerCheckoutActions {
   holdProduct: (product: BuyerProduct) => Promise<BuyerCart>;
   openHeldItems: () => void;
+  adoptCartId: (cartId: string) => void;
+  cartId?: string;
   heldItemCount: number;
   heldProductIds: readonly string[];
 }
@@ -379,7 +382,7 @@ export function BuyerCheckoutProvider({
   const { buyerId } = useBuyerIdentity();
   const [open, setOpen] = useState(false);
   const [step, setStep] = useState<BuyerCheckoutStep>('cart');
-  const [cart, setCart] = useState<BuyerCart | null>(null);
+  const [cartId, setCartId] = useState(() => readBuyerCartId(buyerId));
   const [draft, setDraft] = useState<CheckoutDraft>(EMPTY_DRAFT);
   const [rates, setRates] = useState<BuyerShippingRate[]>([]);
   const [selectedRateId, setSelectedRateId] = useState('');
@@ -388,26 +391,93 @@ export function BuyerCheckoutProvider({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string>();
   const [nowMs, setNowMs] = useState(() => Date.now());
-  const expiryRefreshInFlight = useRef(false);
+  const expiryRefreshInFlight = useRef<string>();
+
+  const cartQuery = useSyncQuery<BuyerCart>({
+    queryName: 'cart.byId',
+    args: { cartId: cartId ?? '' },
+    enabled: Boolean(cartId),
+    pollIntervalMs: 10_000,
+    staleTime: 0,
+  });
+  const cart = cartQuery.data?.[0] ?? null;
 
   useEffect(() => {
-    const cartId = readBuyerCartId(buyerId);
-    setCart(null);
+    setCartId(readBuyerCartId(buyerId));
     setRates([]);
     setSelectedRateId('');
     setCheckout(null);
     setCompletedOrder(null);
-    if (!cartId) return;
-    let cancelled = false;
-    void fetchBuyerCart(cartId, apiBaseUrl)
-      .then((value) => { if (!cancelled) { setCart(value); setNowMs(Date.now()); } })
-      .catch(() => undefined);
-    return () => { cancelled = true; };
-  }, [apiBaseUrl, buyerId]);
+  }, [buyerId]);
+
+  useEffect(() => {
+    if (cart) setNowMs(Date.now());
+  }, [cart]);
 
   const fail = useCallback((caught: unknown) => {
     setError(caught instanceof Error ? caught.message : 'Checkout could not continue');
   }, []);
+
+  const holdFallback = useCallback(
+    ({ product }: { product: BuyerProduct }) => addHeldProductToCart(buyerId, product, apiBaseUrl),
+    [apiBaseUrl, buyerId],
+  );
+  const mutateHoldProduct = useSyncMutate<{ product: BuyerProduct }, BuyerCart>('cart.holdProduct', holdFallback);
+  const ratesFallback = useCallback(
+    ({ cartId: nextCartId, address: nextAddress }: { cartId: string; address: BuyerShippingAddress }) => (
+      fetchBuyerShippingRates(nextCartId, nextAddress, apiBaseUrl)
+    ),
+    [apiBaseUrl],
+  );
+  const mutateShippingRates = useSyncMutate<
+    { cartId: string; address: BuyerShippingAddress },
+    BuyerShippingRate[]
+  >('shipping.rates', ratesFallback);
+  const checkoutFallback = useCallback(
+    (input: Parameters<typeof createBuyerCheckoutSession>[0]) => createBuyerCheckoutSession(input, apiBaseUrl),
+    [apiBaseUrl],
+  );
+  const mutateCheckout = useSyncMutate<
+    Parameters<typeof createBuyerCheckoutSession>[0],
+    BuyerCheckoutSessionResponse
+  >('checkout.createSession', checkoutFallback);
+  const confirmFallback = useCallback(
+    ({ orderId, sourceId }: { orderId: string; sourceId: string }) => (
+      confirmBuyerSquarePayment(orderId, sourceId, apiBaseUrl)
+    ),
+    [apiBaseUrl],
+  );
+  const mutateConfirmPayment = useSyncMutate<
+    { orderId: string; sourceId: string },
+    Awaited<ReturnType<typeof confirmBuyerSquarePayment>>
+  >('checkout.confirmPayment', confirmFallback);
+  const quantityFallback = useCallback(
+    ({ cartId: nextCartId, productId, quantity }: { cartId: string; productId: string; quantity: number }) => (
+      setBuyerCartQuantity(nextCartId, productId, quantity, apiBaseUrl)
+    ),
+    [apiBaseUrl],
+  );
+  const mutateQuantity = useSyncMutate<
+    { cartId: string; productId: string; quantity: number },
+    BuyerCart
+  >('cart.setQuantity', quantityFallback);
+  const removeFallback = useCallback(
+    ({ cartId: nextCartId, productId }: { cartId: string; productId: string }) => (
+      removeBuyerCartItem(nextCartId, productId, apiBaseUrl)
+    ),
+    [apiBaseUrl],
+  );
+  const mutateRemove = useSyncMutate<
+    { cartId: string; productId: string },
+    BuyerCart
+  >('cart.removeItem', removeFallback);
+
+  const adoptCartId = useCallback((nextCartId: string) => {
+    const normalized = nextCartId.trim();
+    if (!normalized) return;
+    persistBuyerCartId(buyerId, normalized);
+    setCartId(normalized);
+  }, [buyerId]);
 
   const addHeldProduct = useCallback(async (product: BuyerProduct): Promise<BuyerCart> => {
     setOpen(true);
@@ -415,8 +485,8 @@ export function BuyerCheckoutProvider({
     setBusy(true);
     setError(undefined);
     try {
-      const heldCart = await addHeldProductToCart(buyerId, product, apiBaseUrl);
-      setCart(heldCart);
+      const heldCart = await mutateHoldProduct({ product });
+      adoptCartId(heldCart.id);
       setNowMs(Date.now());
       return heldCart;
     } catch (caught) {
@@ -425,7 +495,7 @@ export function BuyerCheckoutProvider({
     } finally {
       setBusy(false);
     }
-  }, [apiBaseUrl, buyerId, fail]);
+  }, [adoptCartId, fail, mutateHoldProduct]);
 
   const activeDeadlines = useMemo(() => cart?.items
     .map((item) => item.expiresAt ? Date.parse(item.expiresAt) : Number.NaN)
@@ -438,22 +508,17 @@ export function BuyerCheckoutProvider({
   }, [activeDeadlines, nowMs]);
 
   useEffect(() => {
-    if (!cart || expiryRefreshInFlight.current) return;
+    if (!cart || expiryRefreshInFlight.current === cart.updatedAt) return;
     const hasExpiredItem = cart.items.some((item) => holdRemainingMs(item.expiresAt, nowMs) === 0);
     if (!hasExpiredItem) return;
-    expiryRefreshInFlight.current = true;
-    void fetchBuyerCart(cart.id, apiBaseUrl)
-      .then((freshCart) => {
-        setCart(freshCart);
-        setRates([]);
-        setSelectedRateId('');
-        setCheckout(null);
-        setStep('cart');
-        setError('A two-minute hold expired. The item is available to other buyers again.');
-      })
-      .catch(fail)
-      .finally(() => { expiryRefreshInFlight.current = false; });
-  }, [apiBaseUrl, cart, fail, nowMs]);
+    expiryRefreshInFlight.current = cart.updatedAt;
+    cartQuery.invalidate();
+    setRates([]);
+    setSelectedRateId('');
+    setCheckout(null);
+    setStep('cart');
+    setError('A two-minute hold expired. The item is available to other buyers again.');
+  }, [cart, cartQuery, nowMs]);
 
   const address: BuyerShippingAddress = useMemo(() => ({
     name: draft.name,
@@ -475,7 +540,7 @@ export function BuyerCheckoutProvider({
     setBusy(true);
     setError(undefined);
     try {
-      const result = await fetchBuyerShippingRates(cart.id, address, apiBaseUrl);
+      const result = await mutateShippingRates({ cartId: cart.id, address });
       setRates(result);
       setSelectedRateId(result[0]?.id ?? '');
       setStep('shipping');
@@ -491,14 +556,14 @@ export function BuyerCheckoutProvider({
     setBusy(true);
     setError(undefined);
     try {
-      const result = await createBuyerCheckoutSession({
+      const result = await mutateCheckout({
         cartId: cart.id,
         buyerId,
         eventId,
         email: draft.email.trim(),
         shippingAddress: address,
         shippingRateId: selectedRateId,
-      }, apiBaseUrl);
+      });
       setCheckout(result);
       setStep('payment');
     } catch (caught) {
@@ -513,12 +578,11 @@ export function BuyerCheckoutProvider({
     setBusy(true);
     setError(undefined);
     try {
-      const result = await confirmBuyerSquarePayment(checkout.order.id, sourceId, apiBaseUrl);
+      const result = await mutateConfirmPayment({ orderId: checkout.order.id, sourceId });
       if (result.payment.status !== 'paid' || result.order.status !== 'paid') {
         throw new Error(result.payment.errorMessage ?? 'Square did not complete the payment');
       }
       setCompletedOrder(result.order);
-      setCart((current) => current ? { ...current, items: [], subtotalCents: 0, updatedAt: new Date().toISOString() } : current);
       setStep('success');
     } catch (caught) {
       fail(caught);
@@ -531,7 +595,7 @@ export function BuyerCheckoutProvider({
     if (!cart || !Number.isInteger(quantity) || quantity < 1 || quantity > 99) return;
     setBusy(true);
     try {
-      setCart(await setBuyerCartQuantity(cart.id, productId, quantity, apiBaseUrl));
+      await mutateQuantity({ cartId: cart.id, productId, quantity });
     } catch (caught) {
       fail(caught);
     } finally {
@@ -543,7 +607,7 @@ export function BuyerCheckoutProvider({
     if (!cart) return;
     setBusy(true);
     try {
-      setCart(await removeBuyerCartItem(cart.id, productId, apiBaseUrl));
+      await mutateRemove({ cartId: cart.id, productId });
     } catch (caught) {
       fail(caught);
     } finally {
@@ -554,9 +618,11 @@ export function BuyerCheckoutProvider({
   const contextValue = useMemo<BuyerCheckoutActions>(() => ({
     holdProduct: addHeldProduct,
     openHeldItems: () => { setStep('cart'); setOpen(true); setError(undefined); },
+    adoptCartId,
+    cartId,
     heldItemCount: cart?.items.reduce((sum, item) => sum + item.quantity, 0) ?? 0,
     heldProductIds: cart?.items.map((item) => item.productId) ?? [],
-  }), [addHeldProduct, cart]);
+  }), [addHeldProduct, adoptCartId, cart, cartId]);
 
   return (
     <BuyerCheckoutContext.Provider value={contextValue}>
