@@ -1,6 +1,6 @@
 import { Inject, Body, Controller, Get, Post, Query } from '@nestjs/common';
 import { BuyerOrdersService } from './buyer-orders.service';
-import { CheckoutService } from './checkout.service';
+import { CheckoutService, type CheckoutSessionInput } from './checkout.service';
 
 @Controller('checkout')
 export class CheckoutController {
@@ -15,7 +15,7 @@ export class CheckoutController {
   }
 
   @Post('sessions')
-  createSession(@Body() body: { cartId: string; buyerId: string; eventId: string; email?: string; shippingCents?: number }) {
+  createSession(@Body() body: CheckoutSessionInput) {
     return this.checkout.createSession(body);
   }
 

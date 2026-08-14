@@ -7,6 +7,7 @@ import { ChatModule } from '../chat/chat.module';
 import { DatabaseModule, PG_POOL } from '../db/database.module';
 import { EventModule } from '../events/event.module';
 import { PgOrderStore } from '../db/pg-order-store';
+import { ShippingModule } from '../shipping/shipping.module';
 import { BuyerOrdersService } from './buyer-orders.service';
 import { CheckoutController } from './checkout.controller';
 import {
@@ -18,7 +19,7 @@ import {
 } from './checkout.service';
 
 @Module({
-  imports: [DatabaseModule, CartModule, ActionModule, AuctionModule, ChatModule, EventModule],
+  imports: [DatabaseModule, CartModule, ActionModule, AuctionModule, ChatModule, EventModule, ShippingModule],
   controllers: [CheckoutController],
   providers: [
     CheckoutService,
