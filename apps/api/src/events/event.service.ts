@@ -1,5 +1,6 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { ChatService } from '../chat/chat.service';
+import { DEFAULT_SELLER_ID } from '../policies/policy.service';
 
 /**
  * The event directory behind the buyer "What's on" Channel Guide (P-118 /
@@ -44,6 +45,15 @@ export interface EventSummary extends EventRecord {
   viewers: number;
 }
 
+/** What the seller's create/update flow publishes into the directory. */
+export interface EventPublication {
+  eventId: string;
+  title: string;
+  sellerId: string;
+  sellerName: string;
+  thumbnailUrl?: string;
+}
+
 export interface EventStore {
   /**
    * Every event a buyer may see, i.e. everything except `draft`. The filter
@@ -52,6 +62,22 @@ export interface EventStore {
    * it to the browser and merely decline to paint it.
    */
   listBuyerVisible(): Promise<EventRecord[]>;
+
+  /**
+   * Upsert the directory row for a seller-created event (EI-20426845001666103
+   * / P-014): before this existed, the UI create flow wrote event_config and
+   * registered items but NOTHING ever inserted the directory row, so a created
+   * event was reachable by direct link yet invisible in the Channel Guide —
+   * GET /events stayed [] forever on a database without the demo seed.
+   *
+   * Semantics: a NEW event is inserted `scheduled` (buyer-visible — the UI
+   * create flow IS the publish act; inserting the table's `draft` default
+   * would reproduce the exact invisibility this method exists to fix). An
+   * EXISTING row only has its title/seller/thumbnail updated — status,
+   * starts_at and ended_at are deliberately preserved so a rename or a
+   * thumbnail swap on a live or ended event never resets its lifecycle.
+   */
+  publish(input: EventPublication): Promise<void>;
 }
 
 export const EVENT_STORE = Symbol('EVENT_STORE');
@@ -157,6 +183,32 @@ export class InMemoryEventStore implements EventStore {
   async listBuyerVisible(): Promise<EventRecord[]> {
     return this.records.filter((record) => record.status !== 'draft');
   }
+
+  async publish(input: EventPublication): Promise<void> {
+    const existing = this.records.find((record) => record.eventId === input.eventId);
+    if (existing) {
+      existing.title = input.title;
+      existing.sellerId = input.sellerId;
+      existing.sellerName = input.sellerName;
+      if (input.thumbnailUrl) {
+        existing.thumbnailUrl = input.thumbnailUrl;
+      } else {
+        delete existing.thumbnailUrl;
+      }
+      // status / startsAt / endedAt deliberately untouched — see EventStore.publish.
+      return;
+    }
+    this.records.push({
+      eventId: input.eventId,
+      title: input.title,
+      sellerId: input.sellerId,
+      sellerName: input.sellerName,
+      status: 'scheduled',
+      startsAt: null,
+      endedAt: null,
+      ...(input.thumbnailUrl ? { thumbnailUrl: input.thumbnailUrl } : {}),
+    });
+  }
 }
 
 /**
@@ -215,12 +267,37 @@ export function compareForGuide(a: EventSummary, b: EventSummary): number {
   return a.title.localeCompare(b.title);
 }
 
+/**
+ * Display identity for the demo seller until real seller identity lands
+ * (P-119 / WI-38669 builds it on sidestage-standout-features): every event the
+ * UI creates today is authored by the single demo seller, and the guide needs
+ * a human-readable name, not a slug.
+ */
+export const DEFAULT_SELLER_NAME = 'SideStage Seller';
+
 @Injectable()
 export class EventService {
   constructor(
     @Inject(EVENT_STORE) private readonly store: EventStore,
     @Inject(ChatService) private readonly chat: ChatService,
   ) {}
+
+  /**
+   * Publish/refresh the directory row for a seller-created event, from its
+   * saved config (EI-20426845001666103 / P-014). Called by the config PUT —
+   * the single entry the UI create flow already goes through — so one UI
+   * create transaction yields a buyer-visible Channel Guide row with the
+   * uploaded thumbnail.
+   */
+  async publishFromConfig(config: { eventId: string; name: string; thumbnailUrl?: string }): Promise<void> {
+    await this.store.publish({
+      eventId: config.eventId,
+      title: config.name,
+      sellerId: DEFAULT_SELLER_ID,
+      sellerName: DEFAULT_SELLER_NAME,
+      ...(config.thumbnailUrl ? { thumbnailUrl: config.thumbnailUrl } : {}),
+    });
+  }
 
   /**
    * The Channel Guide payload.

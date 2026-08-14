@@ -33,6 +33,9 @@ class StubStore implements EventStore {
   async listBuyerVisible(): Promise<EventRecord[]> {
     return this.records.filter((entry) => entry.status !== 'draft');
   }
+  async publish(): Promise<void> {
+    throw new Error('StubStore.publish is not under test here — use InMemoryEventStore');
+  }
 }
 
 describe('event directory (P-118 / D-019)', () => {
@@ -145,5 +148,61 @@ describe('event directory (P-118 / D-019)', () => {
     for (const event of upcoming) {
       expect(Date.parse(event.startsAt as string)).toBeGreaterThan(now.getTime());
     }
+  });
+});
+
+describe('seller-created events reach the guide (EI-20426845001666103 / P-014)', () => {
+  it('publishFromConfig makes a brand-new event buyer-visible with its thumbnail', async () => {
+    const service = new EventService(new InMemoryEventStore([]), new ChatService());
+
+    await service.publishFromConfig({
+      eventId: 'acceptance-dock-thumbnail',
+      name: 'Acceptance dock thumbnail',
+      thumbnailUrl: 'data:image/png;base64,AAAA',
+    });
+
+    const events = await service.listForGuide();
+    expect(events).toHaveLength(1);
+    expect(events[0]).toMatchObject({
+      eventId: 'acceptance-dock-thumbnail',
+      title: 'Acceptance dock thumbnail',
+      status: 'scheduled',
+      thumbnailUrl: 'data:image/png;base64,AAAA',
+    });
+  });
+
+  it('publishes without a thumbnail as a row with no thumbnailUrl key', async () => {
+    const service = new EventService(new InMemoryEventStore([]), new ChatService());
+
+    await service.publishFromConfig({ eventId: 'bare-event', name: 'Bare event' });
+
+    const [event] = await service.listForGuide();
+    expect(event.eventId).toBe('bare-event');
+    expect('thumbnailUrl' in event).toBe(false);
+  });
+
+  it('re-publishing an existing event updates title/thumbnail but never resets its lifecycle', async () => {
+    const store = new InMemoryEventStore([
+      record({
+        eventId: 'live-show',
+        title: 'Old title',
+        status: 'live',
+        startsAt: '2026-08-14T10:00:00.000Z',
+      }),
+    ]);
+    const service = new EventService(store, new ChatService());
+
+    await service.publishFromConfig({
+      eventId: 'live-show',
+      name: 'New title',
+      thumbnailUrl: 'https://example.com/t.png',
+    });
+
+    const [event] = await service.listForGuide();
+    expect(event.title).toBe('New title');
+    expect(event.thumbnailUrl).toBe('https://example.com/t.png');
+    // The lifecycle survives a config re-save: still live, start time kept.
+    expect(event.status).toBe('live');
+    expect(event.startsAt).toBe('2026-08-14T10:00:00.000Z');
   });
 });

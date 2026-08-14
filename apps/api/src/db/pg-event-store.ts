@@ -1,6 +1,7 @@
 import type { Pool } from 'pg';
 import {
   isEventStatus,
+  type EventPublication,
   type EventRecord,
   type EventStore,
 } from '../events/event.service';
@@ -45,25 +46,49 @@ export class PgEventStore implements EventStore {
                  title`,
     );
 
-    return result.rows.flatMap((row) => {
-      // A status outside the known set means the CHECK constraint was dropped
-      // or the row predates it. Skipping is the honest response: the guide
-      // groups BY status, so a row with an ungroupable status has nowhere to
-      // go, and inventing a group for it would show buyers a bucket the
-      // product does not define.
-      if (!isEventStatus(row.status)) return [];
-      return [
-        {
-          eventId: row.event_id,
-          title: row.title,
-          sellerId: row.seller_id,
-          sellerName: row.seller_name,
-          status: row.status,
-          startsAt: iso(row.starts_at),
-          endedAt: iso(row.ended_at),
-          ...(row.thumbnail_url ? { thumbnailUrl: row.thumbnail_url } : {}),
-        },
-      ];
-    });
+    return result.rows.flatMap((row) => mapRow(row));
   }
+
+  /**
+   * Upsert the seller-created event's directory row (EI-20426845001666103 /
+   * P-014). A NEW event inserts as 'scheduled' so it is buyer-visible at
+   * creation; the table default 'draft' is exactly the invisibility this call
+   * exists to fix. The conflict branch deliberately does NOT set status,
+   * starts_at or ended_at: a config re-save (rename, thumbnail swap) on a live
+   * or ended event must never reset its lifecycle.
+   */
+  async publish(input: EventPublication): Promise<void> {
+    await this.pool.query(
+      `INSERT INTO event (event_id, title, seller_id, seller_name, status, thumbnail_url)
+       VALUES ($1, $2, $3, $4, 'scheduled', $5)
+       ON CONFLICT (event_id) DO UPDATE
+         SET title = EXCLUDED.title,
+             seller_id = EXCLUDED.seller_id,
+             seller_name = EXCLUDED.seller_name,
+             thumbnail_url = EXCLUDED.thumbnail_url,
+             updated_at = now()`,
+      [input.eventId, input.title, input.sellerId, input.sellerName, input.thumbnailUrl ?? null],
+    );
+  }
+}
+
+function mapRow(row: EventRow): EventRecord[] {
+  // A status outside the known set means the CHECK constraint was dropped
+  // or the row predates it. Skipping is the honest response: the guide
+  // groups BY status, so a row with an ungroupable status has nowhere to
+  // go, and inventing a group for it would show buyers a bucket the
+  // product does not define.
+  if (!isEventStatus(row.status)) return [];
+  return [
+    {
+      eventId: row.event_id,
+      title: row.title,
+      sellerId: row.seller_id,
+      sellerName: row.seller_name,
+      status: row.status,
+      startsAt: iso(row.starts_at),
+      endedAt: iso(row.ended_at),
+      ...(row.thumbnail_url ? { thumbnailUrl: row.thumbnail_url } : {}),
+    },
+  ];
 }
