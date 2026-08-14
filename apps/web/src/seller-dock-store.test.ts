@@ -15,7 +15,6 @@ import {
   createSellerDockStore,
   foregroundSellerDockPanel,
   migrateSellerActiveEventLayout,
-  migrateSellerEventManagerLayout,
   requestSellerDockLayoutReset,
   sellerDockStorageKey,
 } from './seller-dock-store';
@@ -177,63 +176,6 @@ describe('createSellerDockStore — round trip', () => {
     expect((restored.root as { panels: unknown[] }).panels).toEqual(
       (saved.root as { panels: unknown[] }).panels,
     );
-  });
-
-  it('removes the retired standalone Event Settings pane without disturbing current manager geometry', () => {
-    const legacy = sellerEventManagerDockDefaultLayout();
-    const root = legacy.root as Extract<LayoutDoc['root'], { kind: 'tabs' }>;
-    root.panels.splice(1, 0, {
-      id: 'event-settings',
-      type: 'event-settings',
-      title: 'Event settings',
-    });
-    root.size = 731;
-
-    const migrated = migrateSellerEventManagerLayout(legacy);
-
-    expect(layoutPanelIds(migrated)).toEqual(['event-manager', 'run-of-show-planner']);
-    expect((migrated.root as { size?: number }).size).toBe(731);
-    expect(migrateSellerEventManagerLayout(migrated)).toBe(migrated);
-  });
-
-  it('repairs the screenshot-era manager layout that duplicated settings and omitted Run of show', async () => {
-    const legacy: LayoutDoc = {
-      schemaVersion: 1,
-      root: {
-        kind: 'group',
-        id: 'legacy-manager-root',
-        direction: 'row',
-        children: [
-          {
-            kind: 'tabs',
-            id: 'event-manager-group',
-            activePanelId: 'event-manager',
-            panels: [{ id: 'event-manager', type: 'event-manager', title: 'Event manager' }],
-            size: 500,
-          },
-          {
-            kind: 'tabs',
-            id: 'event-settings-group',
-            activePanelId: 'event-settings',
-            panels: [{ id: 'event-settings', type: 'event-settings', title: 'Event settings' }],
-            size: 500,
-          },
-        ],
-      },
-    };
-    const manager = createSellerDockStore({ seed: sellerEventManagerDockDefaultLayout });
-    await manager.save(SELLER_MANAGER_DOCK_LAYOUT_NAME, legacy);
-
-    const row = await createSellerDockStore({
-      seed: sellerEventManagerDockDefaultLayout,
-      foregroundPanelId: 'event-manager',
-    }).load(SELLER_MANAGER_DOCK_LAYOUT_NAME);
-
-    expect(row.layoutJson).toEqual(sellerEventManagerDockDefaultLayout());
-    expect(layoutPanelIds(row.layoutJson as LayoutDoc)).not.toContain('event-settings');
-    expect(layoutPanelIds(row.layoutJson as LayoutDoc)).toContain('run-of-show-planner');
-    expect(JSON.parse(store.get(sellerDockStorageKey(SELLER_MANAGER_DOCK_LAYOUT_NAME))!).layoutJson)
-      .toEqual(sellerEventManagerDockDefaultLayout());
   });
 
   it('reseeds a manager layout that no longer contains its route panel', async () => {

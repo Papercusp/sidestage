@@ -13,10 +13,8 @@ import {
 import {
   SELLER_ACTIVE_DOCK_LAYOUT_NAME,
   SELLER_DOCK_LAYOUT_NAME,
-  SELLER_MANAGER_DOCK_LAYOUT_NAME,
   sellerActiveEventDockDefaultLayout,
   sellerDockDefaultLayout,
-  sellerEventManagerDockDefaultLayout,
 } from './seller-dock-layout';
 
 /**
@@ -167,7 +165,6 @@ function containsPanel(node: GroupNode | TabStrip, panelId: string): boolean {
 }
 
 const RETIRED_ACTIVE_EVENT_PANEL_IDS: readonly string[] = ['transcript', 'on-deck'];
-const RETIRED_EVENT_MANAGER_PANEL_IDS: readonly string[] = ['event-settings'];
 
 function floatingContainsPanel(layout: LayoutDoc, panelId: string): boolean {
   return layout.floating?.some((group) => (
@@ -206,56 +203,6 @@ export function migrateSellerActiveEventLayout(layout: LayoutDoc): LayoutDoc {
   const floating = layout.floating
     ?.map((group) => {
       const panels = group.panels.filter((panel) => !isRetiredActiveEventPanel(panel));
-      if (panels.length === 0) return null;
-      return {
-        ...group,
-        panels,
-        activePanelId: panels.some((panel) => panel.id === group.activePanelId)
-          ? group.activePanelId
-          : panels[0]!.id,
-      };
-    })
-    .filter((group): group is NonNullable<typeof group> => group !== null);
-
-  return {
-    ...layout,
-    root,
-    floating: floating && floating.length > 0 ? floating : undefined,
-  };
-}
-
-/**
- * Converge saved Event Manager boards on the current information architecture.
- *
- * Event settings now lives inside the selected event's My Events detail, so
- * the old standalone dock pane is duplicate chrome. A saved layout can outlive
- * that change indefinitely; it can also predate the Run of Show planner. When
- * either required destination is absent, reseed the manager board so entering
- * the route cannot hydrate into the exact stale state shown in WI-39008.
- */
-export function migrateSellerEventManagerLayout(layout: LayoutDoc): LayoutDoc {
-  const hasEventManager = containsPanel(layout.root, 'event-manager')
-    || floatingContainsPanel(layout, 'event-manager');
-  const hasRunOfShow = containsPanel(layout.root, 'run-of-show-planner')
-    || floatingContainsPanel(layout, 'run-of-show-planner');
-  if (!hasEventManager || !hasRunOfShow) return sellerEventManagerDockDefaultLayout();
-
-  const retiredIds = RETIRED_EVENT_MANAGER_PANEL_IDS.filter((panelId) => (
-    containsPanel(layout.root, panelId) || floatingContainsPanel(layout, panelId)
-  ));
-  if (retiredIds.length === 0) return layout;
-
-  const root = retiredIds.reduce<GroupNode | TabStrip | null>(
-    (current, panelId) => current ? withoutPanel(current, panelId) : null,
-    layout.root,
-  );
-  if (!root) return sellerEventManagerDockDefaultLayout();
-  const floating = layout.floating
-    ?.map((group) => {
-      const panels = group.panels.filter((panel) => (
-        !RETIRED_EVENT_MANAGER_PANEL_IDS.includes(panel.id)
-        && !RETIRED_EVENT_MANAGER_PANEL_IDS.includes(panel.type)
-      ));
       if (panels.length === 0) return null;
       return {
         ...group,
@@ -347,13 +294,9 @@ export function createSellerDockStore(opts: SellerDockStoreOptions = {}): DockLa
   };
 
   const migrate = async (name: string, row: DockLayoutRow): Promise<DockLayoutRow> => {
-    if (row.schemaVersion !== 1) return row;
+    if (name !== SELLER_ACTIVE_DOCK_LAYOUT_NAME || row.schemaVersion !== 1) return row;
     const current = row.layoutJson as LayoutDoc;
-    const migrated = name === SELLER_ACTIVE_DOCK_LAYOUT_NAME
-      ? migrateSellerActiveEventLayout(current)
-      : name === SELLER_MANAGER_DOCK_LAYOUT_NAME
-        ? migrateSellerEventManagerLayout(current)
-        : current;
+    const migrated = migrateSellerActiveEventLayout(current);
     if (migrated === current) return row;
     return inner.save(name, migrated, { expectedUpdatedTs: row.updatedTs });
   };
