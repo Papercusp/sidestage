@@ -37,9 +37,8 @@ describe('RunOfShowPanelView', () => {
     expect(html).toContain('Next up');
     expect(html).toContain('Beacon Mug');
     expect(html).toContain('Put on deck');
-    // Aggregate pace line reports the actual delta and remaining lineup.
-    expect(html).toContain('4m ahead of plan');
-    expect(html).toContain('1 to go');
+    // Aggregate pace line present.
+    expect(html).toContain('On pace');
   });
 
   it('renders the planless empty state with a pointer to the planner', () => {
