@@ -74,4 +74,6 @@ export interface CatalogSource {
   search(query: CatalogQuery): Promise<CatalogPage>;
   productTypes(limit?: number): Promise<string[]>;
   variant(id: string): Promise<CatalogVariant | undefined>;
+  /** Clean-clone write-through used by the shared inventory authority. */
+  restock?(id: string, quantity: number, priceCents?: number): Promise<CatalogVariant | undefined>;
 }
