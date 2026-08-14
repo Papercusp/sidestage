@@ -14,7 +14,7 @@ export class AuctionController {
 
   @Get('events/:eventId/active')
   active(@Param('eventId') eventId: string) {
-    return this.auctions.getActiveAuction(eventId);
+    return this.auctions.getCurrentAuction(eventId);
   }
 
   @Sse('events/:eventId/stream')
