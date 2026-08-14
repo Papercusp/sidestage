@@ -30,15 +30,24 @@ describe('BuyerTab product preview', () => {
   it('reopens an already-held product without creating another cart hold', async () => {
     const holdProduct = vi.fn(async () => ({ id: 'cart-1' }) as never);
     const openHeldItems = vi.fn();
-    const checkout = { holdProduct, openHeldItems, heldItemCount: 1 };
+    const checkout = { holdProduct, openHeldItems, heldItemCount: 1, heldProductIds: [PRODUCTS[0].id] };
 
-    await expect(openOrHoldBuyerProduct(PRODUCTS[0], PRODUCTS[0].id, checkout)).resolves.toBe('opened');
+    await expect(openOrHoldBuyerProduct(PRODUCTS[0], checkout)).resolves.toBe('opened');
     expect(openHeldItems).toHaveBeenCalledOnce();
     expect(holdProduct).not.toHaveBeenCalled();
 
-    await expect(openOrHoldBuyerProduct(PRODUCTS[1], PRODUCTS[0].id, checkout)).resolves.toBe('held');
+    await expect(openOrHoldBuyerProduct(PRODUCTS[1], checkout)).resolves.toBe('held');
     expect(holdProduct).toHaveBeenCalledOnce();
     expect(holdProduct).toHaveBeenCalledWith(PRODUCTS[1]);
+  });
+
+  it('places a fresh hold after expiry removes the product from the checkout cart', async () => {
+    const holdProduct = vi.fn(async () => ({ id: 'cart-1' }) as never);
+    const checkout = { holdProduct, openHeldItems: vi.fn(), heldItemCount: 0, heldProductIds: [] };
+
+    await expect(openOrHoldBuyerProduct(PRODUCTS[0], checkout)).resolves.toBe('held');
+    expect(holdProduct).toHaveBeenCalledWith(PRODUCTS[0]);
+    expect(checkout.openHeldItems).not.toHaveBeenCalled();
   });
 
   it('keeps the current offer above the fold and previews the next three products', () => {
