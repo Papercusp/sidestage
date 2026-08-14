@@ -74,7 +74,7 @@ describe('P-005 product card and shell', () => {
     expect(markup.indexOf('Held items')).toBeLessThan(markup.indexOf('Ready for your next event'));
     expect(markup).toContain('Now selling');
     expect(markup).toContain('Event products');
-    expect(markup).toContain('Live chat');
+    expect(markup).toContain('>Chat</button>');
     expect(markup).toContain('Message the room');
     expect(markup).toContain('Share room');
     expect(markup).toContain('class="app-site-column"');
