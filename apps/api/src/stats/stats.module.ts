@@ -44,17 +44,14 @@ export interface PricingHistory {
  * sold/raised from PAID checkout orders in Postgres. With no database (memory
  * mode) sold/raised are honestly zero rather than invented.
  */
-@Controller('events')
-export class StatsController {
+@Injectable()
+export class EventStatsService {
   constructor(
     @Inject(ChatService) private readonly chat: ChatService,
     @Inject(PG_POOL) private readonly pool: Pool | null,
-    @Inject(GuardedActionService) private readonly actions: GuardedActionService,
-    @Inject(AuctionService) private readonly auctions: AuctionService,
   ) {}
 
-  @Get(':eventId/stats')
-  async stats(@Param('eventId') eventId: string): Promise<EventStats> {
+  async read(eventId: string): Promise<EventStats> {
     const viewers = this.chat.getStats(eventId).activeUsers;
     let itemsSold = 0;
     let totalRaisedCents = 0;
@@ -68,6 +65,21 @@ export class StatsController {
       totalRaisedCents = Number(result.rows[0]?.raised ?? 0);
     }
     return { eventId, viewers, itemsSold, totalRaisedCents };
+  }
+}
+
+@Controller('events')
+export class StatsController {
+  constructor(
+    @Inject(EventStatsService) private readonly eventStats: EventStatsService,
+    @Inject(PG_POOL) private readonly pool: Pool | null,
+    @Inject(GuardedActionService) private readonly actions: GuardedActionService,
+    @Inject(AuctionService) private readonly auctions: AuctionService,
+  ) {}
+
+  @Get(':eventId/stats')
+  async stats(@Param('eventId') eventId: string): Promise<EventStats> {
+    return this.eventStats.read(eventId);
   }
 
 
@@ -136,14 +148,14 @@ export class StatsController {
 @Injectable()
 export class StatsSyncQueries implements OnModuleInit {
   constructor(
-    @Inject(StatsController) private readonly stats: StatsController,
+    @Inject(EventStatsService) private readonly stats: EventStatsService,
     @Inject(SyncQueryRegistry) private readonly queries: SyncQueryRegistry,
   ) {}
 
   onModuleInit(): void {
     this.queries.register('event.stats', async (args) => {
       const eventId = typeof args.eventId === 'string' ? args.eventId : '';
-      return [await this.stats.stats(eventId)];
+      return [await this.stats.read(eventId)];
     });
   }
 }
@@ -151,6 +163,6 @@ export class StatsSyncQueries implements OnModuleInit {
 @Module({
   imports: [ActionModule, AuctionModule, ChatModule, DatabaseModule, SyncModule],
   controllers: [StatsController],
-  providers: [StatsSyncQueries],
+  providers: [EventStatsService, StatsSyncQueries],
 })
 export class StatsModule {}

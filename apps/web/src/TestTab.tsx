@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react';
-import { fetchCatalog, resolveApiBaseUrl } from './catalog';
+import { useSyncMutate, useSyncQuery } from '@papercusp/sync';
+import { fetchCatalog } from './catalog';
 import { TabHeader } from './components/TabHeader';
 import { browserEventId, DEFAULT_EVENT_TITLE, mediaBaseUrl } from './event-identity';
 import { JUDGE_DIMENSIONS, dimensionLabel, runJudgeRehearsal, scorePercent, type JudgeReport } from './judge';
@@ -36,23 +37,43 @@ const PREFLIGHT_PENDING: readonly PreflightCheck[] = [
   { label: 'Reply approval', value: 'Checking…', tone: 'muted' },
 ];
 
+export interface EventConfigRead {
+  name?: string;
+  updatedAt?: string;
+  policy?: { automationLevel?: string };
+  guardrails?: { priceChanges?: boolean };
+}
+
+export function configPreflightChecks(
+  config: EventConfigRead | null,
+  unavailable: boolean,
+): readonly [PreflightCheck, PreflightCheck] {
+  const configCheck: PreflightCheck = config
+    ? config.policy
+      ? { label: 'Copilot grounding', value: 'Ready', tone: 'success' }
+      : { label: 'Copilot grounding', value: 'No policy', tone: 'warning' }
+    : unavailable
+      ? { label: 'Copilot grounding', value: 'Unreachable', tone: 'danger' }
+      : { label: 'Copilot grounding', value: 'Checking…', tone: 'muted' };
+  const approvalCheck: PreflightCheck = config
+    ? config.guardrails?.priceChanges
+      ? { label: 'Reply approval', value: 'Required', tone: 'warning' }
+      : { label: 'Reply approval', value: 'Auto allowed', tone: 'muted' }
+    : unavailable
+      ? { label: 'Reply approval', value: 'Unknown', tone: 'muted' }
+      : { label: 'Reply approval', value: 'Checking…', tone: 'muted' };
+  return [configCheck, approvalCheck];
+}
+
 /** Real preflight (P-106): every row is a live probe, not a literal. */
-async function runPreflight(eventId: string): Promise<PreflightCheck[]> {
+async function runPreflight(config: EventConfigRead | null, configUnavailable: boolean): Promise<PreflightCheck[]> {
   const catalogCheck: PreflightCheck = await fetchCatalog({ pageSize: 1 })
     .then((page) => (page.rows.length > 0
       ? { label: 'Catalog connection', value: page.totalIsFloor ? `${page.total.toLocaleString()}+ products` : `${page.total.toLocaleString()} products`, tone: 'success' as const }
       : { label: 'Catalog connection', value: 'Empty catalog', tone: 'warning' as const }))
     .catch(() => ({ label: 'Catalog connection', value: 'Unreachable', tone: 'danger' as const }));
 
-  const configCheck: PreflightCheck = await fetch(`${resolveApiBaseUrl()}/events/${encodeURIComponent(eventId)}/config`)
-    .then(async (response) => {
-      if (!response.ok) throw new Error(`HTTP ${response.status}`);
-      const config = (await response.json()) as { policy?: { automationLevel?: string } };
-      return config.policy
-        ? { label: 'Copilot grounding', value: 'Ready', tone: 'success' as const }
-        : { label: 'Copilot grounding', value: 'No policy', tone: 'warning' as const };
-    })
-    .catch(() => ({ label: 'Copilot grounding', value: 'Unreachable', tone: 'danger' as const }));
+  const [configCheck, approvalCheck] = configPreflightChecks(config, configUnavailable);
 
   const hasMediaDevice = typeof navigator !== 'undefined' && Boolean(navigator.mediaDevices?.getUserMedia);
   const streamCheck: PreflightCheck = {
@@ -60,16 +81,6 @@ async function runPreflight(eventId: string): Promise<PreflightCheck[]> {
     value: mediaBaseUrl() ? (hasMediaDevice ? 'Media server configured' : 'No camera access') : 'Not configured',
     tone: mediaBaseUrl() && hasMediaDevice ? 'success' : 'muted',
   };
-
-  const approvalCheck: PreflightCheck = await fetch(`${resolveApiBaseUrl()}/events/${encodeURIComponent(eventId)}/config`)
-    .then(async (response) => {
-      if (!response.ok) throw new Error(`HTTP ${response.status}`);
-      const config = (await response.json()) as { guardrails?: { priceChanges?: boolean } };
-      return config.guardrails?.priceChanges
-        ? { label: 'Reply approval', value: 'Required', tone: 'warning' as const }
-        : { label: 'Reply approval', value: 'Auto allowed', tone: 'muted' as const };
-    })
-    .catch(() => ({ label: 'Reply approval', value: 'Unknown', tone: 'muted' as const }));
 
   return [catalogCheck, configCheck, streamCheck, approvalCheck];
 }
@@ -88,28 +99,30 @@ type RehearsalErrors = Partial<Record<RehearsalKind, string>>;
 
 export function TestTab() {
   const eventId = browserEventId();
+  const eventConfigQuery = useSyncQuery<EventConfigRead>({
+    queryName: 'event.config',
+    args: { eventId },
+    pollIntervalMs: 30_000,
+  });
+  const eventConfig = eventConfigQuery.data?.[0] ?? null;
   const [checks, setChecks] = useState<readonly PreflightCheck[]>(PREFLIGHT_PENDING);
   const [eventName, setEventName] = useState<string>(DEFAULT_EVENT_TITLE);
-  const refreshPreflight = useCallback(() => {
-    void runPreflight(eventId).then(setChecks);
-  }, [eventId]);
+  const refreshChecks = useCallback(() => {
+    void runPreflight(eventConfig, Boolean(eventConfigQuery.error)).then(setChecks);
+  }, [eventConfig, eventConfigQuery.error]);
   useEffect(() => {
-    refreshPreflight();
-  }, [refreshPreflight]);
+    refreshChecks();
+  }, [refreshChecks]);
+  const refreshPreflight = useCallback(() => {
+    eventConfigQuery.invalidate();
+    refreshChecks();
+  }, [eventConfigQuery.invalidate, refreshChecks]);
   const readyCount = checks.filter((check) => check.tone === 'success').length;
 
   // ---- Event identity: show the host THEIR event, not a hardcoded example ----
   useEffect(() => {
-    let cancelled = false;
-    void fetch(`${resolveApiBaseUrl()}/events/${encodeURIComponent(eventId)}/config`)
-      .then(async (response) => {
-        if (!response.ok) return;
-        const config = (await response.json()) as { name?: string };
-        if (!cancelled && config.name?.trim()) setEventName(config.name.trim());
-      })
-      .catch(() => { /* the readiness rows already report an unreachable API */ });
-    return () => { cancelled = true; };
-  }, [eventId]);
+    if (eventConfig?.name?.trim()) setEventName(eventConfig.name.trim());
+  }, [eventConfig?.name]);
 
   // ---- Server-side preflight (the config lint) --------------------------------
   const [serverPreflight, setServerPreflight] = useState<PreflightReport | null>(null);
@@ -191,6 +204,20 @@ export function TestTab() {
   const [judgeReport, setJudgeReport] = useState<JudgeReport | null>(null);
   const [judgeError, setJudgeError] = useState<string | null>(null);
   const [judgeRunning, setJudgeRunning] = useState(false);
+  const judgeQuery = useSyncQuery<JudgeReport>({
+    queryName: 'judge.latest',
+    pollIntervalMs: 60_000,
+  });
+  const runJudgeFallback = useCallback(
+    async (_input: Record<string, never>) => runJudgeRehearsal(import.meta.env.VITE_API_URL),
+    [],
+  );
+  const mutateJudge = useSyncMutate<Record<string, never>, JudgeReport>('judge.run', runJudgeFallback);
+
+  useEffect(() => {
+    const latest = judgeQuery.data?.[0];
+    if (latest) setJudgeReport(latest);
+  }, [judgeQuery.data]);
 
   const runLoadRehearsal = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -212,7 +239,8 @@ export function TestTab() {
     setJudgeRunning(true);
     setJudgeError(null);
     try {
-      setJudgeReport(await runJudgeRehearsal(import.meta.env.VITE_API_URL));
+      setJudgeReport(await mutateJudge({}));
+      judgeQuery.invalidate();
     } catch (error) {
       setJudgeReport(null);
       setJudgeError(error instanceof Error ? error.message : 'The reply judge could not be reached.');

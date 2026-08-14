@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useSyncMutate, useSyncQuery } from '@papercusp/sync';
 import { resolveApiBaseUrl } from './catalog';
 import { TabHeader } from './components/TabHeader';
@@ -56,6 +56,7 @@ export function ConfigTab() {
   const [config, setConfig] = useState<EventConfigView | null>(null);
   const [saveState, setSaveState] = useState<SaveState>('idle');
   const [savedAt, setSavedAt] = useState<Date | null>(null);
+  const appliedRevision = useRef<string | null>(null);
 
   const configQuery = useSyncQuery<EventConfigView>({
     queryName: 'event.config',
@@ -76,7 +77,8 @@ export function ConfigTab() {
 
   useEffect(() => {
     const loaded = configQuery.data?.[0];
-    if (loaded) {
+    if (loaded && loaded.updatedAt !== appliedRevision.current) {
+      appliedRevision.current = loaded.updatedAt;
       setConfig(loaded);
       setSaveState((current) => current === 'offline' ? 'idle' : current);
       return;
@@ -91,7 +93,9 @@ export function ConfigTab() {
     if (!config) return;
     setSaveState('saving');
     try {
-      setConfig(await mutateConfig(eventConfigUpdate(config)));
+      const saved = await mutateConfig(eventConfigUpdate(config));
+      appliedRevision.current = saved.updatedAt;
+      setConfig(saved);
       setSaveState('saved');
       setSavedAt(new Date());
       configQuery.invalidate();

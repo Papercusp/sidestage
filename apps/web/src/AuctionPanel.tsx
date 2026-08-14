@@ -1,11 +1,10 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { FormEvent } from 'react';
+import { useSyncMutate, useSyncQuery } from '@papercusp/sync';
 import type { BuyerProduct } from './buyer';
 import { formatBuyerPrice } from './buyer';
 import {
-  auctionStreamUrl,
   fetchActiveAuction,
-  parseAuctionEvent,
   parseBidDollars,
   placeAuctionBid,
   secondsRemaining,
@@ -25,6 +24,15 @@ export interface AuctionPanelProps {
 }
 
 type SyncState = 'connecting' | 'live' | 'reconnecting' | 'polling';
+
+interface PlaceBidMutation {
+  auctionId: string;
+  bid: { bidderId: string; displayName?: string; amountCents: number };
+}
+
+export function activeAuctionFromSyncRows(rows?: readonly BuyerAuction[]): BuyerAuction | null {
+  return rows?.[0] ?? null;
+}
 
 /** Countdown ring geometry — r=44 inside a 100x100 viewBox. */
 const RING_RADIUS = 44;
@@ -70,44 +78,55 @@ export function AuctionPanel({
   const [bidDraft, setBidDraft] = useState(() => initialAuction ? (suggestedBidCents(initialAuction.currentPriceCents) / 100).toFixed(2) : '');
   const [submitting, setSubmitting] = useState(false);
   const [nowMs, setNowMs] = useState(Date.now());
+  const suggestedFor = useRef(
+    initialAuction ? `${initialAuction.id}:${initialAuction.currentPriceCents}` : '',
+  );
 
-  const refresh = useCallback(async () => {
+  const applyAuction = useCallback((next: BuyerAuction | null) => {
+    setAuction(next);
+    setLoading(false);
+    setError(null);
+    const quoteKey = next ? `${next.id}:${next.currentPriceCents}` : '';
+    if (next && quoteKey !== suggestedFor.current) {
+      suggestedFor.current = quoteKey;
+      setBidDraft((suggestedBidCents(next.currentPriceCents) / 100).toFixed(2));
+    }
+  }, []);
+
+  const auctionQuery = useSyncQuery<BuyerAuction>({
+    queryName: 'event.auction.active',
+    args: { eventId },
+    pollIntervalMs: 2_000,
+    staleTime: 0,
+  });
+
+  const refreshFromRest = useCallback(async () => {
     try {
       const next = await fetchActiveAuction(eventId, apiBaseUrl);
-      setAuction(next);
-      setError(null);
-      if (next) setBidDraft((suggestedBidCents(next.currentPriceCents) / 100).toFixed(2));
+      applyAuction(next);
+      setSyncState('polling');
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'The live auction could not be refreshed.');
-    } finally {
       setLoading(false);
     }
-  }, [apiBaseUrl, eventId]);
+  }, [apiBaseUrl, applyAuction, eventId]);
+
+  const placeBidFallback = useCallback(
+    async ({ auctionId, bid }: PlaceBidMutation) => placeAuctionBid(auctionId, bid, apiBaseUrl),
+    [apiBaseUrl],
+  );
+  const mutateBid = useSyncMutate<PlaceBidMutation, BuyerAuction>('auction.placeBid', placeBidFallback);
 
   useEffect(() => {
-    void refresh();
-    if (typeof EventSource === 'undefined') {
-      setSyncState('polling');
-      const poll = globalThis.setInterval(() => void refresh(), 2_000);
-      return () => globalThis.clearInterval(poll);
+    if (auctionQuery.loading) return;
+    if (auctionQuery.error) {
+      setSyncState('reconnecting');
+      void refreshFromRest();
+      return;
     }
-    const source = new EventSource(auctionStreamUrl(eventId, apiBaseUrl));
-    source.onopen = () => setSyncState('live');
-    source.onerror = () => setSyncState('reconnecting');
-    const onAuction = (event: Event) => {
-      const next = parseAuctionEvent((event as MessageEvent<string>).data);
-      if (next === undefined) return void refresh();
-      setAuction(next);
-      setLoading(false);
-      setError(null);
-      if (next) setBidDraft((suggestedBidCents(next.currentPriceCents) / 100).toFixed(2));
-    };
-    source.addEventListener('auction', onAuction);
-    return () => {
-      source.removeEventListener('auction', onAuction);
-      source.close();
-    };
-  }, [apiBaseUrl, eventId, refresh]);
+    applyAuction(activeAuctionFromSyncRows(auctionQuery.data));
+    setSyncState(auctionQuery.transport === 'POLLING' ? 'polling' : 'live');
+  }, [applyAuction, auctionQuery.data, auctionQuery.error, auctionQuery.loading, auctionQuery.transport, refreshFromRest]);
 
   useEffect(() => {
     const timer = globalThis.setInterval(() => setNowMs(Date.now()), 250);
@@ -116,8 +135,10 @@ export function AuctionPanel({
 
   const remaining = auction ? secondsRemaining(auction.endsAt, nowMs) : 0;
   useEffect(() => {
-    if (auction?.status === 'active' && remaining === 0) void refresh();
-  }, [auction?.id, auction?.status, refresh, remaining]);
+    if (auction?.status !== 'active' || remaining !== 0) return;
+    auctionQuery.invalidate();
+    if (auctionQuery.error) void refreshFromRest();
+  }, [auction?.id, auction?.status, auctionQuery.error, auctionQuery.invalidate, refreshFromRest, remaining]);
 
   const product = useMemo(() => products.find((candidate) => candidate.id === auction?.productId), [auction?.productId, products]);
   const leadingBid = auction?.bids[0];
@@ -142,12 +163,15 @@ export function AuctionPanel({
     setSubmitting(true);
     setError(null);
     try {
-      const next = await placeAuctionBid(auction.id, { bidderId, displayName, amountCents: parsedBid }, apiBaseUrl);
-      setAuction(next);
-      setBidDraft((suggestedBidCents(next.currentPriceCents) / 100).toFixed(2));
+      applyAuction(await mutateBid({
+        auctionId: auction.id,
+        bid: { bidderId, displayName, amountCents: parsedBid },
+      }));
+      auctionQuery.invalidate();
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'Your bid could not be placed.');
-      await refresh();
+      auctionQuery.invalidate();
+      if (auctionQuery.error) await refreshFromRest();
     } finally {
       setSubmitting(false);
     }

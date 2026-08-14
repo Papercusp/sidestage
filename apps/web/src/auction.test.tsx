@@ -1,6 +1,6 @@
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
-import { AuctionPanel } from './AuctionPanel';
+import { activeAuctionFromSyncRows, AuctionPanel } from './AuctionPanel';
 import { activeAuctionUrl, auctionStreamUrl, parseAuctionEvent, parseBidDollars, secondsRemaining, suggestedBidCents, type BuyerAuction } from './auction';
 
 const ACTIVE_AUCTION: BuyerAuction = {
@@ -47,6 +47,11 @@ function render(auction: BuyerAuction, bidderId?: string): string {
 }
 
 describe('AuctionPanel', () => {
+  it('maps the event.auction.active named-query rows into the existing view shape', () => {
+    expect(activeAuctionFromSyncRows([ACTIVE_AUCTION])).toBe(ACTIVE_AUCTION);
+    expect(activeAuctionFromSyncRows([])).toBeNull();
+  });
+
   it('renders the synced current price, leader state, and bid action', () => {
     const markup = render(ACTIVE_AUCTION);
     expect(markup).toContain('Stoneware mug');

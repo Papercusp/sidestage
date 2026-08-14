@@ -1,17 +1,26 @@
+import { Test } from '@nestjs/testing';
 import { describe, expect, it, vi } from 'vitest';
 import { SyncQueryRegistry } from '../sync/sync-query.registry';
-import { StatsController, StatsSyncQueries } from './stats.module';
+import { EventStatsService, StatsController, StatsSyncQueries } from './stats.module';
 
 describe('StatsController pricing history', () => {
   it('registers event stats with the shared sync query registry', async () => {
-    const stats = { stats: vi.fn().mockResolvedValue({ eventId: 'event-1', viewers: 3, itemsSold: 2, totalRaisedCents: 4200 }) };
+    const stats = { read: vi.fn().mockResolvedValue({ eventId: 'event-1', viewers: 3, itemsSold: 2, totalRaisedCents: 4200 }) };
     const queries = new SyncQueryRegistry();
-    new StatsSyncQueries(stats as never, queries).onModuleInit();
+    const moduleRef = await Test.createTestingModule({
+      providers: [
+        StatsSyncQueries,
+        { provide: EventStatsService, useValue: stats },
+        { provide: SyncQueryRegistry, useValue: queries },
+      ],
+    }).compile();
+    moduleRef.get(StatsSyncQueries).onModuleInit();
 
     await expect(queries.resolve('event.stats', { eventId: 'event-1' })).resolves.toEqual([
       { eventId: 'event-1', viewers: 3, itemsSold: 2, totalRaisedCents: 4200 },
     ]);
-    expect(stats.stats).toHaveBeenCalledWith('event-1');
+    expect(stats.read).toHaveBeenCalledWith('event-1');
+    await moduleRef.close();
   });
 
   it('combines settled checkout, targeted-offer, and auction outcomes for one product', async () => {
@@ -39,7 +48,7 @@ describe('StatsController pricing history', () => {
       ]),
     };
     const controller = new StatsController(
-      { getStats: () => ({ activeUsers: 0 }) } as never,
+      { read: vi.fn() } as never,
       pool as never,
       actions as never,
       auctions as never,
@@ -62,7 +71,7 @@ describe('StatsController pricing history', () => {
 
   it('returns honest empty settled history when Postgres is unavailable', async () => {
     const controller = new StatsController(
-      { getStats: () => ({ activeUsers: 0 }) } as never,
+      { read: vi.fn() } as never,
       null,
       { listAudit: () => [] } as never,
       { listByProduct: async () => [] } as never,
