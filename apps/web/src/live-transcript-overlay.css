@@ -177,3 +177,31 @@
   .live-transcript-toolbar { gap: .35rem; }
   .seller-stream-preview > .stream-video-overlay { max-width: 58%; }
 }
+
+@media (max-width: 560px) {
+  /* The mobile camera surface is also the seller's compact live console. Give
+     its status, audience chat, and captions distinct vertical bands instead of
+     stacking all three absolute overlays into the legacy 220px video height. */
+  .seller-stream-preview > .stream-video {
+    min-height: 25rem;
+    aspect-ratio: auto;
+  }
+
+  .seller-stream-preview > .stream-video-overlay {
+    top: .5rem;
+    right: .5rem;
+    left: .5rem;
+    max-width: none;
+  }
+
+  .seller-stream-preview .seller-video-chat-overlay {
+    top: 5.5rem;
+    right: .5rem;
+    left: .5rem;
+    width: auto;
+  }
+
+  .seller-stream-preview .seller-video-chat-overlay[data-open] {
+    height: 7.5rem;
+  }
+}
