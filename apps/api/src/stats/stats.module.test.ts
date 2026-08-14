@@ -3,10 +3,14 @@ import { describe, expect, it, vi } from 'vitest';
 import { SyncQueryRegistry } from '../sync/sync-query.registry';
 import {
   EventStatsService,
+  EventVisibilityGuard,
   PricingHistoryService,
   StatsController,
   StatsSyncQueries,
 } from './stats.module';
+
+/** A guard that lets every event through — for tests that are not about visibility. */
+const permissiveGuard = { assertBuyerVisible: async () => {} } as never;
 
 describe('StatsController pricing history', () => {
   it('registers event stats with the shared sync query registry', async () => {
@@ -64,6 +68,7 @@ describe('StatsController pricing history', () => {
       pool as never,
       actions as never,
       auctions as never,
+      permissiveGuard,
     );
     const controller = new StatsController({ read: vi.fn() } as never, pricingHistory);
 
@@ -112,7 +117,7 @@ describe('StatsController pricing history', () => {
     };
 
     const chat = { getStats: () => ({ activeUsers: 0 }) };
-    const service = () => new EventStatsService(chat as never, fakePool as never);
+    const service = () => new EventStatsService(chat as never, fakePool as never, permissiveGuard);
 
     it('reports only the requested event totals, not the platform-wide sum', async () => {
       // Global totals across both events would be 8 items / 14900 cents.
@@ -164,10 +169,73 @@ describe('StatsController pricing history', () => {
       null,
       { listAudit: () => [] } as never,
       { listByProduct: async () => [] } as never,
+      permissiveGuard,
     );
     const controller = new StatsController({ read: vi.fn() } as never, pricingHistory);
     await expect(controller.pricingHistory('event-1', 'mug')).resolves.toEqual({
       productId: 'mug', prices: [], offers: [], auctions: [],
+    });
+  });
+
+  describe('event visibility gate (EI-20444567654586364)', () => {
+    // The endpoint is deliberately unauthenticated (BuyerTab renders "raised"
+    // publicly), so this gate IS the access control: only buyer-visible events
+    // — the same set the Channel Guide serves — may answer stats at all.
+    const guideStore = {
+      listBuyerVisible: async () => [
+        { eventId: 'event-a', title: 'A', sellerId: 's1', sellerName: 'S', status: 'live', startsAt: null, endedAt: null },
+      ],
+    };
+    const guard = new EventVisibilityGuard(guideStore as never);
+    const chat = { getStats: vi.fn(() => ({ activeUsers: 7 })) };
+
+    it('404s stats for an event absent from the buyer-visible directory — and never touches revenue data', async () => {
+      const pool = { query: vi.fn() };
+      const service = new EventStatsService(chat as never, pool as never, guard);
+      await expect(service.read('event-unlisted')).rejects.toMatchObject({ status: 404 });
+      // The falsifiable half: the revenue aggregate must not even run for an
+      // invisible event — remove the gate and this spy assertion fails.
+      expect(pool.query).not.toHaveBeenCalled();
+    });
+
+    it('serves stats unchanged for a buyer-visible event', async () => {
+      const pool = { query: vi.fn().mockResolvedValue({ rows: [{ items: '2', raised: '4200' }] }) };
+      const service = new EventStatsService(chat as never, pool as never, guard);
+      await expect(service.read('event-a')).resolves.toEqual({
+        eventId: 'event-a', viewers: 7, itemsSold: 2, totalRaisedCents: 4200,
+      });
+    });
+
+    it('404s pricing history for an invisible event before reading offers or auctions', async () => {
+      const actions = { listAudit: vi.fn() };
+      const auctions = { listByProduct: vi.fn() };
+      const pricingHistory = new PricingHistoryService(null, actions as never, auctions as never, guard);
+      await expect(pricingHistory.read('event-unlisted', 'mug')).rejects.toMatchObject({ status: 404 });
+      expect(actions.listAudit).not.toHaveBeenCalled();
+      expect(auctions.listByProduct).not.toHaveBeenCalled();
+    });
+
+    it('sync queries resolve EMPTY for an invisible event instead of erroring the stream', async () => {
+      const queries = new SyncQueryRegistry();
+      const service = new EventStatsService(chat as never, { query: vi.fn().mockResolvedValue({ rows: [] }) } as never, guard);
+      const pricingHistory = new PricingHistoryService(null, { listAudit: () => [] } as never, { listByProduct: async () => [] } as never, guard);
+      const sync = new StatsSyncQueries(service, pricingHistory, queries);
+      sync.onModuleInit();
+      await expect(queries.resolve('event.stats', { eventId: 'event-unlisted' })).resolves.toEqual([]);
+      await expect(queries.resolve('event.pricingHistory', { eventId: 'event-unlisted', productId: 'mug' })).resolves.toEqual([]);
+      // Visible events still flow through the same registrations.
+      const visible = await queries.resolve('event.stats', { eventId: 'event-a' });
+      expect(visible).toHaveLength(1);
+    });
+
+    it('CONTROL: a non-404 failure still propagates through the sync registration', async () => {
+      // Falsifiability proof for the empty-result fallback: it must be scoped
+      // to the visibility 404, not a blanket swallow of every error.
+      const queries = new SyncQueryRegistry();
+      const failingStats = { read: vi.fn().mockRejectedValue(new Error('pg exploded')) };
+      const sync = new StatsSyncQueries(failingStats as never, { read: vi.fn() } as never, queries);
+      sync.onModuleInit();
+      await expect(queries.resolve('event.stats', { eventId: 'event-a' })).rejects.toThrow('pg exploded');
     });
   });
 });

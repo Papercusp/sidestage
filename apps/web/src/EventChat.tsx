@@ -241,7 +241,12 @@ function EventChatSurface({
         data-surface="audience-overlay"
         aria-label={`${eventTitle} audience chat`}
       >
-        <div className="event-chat-audience-messages" ref={audienceMessagesRef} aria-live="polite">
+        <div
+          className="event-chat-audience-messages"
+          ref={audienceMessagesRef}
+          data-video-chat-scroll
+          aria-live="polite"
+        >
           {triagedMessages.length === 0 ? (
             <p className="event-chat-audience-empty">Chat will appear here when the room starts talking.</p>
           ) : null}

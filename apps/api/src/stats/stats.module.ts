@@ -1,7 +1,9 @@
-import { Controller, Get, Inject, Injectable, Module, Param, type OnModuleInit } from '@nestjs/common';
+import { Controller, Get, Inject, Injectable, Module, NotFoundException, Param, type OnModuleInit } from '@nestjs/common';
 import type { Pool } from 'pg';
 import { ChatService } from '../chat/chat.service';
 import { ChatModule } from '../chat/chat.module';
+import { EventModule } from '../events/event.module';
+import { EVENT_STORE, type EventStore } from '../events/event.service';
 import { ActionModule } from '../actions/action.module';
 import { GuardedActionService } from '../actions/action.service';
 import { AuctionModule } from '../auction/auction.module';
@@ -44,14 +46,38 @@ export interface PricingHistory {
  * sold/raised from PAID checkout orders in Postgres. With no database (memory
  * mode) sold/raised are honestly zero rather than invented.
  */
+/**
+ * EI-20444567654586364: /stats and /pricing-history are deliberately
+ * unauthenticated — the buyer surface renders "raised" publicly — so this
+ * visibility gate IS the access control: an event that is not buyer-visible
+ * (draft/unpublished, or never published at all) must be as unreachable here
+ * as it is in the Channel Guide. Same fail-closed rule as listBuyerVisible,
+ * and "missing" vs "unpublished" are deliberately indistinguishable (both
+ * 404), so this endpoint cannot be used to enumerate unlisted events or read
+ * their revenue by guessing ids.
+ */
+@Injectable()
+export class EventVisibilityGuard {
+  constructor(@Inject(EVENT_STORE) private readonly events: EventStore) {}
+
+  async assertBuyerVisible(eventId: string): Promise<void> {
+    const visible = await this.events.listBuyerVisible();
+    if (!visible.some((record) => record.eventId === eventId)) {
+      throw new NotFoundException(`Unknown event: ${eventId}`);
+    }
+  }
+}
+
 @Injectable()
 export class EventStatsService {
   constructor(
     @Inject(ChatService) private readonly chat: ChatService,
     @Inject(PG_POOL) private readonly pool: Pool | null,
+    @Inject(EventVisibilityGuard) private readonly visibility: EventVisibilityGuard,
   ) {}
 
   async read(eventId: string): Promise<EventStats> {
+    await this.visibility.assertBuyerVisible(eventId);
     const viewers = this.chat.getStats(eventId).activeUsers;
     let itemsSold = 0;
     let totalRaisedCents = 0;
@@ -89,9 +115,11 @@ export class PricingHistoryService {
     @Inject(PG_POOL) private readonly pool: Pool | null,
     @Inject(GuardedActionService) private readonly actions: GuardedActionService,
     @Inject(AuctionService) private readonly auctions: AuctionService,
+    @Inject(EventVisibilityGuard) private readonly visibility: EventVisibilityGuard,
   ) {}
 
   async read(eventId: string, productId: string): Promise<PricingHistory> {
+    await this.visibility.assertBuyerVisible(eventId);
     const priceRows = new Map<number, { priceCents: number; soldQty: number; rejectedQty: number }>();
     if (this.pool) {
       const result = await this.pool.query<{ price_cents: string; sold_qty: string; rejected_qty: string }>(
@@ -180,21 +208,34 @@ export class StatsSyncQueries implements OnModuleInit {
   ) {}
 
   onModuleInit(): void {
+    // The sync transport must not carry HTTP errors: an invisible event
+    // resolves to an EMPTY result (the client's zero-stats default) — the
+    // same fail-closed outcome as the REST 404, without breaking the stream.
     this.queries.register('event.stats', async (args) => {
       const eventId = typeof args.eventId === 'string' ? args.eventId : '';
-      return [await this.stats.read(eventId)];
+      try {
+        return [await this.stats.read(eventId)];
+      } catch (error) {
+        if (error instanceof NotFoundException) return [];
+        throw error;
+      }
     });
     this.queries.register('event.pricingHistory', async (args) => {
       const eventId = typeof args.eventId === 'string' ? args.eventId : '';
       const productId = typeof args.productId === 'string' ? args.productId : '';
-      return [await this.pricingHistory.read(eventId, productId)];
+      try {
+        return [await this.pricingHistory.read(eventId, productId)];
+      } catch (error) {
+        if (error instanceof NotFoundException) return [];
+        throw error;
+      }
     });
   }
 }
 
 @Module({
-  imports: [ActionModule, AuctionModule, ChatModule, DatabaseModule, SyncModule],
+  imports: [ActionModule, AuctionModule, ChatModule, DatabaseModule, EventModule, SyncModule],
   controllers: [StatsController],
-  providers: [EventStatsService, PricingHistoryService, StatsSyncQueries],
+  providers: [EventStatsService, EventVisibilityGuard, PricingHistoryService, StatsSyncQueries],
 })
 export class StatsModule {}

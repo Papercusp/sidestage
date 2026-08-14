@@ -63,6 +63,7 @@ describe('EventChat', () => {
 
     expect(markup).toContain('class="event-chat-audience"');
     expect(markup).toContain('data-surface="audience-overlay"');
+    expect(markup).toContain('data-video-chat-scroll="true"');
     expect(markup).toContain('aria-label="Sunday vintage drop audience chat"');
     expect(markup).toContain('aria-live="polite"');
     expect(markup).toContain('Say something…');
