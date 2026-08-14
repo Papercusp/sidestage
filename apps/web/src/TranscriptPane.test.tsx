@@ -1,6 +1,6 @@
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
-import { TranscriptPane, findTranscriptProductMention, resolveTranscriptStageIntent, type TranscriptProductOption } from './TranscriptPane';
+import { TranscriptMentionChip, TranscriptPane, findTranscriptProductMention, resolveTranscriptStageIntent, type TranscriptProductOption } from './TranscriptPane';
 import type { TranscriptionSession } from './transcription';
 
 const PRODUCTS: readonly TranscriptProductOption[] = [
@@ -50,5 +50,12 @@ describe('transcript product mentions', () => {
     expect(markup).toContain('No active item');
     expect(markup).toContain('Linen hoodie');
     expect(markup).toContain('Stoneware mug');
+  });
+
+  it('renders a product mention as a chip that stages the detected item', () => {
+    const markup = renderToStaticMarkup(<TranscriptMentionChip product={PRODUCTS[1]} onStage={() => undefined} />);
+    expect(markup).toContain('data-transcript-mention-chip="true"');
+    expect(markup).toContain('Stage Stoneware mug from transcript mention');
+    expect(markup).toContain('$24.00');
   });
 });

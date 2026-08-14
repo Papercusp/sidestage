@@ -277,14 +277,33 @@ h1 { margin: 0; max-width: 720px; font-size: clamp(3rem, 7vw, 5.8rem); line-heig
 .transcript-picker select:focus { outline: 2px solid color-mix(in srgb, var(--brand-red) 36%, transparent); outline-offset: 1px; border-color: var(--red-text); }
 .transcript-active-item { margin: 0; color: var(--success); font-size: .74rem; line-height: 1.45; }
 .transcript-suggestion { display: flex; align-items: center; justify-content: space-between; gap: .75rem; padding: .65rem .75rem; border: 1px solid color-mix(in srgb, var(--brand-yellow) 30%, transparent); border-radius: .55rem; color: var(--red-text); background: color-mix(in srgb, var(--brand-yellow) 7%, transparent); font-size: .74rem; line-height: 1.4; }
-.transcript-suggestion > span { display: grid; gap: .18rem; }
-.transcript-suggestion small { color: var(--muted); font-size: .66rem; }
-.transcript-suggestion small:first-of-type { color: var(--yellow-text); font-weight: 750; font-variant-numeric: tabular-nums; }
+.transcript-mention-chip { display: inline-grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; min-width: 0; gap: .55rem; padding: .5rem .65rem; border: 1px solid color-mix(in srgb, var(--brand-yellow) 48%, transparent); border-radius: 999px; color: var(--red-text); background: color-mix(in srgb, var(--brand-yellow) 15%, var(--surface)); text-align: left; cursor: pointer; transition: border-color .18s ease, transform .18s ease, box-shadow .18s ease; }
+.transcript-mention-chip:hover { border-color: var(--yellow-text); transform: translateY(-1px); box-shadow: 0 8px 20px color-mix(in srgb, var(--brand-yellow) 14%, transparent); }
+.transcript-mention-chip:focus-visible { outline: 2px solid color-mix(in srgb, var(--brand-yellow) 65%, transparent); outline-offset: 2px; }
+.transcript-mention-spark { display: grid; width: 1.7rem; height: 1.7rem; place-items: center; border-radius: 50%; color: var(--yellow-text); background: color-mix(in srgb, var(--brand-yellow) 18%, transparent); }
+.transcript-mention-copy { display: grid; min-width: 0; gap: .08rem; }
+.transcript-mention-copy small { color: var(--muted); font-size: .6rem; font-weight: 750; letter-spacing: .06em; text-transform: uppercase; }
+.transcript-mention-copy strong { overflow: hidden; font-size: .72rem; text-overflow: ellipsis; white-space: nowrap; }
+.transcript-mention-price { color: var(--yellow-text); font-size: .68rem; font-weight: 800; font-variant-numeric: tabular-nums; }
+.transcript-suggestion-actions { display: flex; align-items: center; justify-content: flex-end; gap: .55rem; }
+.transcript-suggestion-actions small { max-width: 15rem; color: var(--muted); font-size: .66rem; }
 .transcript-suggestion .button { flex: 0 0 auto; padding: .48rem .65rem; font-size: .7rem; }
 .copilot-panel { grid-column: 1 / -1; border: 1px solid color-mix(in srgb, var(--brand-red) 24%, transparent); border-radius: .9rem; padding: 1.35rem; background: var(--panel-grad-brand); box-shadow: 0 18px 50px rgb(var(--shadow-hue) / 18%); }
 .copilot-panel-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 1rem; }
 .copilot-panel h2 { margin: .55rem 0 0; font-size: 1.45rem; letter-spacing: -.04em; }
 .copilot-reply { margin: 1.25rem 0 1.4rem; padding: .85rem 1rem; border-left: 2px solid var(--accent); border-radius: .35rem; color: var(--red-text); background: color-mix(in srgb, var(--brand-red) 7%, transparent); font-size: .84rem; line-height: 1.55; }
+.copilot-review-card { display: grid; gap: .8rem; margin: 1.1rem 0 1.25rem; padding: .9rem; border: 1px solid color-mix(in srgb, var(--brand-red) 28%, transparent); border-radius: .7rem; background: color-mix(in srgb, var(--brand-red) 6%, var(--surface)); }
+.copilot-review-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: .75rem; }
+.copilot-review-heading strong { display: block; margin-top: .25rem; font-size: .82rem; }
+.copilot-review-status { padding: .3rem .45rem; border-radius: 999px; color: var(--muted); background: var(--surface-sunken); font-size: .6rem; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; }
+.copilot-review-approved .copilot-review-status { color: var(--success); }
+.copilot-review-copy { margin: 0; color: var(--text); font-size: .82rem; line-height: 1.55; }
+.copilot-reply-editor { display: grid; gap: .4rem; color: var(--muted); font-size: .68rem; font-weight: 700; }
+.copilot-reply-editor textarea { min-height: 6rem; resize: vertical; border: 1px solid var(--border); border-radius: .55rem; padding: .7rem; color: var(--text); background: var(--surface); font: inherit; line-height: 1.5; }
+.copilot-reply-editor textarea:focus { outline: 2px solid color-mix(in srgb, var(--brand-red) 36%, transparent); outline-offset: 1px; border-color: var(--red-text); }
+.copilot-review-actions { display: flex; flex-wrap: wrap; gap: .5rem; }
+.copilot-review-result { margin: 0; color: var(--muted); font-size: .72rem; }
+.copilot-review-approved .copilot-review-result { color: var(--success); }
 .copilot-form label { display: block; margin-bottom: .45rem; color: var(--muted); font-size: .72rem; font-weight: 650; }
 .copilot-input-row { display: flex; align-items: stretch; gap: .65rem; }
 .copilot-input-row input { flex: 1; min-width: 0; border: 1px solid var(--border); border-radius: .55rem; padding: .72rem .8rem; color: var(--text); background: var(--surface); }
@@ -457,7 +476,7 @@ a.app-badge:hover { transform: translateY(-1px); border-color: color-mix(in srgb
 .app-badge-name { font-size: .78rem; font-weight: 650; }
 .app-badge.is-soon { opacity: .62; cursor: default; }
 @media (max-width: 800px) { .topbar { gap: .75rem; padding-inline: 1.25rem; } .tab-nav { gap: 0; } .nav-link { padding-inline: .5rem; } .connection-pill { font-size: .68rem; } .product-grid, .seller-grid, .config-grid { grid-template-columns: 1fr; } .stage-primary { grid-row: auto; } .stream-room-heading { align-items: flex-start; flex-direction: column; } .stream-room-actions { justify-content: flex-start; } }
-@media (max-width: 560px) { .topbar { align-items: flex-start; flex-wrap: wrap; } .tab-nav { order: 3; width: 100%; overflow-x: auto; } .connection-pill { margin-left: auto; } .content { width: min(100% - 1.5rem, 1120px); padding-top: 3rem; } .catalog-toolbar { align-items: flex-start; flex-direction: column; gap: .35rem; margin-top: 3rem; } h1 { font-size: clamp(2.75rem, 14vw, 4.2rem); } .copilot-input-row { flex-direction: column; } .copilot-input-row .button { width: 100%; } .copilot-product { grid-template-columns: 3rem minmax(0, 1fr); } .copilot-product > .button { grid-column: 1 / -1; width: 100%; } .copilot-cart { align-items: flex-start; flex-wrap: wrap; } .copilot-cart strong { margin-left: auto; } .event-chat-heading, .event-chat-form, .transcript-pane-heading { flex-direction: column; } .event-chat-form .button { width: 100%; } .event-chat-stats { justify-content: flex-start; } .transcript-state { white-space: normal; } .transcript-picker { align-items: flex-start; flex-direction: column; } .transcript-picker select, .transcript-suggestion .button { width: 100%; } .transcript-suggestion { align-items: flex-start; flex-direction: column; } .event-chat-queue-heading { align-items: flex-start; flex-direction: column; } .event-chat-queue-controls { width: 100%; } .event-chat-queue-controls button { flex: 1; } }
+@media (max-width: 560px) { .topbar { align-items: flex-start; flex-wrap: wrap; } .tab-nav { order: 3; width: 100%; overflow-x: auto; } .connection-pill { margin-left: auto; } .content { width: min(100% - 1.5rem, 1120px); padding-top: 3rem; } .catalog-toolbar { align-items: flex-start; flex-direction: column; gap: .35rem; margin-top: 3rem; } h1 { font-size: clamp(2.75rem, 14vw, 4.2rem); } .copilot-input-row { flex-direction: column; } .copilot-input-row .button { width: 100%; } .copilot-product { grid-template-columns: 3rem minmax(0, 1fr); } .copilot-product > .button { grid-column: 1 / -1; width: 100%; } .copilot-cart { align-items: flex-start; flex-wrap: wrap; } .copilot-cart strong { margin-left: auto; } .event-chat-heading, .event-chat-form, .transcript-pane-heading, .copilot-review-heading { flex-direction: column; } .event-chat-form .button { width: 100%; } .event-chat-stats { justify-content: flex-start; } .transcript-state { white-space: normal; } .transcript-picker { align-items: flex-start; flex-direction: column; } .transcript-picker select, .transcript-suggestion .button, .transcript-mention-chip { width: 100%; } .transcript-suggestion, .transcript-suggestion-actions { align-items: stretch; flex-direction: column; width: 100%; } .event-chat-queue-heading { align-items: flex-start; flex-direction: column; } .event-chat-queue-controls { width: 100%; } .event-chat-queue-controls button { flex: 1; } }
 
 @media (max-width: 800px) {
   .judge-dimension-grid, .judge-case-dimensions { grid-template-columns: repeat(2, minmax(0, 1fr)); }

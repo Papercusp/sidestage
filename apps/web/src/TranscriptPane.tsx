@@ -24,6 +24,31 @@ export interface TranscriptProductOption {
   aliases?: readonly string[];
 }
 
+export interface TranscriptMentionChipProps {
+  product: TranscriptProductOption;
+  onStage: (productId: string) => void;
+}
+
+/** A transcript-native product affordance: the chip itself stages the item. */
+export function TranscriptMentionChip({ product, onStage }: TranscriptMentionChipProps) {
+  return (
+    <button
+      className="transcript-mention-chip"
+      type="button"
+      aria-label={`Stage ${product.label} from transcript mention`}
+      data-transcript-mention-chip="true"
+      onClick={() => onStage(product.id)}
+    >
+      <span className="transcript-mention-spark" aria-hidden="true">✦</span>
+      <span className="transcript-mention-copy">
+        <small>Mention detected</small>
+        <strong>{product.label}</strong>
+      </span>
+      {product.price ? <span className="transcript-mention-price">{product.price}</span> : null}
+    </button>
+  );
+}
+
 const EMPTY_PRODUCTS: readonly TranscriptProductOption[] = [];
 
 function normalizeMentionText(value: string): string {
@@ -165,12 +190,11 @@ export function TranscriptPane({
           {activeProduct ? <p className="transcript-active-item">Now guiding replies toward <strong>{activeProduct.label}</strong>.</p> : null}
           {suggestedProduct ? (
             <div className="transcript-suggestion" role="status">
-              <span>
-                Mention detected: <strong>{suggestedProduct.label}</strong>
-                {suggestedProduct.price ? <small>{suggestedProduct.price}</small> : null}
-                <small>Say “confirm” or tap Stage it.</small>
+              <TranscriptMentionChip product={suggestedProduct} onStage={selectActiveProduct} />
+              <span className="transcript-suggestion-actions">
+                <small>Tap the product chip, say “confirm,” or stage it directly.</small>
+                <button className="button secondary" type="button" onClick={() => selectActiveProduct(suggestedProduct.id)}>Stage it</button>
               </span>
-              <button className="button secondary" type="button" onClick={() => selectActiveProduct(suggestedProduct.id)}>Stage it</button>
             </div>
           ) : null}
         </div>
