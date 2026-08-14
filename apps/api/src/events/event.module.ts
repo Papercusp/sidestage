@@ -1,4 +1,4 @@
-import { Inject, Injectable, Module, type OnModuleInit } from '@nestjs/common';
+import { forwardRef, Inject, Injectable, Module, type OnModuleInit } from '@nestjs/common';
 import type { Pool } from 'pg';
 import { ChatModule } from '../chat/chat.module';
 import { DatabaseModule, PG_POOL, demoDataEnabled } from '../db/database.module';
@@ -52,7 +52,7 @@ export function eventStoreForPool(
  * request time rather than persisting a counter that would outlive its viewers.
  */
 @Module({
-  imports: [DatabaseModule, ChatModule, SyncModule],
+  imports: [DatabaseModule, forwardRef(() => ChatModule), SyncModule],
   controllers: [EventController],
   providers: [
     EventService,
