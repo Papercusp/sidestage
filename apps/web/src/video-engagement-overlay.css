@@ -16,6 +16,21 @@
   width: 100%;
 }
 
+.buyer-player-card {
+  container-type: inline-size;
+}
+
+/* Keep the connection state in a top band so the video-owned engagement
+   surface can expand upward from the bottom without covering it. */
+.buyer-player-card > .buyer-player-overlay {
+  top: .75rem;
+  right: .75rem;
+  bottom: auto;
+  left: auto;
+  max-width: min(52%, 18rem);
+  padding: .42rem .55rem;
+}
+
 .video-engagement-chat-panel {
   width: min(100%, 42rem);
   height: clamp(8rem, 28vh, 15rem);
@@ -63,17 +78,34 @@
 }
 
 @container (max-width: 32rem) {
+  .buyer-stage-grid .buyer-player-card > .buyer-player {
+    min-height: 30rem;
+    aspect-ratio: auto;
+  }
+
+  .buyer-player-card > .buyer-player-overlay {
+    top: .5rem;
+    right: .5rem;
+    left: .5rem;
+    max-width: none;
+  }
+
+  .buyer-player-card .video-engagement-chat-panel,
+  .seller-stream-preview .video-engagement-chat-panel {
+    height: 8rem;
+  }
+
   .seller-stream-preview > .stream-video {
     min-height: 27rem;
     aspect-ratio: auto;
   }
-
-  .seller-stream-preview .video-engagement-chat-panel {
-    height: 8rem;
-  }
 }
 
 @container (max-width: 18rem) {
+  .buyer-stage-grid .buyer-player-card > .buyer-player {
+    min-height: 34rem;
+  }
+
   .seller-stream-preview > .stream-video {
     min-height: 31rem;
   }
