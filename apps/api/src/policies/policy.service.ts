@@ -390,8 +390,15 @@ export class PolicyService {
 
   async getRevision(sellerId: string, id: string): Promise<SellerPolicyRevision> {
     const revision = await this.store.get(id);
-    if (!revision) throw new PolicyError(404, { code: 'POLICY_NOT_FOUND', message: `no policy revision ${id}` });
-    if (revision.sellerId !== sellerId) throw new PolicyError(403, { code: 'POLICY_SCOPE_FORBIDDEN', message: 'this policy belongs to another seller' });
+    // A foreign revision id and an absent id intentionally collapse to the
+    // same response. Returning a distinct scope error would let one seller
+    // enumerate another seller's policy revisions by probing ids.
+    if (!revision || revision.sellerId !== sellerId) {
+      throw new PolicyError(404, {
+        code: 'POLICY_NOT_FOUND',
+        message: `no policy revision ${id}`,
+      });
+    }
     return revision;
   }
 

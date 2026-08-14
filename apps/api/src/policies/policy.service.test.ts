@@ -255,10 +255,11 @@ describe('PolicyService lifecycle', () => {
     expect((await service.effective('demo-seller', null)).source).toBe('baseline');
   });
 
-  it('scopes reads to the owning seller', async () => {
+  it('scopes reads to the owning seller without revealing whether a foreign revision exists', async () => {
     const { service } = harness();
     const draft = await service.createDraft('demo-seller', { eventId: null, body: body() }, ctx, 'key-1');
-    await expectPolicyError(service.getRevision('other-seller', draft.id), 'POLICY_SCOPE_FORBIDDEN', 403);
+    await expectPolicyError(service.getRevision('other-seller', draft.id), 'POLICY_NOT_FOUND', 404);
+    await expectPolicyError(service.getRevision('other-seller', 'missing-revision'), 'POLICY_NOT_FOUND', 404);
   });
 
   it('replays an idempotency key with the same hash and refuses a different request under it', async () => {
