@@ -179,3 +179,158 @@ export function createSellerDockStore(opts: SellerDockStoreOptions = {}): DockLa
     },
   };
 }
+
+/* -------------------------------------------------------------------------- *
+ * Board dimensions (P-015)
+ * -------------------------------------------------------------------------- */
+
+/**
+ * The overall size of the dock BOARD — the outer frame around the dockview
+ * host — in CSS pixels. Distinct from the inner panel geometry, which dockview
+ * owns and which travels inside `layoutJson`.
+ *
+ * P-015 requires this to persist "alongside the existing layout persistence",
+ * and the plan text is explicit that a PARALLEL store is not acceptable. So it
+ * hangs off the SAME localStorage row, under the SAME key
+ * (`sidestage.dock:seller`), as a sibling of `layoutJson`.
+ *
+ * That placement is not merely tidy — it is what the workbench store already
+ * supports, and it buys three properties for free:
+ *
+ *   1. IT SURVIVES EVERY LAYOUT SAVE. `createLocalStorageDockLayoutStore.save`
+ *      builds the next row as `{ ...existing, schemaVersion, layoutJson,
+ *      updatedTs }` from a FRESH read of storage. Unknown sibling fields are
+ *      spread through untouched, so a board size written here is not clobbered
+ *      by the next panel drag, and `load` hands the whole parsed row back
+ *      (`validateLayoutDoc` inspects `layoutJson` ONLY, never the row).
+ *
+ *   2. RESET IS ALREADY CORRECT. `reset` removes the entire key, so the board
+ *      size disappears with the layout and the next load reseeds neither — the
+ *      default geometry is the ABSENCE of this field. A second store would have
+ *      needed its own reset path, which is exactly the half-implemented reset
+ *      P-015 calls out as the easy thing to miss.
+ *
+ *   3. IT CANNOT DESYNC. One key, one row, one lifetime: there is no state in
+ *      which a user's saved layout and their saved board size disagree about
+ *      whether they exist.
+ */
+export interface SellerDockBoardSize {
+  width: number;
+  height: number;
+}
+
+/** The persisted row, including P-015's sibling field. */
+export type SellerDockLayoutRow = DockLayoutRow & { boardSize?: SellerDockBoardSize };
+
+/** The storage surface the board-size accessors need. */
+export type BoardSizeStorage = Pick<Storage, 'getItem' | 'setItem'>;
+
+export interface BoardSizeOptions {
+  /** Override the key prefix (tests, or a second dock instance). */
+  keyPrefix?: string;
+  /** Storage to read/write. Defaults to `localStorage`; `null` disables. */
+  storage?: BoardSizeStorage | null;
+}
+
+function resolveBoardStorage(opts: BoardSizeOptions): BoardSizeStorage | null {
+  if (opts.storage !== undefined) return opts.storage;
+  return typeof localStorage !== 'undefined' ? localStorage : null;
+}
+
+/**
+ * A stored value is only honoured if it is two finite, positive numbers.
+ *
+ * Anything else is treated as absent rather than as an error: a board size is a
+ * convenience, and the same reasoning that makes an unreadable LAYOUT
+ * self-heal into the default applies here — falling back to the default
+ * geometry is always a usable outcome, so there is nothing to report and
+ * nothing for a caller to decide.
+ */
+export function isSellerDockBoardSize(value: unknown): value is SellerDockBoardSize {
+  if (!value || typeof value !== 'object') return false;
+  const { width, height } = value as Partial<SellerDockBoardSize>;
+  return (
+    typeof width === 'number' &&
+    typeof height === 'number' &&
+    Number.isFinite(width) &&
+    Number.isFinite(height) &&
+    width > 0 &&
+    height > 0
+  );
+}
+
+/**
+ * The persisted board size, or `undefined` when none is stored.
+ *
+ * Synchronous by design: it is read in a `useState` initialiser so the board
+ * paints at its restored size on the FIRST frame. An async read would paint the
+ * default first and then snap, which reads as a layout bug.
+ */
+export function readSellerDockBoardSize(
+  layoutName: string = SELLER_DOCK_LAYOUT_NAME,
+  opts: BoardSizeOptions = {},
+): SellerDockBoardSize | undefined {
+  const storage = resolveBoardStorage(opts);
+  if (!storage) return undefined;
+  const raw = storage.getItem(sellerDockStorageKey(layoutName, opts.keyPrefix));
+  if (!raw) return undefined;
+  try {
+    const row = JSON.parse(raw) as SellerDockLayoutRow;
+    if (!isSellerDockBoardSize(row?.boardSize)) return undefined;
+    return { width: row.boardSize.width, height: row.boardSize.height };
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * Persist the board size onto the existing layout row.
+ *
+ * Returns false when nothing was written. Two deliberate refusals:
+ *
+ *   NO ROW YET / UNREADABLE ROW. This never CREATES the row. A row whose
+ *   `layoutJson` is missing fails `validateLayoutDoc` on the next load, and the
+ *   self-healing wrapper above responds to that by DISCARDING the row — so
+ *   seeding a partial row here would destroy the user's saved layout the next
+ *   time they opened the tab, to save a board width. In practice the refusal is
+ *   unreachable: `DockWorkspace` calls `store.load` on mount, which seeds the
+ *   row before the board is on screen to be dragged. It is a guard, not a path.
+ *
+ *   NO STORAGE. SSR and unit tests, where there is nothing to write to.
+ *
+ * `updatedTs` is deliberately NOT bumped. It is the optimistic-concurrency
+ * token `useDockLayout` replays as `expectedUpdatedTs` on its next save; moving
+ * it would make the dock's very next layout save raise
+ * `DockLayoutConflictError`, which `save` above re-raises as a genuine
+ * conflict — and `DockWorkspace.persist` swallows conflicts silently. The user
+ * would resize the board and then lose their next panel drag, with nothing in
+ * the console. A board resize is not a competing writer of the layout, so it
+ * must not present as one.
+ *
+ * The read-modify-write is synchronous end to end, which is what makes it safe
+ * to interleave with the layout store: `localStorage` and the workbench store's
+ * own save are both synchronous, so no layout write can land between this
+ * `getItem` and its `setItem`.
+ */
+export function writeSellerDockBoardSize(
+  size: SellerDockBoardSize,
+  layoutName: string = SELLER_DOCK_LAYOUT_NAME,
+  opts: BoardSizeOptions = {},
+): boolean {
+  if (!isSellerDockBoardSize(size)) return false;
+  const storage = resolveBoardStorage(opts);
+  if (!storage) return false;
+  const key = sellerDockStorageKey(layoutName, opts.keyPrefix);
+  const raw = storage.getItem(key);
+  if (!raw) return false;
+  let row: SellerDockLayoutRow;
+  try {
+    row = JSON.parse(raw) as SellerDockLayoutRow;
+  } catch {
+    return false;
+  }
+  if (!row || typeof row !== 'object' || row.layoutJson == null) return false;
+  row.boardSize = { width: size.width, height: size.height };
+  storage.setItem(key, JSON.stringify(row));
+  return true;
+}

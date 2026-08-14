@@ -11,6 +11,7 @@ import {
   type SellerPanelId,
 } from './seller-dock-layout';
 import { SELLER_DOCK_RESET_EVENT, createSellerDockStore } from './seller-dock-store';
+import { SellerDockBoard } from './SellerDockBoard';
 import { SellerDockToolbar } from './SellerDockToolbar';
 import type { SellerDockPanelContextValue } from './seller-dock-panel-props';
 
@@ -136,7 +137,15 @@ export function SellerDock({ panels, registry, store, missingComponent }: Seller
     <SellerDockContext.Provider value={panels}>
       <div className="seller-dock-shell">
         <SellerDockToolbar />
-        <div className="seller-dock-host">
+        {/*
+          P-015 wraps the host in a resize frame. It is a WRAPPER, not a
+          replacement: .seller-dock-host keeps the geometry P-007/P-011 gave it
+          (the height clamp, the border, the overflow), and the frame only
+          overrides those dimensions once the user has actually dragged. The
+          same reasoning as P-010's toolbar — a later lane adds a layer around
+          this block rather than editing decisions that belong to an earlier one.
+        */}
+        <SellerDockBoard><div className="seller-dock-host">
           {/*
             `registry` and `missingComponent` are supplied by the caller rather
             than defaulted here. Defaulting them would mean importing
@@ -153,7 +162,7 @@ export function SellerDock({ panels, registry, store, missingComponent }: Seller
             isDeferredPanelType={isDeferredPanelType}
             missingComponent={missingComponent}
           />
-        </div>
+        </div></SellerDockBoard>
       </div>
     </SellerDockContext.Provider>
   );

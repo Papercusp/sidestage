@@ -13,18 +13,37 @@ describe('CheckoutService', () => {
     const carts = new CartService(new InMemoryCartStore());
     const cart = await carts.addItem({ cartId: 'cart-1', productId: 'p-1', title: 'Mug', priceCents: 1250, quantity: 2 });
     const checkout = new CheckoutService(provider(), new InMemoryOrderStore(), carts);
-    const first = await checkout.createSession({ cartId: cart.id, shippingCents: 500 });
-    const retry = await checkout.createSession({ cartId: cart.id, shippingCents: 500 });
+    const first = await checkout.createSession({ cartId: cart.id, buyerId: 'buyer-1', eventId: 'event-1', shippingCents: 500 });
+    const retry = await checkout.createSession({ cartId: cart.id, buyerId: 'buyer-1', eventId: 'event-1', shippingCents: 500 });
     expect(first.order.totalCents).toBe(3000);
+    expect(first.order).toMatchObject({ buyerId: 'buyer-1', eventId: 'event-1' });
     expect(retry.order.id).toBe(first.order.id);
     expect(retry.session.orderId).toBe(first.order.id);
+  });
+
+  it('scopes pending-order idempotency and listing to the current buyer', async () => {
+    const carts = new CartService(new InMemoryCartStore());
+    const cart = await carts.addItem({ cartId: 'cart-shared', productId: 'p-1', title: 'Mug', priceCents: 1250 });
+    const orders = new InMemoryOrderStore();
+    const checkout = new CheckoutService(provider(), orders, carts);
+
+    const buyerOne = await checkout.createSession({ cartId: cart.id, buyerId: 'buyer-1', eventId: 'event-1' });
+    const buyerTwo = await checkout.createSession({ cartId: cart.id, buyerId: 'buyer-2', eventId: 'event-1' });
+
+    expect(buyerTwo.order.id).not.toBe(buyerOne.order.id);
+    await expect(orders.listByBuyer('buyer-1')).resolves.toEqual([
+      expect.objectContaining({ id: buyerOne.order.id, buyerId: 'buyer-1' }),
+    ]);
+    await expect(orders.listByBuyer('buyer-2')).resolves.toEqual([
+      expect.objectContaining({ id: buyerTwo.order.id, buyerId: 'buyer-2' }),
+    ]);
   });
 
   it('moves an order to paid only after the provider confirms it', async () => {
     const carts = new CartService(new InMemoryCartStore());
     const cart = await carts.addItem({ cartId: 'cart-2', productId: 'p-2', title: 'Headphones', priceCents: 19999 });
     const checkout = new CheckoutService(provider(), new InMemoryOrderStore(), carts);
-    const session = await checkout.createSession({ cartId: cart.id });
+    const session = await checkout.createSession({ cartId: cart.id, buyerId: 'buyer-2', eventId: 'event-2' });
     const confirmation = await checkout.confirmPayment({ orderId: session.order.id, sourceId: 'cnon:card-nonce-ok' });
     expect(confirmation.payment.status).toBe('paid');
     expect(confirmation.order.status).toBe('paid');

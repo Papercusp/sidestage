@@ -77,6 +77,7 @@ function scripted(outcome: PaymentResultStatus = 'paid'): ScriptedCheckout {
 const CUP_CENTS = 2_800;
 const PLATE_CENTS = 1_950;
 const SHIPPING_CENTS = 795;
+const REHEARSAL_ORDER_CONTEXT = { buyerId: 'rehearsal-buyer', eventId: 'rehearsal-event' } as const;
 
 /** Two cups + one plate. */
 async function scriptedCart(carts: CartService): Promise<string> {
@@ -101,7 +102,7 @@ export async function runCheckoutRehearsal(options: { now?: () => number } = {})
     async () => {
       const context = scripted();
       const cartId = await scriptedCart(context.carts);
-      const { order } = await context.checkout.createSession({ cartId, shippingCents: SHIPPING_CENTS });
+      const { order } = await context.checkout.createSession({ cartId, ...REHEARSAL_ORDER_CONTEXT, shippingCents: SHIPPING_CENTS });
       const identityHolds = order.subtotalCents === EXPECTED_SUBTOTAL
         && order.totalCents === order.subtotalCents + order.shippingCents;
       return {
@@ -125,7 +126,7 @@ export async function runCheckoutRehearsal(options: { now?: () => number } = {})
     async () => {
       const context = scripted();
       const cartId = await scriptedCart(context.carts);
-      const { order } = await context.checkout.createSession({ cartId, shippingCents: SHIPPING_CENTS });
+      const { order } = await context.checkout.createSession({ cartId, ...REHEARSAL_ORDER_CONTEXT, shippingCents: SHIPPING_CENTS });
       await context.checkout.confirmPayment({ orderId: order.id, sourceId: 'rehearsal-card' });
       const charged = context.provider.confirmCharges[0];
       const matches = charged === order.totalCents;
@@ -148,8 +149,8 @@ export async function runCheckoutRehearsal(options: { now?: () => number } = {})
     async () => {
       const context = scripted();
       const cartId = await scriptedCart(context.carts);
-      const first = await context.checkout.createSession({ cartId, shippingCents: SHIPPING_CENTS });
-      const second = await context.checkout.createSession({ cartId, shippingCents: SHIPPING_CENTS });
+      const first = await context.checkout.createSession({ cartId, ...REHEARSAL_ORDER_CONTEXT, shippingCents: SHIPPING_CENTS });
+      const second = await context.checkout.createSession({ cartId, ...REHEARSAL_ORDER_CONTEXT, shippingCents: SHIPPING_CENTS });
       const same = first.order.id === second.order.id;
       return {
         passed: same,
@@ -168,7 +169,7 @@ export async function runCheckoutRehearsal(options: { now?: () => number } = {})
     async () => {
       const context = scripted();
       const cartId = await scriptedCart(context.carts);
-      const { order } = await context.checkout.createSession({ cartId, shippingCents: SHIPPING_CENTS });
+      const { order } = await context.checkout.createSession({ cartId, ...REHEARSAL_ORDER_CONTEXT, shippingCents: SHIPPING_CENTS });
       await context.checkout.confirmPayment({ orderId: order.id, sourceId: 'rehearsal-card' });
       const repeat = await context.checkout.confirmPayment({ orderId: order.id, sourceId: 'rehearsal-card' });
       const chargedOnce = context.provider.confirmCharges.length === 1;
@@ -191,7 +192,7 @@ export async function runCheckoutRehearsal(options: { now?: () => number } = {})
     async () => {
       const context = scripted('failed');
       const cartId = await scriptedCart(context.carts);
-      const { order } = await context.checkout.createSession({ cartId, shippingCents: SHIPPING_CENTS });
+      const { order } = await context.checkout.createSession({ cartId, ...REHEARSAL_ORDER_CONTEXT, shippingCents: SHIPPING_CENTS });
       const result = await context.checkout.confirmPayment({ orderId: order.id, sourceId: 'rehearsal-card' });
       const correct = result.order.status === 'failed' && result.payment.status === 'failed';
       return {
@@ -211,7 +212,7 @@ export async function runCheckoutRehearsal(options: { now?: () => number } = {})
     async () => {
       const context = scripted();
       const empty = await context.carts.getCart();
-      return context.checkout.createSession({ cartId: empty.id, shippingCents: SHIPPING_CENTS });
+      return context.checkout.createSession({ cartId: empty.id, ...REHEARSAL_ORDER_CONTEXT, shippingCents: SHIPPING_CENTS });
     },
   ));
 
@@ -224,7 +225,7 @@ export async function runCheckoutRehearsal(options: { now?: () => number } = {})
     async () => {
       const context = scripted();
       const cartId = await scriptedCart(context.carts);
-      return context.checkout.createSession({ cartId, shippingCents: -500 });
+      return context.checkout.createSession({ cartId, ...REHEARSAL_ORDER_CONTEXT, shippingCents: -500 });
     },
   ));
 
