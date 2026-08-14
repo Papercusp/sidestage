@@ -128,6 +128,9 @@ describe('GroundedCopilotPipeline', () => {
         generate: async () => ({
           reply: 'I applied the approved offer.',
           citations: ['policy:event'],
+          // WI-38815: auto execution now requires verified confidence at or
+          // above the platform floor — an unstated confidence reads as 0.
+          confidence: 0.95,
           action: {
             kind: 'targeted-offer',
             productId: 'p-1',
@@ -284,5 +287,120 @@ describe('GroundedCopilotPipeline', () => {
     ]);
     expect(response.grounding).toBe('grounded');
     expect(response.citations).toEqual(['web-research:f-1']);
+  });
+});
+
+/**
+ * WI-38815 regression: the automation ladder (decideAutomation) is the ONLY
+ * path to 'executed'. Before this, resolveAction never read draft.confidence
+ * and the Config always-ask toggles never reached the action boundary — a
+ * confidence-0.1 targeted offer executed once under an auto policy.
+ */
+describe('automation ladder at the action boundary (WI-38815)', () => {
+  const offer = {
+    kind: 'targeted-offer' as const,
+    productId: 'p-1',
+    buyerId: 'buyer-1',
+    quantity: 1,
+    priceCents: 1400,
+    reason: 'buyer asked during the live event',
+  };
+
+  function autoPolicy(extra: Partial<CopilotPolicy> = {}): CopilotPolicy {
+    return {
+      automationLevel: 'auto',
+      allowAutoActions: true,
+      priceFloorCentsByProduct: { 'p-1': 1000 },
+      maxMarkdownPercent: 30,
+      blockedActionKinds: [],
+      tone: 'warm',
+      ...extra,
+    };
+  }
+
+  function pipelineWith(policyVariant: CopilotPolicy, confidence?: number) {
+    const executions: ActionExecutionResult[] = [];
+    const pipeline = new GroundedCopilotPipeline({
+      retriever: { retrieve: async () => ({ ...context, policy: policyVariant }) },
+      model: {
+        generate: async () => ({
+          reply: 'Offer prepared.',
+          citations: ['policy:event'],
+          action: offer,
+          ...(confidence !== undefined ? { confidence } : {}),
+        }),
+      },
+      guard: { evaluate: async () => ({ allowed: true }) },
+      executor: {
+        execute: async () => {
+          const execution: ActionExecutionResult = { auditId: `audit-${executions.length + 1}`, status: 'executed' };
+          executions.push(execution);
+          return execution;
+        },
+      },
+    });
+    return { pipeline, executions };
+  }
+
+  it('holds a confidence-0.1 offer in review under an auto policy (the exact WI-38815 repro)', async () => {
+    const { pipeline, executions } = pipelineWith(autoPolicy(), 0.1);
+
+    const response = await pipeline.respond({ eventId: 'event-1', buyerId: 'buyer-1', message: 'Offer me one.' });
+
+    expect(response.action?.disposition).toBe('awaiting-confirmation');
+    expect(response.action?.execution).toBeUndefined();
+    expect(executions).toHaveLength(0);
+    expect(response.action?.automation?.reasonCodes).toContain('CONFIDENCE_BELOW_FLOOR');
+  });
+
+  it('fails closed when the model reports NO confidence at all', async () => {
+    const { pipeline, executions } = pipelineWith(autoPolicy());
+
+    const response = await pipeline.respond({ eventId: 'event-1', message: 'Offer me one.' });
+
+    expect(response.action?.disposition).toBe('awaiting-confirmation');
+    expect(executions).toHaveLength(0);
+  });
+
+  it('still executes a high-confidence offer through the audited executor', async () => {
+    const { pipeline, executions } = pipelineWith(autoPolicy(), 0.95);
+
+    const response = await pipeline.respond({ eventId: 'event-1', message: 'Offer me one.' });
+
+    expect(response.action?.disposition).toBe('executed');
+    expect(executions).toHaveLength(1);
+    expect(response.action?.automation?.outcome).toBe('executed');
+  });
+
+  it('respects a seller confidence floor stricter than the platform floor', async () => {
+    const { pipeline, executions } = pipelineWith(autoPolicy({ confidenceFloor: 0.99 }), 0.95);
+
+    const response = await pipeline.respond({ eventId: 'event-1', message: 'Offer me one.' });
+
+    expect(response.action?.disposition).toBe('awaiting-confirmation');
+    expect(executions).toHaveLength(0);
+    expect(response.action?.automation?.reasonCodes).toContain('CONFIDENCE_BELOW_FLOOR');
+  });
+
+  it('never auto-executes an always-confirm kind, even at maximum confidence (buyer-sensitive toggle)', async () => {
+    const { pipeline, executions } = pipelineWith(
+      autoPolicy({ alwaysConfirmActionKinds: ['targeted-offer'] }),
+      0.99,
+    );
+
+    const response = await pipeline.respond({ eventId: 'event-1', message: 'Offer me one.' });
+
+    expect(response.action?.disposition).toBe('awaiting-confirmation');
+    expect(executions).toHaveLength(0);
+  });
+
+  it('caps auto at the order-value ceiling', async () => {
+    const { pipeline, executions } = pipelineWith(autoPolicy({ maxOrderValueCents: 1000 }), 0.95);
+
+    const response = await pipeline.respond({ eventId: 'event-1', message: 'Offer me one.' });
+
+    expect(response.action?.disposition).toBe('awaiting-confirmation');
+    expect(executions).toHaveLength(0);
+    expect(response.action?.automation?.reasonCodes).toContain('ORDER_VALUE_REQUIRES_CONFIRMATION');
   });
 });

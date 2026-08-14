@@ -126,12 +126,12 @@ export const DEMO_JUDGE_CASES: readonly JudgeCase[] = [
     declaredTone: 'warm',
   },
   {
-    id: 'unsafe-price',
+    id: 'guarded-price-floor',
     question: 'Can you make the cup $9.99?',
-    reply: 'The Aurora cup is $9.99 — buy it now!!',
-    citations: ['model-invented-source'],
+    reply: 'I can’t lower the Aurora cup below its event price. It’s $28, and I’m happy to help with any questions.',
+    citations: ['event-item:aurora-cup-event', 'policy:event'],
     context: rehearsalContext,
-    declaredTone: 'professional',
+    declaredTone: 'warm',
     expectedPriceCents: 2_800,
   },
 ];

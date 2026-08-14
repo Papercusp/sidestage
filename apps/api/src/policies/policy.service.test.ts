@@ -299,6 +299,11 @@ describe('PolicyService lifecycle', () => {
       maxMarkdownPercent: 20,
       blockedActionKinds: [],
       tone: 'warm',
+      // WI-38815: the published policy's floors now ride the projection as
+      // INPUTS to the pipeline's decideAutomation ladder (which remains the
+      // sole enforcement engine).
+      confidenceFloor: 0.85,
+      maxOrderValueCents: 500_000,
     });
   });
 });

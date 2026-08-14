@@ -11,6 +11,8 @@ import type {
   ReplyGuard,
   ReplyModel,
 } from './copilot.types';
+import { decideAutomation, GUARDRAILS_V1 } from '../policies/policy-rules';
+import type { AutomationDecision } from '../policies/policy.types';
 import { PolicyActionGuard, PolicyReplyGuard } from './guardrail';
 import { CopilotLatencyBudget } from './latency';
 import { mergeResearchIntoGroundingContext, type ParallelResearchFallback } from './research';
@@ -89,24 +91,66 @@ function effectiveAutomation(context: GroundingContext): AutomationLevel {
   return context.policy.automationLevel;
 }
 
+/** Order value of a price-bearing proposal, for the automation ladder's ceiling. */
+function proposalOrderValueCents(action: CopilotActionProposal): number | null {
+  if (typeof action.priceCents !== 'number' || !Number.isFinite(action.priceCents)) return null;
+  const quantity = typeof action.quantity === 'number' && action.quantity > 0 ? action.quantity : 1;
+  return Math.round(action.priceCents * quantity);
+}
+
 async function resolveAction(
   request: CopilotRequest,
   context: GroundingContext,
   guard: ActionGuard,
   executor: ActionExecutor | undefined,
   action: CopilotActionProposal,
+  modelConfidence: number | undefined,
 ): Promise<ActionResult> {
   const guardrail = await guard.evaluate(action, context);
   if (!guardrail.allowed) {
     return { proposal: action, disposition: 'blocked', guardrail };
   }
 
-  const automation = effectiveAutomation(context);
-  if (automation === 'suggest') {
-    return { proposal: action, disposition: 'suggested', guardrail };
+  const policy = context.policy;
+  // WI-38815: the Config tab's always-ask toggles reach the action boundary —
+  // a kind listed there is capped at 'confirm' no matter how confident the model is.
+  const alwaysConfirm = policy.alwaysConfirmActionKinds?.includes(action.kind) ?? false;
+
+  // WI-38815: the automation ladder (decideAutomation) is now the ONLY path to
+  // 'executed'. Confidence is fail-closed: a draft that reports none reads as 0,
+  // so auto never fires unverified; the platform floor applies even when the
+  // seller policy carries no explicit floor.
+  const decision = decideAutomation(
+    {
+      automationLevel: alwaysConfirm && policy.automationLevel === 'auto' ? 'confirm' : policy.automationLevel,
+      allowAutoActions: policy.allowAutoActions,
+      priceFloorCentsByProduct: { ...policy.priceFloorCentsByProduct },
+      maxMarkdownPercent: policy.maxMarkdownPercent,
+      blockedActionKinds: [...policy.blockedActionKinds],
+      tone: policy.tone,
+      confidenceFloor: policy.confidenceFloor ?? GUARDRAILS_V1['automation.confidenceFloor'].autoFloor,
+      maxOrderValueCents: policy.maxOrderValueCents ?? GUARDRAILS_V1['automation.maxOrderValueCents'].max,
+    },
+    {
+      requestedLevel: effectiveAutomation(context),
+      confidence:
+        typeof modelConfidence === 'number' && Number.isFinite(modelConfidence) ? modelConfidence : 0,
+      // Price moves are bounded upstream by PolicyActionGuard floors/caps.
+      priceDeltaBps: null,
+      orderValueCents: proposalOrderValueCents(action),
+      hasHardError: false,
+    },
+    {
+      policyRevisionId: null,
+      auditId: `pipeline:${request.eventId}:${action.kind}:${action.productId}`,
+    },
+  );
+
+  if (decision.outcome === 'suggested') {
+    return { proposal: action, disposition: 'suggested', guardrail, automation: decision };
   }
-  if (automation === 'confirm') {
-    return { proposal: action, disposition: 'awaiting-confirmation', guardrail };
+  if (decision.outcome === 'awaiting-confirmation' || decision.outcome === 'blocked') {
+    return { proposal: action, disposition: 'awaiting-confirmation', guardrail, automation: decision };
   }
 
   // Auto mode is fail-closed: a missing executor cannot turn an approved
@@ -115,6 +159,7 @@ async function resolveAction(
     return {
       proposal: action,
       disposition: 'blocked',
+      automation: decision,
       guardrail: {
         allowed: false,
         code: 'policy',
@@ -129,7 +174,7 @@ async function resolveAction(
     eventId: request.eventId,
     buyerId: request.buyerId,
   });
-  return { proposal: action, disposition: 'executed', guardrail, execution };
+  return { proposal: action, disposition: 'executed', guardrail, execution, automation: decision };
 }
 
 export class GroundedCopilotPipeline {
@@ -170,7 +215,7 @@ export class GroundedCopilotPipeline {
     const grounded = replyGuardrail.allowed && draft.reply.trim().length > 0 && citations.length > 0;
     const action = draft.action
       ? replyGuardrail.allowed
-        ? await resolveAction(request, context, this.guard, this.dependencies.executor, draft.action)
+        ? await resolveAction(request, context, this.guard, this.dependencies.executor, draft.action, draft.confidence)
         : undefined
       : undefined;
 

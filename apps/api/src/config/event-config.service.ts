@@ -102,6 +102,15 @@ const MAX_THUMBNAIL_URL_CHARS = 700_000;
  */
 export function policyFromConfig(config: EventConfig): CopilotPolicy {
   const guarded = config.guardrails.priceChanges;
+  // WI-38815: the always-ask toggles now reach the action boundary. Each ON
+  // toggle caps its action kinds at 'confirm' in the copilot pipeline —
+  // buyer-sensitive covers buyer-directed offers; inventory claims cover the
+  // kinds that assert stock. Before this, the toggles were stored and rendered
+  // in preflight copy but never enforced.
+  const alwaysConfirmActionKinds = [
+    ...(config.guardrails.buyerSensitive ? (['targeted-offer'] as const) : []),
+    ...(config.guardrails.inventoryClaims ? (['stock-adjust', 'swap'] as const) : []),
+  ];
   return {
     automationLevel: guarded ? 'confirm' : 'auto',
     allowAutoActions: !guarded,
@@ -109,6 +118,7 @@ export function policyFromConfig(config: EventConfig): CopilotPolicy {
     priceFloorCentsByProduct: {},
     blockedActionKinds: [],
     tone: config.replyTone === 'minimal' ? 'concise' : config.replyTone === 'playful' ? 'warm' : 'warm',
+    ...(alwaysConfirmActionKinds.length > 0 ? { alwaysConfirmActionKinds } : {}),
   };
 }
 

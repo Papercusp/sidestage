@@ -472,8 +472,11 @@ export function decideAutomation(
 /**
  * Config-to-copilot projection (docs/config-policies.md §Automation ladder):
  * picks exactly the provider-neutral CopilotPolicy fields so the pipeline
- * cannot be elevated by a request body. confidenceFloor/maxOrderValueCents
- * are enforced by decideAutomation, not smuggled into the guard type.
+ * cannot be elevated by a request body. confidenceFloor/maxOrderValueCents are
+ * ENFORCED by decideAutomation — since WI-38815 the pipeline routes every
+ * would-be auto execution through that ladder, so the published policy's
+ * floors are carried here as ladder INPUTS (the guard type still never
+ * enforces them itself).
  */
 export function copilotPolicyFromAutomation(automation: AutomationPolicy): CopilotPolicy {
   return {
@@ -483,5 +486,7 @@ export function copilotPolicyFromAutomation(automation: AutomationPolicy): Copil
     maxMarkdownPercent: automation.maxMarkdownPercent,
     blockedActionKinds: [...automation.blockedActionKinds],
     tone: automation.tone,
+    confidenceFloor: automation.confidenceFloor,
+    maxOrderValueCents: automation.maxOrderValueCents,
   };
 }

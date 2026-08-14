@@ -53,6 +53,23 @@ export interface CopilotPolicy {
   maxMarkdownPercent: number;
   blockedActionKinds: readonly CopilotActionKind[];
   tone: 'concise' | 'warm' | 'professional';
+  /**
+   * Action kinds the seller's always-ask guardrail toggles cap at 'confirm'
+   * (WI-38815): buyer-sensitive → targeted-offer; inventory claims →
+   * stock-adjust/swap. These kinds never auto-execute, regardless of model
+   * confidence — the advertised Config toggles now reach the action boundary.
+   */
+  alwaysConfirmActionKinds?: readonly CopilotActionKind[];
+  /**
+   * Seller confidence floor for auto execution. INPUT to the decideAutomation
+   * ladder, which stays the single enforcement engine — the platform floor
+   * (GUARDRAILS_V1 automation.confidenceFloor.autoFloor) applies regardless,
+   * and a draft with NO reported confidence reads as 0: auto never fires
+   * unverified (WI-38815 fail-closed rule).
+   */
+  confidenceFloor?: number;
+  /** Seller order-value ceiling for auto execution; platform bound applies regardless. */
+  maxOrderValueCents?: number;
 }
 
 export interface GroundingSource {
@@ -187,6 +204,12 @@ export interface ActionResult {
   disposition: ActionDisposition;
   guardrail: GuardrailDecision;
   execution?: ActionExecutionResult;
+  /**
+   * The automation-ladder decision that produced this disposition (WI-38815):
+   * effective level, reason codes (e.g. CONFIDENCE_BELOW_FLOOR) and audit id —
+   * so a downgraded action is explainable, not silent.
+   */
+  automation?: import('../policies/policy.types').AutomationDecision;
 }
 
 /** The current request sample plus rolling p50/p95 observations. */
