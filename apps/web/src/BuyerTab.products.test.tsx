@@ -91,7 +91,8 @@ describe('BuyerTab product preview', () => {
     expect(markup).toContain('aria-label="Preview event audience chat"');
     expect(markup).toContain('data-surface="audience-overlay"');
     expect(markup).not.toContain('class="stage-panel event-chat-card"');
-    expect(markup).toContain('buyer-video-chat-overlay');
+    expect(markup).toContain('buyer-video-engagement-overlay');
+    expect(markup).toContain('Waiting for captions');
     expect(markup).toContain('aria-expanded="false"');
     expect(markup).not.toContain('buyer-chat-card');
   });

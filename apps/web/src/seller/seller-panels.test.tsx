@@ -58,7 +58,8 @@ describe('StageStatusPanel', () => {
     expect(markup).toContain('<p class="field-help" id="seller-event-help">');
     expect(markup).toContain('aria-label="Seller camera preview"');
     expect(markup).toContain('<span class="live-badge">room not started</span>');
-    expect(markup).toContain('seller-video-chat-overlay');
+    expect(markup).toContain('seller-video-engagement-overlay');
+    expect(markup).toContain('class="video-engagement-chat-panel"');
     expect(markup).toContain('Seller room chat');
     expect(markup).toContain('Captions start with the event');
     expect(markup).toContain('>Transcript</button>');
