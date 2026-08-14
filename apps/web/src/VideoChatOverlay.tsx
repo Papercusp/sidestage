@@ -1,4 +1,4 @@
-import { useId, useState, type ReactNode } from 'react';
+import { useEffect, useId, useRef, useState, type ReactNode } from 'react';
 
 import './video-chat-overlay.css';
 
@@ -9,6 +9,11 @@ export interface VideoChatOverlayProps {
   open?: boolean;
   onOpenChange?: (open: boolean) => void;
   className?: string;
+}
+
+export function scrollVideoChatToLatest(root: ParentNode | null): void {
+  const messages = root?.querySelector<HTMLElement>('[data-video-chat-scroll]');
+  if (messages) messages.scrollTop = messages.scrollHeight;
 }
 
 /** Compact, accessible chat anchored inside a video frame. */
@@ -23,6 +28,12 @@ export function VideoChatOverlay({
   const [internalOpen, setInternalOpen] = useState(defaultOpen);
   const expanded = open ?? internalOpen;
   const panelId = useId();
+  const contentRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (expanded) scrollVideoChatToLatest(contentRef.current);
+  }, [expanded]);
+
   const setOpen = (next: boolean) => {
     if (open === undefined) setInternalOpen(next);
     onOpenChange?.(next);
@@ -40,10 +51,9 @@ export function VideoChatOverlay({
         <span aria-hidden="true">{expanded ? '×' : '⌁'}</span>
         {expanded ? `Hide ${label}` : label}
       </button>
-      <div id={panelId} className="video-chat-overlay-content" hidden={!expanded}>
+      <div ref={contentRef} id={panelId} className="video-chat-overlay-content" hidden={!expanded}>
         {children}
       </div>
     </div>
   );
 }
-
