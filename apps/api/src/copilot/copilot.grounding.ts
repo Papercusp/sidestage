@@ -63,12 +63,13 @@ export class SideStageGroundingRetriever implements GroundingRetriever {
 
   async retrieve(request: RetrievalRequest): Promise<GroundingContext> {
     const eventItems = this.actions.listItems(request.eventId);
-    const [page, policy] = await Promise.all([
+    const [page, policy, transcript] = await Promise.all([
       this.catalog.search({ q: request.query, availability: 'in-stock', pageSize: request.limit }),
       this.policies.resolve(request.eventId, eventItems),
+      this.chat.getTranscript(request.eventId),
     ]);
     const catalogProducts = page.rows.map(productFrom);
-    const transcriptMoments = relevantTranscript(request.query, this.chat.getTranscript(request.eventId));
+    const transcriptMoments = relevantTranscript(request.query, transcript);
     const sources: GroundingSource[] = [
       ...eventItems.map((item) => ({
         id: `event-item:${item.eventItemId}`,

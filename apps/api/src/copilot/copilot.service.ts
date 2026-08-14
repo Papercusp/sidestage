@@ -123,7 +123,7 @@ export class CopilotProposalService {
       throw new BadRequestException(`Reply failed grounded review. ${failures}`);
     }
     const actorId = input?.actorId?.trim() || 'seller-copilot-review';
-    const sent = this.chat.addMessage(proposal.eventId, {
+    const sent = await this.chat.addMessage(proposal.eventId, {
       userId: actorId,
       displayName: 'Host',
       role: 'seller',
