@@ -4,6 +4,7 @@ import { useSyncMutate, useSyncQuery } from '@papercusp/sync';
 import type { BuyerProduct } from './buyer';
 import { formatBuyerPrice } from './buyer';
 import {
+  auctionBidErrorMessage,
   getAuctionGuestSession,
   parseBidDollars,
   placeAuctionBid,
@@ -98,11 +99,17 @@ export function AuctionPanel({
 }: AuctionPanelProps) {
   const [bidDraft, setBidDraft] = useState('');
   const [bidError, setBidError] = useState<string | null>(null);
+  const [bidNotice, setBidNotice] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [viewerBidderId, setViewerBidderId] = useState<string | null>(null);
   const [nowMs, setNowMs] = useState(Date.now());
   const suggestedFor = useRef('');
   const pendingBid = useRef<{ fingerprint: string; key: string } | null>(null);
+  const leaderObservation = useRef<{
+    auctionId: string;
+    viewerBidderId: string;
+    leaderBidderId: string | null;
+  } | null>(null);
 
   const auctionQuery = useSyncQuery<BuyerAuction>({
     queryName: 'event.auction.active',
@@ -177,12 +184,44 @@ export function AuctionPanel({
   const isClosed = phase === 'closed';
   const isSettling = phase === 'settling';
   const recentBids = auction ? auction.bids.slice(0, FEED_LENGTH) : [];
+  const bidHelp = isClosed
+    ? 'This auction is closed. Bidding is unavailable.'
+    : isSettling
+      ? 'Bidding has ended. The winner is being confirmed from the server.'
+      : submitting
+        ? 'Your bid is being submitted with a retry-safe request key.'
+        : `Bid more than ${formatBuyerPrice(auction?.currentPriceCents ?? 0)}. The latest accepted bid syncs to every buyer.`;
+
+  useEffect(() => {
+    if (!auction) {
+      leaderObservation.current = null;
+      return;
+    }
+    const current = {
+      auctionId: auction.id,
+      viewerBidderId: effectiveBidderId,
+      leaderBidderId: leadingBid?.bidderId ?? null,
+    };
+    const previous = leaderObservation.current;
+    leaderObservation.current = current;
+    if (
+      phase === 'live'
+      && previous?.auctionId === current.auctionId
+      && previous.viewerBidderId === current.viewerBidderId
+      && previous.leaderBidderId === current.viewerBidderId
+      && current.leaderBidderId !== null
+      && current.leaderBidderId !== current.viewerBidderId
+    ) {
+      setBidNotice(`You were outbid. The current bid is ${formatBuyerPrice(auction.currentPriceCents)}.`);
+    }
+  }, [auction, effectiveBidderId, leadingBid?.bidderId, phase]);
 
   const submitBid = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!auction || !canBid || parsedBid === null) return;
     setSubmitting(true);
     setBidError(null);
+    setBidNotice(null);
     try {
       const fingerprint = `${auction.id}:${parsedBid}`;
       if (pendingBid.current?.fingerprint !== fingerprint) {
@@ -193,9 +232,12 @@ export function AuctionPanel({
         bid: { displayName, amountCents: parsedBid, idempotencyKey: pendingBid.current.key },
       });
       setViewerBidderId(updated.viewerBidderId ?? effectiveBidderId);
+      setBidNotice(`Your ${formatBuyerPrice(parsedBid)} bid was accepted and is syncing to the room.`);
       pendingBid.current = null;
+      auctionQuery.invalidate();
     } catch (cause) {
-      setBidError(cause instanceof Error ? cause.message : 'Your bid could not be placed.');
+      setBidError(auctionBidErrorMessage(cause));
+      auctionQuery.invalidate();
     } finally {
       setSubmitting(false);
     }
@@ -318,12 +360,21 @@ export function AuctionPanel({
                 value={bidDraft}
                 onChange={(event) => setBidDraft(event.target.value)}
                 disabled={phase !== 'live' || submitting}
-                aria-describedby={`auction-bid-help-${auction.id}`}
+                aria-describedby={[
+                  `auction-bid-help-${auction.id}`,
+                  bidNotice ? `auction-bid-notice-${auction.id}` : '',
+                  bidError ? `auction-bid-error-${auction.id}` : '',
+                ].filter(Boolean).join(' ')}
               />
               <button className="button primary" type="submit" disabled={!canBid}>{submitting ? 'Placing…' : 'Place bid'}</button>
             </div>
-            <small id={`auction-bid-help-${auction.id}`}>Bid more than {formatBuyerPrice(auction.currentPriceCents)}. The latest accepted bid syncs to every buyer.</small>
+            <small id={`auction-bid-help-${auction.id}`}>{bidHelp}</small>
           </form>
+          {bidNotice ? (
+            <p id={`auction-bid-notice-${auction.id}`} className="auction-bid-status" role="status">
+              {bidNotice}
+            </p>
+          ) : null}
           {/* Decorative — the leader line above already announces the result. */}
           {isClosed && leadingBid ? <span className="auction-stamp" aria-hidden="true">SOLD</span> : null}
         </>
@@ -334,7 +385,7 @@ export function AuctionPanel({
           <button className="button small" type="button" onClick={auctionQuery.invalidate}>Try again</button>
         </div>
       ) : null}
-      {bidError ? <p className="auction-error" role="alert">{bidError}</p> : null}
+      {bidError ? <p id={auction ? `auction-bid-error-${auction.id}` : undefined} className="auction-error" role="alert">{bidError}</p> : null}
     </section>
   );
 }
