@@ -125,7 +125,7 @@ afterEach(async () => {
   container.remove();
   window.localStorage.clear();
   if (originalLocalStorage) Object.defineProperty(window, 'localStorage', originalLocalStorage);
-  else delete (window as Window & { localStorage?: Storage }).localStorage;
+  else Reflect.deleteProperty(window, 'localStorage');
   vi.unstubAllGlobals();
   delete (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT;
 });

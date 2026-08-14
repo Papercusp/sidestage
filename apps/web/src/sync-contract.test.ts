@@ -66,7 +66,10 @@ function scanDirectServerAccess(): AccessFinding[] {
 describe('SideStage web sync contract', () => {
   it('rejects new direct server-state paths outside the named migration budget', () => {
     const findings = scanDirectServerAccess();
-    const unknown = findings.filter(({ file, kind }) => legacyAccessBudget[file as keyof typeof legacyAccessBudget]?.[kind] === undefined);
+    const unknown = findings.filter(({ file, kind }) => {
+      const budget = legacyAccessBudget[file as keyof typeof legacyAccessBudget] as Partial<Record<AccessKind, number>> | undefined;
+      return budget?.[kind] === undefined;
+    });
 
     expect(unknown, `Move new server-state access behind @papercusp/sync: ${JSON.stringify(unknown)}`).toEqual([]);
 
