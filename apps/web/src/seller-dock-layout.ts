@@ -54,7 +54,9 @@ export type SellerPanelId =
   | 'copilot'
   | 'event-chat'
   | 'event-manager'
-  | 'event-settings';
+  | 'event-settings'
+  | 'run-of-show'
+  | 'run-of-show-planner';
 
 /** The complete seller panel inventory (D-004). */
 export const SELLER_PANEL_IDS: readonly SellerPanelId[] = [
@@ -65,6 +67,8 @@ export const SELLER_PANEL_IDS: readonly SellerPanelId[] = [
   'event-chat',
   'event-manager',
   'event-settings',
+  'run-of-show',
+  'run-of-show-planner',
 ];
 
 /** Tab-strip labels, keyed by panel id. */
@@ -76,6 +80,8 @@ export const SELLER_PANEL_TITLES: Readonly<Record<SellerPanelId, string>> = {
   'event-chat': 'Event chat',
   'event-manager': 'Event manager',
   'event-settings': 'Event settings',
+  'run-of-show': 'Run of show',
+  'run-of-show-planner': 'Run of show',
 };
 
 /** Panels on the default Active Event board. Chat is embedded in stage-status. */
@@ -84,12 +90,14 @@ export const SELLER_ACTIVE_PANEL_IDS = [
   'transcript',
   'on-deck',
   'copilot',
+  'run-of-show',
 ] as const satisfies readonly SellerPanelId[];
 
 /** Panels on the independently persisted Event Manager board. */
 export const SELLER_MANAGER_PANEL_IDS = [
   'event-manager',
   'event-settings',
+  'run-of-show-planner',
 ] as const satisfies readonly SellerPanelId[];
 
 /** Stable names are also the localStorage identity for each Studio board. */
@@ -147,8 +155,9 @@ export function sellerActiveEventDockDefaultLayout(): LayoutDoc {
           direction: 'col',
           size: 380,
           children: [
-            solo('transcript', 600),
-            solo('on-deck', 400),
+            solo('transcript', 450),
+            solo('on-deck', 300),
+            solo('run-of-show', 250),
           ],
         },
       ],
@@ -159,7 +168,7 @@ export function sellerActiveEventDockDefaultLayout(): LayoutDoc {
 export function sellerEventManagerDockDefaultLayout(): LayoutDoc {
   return {
     schemaVersion: 1,
-    root: strip(['event-manager', 'event-settings'], 1000, 'event-manager'),
+    root: strip(['event-manager', 'event-settings', 'run-of-show-planner'], 1000, 'event-manager'),
   };
 }
 
@@ -171,6 +180,7 @@ export function sellerDockDefaultLayout(): LayoutDoc {
 /** Which column a panel occupies in the default layout. */
 export function defaultColumnForPanel(id: SellerPanelId): 'primary' | 'rail' {
   return id === 'stage-status' || id === 'event-settings' || id === 'copilot' || id === 'event-manager'
+      || id === 'run-of-show-planner'
     ? 'primary'
     : 'rail';
 }

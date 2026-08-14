@@ -5,6 +5,8 @@ import type { EventChat } from './EventChat';
 import type EventManager from './events/EventManager';
 import type { SellerPanelId } from './seller-dock-layout';
 import type { OnDeckPanel } from './seller/OnDeckPanel';
+import type { RunOfShowPanel } from './seller/RunOfShowPanel';
+import type { RunOfShowPlannerPanel } from './seller/RunOfShowPlannerPanel';
 import type { StageStatusPanel } from './seller/StageStatusPanel';
 import type { TranscriptPane } from './TranscriptPane';
 
