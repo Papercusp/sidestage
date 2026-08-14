@@ -3,7 +3,9 @@ import type { TargetedOffer } from '../actions/action.types';
 import type { AuctionWinnerOrder } from '../auction/auction.service';
 import type { ReplayChapter } from '../chat/chat.service';
 import type { EventSummary } from '../events/event.service';
+import { SyncQueryRegistry } from '../sync/sync-query.registry';
 import { BuyerOrdersService } from './buyer-orders.service';
+import { BuyerOrdersSyncQueries } from './checkout.module';
 import type { CheckoutOrder, OrderStore } from './checkout.service';
 
 const paymentSession = {
@@ -78,6 +80,34 @@ const chapters: ReplayChapter[] = [
 ];
 
 describe('BuyerOrdersService', () => {
+  it('registers the bounded buyer-order aggregation as orders.byBuyer', async () => {
+    const buyerOrders = {
+      listForBuyer: vi.fn().mockResolvedValue([
+        { id: 'order-2', buyerId: 'buyer-1', createdAt: '2026-08-14T02:00:00.000Z' },
+        { id: 'order-1', buyerId: 'buyer-1', createdAt: '2026-08-14T01:00:00.000Z' },
+      ]),
+    };
+    const queries = new SyncQueryRegistry();
+    new BuyerOrdersSyncQueries(buyerOrders as never, queries).onModuleInit();
+
+    await expect(queries.resolve('orders.byBuyer', { buyerId: 'buyer-1' })).resolves.toEqual([
+      expect.objectContaining({ id: 'order-2', buyerId: 'buyer-1' }),
+      expect.objectContaining({ id: 'order-1', buyerId: 'buyer-1' }),
+    ]);
+    expect(buyerOrders.listForBuyer).toHaveBeenCalledWith('buyer-1');
+  });
+
+  it('routes a missing buyer identity through the service validation boundary', async () => {
+    const buyerOrders = {
+      listForBuyer: vi.fn().mockRejectedValue(new Error('buyerId is required')),
+    };
+    const queries = new SyncQueryRegistry();
+    new BuyerOrdersSyncQueries(buyerOrders as never, queries).onModuleInit();
+
+    await expect(queries.resolve('orders.byBuyer', {})).rejects.toThrow('buyerId is required');
+    expect(buyerOrders.listForBuyer).toHaveBeenCalledWith('');
+  });
+
   it('aggregates checkout, auction, and offer records newest-first with replay snapshots', async () => {
     const orders = {
       listByBuyer: vi.fn().mockResolvedValue([checkoutOrder]),
