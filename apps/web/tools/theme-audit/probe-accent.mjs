@@ -1,8 +1,12 @@
 import { chromium } from 'playwright';
+// Subject is overridable so this probe can be pointed at a DEPLOYED site
+// (e.g. SIDESTAGE_AUDIT_BASE=https://sidestage.buyrestart.com) instead of only
+// the local dev server. Defaults to local dev, so existing usage is unchanged.
+const BASE = (process.env.SIDESTAGE_AUDIT_BASE || 'http://localhost:5173').replace(/\/$/, '');
 const b = await chromium.launch({ headless: true, args: ['--no-sandbox'] });
 const p = await b.newPage({ viewport: { width: 1440, height: 900 } });
 for (const tab of ['buyer', 'seller', 'config', 'test']) {
-  await p.goto(`http://localhost:5173/?tab=${tab}`, { waitUntil: 'networkidle' }).catch(() => {});
+  await p.goto(`${BASE}/?tab=${tab}`, { waitUntil: 'networkidle' }).catch(() => {});
   await p.waitForTimeout(800);
   const r = await p.evaluate(() => {
     const boxes = [...document.querySelectorAll('input[type=checkbox],input[type=radio]')]

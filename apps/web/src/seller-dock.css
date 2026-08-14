@@ -260,7 +260,23 @@
 
 .seller-dock-board-handle {
   position: absolute;
-  z-index: 2;
+  /*
+   * ABOVE dockview's own sashes, which are z-index 99 (`.dv-sash`).
+   *
+   * This is not a cosmetic layer choice — it is the difference between a
+   * working width handle and a dead one. dockview's panel splitters run to the
+   * board's outer edges, so the east handle's 6px strip is overlapped by the
+   * right-hand ends of every horizontal sash. At z-index 2 the sash won every
+   * hit-test along that strip and `elementFromPoint` at the east handle's own
+   * centre returned `.dv-sash`, so a pointer drag on the width affordance did
+   * NOTHING while keyboard resizing (which needs no hit-test) worked fine.
+   *
+   * The cost is the last ~6px of each horizontal sash's grab area, at the
+   * board's outer edge. Those sashes stay grabbable across the other ~440px of
+   * their length, whereas without this the board's only dedicated width
+   * affordance is unusable by mouse.
+   */
+  z-index: 100;
   background: transparent;
   /*
    * Without this, a touch drag on a handle is claimed by the browser's own
@@ -293,7 +309,8 @@
   width: 14px;
   height: 14px;
   cursor: nwse-resize;
-  z-index: 3;
+  /* One above the edge handles — which are themselves above dockview's sashes. */
+  z-index: 101;
 }
 
 /*

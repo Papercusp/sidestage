@@ -226,3 +226,80 @@ describe('seller dock chrome colours', () => {
     );
   });
 });
+
+/**
+ * P-015 board-resize handles must out-layer dockview's sashes.
+ *
+ * THE BUG THIS PINS, found by driving the running app: the board's resize
+ * handles shipped at z-index 2/3 while dockview's panel splitters
+ * (`.dv-split-view-container .dv-sash-container .dv-sash`) sit at 99. dockview
+ * runs those sashes out to the board's outer edges, so the east handle's 6px
+ * strip was overlapped along its whole height — `elementFromPoint` at the east
+ * handle's own CENTRE returned `.dv-sash`, and a pointer drag on the width
+ * affordance did nothing at all.
+ *
+ * It was invisible to every cheaper instrument, which is the reason for a guard
+ * rather than a fix alone: the component renders, the typechecker is happy, the
+ * store round-trips, and KEYBOARD resizing passes — arrow keys need no
+ * hit-test, so the unit suite exercised the identical code path and stayed
+ * green while the mouse path was dead.
+ *
+ * The sash z-index is MEASURED from the real dockview stylesheet, not written
+ * as a literal, so a dockview upgrade that raises it fails here instead of
+ * silently re-burying the handles.
+ */
+const stripComments = (css: string) => css.replace(/\/\*[\s\S]*?\*\//g, '');
+
+/**
+ * `z-index` of every rule whose SELECTOR matches `re`, in source order.
+ *
+ * The selector is TRIMMED before matching: the capture runs from the end of the
+ * previous rule, so it carries leading newlines and indentation and an anchored
+ * pattern (`/^\.foo$/`) would never match the raw text.
+ */
+export const zIndexesFor = (css: string, re: RegExp): number[] =>
+  Array.from(stripComments(css).matchAll(/([^{}]*)\{([^{}]*)\}/g))
+    .filter((m) => re.test(m[1].trim()))
+    .map((m) => /(?:^|[;\s])z-index\s*:\s*(-?\d+)/.exec(m[2]))
+    .filter((m): m is RegExpExecArray => m !== null)
+    .map((m) => Number(m[1]));
+
+const sashZIndexes = zIndexesFor(dockviewCss, /\.dv-sash\b/);
+const handleZIndexes = zIndexesFor(sellerDockCss, /\.seller-dock-board-handle/);
+
+describe('seller dock board resize handles', () => {
+  it('dockview really does layer its sashes above the default stacking order', () => {
+    // If this ever comes back empty the guard below would pass vacuously.
+    expect(sashZIndexes.length, 'no .dv-sash z-index found in dockview.css').toBeGreaterThan(0);
+  });
+
+  it('layers every board handle ABOVE dockview sashes, or the pointer never reaches them', () => {
+    expect(handleZIndexes.length, 'no z-index declared for .seller-dock-board-handle').toBeGreaterThan(0);
+    const topSash = Math.max(...sashZIndexes);
+    const buried = handleZIndexes.filter((z) => z <= topSash);
+    expect(
+      buried,
+      `board handle z-index ${buried.join(', ')} is at or below dockview's sash (${topSash}); ` +
+        'the handle will be unhittable by pointer while keyboard resizing still passes',
+    ).toEqual([]);
+  });
+
+  it('CONTROL: the shipped 2/3 layering is caught, and the parser reads real rules', () => {
+    // The exact values this bug shipped with, against dockview's real 99.
+    const topSash = Math.max(...sashZIndexes);
+    expect(topSash).toBe(99);
+    expect([2, 3].filter((z) => z <= topSash)).toEqual([2, 3]);
+    // Parser: selector-matched, comment-immune, and blind to unrelated rules.
+    expect(zIndexesFor('.a{z-index:5}.b{z-index:9}', /\.a/)).toEqual([5]);
+    expect(zIndexesFor('/* .a{z-index:5} */ .a{z-index:7}', /\.a/)).toEqual([7]);
+    expect(zIndexesFor('.a{color:red}', /\.a/)).toEqual([]);
+  });
+
+  it('keeps the corner above the edge handles so it still drives both axes', () => {
+    const edge = zIndexesFor(sellerDockCss, /^\.seller-dock-board-handle$/);
+    const corner = zIndexesFor(sellerDockCss, /\.seller-dock-board-handle--se/);
+    expect(edge.length, 'base handle rule must declare a z-index').toBe(1);
+    expect(corner.length, 'corner handle must declare its own z-index').toBe(1);
+    expect(corner[0]).toBeGreaterThan(edge[0]);
+  });
+});
