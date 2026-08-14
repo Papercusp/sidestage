@@ -1,8 +1,10 @@
-import { Inject, Injectable, Module, type OnModuleInit } from '@nestjs/common';
+import { forwardRef, Inject, Injectable, Module, type OnModuleInit } from '@nestjs/common';
 import type { Pool } from 'pg';
 import { AuctionModule } from '../auction/auction.module';
 import { DatabaseModule, PG_POOL } from '../db/database.module';
 import { PgChatStore } from '../db/pg-chat-store';
+import { EventModule } from '../events/event.module';
+import { EventOwnershipGuard } from '../events/event-ownership.guard';
 import { SyncModule } from '../sync/sync.module';
 import { SyncQueryRegistry, type SyncQueryArgs } from '../sync/sync-query.registry';
 import { ChatController } from './chat.controller';
@@ -14,11 +16,19 @@ function eventIdFrom(args: SyncQueryArgs): string { return typeof args.eventId =
 
 @Injectable()
 export class ChatSyncQueries implements OnModuleInit {
-  constructor(@Inject(ChatService) private readonly chat: ChatService, @Inject(SyncQueryRegistry) private readonly queries: SyncQueryRegistry) {}
+  constructor(
+    @Inject(ChatService) private readonly chat: ChatService,
+    @Inject(SyncQueryRegistry) private readonly queries: SyncQueryRegistry,
+    @Inject(EventOwnershipGuard) private readonly ownership: EventOwnershipGuard,
+  ) {}
 
   onModuleInit(): void {
     this.queries.register('event.chat.messages', (args) => this.chat.getMessages(eventIdFrom(args)));
-    this.queries.register('event.chat.transcript', (args) => this.chat.getTranscript(eventIdFrom(args)));
+    this.queries.register('event.chat.transcript', async (args, context) => {
+      const eventId = eventIdFrom(args);
+      await this.ownership.requireOwned(eventId, context.principal);
+      return this.chat.getTranscript(eventId);
+    });
     this.queries.register('event.chat.presence', (args) => this.chat.getPresence(eventIdFrom(args)));
     this.queries.register('event.chat.stats', async (args) => [await this.chat.getStats(eventIdFrom(args))]);
     this.queries.register('event.replay.chapters', (args) => this.chat.getReplayChapters(eventIdFrom(args)));
@@ -26,7 +36,7 @@ export class ChatSyncQueries implements OnModuleInit {
 }
 
 @Module({
-  imports: [AuctionModule, DatabaseModule, SyncModule],
+  imports: [forwardRef(() => AuctionModule), DatabaseModule, forwardRef(() => EventModule), SyncModule],
   controllers: [ChatController],
   providers: [
     { provide: CHAT_STORE, inject: [PG_POOL], useFactory: (pool: Pool | null): ChatStore => pool ? new PgChatStore(pool) : new InMemoryChatStore() },

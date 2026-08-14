@@ -1,6 +1,8 @@
 import { Body, Controller, Delete, Get, Headers, Inject, Ip, Logger, NotFoundException, Param, Post, Query } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
 import { AuctionAccessService, auctionHeader } from '../auction/auction-access.service';
+import { EventOwnershipGuard } from '../events/event-ownership.guard';
+import { DEMO_PRINCIPAL_HEADER } from '../sync/sync-request-context';
 import { ChatService, type ChatMessageInput, type PresenceInput, type TranscriptMomentInput } from './chat.service';
 import { ConfiguredProductFocusClassifier } from './product-focus.classifier';
 
@@ -14,6 +16,7 @@ export class ChatController {
     @Inject(ChatService) private readonly chat: ChatService,
     @Inject(ConfiguredProductFocusClassifier) private readonly productFocus: ConfiguredProductFocusClassifier,
     @Inject(AuctionAccessService) private readonly access: AuctionAccessService,
+    @Inject(EventOwnershipGuard) private readonly ownership: EventOwnershipGuard,
   ) {}
 
   @Get('chat/events/:eventId/messages')
@@ -28,7 +31,11 @@ export class ChatController {
     try {
       this.access.assertPayloadSize(body, 2_048);
       const authorization = auctionHeader(headers, 'authorization');
-      const seller = authorization ? this.access.requireSeller(authorization) : null;
+      const seller = authorization ? this.access.requireSeller(
+        authorization,
+        auctionHeader(headers, DEMO_PRINCIPAL_HEADER),
+      ) : null;
+      if (seller) await this.ownership.requireOwnedForSeller(eventId, seller.sellerId);
       const input: ChatMessageInput = seller
         ? { ...body, userId: seller.sellerId, displayName: body?.displayName ?? 'Host', role: 'seller' }
         : { ...body, role: 'buyer' };
@@ -45,15 +52,14 @@ export class ChatController {
 
   @Post('chat/events/:eventId/transcript')
   async addTranscriptMoment(@Param('eventId') eventId: string, @Body() body: TranscriptMomentInput, @Headers() headers: HeadersMap, @Ip() ip: string) {
-    const seller = this.requireSeller(headers, ip, 'seller-chat-transcript', 240);
+    const seller = await this.requireSeller(headers, ip, 'seller-chat-transcript', 240, eventId);
     try { return await this.chat.addTranscriptMoment(eventId, body ?? {}); }
     catch (error) { this.chat.recordRejectedWrite(); this.audit('unknown', 'transcript.add', 'rejected', seller.sellerId, eventId, undefined, error); throw error; }
   }
 
   @Post('chat/events/:eventId/transcript/product-focus')
-  classifyTranscriptProductFocus(@Param('eventId') eventId: string, @Body() body: unknown, @Headers() headers: HeadersMap, @Ip() ip: string) {
-    this.requireSeller(headers, ip, 'seller-chat-classify', 120);
-    void eventId;
+  async classifyTranscriptProductFocus(@Param('eventId') eventId: string, @Body() body: unknown, @Headers() headers: HeadersMap, @Ip() ip: string) {
+    await this.requireSeller(headers, ip, 'seller-chat-classify', 120, eventId);
     return this.productFocus.classify(body);
   }
 
@@ -61,7 +67,11 @@ export class ChatController {
   async joinPresence(@Param('eventId') eventId: string, @Body() body: PresenceInput, @Headers() headers: HeadersMap, @Ip() ip: string) {
     this.access.assertPayloadSize(body, 1_024);
     const authorization = auctionHeader(headers, 'authorization');
-    const seller = authorization ? this.access.requireSeller(authorization) : null;
+    const seller = authorization ? this.access.requireSeller(
+      authorization,
+      auctionHeader(headers, DEMO_PRINCIPAL_HEADER),
+    ) : null;
+    if (seller) await this.ownership.requireOwnedForSeller(eventId, seller.sellerId);
     const input: PresenceInput = seller
       ? { ...body, userId: seller.sellerId, displayName: body?.displayName ?? 'Host', role: 'seller' }
       : { ...body, role: 'buyer' };
@@ -78,7 +88,7 @@ export class ChatController {
 
   @Delete('chat/events/:eventId/messages/:messageId')
   async moderateMessage(@Param('eventId') eventId: string, @Param('messageId') messageId: string, @Body() body: { reason?: unknown }, @Headers() headers: HeadersMap, @Ip() ip: string) {
-    const seller = this.requireSeller(headers, ip, 'seller-chat-moderate', 60);
+    const seller = await this.requireSeller(headers, ip, 'seller-chat-moderate', 60, eventId);
     const changed = await this.chat.moderateMessage(eventId, messageId, seller.sellerId, body?.reason);
     if (!changed) throw new NotFoundException('Message was not found');
     this.audit('unknown', 'message.moderate', 'accepted', seller.sellerId, eventId, messageId);
@@ -86,16 +96,26 @@ export class ChatController {
   }
 
   @Get('chat/metrics')
-  metrics(@Headers() headers: HeadersMap, @Ip() ip: string) {
-    this.requireSeller(headers, ip, 'seller-chat-metrics', 60);
+  async metrics(@Headers() headers: HeadersMap, @Ip() ip: string) {
+    await this.requireSeller(headers, ip, 'seller-chat-metrics', 60);
     return this.chat.getOperationalMetrics();
   }
 
   @Get('chat/events/:eventId/presence')
   getPresence(@Param('eventId') eventId: string) { return this.chat.getPresence(eventId); }
 
-  private requireSeller(headers: HeadersMap, ip: string, bucket: string, limit: number) {
-    const seller = this.access.requireSeller(auctionHeader(headers, 'authorization'));
+  private async requireSeller(
+    headers: HeadersMap,
+    ip: string,
+    bucket: string,
+    limit: number,
+    eventId?: string,
+  ) {
+    const seller = this.access.requireSeller(
+      auctionHeader(headers, 'authorization'),
+      auctionHeader(headers, DEMO_PRINCIPAL_HEADER),
+    );
+    if (eventId) await this.ownership.requireOwnedForSeller(eventId, seller.sellerId);
     this.access.consumeRateLimit(bucket, `${seller.sellerId}:${ip || 'unknown'}`, limit, 60_000);
     return seller;
   }

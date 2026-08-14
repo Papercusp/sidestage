@@ -1,7 +1,8 @@
-import { Inject, Injectable, Module, type OnModuleInit } from '@nestjs/common';
+import { forwardRef, Inject, Injectable, Module, type OnModuleInit } from '@nestjs/common';
 import type { Pool } from 'pg';
 import { DatabaseModule, PG_POOL } from '../db/database.module';
 import { PgAuctionStore } from '../db/pg-auction-store';
+import { EventModule } from '../events/event.module';
 import { InventoryModule } from '../inventory/inventory.module';
 import { SyncModule } from '../sync/sync.module';
 import { SyncQueryRegistry } from '../sync/sync-query.registry';
@@ -26,7 +27,7 @@ export class AuctionSyncQueries implements OnModuleInit {
 }
 
 @Module({
-  imports: [DatabaseModule, InventoryModule, SyncModule],
+  imports: [DatabaseModule, forwardRef(() => EventModule), InventoryModule, SyncModule],
   controllers: [AuctionController],
   providers: [
     {
