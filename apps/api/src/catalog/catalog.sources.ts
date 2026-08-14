@@ -15,7 +15,14 @@ const MAX_PAGE_SIZE = 100;
  * so the compiled prod image cannot require it — a static import crash-looped prod
  * on 2026-08-13 (WI-38629 incident). Search already degrades to SQL on any
  * Typesense failure; a failed module load is just the earliest such failure. */
-type TypesenseModule = { typesenseService: { search(args: Record<string, unknown>): Promise<{ hits: Array<{ id: string }>; found: number }> } };
+type TypesenseModule = {
+  typesenseService: {
+    search(args: Record<string, unknown>): Promise<{
+      hits: Array<{ id: string; groupId?: string }>;
+      found: number;
+    }>;
+  };
+};
 let typesenseLoad: Promise<TypesenseModule | null> | null = null;
 function loadTypesense(logger: Logger): Promise<TypesenseModule | null> {
   typesenseLoad ??= (import('@papercusp/typesense') as Promise<TypesenseModule>).catch((error: unknown) => {
@@ -131,9 +138,14 @@ export class PgCatalogSource implements CatalogSource {
           inStockOnly: availability === 'in-stock',
           limit: pageSize,
           page,
+          // This adapter only consumes the ranking keys, then hydrates the
+          // sellable variants from Postgres below. Returning the full search
+          // document makes an uncached Scout request cross the 2s product-
+          // research budget before hydration even begins.
+          includeFields: ['id', 'groupId'],
         });
         if (hits.length > 0) {
-          const groupKeys = hits.map((hit) => (hit as { groupId?: string }).groupId ?? hit.id);
+          const groupKeys = hits.map((hit) => hit.groupId ?? hit.id);
           const rows = await this.pool.query<VariantRow>(
             `SELECT ${VARIANT_COLUMNS}
              FROM storefront_product v
