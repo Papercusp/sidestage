@@ -76,7 +76,7 @@ describe('CartService', () => {
     await expect(carts.addItem({ productId: 'p-1', title: 'Mug', priceCents: 1250, quantity: 0 })).rejects.toThrow('Quantity');
   });
 
-  it('authors a two-minute hold and releases inventory when the cart is read after expiry', async () => {
+  it('keeps inventory reserved past the old two-minute timeout and releases it after the checkout window', async () => {
     vi.useFakeTimers();
     vi.setSystemTime('2026-08-14T06:00:00Z');
     const inventory = new InMemoryAuctionInventory();
@@ -84,10 +84,17 @@ describe('CartService', () => {
     const carts = new CartService(new InMemoryCartStore(), inventory);
 
     const held = await carts.holdItem({ cartId: 'cart-held', productId: 'p-1', title: 'Mug', priceCents: 1250 });
-    expect(held.items[0].expiresAt).toBe('2026-08-14T06:02:00.000Z');
+    expect(held.items[0].expiresAt).toBe('2026-08-14T06:15:00.000Z');
     await expect(inventory.get('p-1')).resolves.toMatchObject({ reservedQty: 1, availableQty: 0 });
 
-    vi.advanceTimersByTime(BUYER_HOLD_DURATION_MS + 1);
+    vi.advanceTimersByTime(2 * 60_000 + 1);
+    await expect(carts.findCart(held.id)).resolves.toMatchObject({
+      items: [expect.objectContaining({ productId: 'p-1' })],
+      subtotalCents: 1250,
+    });
+    await expect(inventory.get('p-1')).resolves.toMatchObject({ reservedQty: 1, availableQty: 0 });
+
+    vi.advanceTimersByTime(BUYER_HOLD_DURATION_MS - 2 * 60_000);
     await expect(carts.findCart(held.id)).resolves.toMatchObject({ items: [], subtotalCents: 0 });
     await expect(inventory.get('p-1')).resolves.toMatchObject({ reservedQty: 0, availableQty: 1 });
   });
