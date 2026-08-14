@@ -23,6 +23,58 @@
 
 .event-manager-heading { align-items: flex-start; }
 
+.event-manager-switch,
+.event-detail-tabs {
+  display: inline-flex;
+  align-items: center;
+  gap: .35rem;
+  padding: .28rem;
+  border: 1px solid var(--border);
+  border-radius: .7rem;
+  background: var(--surface-sunken);
+}
+
+.event-manager-switch a,
+.event-detail-tabs a {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 2.35rem;
+  gap: .4rem;
+  padding: .45rem .7rem;
+  border-radius: .5rem;
+  color: var(--muted);
+  font-size: .74rem;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.event-manager-switch a:hover,
+.event-manager-switch a.is-active,
+.event-detail-tabs a:hover,
+.event-detail-tabs a.is-active {
+  color: var(--text);
+  background: var(--surface);
+  box-shadow: 0 8px 22px rgb(var(--shadow-hue) / 12%);
+}
+
+.event-manager-switch a:focus-visible,
+.event-detail-tabs a:focus-visible {
+  outline: 2px solid var(--brand-red);
+  outline-offset: 2px;
+}
+
+.event-manager-switch span {
+  display: inline-grid;
+  min-width: 1.25rem;
+  min-height: 1.25rem;
+  place-items: center;
+  border-radius: 99px;
+  color: var(--red-text);
+  background: color-mix(in srgb, var(--brand-red) 10%, transparent);
+  font-size: .62rem;
+}
+
 .event-manager-heading h2 {
   margin: 0;
   font-size: clamp(1.4rem, 3vw, 2rem);
@@ -222,6 +274,24 @@
 
 .event-list-panel { align-self: start; overflow: hidden; }
 
+.event-list-search { margin: .7rem .7rem 0; }
+
+.event-list-state,
+.event-list-empty {
+  margin: 0;
+  padding: .9rem;
+  color: var(--muted);
+  font-size: .74rem;
+}
+
+.event-list-empty {
+  display: grid;
+  gap: .7rem;
+  justify-items: start;
+}
+
+.event-list-empty p { margin: 0; }
+
 .event-list-heading {
   padding: .9rem;
   border-bottom: 1px solid var(--border);
@@ -318,6 +388,22 @@
 
 .event-detail-panel { padding: clamp(1rem, 2.5vw, 1.35rem); }
 .event-detail-heading { align-items: flex-start; }
+
+.event-detail-tabs { margin-top: 1rem; }
+
+.event-lineup-view,
+.event-settings-view,
+.event-manager-create-view {
+  display: grid;
+  min-width: 0;
+  gap: 1rem;
+}
+
+.event-lineup-view,
+.event-settings-view { margin-top: 1rem; }
+
+.event-manager-create-view > .event-creation-panel,
+.event-settings-view > * { min-width: 0; }
 
 .event-detail-heading h3 {
   margin: .45rem 0 .35rem;
@@ -552,6 +638,7 @@
 }
 
 .event-detail-empty { display: grid; min-height: 12rem; place-items: center; }
+.event-detail-empty > div { display: grid; max-width: 25rem; justify-items: start; gap: .65rem; }
 .event-detail-empty p { margin: 0; }
 
 .event-manager .button:disabled {
@@ -577,6 +664,12 @@
     align-items: flex-start;
     flex-direction: column;
   }
+
+  .event-manager-switch,
+  .event-detail-tabs { width: 100%; }
+
+  .event-manager-switch a,
+  .event-detail-tabs a { flex: 1; }
 
   .event-manager-heading .button,
   .event-manager-queue-heading .button,
