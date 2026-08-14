@@ -7,6 +7,8 @@ import {
   BuildHistoryList,
   filterBuildHistory,
   formatBuildDate,
+  historyDocumentCloseHref,
+  historyDocumentHref,
   historyHref,
   summarizeBuildHistory,
   summarizeBuildItemEvidence,
@@ -18,11 +20,43 @@ const historyCss = readFileSync(new URL('./build-history.css', import.meta.url),
 afterEach(() => vi.unstubAllGlobals());
 
 const NOW = new Date('2026-08-14T12:00:00Z');
+const SNAPSHOT = {
+  kind: 'papercusp-plan-export' as const,
+  workspace: 'papercusp-workspace',
+  harness: 'sidestage',
+  planPrefix: 'sidestage-',
+  generatedAt: '2026-08-14T03:00:00Z',
+  planCount: 2,
+  generator: 'scripts/generate-build-history-snapshot.mjs',
+};
 const HISTORY: BuildHistoryPlan[] = [{
   slug: 'sidestage-checkout',
   title: 'SideStage checkout',
   status: 'active',
   updatedAt: '2026-08-14T01:00:00Z',
+  contentHash: 'a'.repeat(64),
+  markdown: '# SideStage checkout\n\n- **P-001** `done` Ship checkout',
+  frontmatter: { title: 'SideStage checkout', status: 'active' },
+  items: [{
+    id: 'P-001',
+    text: 'Ship checkout',
+    storedStatus: 'done',
+    effectiveStatus: 'done',
+    importance: 'high',
+    riskTier: null,
+    authority: null,
+    blockedBy: [],
+    phase: 'Phase — Build',
+    lineNumber: 3,
+  }],
+  decisions: [{
+    id: 'D-001',
+    title: 'Use the shared checkout',
+    body: 'Reuse the existing checkout.',
+    date: '2026-08-14',
+    itemRefs: ['P-001'],
+    lineNumber: 5,
+  }],
   completedItems: [{
     id: 'WI-42',
     kind: 'feature',
@@ -37,12 +71,19 @@ const HISTORY: BuildHistoryPlan[] = [{
       changedFiles: ['apps/web/src/BuyerCheckout.tsx', 'apps/web/src/orders.css'],
     },
   }],
+  snapshot: SNAPSHOT,
 }, {
   slug: 'sidestage-theme-r3',
   title: 'R3 Ticket theme',
   status: 'completed',
   updatedAt: '2026-07-01T01:00:00Z',
+  contentHash: 'b'.repeat(64),
+  markdown: '# R3 Ticket theme',
+  frontmatter: { title: 'R3 Ticket theme', status: 'completed' },
+  items: [],
+  decisions: [],
   completedItems: [],
+  snapshot: SNAPSHOT,
 }];
 
 describe('BuildHistoryList', () => {
@@ -172,6 +213,12 @@ describe('Build History data shaping', () => {
     expect(historyHref('sidestage-checkout', 'WI-42', '/?event=spring')).toBe(
       '/?event=spring&tab=history&plan=sidestage-checkout&item=WI-42#history-item-WI-42',
     );
+    expect(historyDocumentHref('sidestage-checkout', '/?event=spring&item=WI-old')).toBe(
+      '/?event=spring&tab=history&plan=sidestage-checkout&document=sidestage-checkout#history-plan-sidestage-checkout',
+    );
+    expect(historyDocumentCloseHref(
+      '/?event=spring&tab=history&plan=sidestage-checkout&document=sidestage-checkout#history-plan-sidestage-checkout',
+    )).toBe('/?event=spring&tab=history&plan=sidestage-checkout#history-plan-sidestage-checkout');
   });
 
   it('handles missing or invalid ledger timestamps', () => {

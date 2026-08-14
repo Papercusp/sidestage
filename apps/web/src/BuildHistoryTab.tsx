@@ -1,4 +1,15 @@
-import { memo, useDeferredValue, useEffect, useMemo, useState } from 'react';
+import * as Dialog from '@radix-ui/react-dialog';
+import { PlanDocumentView } from '@papercusp/ui-primitives';
+import {
+  memo,
+  useDeferredValue,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type MouseEvent as ReactMouseEvent,
+  type RefObject,
+} from 'react';
 import { useSyncQuery } from '@papercusp/sync';
 import { TabHeader } from './components/TabHeader';
 import './build-history.css';
@@ -19,7 +30,45 @@ export interface BuildHistoryPlan {
   title: string;
   status: string;
   updatedAt: string | null;
+  contentHash: string;
+  markdown: string;
+  frontmatter: Record<string, unknown>;
+  items: BuildHistoryPlanItem[];
+  decisions: BuildHistoryDecision[];
   completedItems: BuildHistoryWorkItem[];
+  snapshot: BuildHistorySnapshotSource;
+}
+
+export interface BuildHistoryPlanItem {
+  id: string;
+  text: string;
+  storedStatus: string;
+  effectiveStatus: string;
+  importance: string | null;
+  riskTier: string | null;
+  authority: string | null;
+  blockedBy: string[];
+  phase: string | null;
+  lineNumber: number;
+}
+
+export interface BuildHistoryDecision {
+  id: string;
+  title: string;
+  body: string;
+  date: string | null;
+  itemRefs: string[];
+  lineNumber: number;
+}
+
+export interface BuildHistorySnapshotSource {
+  kind: 'papercusp-plan-export';
+  workspace: string;
+  harness: string;
+  planPrefix: string;
+  generatedAt: string;
+  planCount: number;
+  generator: string;
 }
 
 export type BuildHistoryDateFilter = '7d' | '30d' | 'all';
@@ -52,6 +101,7 @@ interface BuildHistorySummary {
 const LIVE_SITE_URL = 'https://sidestage.buyrestart.com';
 const PLAN_PAGE_SIZE = 12;
 const ITEM_PAGE_SIZE = 12;
+const HISTORY_DOCUMENT_STATE = '__sidestageHistoryDocument';
 const TERMINAL_PLAN_STATES = new Set(['archived', 'cancelled', 'canceled', 'complete', 'completed', 'done', 'superseded']);
 const buildDateFormatter = new Intl.DateTimeFormat('en-US', {
   dateStyle: 'medium',
@@ -214,11 +264,36 @@ export function historyHref(plan: string, item: string | null = null, currentUrl
   return `${url.pathname}?${url.searchParams.toString()}${url.hash}`;
 }
 
+export function historyDocumentHref(plan: string, currentUrl = '/'): string {
+  const url = new URL(currentUrl, 'https://sidestage.local');
+  url.searchParams.set('tab', 'history');
+  url.searchParams.set('plan', plan);
+  url.searchParams.delete('item');
+  url.searchParams.set('document', plan);
+  url.hash = historyElementId('plan', plan);
+  return `${url.pathname}?${url.searchParams.toString()}${url.hash}`;
+}
+
+export function historyDocumentCloseHref(currentUrl = '/'): string {
+  const url = new URL(currentUrl, 'https://sidestage.local');
+  url.searchParams.delete('document');
+  return `${url.pathname}${url.search ? url.search : ''}${url.hash}`;
+}
+
 function readHistoryTarget(): BuildHistoryTarget | null {
   if (typeof window === 'undefined') return null;
   const plan = new URL(window.location.href).searchParams.get('plan');
   if (!plan) return null;
   return { plan, item: new URL(window.location.href).searchParams.get('item') };
+}
+
+function readHistoryDocument(): string | null {
+  if (typeof window === 'undefined') return null;
+  return new URL(window.location.href).searchParams.get('document')?.trim() || null;
+}
+
+function isPlainPrimaryClick(event: ReactMouseEvent<HTMLAnchorElement>): boolean {
+  return event.button === 0 && !event.altKey && !event.ctrlKey && !event.metaKey && !event.shiftKey;
 }
 
 function CopyLinkButton({ href, label = 'Copy link' }: { href: string; label?: string }) {
@@ -304,7 +379,15 @@ const BuildItem = memo(function BuildItem({
   );
 });
 
-function BuildPlanDetails({ plan, targetItem }: { plan: BuildHistoryPlan; targetItem: string | null }) {
+function BuildPlanDetails({
+  plan,
+  targetItem,
+  onOpenDocument,
+}: {
+  plan: BuildHistoryPlan;
+  targetItem: string | null;
+  onOpenDocument: (plan: BuildHistoryPlan, trigger: HTMLAnchorElement) => void;
+}) {
   const items = useMemo(() => sortedItems(plan), [plan]);
   const [showItems, setShowItems] = useState(Boolean(targetItem));
   const [itemLimit, setItemLimit] = useState(ITEM_PAGE_SIZE);
@@ -320,7 +403,7 @@ function BuildPlanDetails({ plan, targetItem }: { plan: BuildHistoryPlan; target
   const visibleItems = targetedItem && !firstItems.includes(targetedItem)
     ? [...firstItems, targetedItem]
     : firstItems;
-  const planHref = historyHref(plan.slug, null, typeof window === 'undefined' ? '/' : window.location.href);
+  const planHref = historyDocumentHref(plan.slug, typeof window === 'undefined' ? '/' : window.location.href);
 
   return (
     <div className="build-plan-body">
@@ -334,8 +417,18 @@ function BuildPlanDetails({ plan, targetItem }: { plan: BuildHistoryPlan; target
         <EvidenceBlock title="Files" lines={files} empty="No changed-file list was attached." />
       </div>
       <div className="build-plan-actions">
-        <a className="button small" href={planHref}>Open plan link</a>
-        <CopyLinkButton href={planHref} />
+        <a
+          className="button small"
+          href={planHref}
+          onClick={(event) => {
+            if (!isPlainPrimaryClick(event)) return;
+            event.preventDefault();
+            onOpenDocument(plan, event.currentTarget);
+          }}
+        >
+          Read full plan
+        </a>
+        <CopyLinkButton href={planHref} label="Copy plan link" />
       </div>
       <details className="build-work-items-disclosure" open={showItems} onToggle={(event) => setShowItems(event.currentTarget.open)}>
         <summary>{showItems ? 'Hide' : 'View'} {items.length} {items.length === 1 ? 'work item' : 'work items'}</summary>
@@ -363,11 +456,13 @@ function BuildPlanCard({
   open,
   targetItem,
   onToggle,
+  onOpenDocument,
 }: {
   plan: BuildHistoryPlan;
   open: boolean;
   targetItem: string | null;
   onToggle: (open: boolean) => void;
+  onOpenDocument: (plan: BuildHistoryPlan, trigger: HTMLAnchorElement) => void;
 }) {
   const latest = sortedItems(plan)[0] ?? null;
   const outcome = latest?.completionSummary
@@ -395,8 +490,93 @@ function BuildPlanCard({
         </div>
         <span className="build-plan-disclosure" aria-hidden="true">{open ? '−' : '+'}</span>
       </summary>
-      {open ? <BuildPlanDetails plan={plan} targetItem={targetItem} /> : null}
+      {open ? (
+        <BuildPlanDetails plan={plan} targetItem={targetItem} onOpenDocument={onOpenDocument} />
+      ) : null}
     </details>
+  );
+}
+
+function BuildPlanDialog({
+  documentSlug,
+  plan,
+  returnFocusRef,
+  onClose,
+}: {
+  documentSlug: string | null;
+  plan: BuildHistoryPlan | null;
+  returnFocusRef: RefObject<HTMLElement | null>;
+  onClose: () => void;
+}) {
+  return (
+    <Dialog.Root open={Boolean(documentSlug)} onOpenChange={(open) => { if (!open) onClose(); }}>
+      <Dialog.Portal>
+        <Dialog.Overlay className="build-plan-dialog-overlay" />
+        <Dialog.Content
+          className="build-plan-dialog"
+          onCloseAutoFocus={(event) => {
+            const trigger = returnFocusRef.current;
+            if (!trigger?.isConnected) return;
+            event.preventDefault();
+            trigger.focus();
+          }}
+        >
+          <header className="build-plan-dialog-header">
+            <div>
+              <span className="build-plan-dialog-eyebrow">Read-only plan record</span>
+              <Dialog.Title>{plan?.title ?? 'Plan unavailable'}</Dialog.Title>
+              <Dialog.Description>
+                {plan
+                  ? 'The complete committed plan, including its outline, item states, decisions, and references.'
+                  : `No committed History snapshot contains ${documentSlug ?? 'this plan'}.`}
+              </Dialog.Description>
+            </div>
+            <Dialog.Close asChild>
+              <button className="build-plan-dialog-close" type="button" aria-label="Close plan">
+                <span aria-hidden="true">×</span>
+              </button>
+            </Dialog.Close>
+          </header>
+
+          {plan ? (
+            <>
+              <dl className="build-plan-dialog-provenance" aria-label="Plan snapshot provenance">
+                <div>
+                  <dt>Snapshot</dt>
+                  <dd>
+                    <time dateTime={plan.snapshot.generatedAt}>{formatBuildDate(plan.snapshot.generatedAt)}</time>
+                  </dd>
+                </div>
+                <div>
+                  <dt>Source</dt>
+                  <dd>{plan.snapshot.workspace} / {plan.snapshot.harness}</dd>
+                </div>
+                <div>
+                  <dt>Content hash</dt>
+                  <dd><code title={plan.contentHash}>{plan.contentHash.slice(0, 12)}</code></dd>
+                </div>
+              </dl>
+              <PlanDocumentView
+                className="build-plan-dialog-document"
+                value={plan.markdown}
+                slug={plan.slug}
+                frontmatter={plan.frontmatter}
+                items={plan.items}
+                decisions={plan.decisions}
+                outline="left"
+                assetBaseUrl="/vditor"
+                theme="light"
+              />
+            </>
+          ) : (
+            <div className="build-plan-dialog-missing" role="alert">
+              <strong>This plan is not in the committed History snapshot.</strong>
+              <p>Close the viewer and choose a plan from the current History list.</p>
+            </div>
+          )}
+        </Dialog.Content>
+      </Dialog.Portal>
+    </Dialog.Root>
   );
 }
 
@@ -441,10 +621,12 @@ function BuildHistoryMetrics({ plans, now }: { plans: readonly BuildHistoryPlan[
 export function BuildHistoryList({
   plans,
   initialTarget = null,
+  initialDocument = null,
   now = new Date(),
 }: {
   plans: readonly BuildHistoryPlan[];
   initialTarget?: BuildHistoryTarget | null;
+  initialDocument?: string | null;
   now?: Date;
 }) {
   const [search, setSearch] = useState('');
@@ -453,6 +635,8 @@ export function BuildHistoryList({
   const [date, setDate] = useState<BuildHistoryDateFilter>('30d');
   const [kind, setKind] = useState('all');
   const [planLimit, setPlanLimit] = useState(PLAN_PAGE_SIZE);
+  const [documentSlug, setDocumentSlug] = useState(initialDocument);
+  const documentTriggerRef = useRef<HTMLElement | null>(null);
   const [openPlans, setOpenPlans] = useState<Set<string>>(() => (
     initialTarget ? new Set([initialTarget.plan]) : new Set()
   ));
@@ -470,11 +654,24 @@ export function BuildHistoryList({
   const pagedPlans = matchedPlans.slice(0, planLimit);
   const preservedOpenPlans = plans.filter((plan) => openPlans.has(plan.slug) && !pagedPlans.includes(plan));
   const displayedPlans = [...pagedPlans, ...preservedOpenPlans];
+  const documentPlan = plans.find((plan) => plan.slug === documentSlug) ?? null;
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return undefined;
+    const onPopState = () => setDocumentSlug(readHistoryDocument());
+    window.addEventListener('popstate', onPopState);
+    return () => window.removeEventListener('popstate', onPopState);
+  }, []);
 
   useEffect(() => {
     if (!initialTarget || typeof document === 'undefined') return;
     const targetId = historyElementId(initialTarget.item ? 'item' : 'plan', initialTarget.item ?? initialTarget.plan);
-    const frame = window.requestAnimationFrame(() => document.getElementById(targetId)?.scrollIntoView({ block: 'start' }));
+    const frame = window.requestAnimationFrame(() => {
+      const target = document.getElementById(targetId);
+      if (typeof target?.scrollIntoView === 'function') {
+        target.scrollIntoView({ block: 'start' });
+      }
+    });
     return () => window.cancelAnimationFrame(frame);
   }, [initialTarget, plans.length]);
 
@@ -486,7 +683,43 @@ export function BuildHistoryList({
     setPlanLimit(PLAN_PAGE_SIZE);
   };
 
-  if (plans.length === 0) {
+  const openDocument = (plan: BuildHistoryPlan, trigger: HTMLAnchorElement) => {
+    documentTriggerRef.current = trigger;
+    if (typeof window !== 'undefined') {
+      const currentState = window.history.state;
+      const state = currentState && typeof currentState === 'object' ? currentState : {};
+      window.history.pushState(
+        { ...state, [HISTORY_DOCUMENT_STATE]: plan.slug },
+        '',
+        historyDocumentHref(plan.slug, window.location.href),
+      );
+    }
+    setDocumentSlug(plan.slug);
+  };
+
+  const closeDocument = () => {
+    if (typeof window === 'undefined') {
+      setDocumentSlug(null);
+      return;
+    }
+    const currentState = window.history.state;
+    if (
+      currentState
+      && typeof currentState === 'object'
+      && currentState[HISTORY_DOCUMENT_STATE] === documentSlug
+    ) {
+      window.history.back();
+      return;
+    }
+    const state = currentState && typeof currentState === 'object'
+      ? { ...currentState }
+      : {};
+    delete state[HISTORY_DOCUMENT_STATE];
+    window.history.replaceState(state, '', historyDocumentCloseHref(window.location.href));
+    setDocumentSlug(null);
+  };
+
+  if (plans.length === 0 && !documentSlug) {
     return (
       <div className="build-history-empty">
         <span aria-hidden="true">◇</span>
@@ -498,6 +731,12 @@ export function BuildHistoryList({
 
   return (
     <>
+      <BuildPlanDialog
+        documentSlug={documentSlug}
+        plan={documentPlan}
+        returnFocusRef={documentTriggerRef}
+        onClose={closeDocument}
+      />
       <BuildHistoryMetrics plans={plans} now={now} />
       <section className="build-history-toolbar" aria-label="Release filters">
         <label className="build-history-search">
@@ -559,6 +798,7 @@ export function BuildHistoryList({
                 else next.delete(plan.slug);
                 return next;
               })}
+              onOpenDocument={openDocument}
               key={plan.slug}
             />
           ))}
@@ -588,6 +828,7 @@ export function BuildHistoryTab() {
   });
   const plans = query.data ?? [];
   const initialTarget = useMemo(readHistoryTarget, []);
+  const initialDocument = useMemo(readHistoryDocument, []);
   const now = useMemo(() => new Date(), [query.data]);
 
   return (
@@ -611,7 +852,12 @@ export function BuildHistoryTab() {
       ) : query.loading ? (
         <p className="build-history-loading" role="status">Gathering completed work…</p>
       ) : (
-        <BuildHistoryList plans={plans} initialTarget={initialTarget} now={now} />
+        <BuildHistoryList
+          plans={plans}
+          initialTarget={initialTarget}
+          initialDocument={initialDocument}
+          now={now}
+        />
       )}
     </section>
   );
