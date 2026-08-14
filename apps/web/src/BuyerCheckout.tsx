@@ -328,8 +328,9 @@ export function BuyerCheckoutDrawer(props: BuyerCheckoutDrawerProps) {
 export function BuyerCheckoutProvider({
   eventId,
   apiBaseUrl,
+  showScout,
   children,
-}: PropsWithChildren<{ eventId: string; apiBaseUrl?: string }>) {
+}: PropsWithChildren<{ eventId: string; apiBaseUrl?: string; showScout: boolean }>) {
   const { buyerId } = useBuyerIdentity();
   const [open, setOpen] = useState(false);
   const [cartOpen, setCartOpen] = useState(false);
@@ -611,13 +612,17 @@ export function BuyerCheckoutProvider({
   return (
     <BuyerCheckoutContext.Provider value={contextValue}>
       {children}
-      <BuyerScoutDrawer
-        eventId={eventId}
-        cartId={cartId}
-        heldProductIds={contextValue.heldProductIds}
-        onHoldProduct={addHeldProduct}
-        onOpenHeldItems={openHeldItems}
-      />
+      {showScout ? (
+        <BuyerScoutDrawer
+          eventId={eventId}
+          cartId={cartId}
+          heldProductIds={contextValue.heldProductIds}
+          onHoldProduct={async (product) => {
+            await addHeldProduct(product);
+          }}
+          onOpenHeldItems={openHeldItems}
+        />
+      ) : null}
       <BuyerCartDrawer
         open={cartOpen}
         onOpenChange={setCartOpen}
