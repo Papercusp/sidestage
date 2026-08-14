@@ -12,6 +12,8 @@
  * lands on a distinct side of a real switch:
  *   phone   390  — below every breakpoint (single-column, stacked topbar)
  *   tablet  820  — between 800 and 900 (mid-collapse)
+ *   laptop  1280 — inside the two-row topbar range; guards the Demo User
+ *                  Switch against navigation overlap at 1280x720 (EI-204585)
  *   desktop 1440 — above all of them (matches qa-sweep, cross-checks it)
  *
  * Runs its OWN isolated Chromium, for the same reason every probe here does:
@@ -39,6 +41,7 @@ mkdirSync(OUT, { recursive: true });
 const WIDTHS = [
   { id: 'phone', width: 390, height: 844 },
   { id: 'tablet', width: 820, height: 1180 },
+  { id: 'laptop', width: 1280, height: 720 },
   { id: 'desktop', width: 1440, height: 900 },
 ];
 const TABS = ['buyer', 'seller', 'config', 'test'];
@@ -123,6 +126,72 @@ const tapTargets = () => {
   return small.slice(0, 12);
 };
 
+/**
+ * EI-204585 recurrence guard: prove the Switch button owns its center point,
+ * then drive that exact coordinate with a real pointer and verify the app's
+ * two identity keys changed. A DOM-only click would miss the original defect,
+ * where the visually exposed button was covered by the Orders navigation link.
+ */
+const identitySwitchProbe = async (page) => {
+  const nextIdentity = 'qa-switch-1280';
+  let hitTarget = null;
+
+  try {
+    const input = page.locator('#global-demo-user-id');
+    const button = page.getByRole('button', { name: 'Switch', exact: true });
+    await input.waitFor({ state: 'visible', timeout: 5000 });
+    await button.waitFor({ state: 'visible', timeout: 5000 });
+    await input.fill(nextIdentity);
+
+    hitTarget = await button.evaluate((element) => {
+      const rect = element.getBoundingClientRect();
+      const centerX = rect.left + rect.width / 2;
+      const centerY = rect.top + rect.height / 2;
+      const owner = document.elementFromPoint(centerX, centerY);
+      return {
+        centerX,
+        centerY,
+        ownsCenter: owner === element || element.contains(owner),
+        owner: owner
+          ? `${owner.tagName.toLowerCase()}${typeof owner.className === 'string' && owner.className.trim() ? `.${owner.className.trim().split(/\s+/).join('.')}` : ''}`
+          : null,
+      };
+    });
+
+    await page.mouse.click(hitTarget.centerX, hitTarget.centerY);
+    await page.waitForFunction(
+      (expected) => localStorage.getItem('sidestage-demo-user-id') === expected
+        && localStorage.getItem('sidestage-buyer-id') === expected,
+      nextIdentity,
+      { timeout: 3000 },
+    );
+
+    const stored = await page.evaluate(() => ({
+      demo: localStorage.getItem('sidestage-demo-user-id'),
+      buyer: localStorage.getItem('sidestage-buyer-id'),
+    }));
+    return {
+      tested: true,
+      hitTarget,
+      clickOk: stored.demo === nextIdentity && stored.buyer === nextIdentity,
+      stored,
+      error: null,
+    };
+  } catch (error) {
+    const stored = await page.evaluate(() => ({
+      demo: localStorage.getItem('sidestage-demo-user-id'),
+      buyer: localStorage.getItem('sidestage-buyer-id'),
+    })).catch(() => ({ demo: null, buyer: null }));
+    return {
+      tested: true,
+      hitTarget,
+      clickOk: false,
+      stored,
+      error: String(error).slice(0, 500),
+    };
+  }
+};
+
 const results = [];
 const browser = await chromium.launch({ headless: true, args: ['--no-sandbox'] });
 
@@ -149,6 +218,9 @@ for (const w of WIDTHS) {
     const ov = await page.evaluate(overflowAudit);
     const a = await page.evaluate(audit, PALETTE);
     const taps = w.id === 'phone' ? await page.evaluate(tapTargets) : [];
+    const identitySwitch = w.id === 'laptop' && tab === 'buyer'
+      ? await identitySwitchProbe(page)
+      : null;
 
     await page.screenshot({ path: `${OUT}/${w.id}-${tab}.png`, fullPage: true });
 
@@ -167,6 +239,7 @@ for (const w of WIDTHS) {
       contrastDetail: a.contrast.slice(0, 5),
       consoleErrors: consoleErrors.slice(0, 6),
       smallTapTargets: taps,
+      identitySwitch,
     });
     page.removeAllListeners('console');
     page.removeAllListeners('pageerror');
@@ -187,11 +260,19 @@ for (const r of results) {
   if (r.contrast > 0) bad.push(`CONTRAST(${r.contrast})`);
   if (r.collisions > 0) bad.push(`D003(${r.collisions})`);
   if (r.consoleErrors.length > 0) bad.push(`CONSOLE(${r.consoleErrors.length})`);
+  if (r.identitySwitch && !r.identitySwitch.hitTarget?.ownsCenter) {
+    bad.push(`SWITCH-HIT(${r.identitySwitch.hitTarget?.owner ?? 'none'})`);
+  }
+  if (r.identitySwitch && !r.identitySwitch.clickOk) bad.push('SWITCH-CLICK');
   if (bad.length) failures++;
   console.log(`${bad.length ? '✗' : '✓'} ${r.width}(${r.px}) ${r.tab} — ${bad.length ? bad.join(' ') : 'clean'} [drift=${r.drift} chars=${r.bodyChars}]`);
   for (const o of r.offenders) console.log(`     ↳ escapes: ${o.el} right=${o.right} > vw=${o.vw} (w=${o.width})`);
   for (const c of r.contrastDetail) console.log(`     ↳ contrast ${c.ratio} (<${c.floor}) ${c.el} "${c.text}"`);
   for (const e of r.consoleErrors) console.log(`     ↳ console: ${e}`);
+  if (r.identitySwitch) {
+    console.log(`     ${r.identitySwitch.hitTarget?.ownsCenter && r.identitySwitch.clickOk ? '✓' : '✗'} Switch pointer: center=${r.identitySwitch.hitTarget?.owner ?? 'none'} storage=${JSON.stringify(r.identitySwitch.stored)}`);
+    if (r.identitySwitch.error) console.log(`     ↳ Switch error: ${r.identitySwitch.error}`);
+  }
   if (r.smallTapTargets.length) console.log(`     ~ advisory: ${r.smallTapTargets.length} tap target(s) <44px, e.g. ${r.smallTapTargets.slice(0, 3).map((t) => `${t.el}(${t.w}x${t.h})"${t.text}"`).join(', ')}`);
 }
 console.log(`\nreport: ${OUT}/responsive-report.json`);
