@@ -4,6 +4,7 @@ import {
   type PanelComponent,
   type PanelRegistry,
 } from '@papercusp/dock-workbench';
+import { EventSettingsPanel } from './ConfigTab';
 import { CopilotPanel } from './CopilotPanel';
 import { EventChat } from './EventChat';
 import EventManager from './events/EventManager';
@@ -107,6 +108,15 @@ const EventManagerDockPanel: PanelComponent = function EventManagerDockPanel() {
   );
 };
 
+const EventSettingsDockPanel: PanelComponent = function EventSettingsDockPanel() {
+  const panels = useSellerDockPanels();
+  return (
+    <PanelBody>
+      <EventSettingsPanel {...panels['event-settings']} />
+    </PanelBody>
+  );
+};
+
 /**
  * Every panel id mapped to its component.
  *
@@ -123,6 +133,7 @@ export const SELLER_PANEL_COMPONENTS: Record<SellerPanelId, PanelComponent> = {
   copilot: CopilotDockPanel,
   'event-chat': EventChatDockPanel,
   'event-manager': EventManagerDockPanel,
+  'event-settings': EventSettingsDockPanel,
 };
 
 /**

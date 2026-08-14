@@ -134,6 +134,11 @@ export function SellerTab({
       apiBaseUrl: import.meta.env.VITE_API_URL,
       onEventReady: (nextEventId: string) => setEventId(nextEventId),
     },
+    'event-settings': {
+      eventId,
+      apiBaseUrl: import.meta.env.VITE_API_URL,
+      embedded: true,
+    },
   };
 
   return (

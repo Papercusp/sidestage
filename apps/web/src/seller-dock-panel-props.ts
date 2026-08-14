@@ -1,4 +1,5 @@
 import type { ComponentProps } from 'react';
+import type { EventSettingsPanel } from './ConfigTab';
 import type { CopilotPanel } from './CopilotPanel';
 import type { EventChat } from './EventChat';
 import type EventManager from './events/EventManager';
@@ -45,6 +46,7 @@ export type SellerDockPanelContextValue = {
   copilot: ComponentProps<typeof CopilotPanel>;
   'event-chat': ComponentProps<typeof EventChat>;
   'event-manager': ComponentProps<typeof EventManager>;
+  'event-settings': ComponentProps<typeof EventSettingsPanel>;
 };
 
 /**

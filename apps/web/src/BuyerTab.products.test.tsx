@@ -1,8 +1,8 @@
 import { readFileSync } from 'node:fs';
 import { renderToStaticMarkup } from 'react-dom/server';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
-import { BUYER_PRODUCT_PREVIEW_LIMIT, BuyerTab } from './BuyerTab';
+import { BUYER_PRODUCT_PREVIEW_LIMIT, BuyerTab, openOrHoldBuyerProduct } from './BuyerTab';
 import type { BuyerProduct } from './buyer';
 
 const PRODUCTS: BuyerProduct[] = Array.from({ length: 5 }, (_, index) => ({
@@ -27,6 +27,20 @@ function render(products: readonly BuyerProduct[]): string {
 }
 
 describe('BuyerTab product preview', () => {
+  it('reopens an already-held product without creating another cart hold', async () => {
+    const holdProduct = vi.fn(async () => ({ id: 'cart-1' }) as never);
+    const openHeldItems = vi.fn();
+    const checkout = { holdProduct, openHeldItems, heldItemCount: 1 };
+
+    await expect(openOrHoldBuyerProduct(PRODUCTS[0], PRODUCTS[0].id, checkout)).resolves.toBe('opened');
+    expect(openHeldItems).toHaveBeenCalledOnce();
+    expect(holdProduct).not.toHaveBeenCalled();
+
+    await expect(openOrHoldBuyerProduct(PRODUCTS[1], PRODUCTS[0].id, checkout)).resolves.toBe('held');
+    expect(holdProduct).toHaveBeenCalledOnce();
+    expect(holdProduct).toHaveBeenCalledWith(PRODUCTS[1]);
+  });
+
   it('keeps the current offer above the fold and previews the next three products', () => {
     const markup = render(PRODUCTS);
 

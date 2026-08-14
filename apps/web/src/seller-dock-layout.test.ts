@@ -63,13 +63,23 @@ describe('seller dock default layout — inventory', () => {
   it('gives every panel the registered title and makes it its strip’s active tab', () => {
     for (const strip of allStrips()) {
       const panels = strip.panels ?? [];
-      expect(panels).toHaveLength(1);
-      const panel = panels[0];
-      expect(panel.title).toBe(SELLER_PANEL_TITLES[panel.id as SellerPanelId]);
-      // A solo strip whose activePanelId does not name its only panel renders blank.
-      expect(strip.activePanelId).toBe(panel.id);
-      expect(panel.type).toBe(panel.id);
+      expect(panels.length).toBeGreaterThan(0);
+      for (const panel of panels) {
+        expect(panel.title).toBe(SELLER_PANEL_TITLES[panel.id as SellerPanelId]);
+        expect(panel.type).toBe(panel.id);
+      }
+      // A strip whose activePanelId names no panel renders blank.
+      expect(panels.map((panel) => panel.id)).toContain(strip.activePanelId);
     }
+  });
+
+  it('places Event settings beside Live console in the same current-event strip', () => {
+    const currentEventStrip = stripsOf(columnById('seller-primary'))[0];
+    expect(currentEventStrip.activePanelId).toBe('stage-status');
+    expect((currentEventStrip.panels ?? []).map((panel) => panel.id)).toEqual([
+      'stage-status',
+      'event-settings',
+    ]);
   });
 });
 
@@ -78,6 +88,7 @@ describe('seller dock default layout — grid fidelity', () => {
     // Columns are NOT interchangeable: this order IS "mirrors the grid exactly".
     expect(panelOrder(columnById('seller-primary'))).toEqual([
       'stage-status',
+      'event-settings',
       'copilot',
       'event-manager',
     ]);

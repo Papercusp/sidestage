@@ -21,7 +21,7 @@ import { fetchEventGuide, fetchEventThumbnailUrl, type GuideEvent } from './even
 import { ChannelGuide } from './events/ChannelGuide';
 import { ReplayChapters } from './ReplayChapters';
 import { DemoIdentityControl } from './BuyerIdentityControl';
-import { useBuyerCheckout } from './BuyerCheckout';
+import { type BuyerCheckoutActions, useBuyerCheckout } from './BuyerCheckout';
 import { useDemoIdentity } from './buyer-identity';
 import './BuyerTab.css';
 
@@ -58,6 +58,19 @@ export function buyerProductsFromSyncRows(
 ): BuyerProduct[] {
   const variants = offline ? OFFLINE_FIXTURE : rows?.[0]?.rows ?? [];
   return variants.map(variantToBuyerProduct);
+}
+
+export async function openOrHoldBuyerProduct(
+  product: BuyerProduct,
+  selectedProductId: string | null,
+  checkout: BuyerCheckoutActions,
+): Promise<'opened' | 'held'> {
+  if (selectedProductId === product.id) {
+    checkout.openHeldItems();
+    return 'opened';
+  }
+  await checkout.holdProduct(product);
+  return 'held';
 }
 
 export function BuyerTab({
@@ -210,10 +223,11 @@ export function BuyerTab({
 
   /** A real reservation (P-103): the hold hits inventory and decrements availableQty. */
   const reserveProduct = async (product: BuyerProduct) => {
-    if (product.availableQty <= 0) return;
+    if (product.availableQty <= 0 && selectedProductId !== product.id) return;
     try {
       if (!buyerCheckout) throw new Error('Buyer checkout is unavailable');
-      await buyerCheckout.holdProduct(product);
+      const outcome = await openOrHoldBuyerProduct(product, selectedProductId, buyerCheckout);
+      if (outcome === 'opened') return;
       setSelectedProductId(product.id);
       setHoldNotice(`${product.title} is held for you.`);
       setHoldOverrides((current) => ({
@@ -361,7 +375,7 @@ export function BuyerTab({
               <button
                 className="button primary buyer-current-offer-action"
                 type="button"
-                disabled={currentProduct.availableQty <= 0}
+                disabled={currentProduct.availableQty <= 0 && selectedProductId !== currentProduct.id}
                 onClick={() => void reserveProduct(currentProduct)}
               >
                 {selectedProductId === currentProduct.id
@@ -448,7 +462,7 @@ export function BuyerTab({
           <button
             className="button primary"
             type="button"
-            disabled={currentProduct.availableQty <= 0}
+            disabled={currentProduct.availableQty <= 0 && selectedProductId !== currentProduct.id}
             onClick={() => void reserveProduct(currentProduct)}
           >
             {selectedProductId === currentProduct.id ? 'Held for you' : 'Hold item'}

@@ -53,7 +53,8 @@ export type SellerPanelId =
   | 'on-deck'
   | 'copilot'
   | 'event-chat'
-  | 'event-manager';
+  | 'event-manager'
+  | 'event-settings';
 
 /** The complete seller panel inventory (D-004). */
 export const SELLER_PANEL_IDS: readonly SellerPanelId[] = [
@@ -63,6 +64,7 @@ export const SELLER_PANEL_IDS: readonly SellerPanelId[] = [
   'copilot',
   'event-chat',
   'event-manager',
+  'event-settings',
 ];
 
 /** Tab-strip labels, keyed by panel id. */
@@ -73,6 +75,7 @@ export const SELLER_PANEL_TITLES: Readonly<Record<SellerPanelId, string>> = {
   copilot: 'Copilot',
   'event-chat': 'Event chat',
   'event-manager': 'Event manager',
+  'event-settings': 'Event settings',
 };
 
 /** The layout name this dock persists under (P-010 keys storage by it). */
@@ -85,13 +88,17 @@ export const SELLER_DOCK_LAYOUT_NAME = 'seller';
  * React context, never through dockview params — params are serialized into the
  * persisted layout, and refs/functions/live objects are not serializable.
  */
-function solo(id: SellerPanelId, size: number): TabStrip {
-  const panel: PanelInstance = {
+function strip(ids: readonly SellerPanelId[], size: number, activePanelId = ids[0]!): TabStrip {
+  const panels: PanelInstance[] = ids.map((id) => ({
     id,
     type: id,
     title: SELLER_PANEL_TITLES[id],
-  };
-  return { kind: 'tabs', id: `${id}-group`, activePanelId: id, panels: [panel], size };
+  }));
+  return { kind: 'tabs', id: `${activePanelId}-group`, activePanelId, panels, size };
+}
+
+function solo(id: SellerPanelId, size: number): TabStrip {
+  return strip([id], size, id);
 }
 
 /**
@@ -112,7 +119,7 @@ export function sellerDockDefaultLayout(): LayoutDoc {
           direction: 'col',
           size: 600, // 1.2fr
           children: [
-            solo('stage-status', 500), // grid-row: span 2
+            strip(['stage-status', 'event-settings'], 500, 'stage-status'), // one current-event strip
             solo('copilot', 250),
             solo('event-manager', 250),
           ],
@@ -135,5 +142,7 @@ export function sellerDockDefaultLayout(): LayoutDoc {
 
 /** Which column a panel occupies in the default layout. */
 export function defaultColumnForPanel(id: SellerPanelId): 'primary' | 'rail' {
-  return id === 'stage-status' || id === 'copilot' || id === 'event-manager' ? 'primary' : 'rail';
+  return id === 'stage-status' || id === 'event-settings' || id === 'copilot' || id === 'event-manager'
+    ? 'primary'
+    : 'rail';
 }

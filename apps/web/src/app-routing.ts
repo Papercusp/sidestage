@@ -16,8 +16,7 @@ export const TABS: ReadonlyArray<TabDefinition> = [
   { id: 'orders', label: 'Orders', description: 'Review purchases and product moments', group: 'buyer-work' },
   { id: 'seller', label: 'Studio', description: 'Run the stage', group: 'operator-work' },
   { id: 'history', label: 'Releases', description: 'Review shipped work', group: 'operator-work' },
-  { id: 'config', label: 'Settings', description: 'Set event guardrails', group: 'operator-work' },
-  { id: 'test', label: 'Rehearse', description: 'Check your setup', group: 'operator-work' },
+  { id: 'test', label: 'Tests', description: 'Run isolated synthetic suites', group: 'operator-work' },
 ];
 
 export const TAB_GROUPS: ReadonlyArray<{
@@ -29,8 +28,9 @@ export const TAB_GROUPS: ReadonlyArray<{
   { id: 'operator-work', label: 'Operator work', tabs: TABS.filter((tab) => tab.group === 'operator-work') },
 ];
 
-function isTabId(value: string | null): value is TabId {
-  return TABS.some((tab) => tab.id === value);
+function resolveTabId(value: string | null): TabId | null {
+  if (value === 'config') return 'seller';
+  return TABS.some((tab) => tab.id === value) ? value as TabId : null;
 }
 
 function urlFor(value: string | URL | Pick<Location, 'pathname' | 'search' | 'hash'>): URL {
@@ -43,15 +43,16 @@ function urlFor(value: string | URL | Pick<Location, 'pathname' | 'search' | 'ha
 export function getTabFromUrl(value: string | URL | Pick<Location, 'pathname' | 'search' | 'hash'>): TabId {
   const url = urlFor(value);
   const queryTab = url.searchParams.get('tab');
-  if (isTabId(queryTab)) return queryTab;
+  const resolvedQueryTab = resolveTabId(queryTab);
+  if (resolvedQueryTab) return resolvedQueryTab;
 
   const pathTab = url.pathname.split('/').filter(Boolean).at(-1) ?? '';
-  return isTabId(pathTab) ? pathTab : 'buyer';
+  return resolveTabId(pathTab) ?? 'buyer';
 }
 
 export function tabHref(tab: TabId, currentUrl = '/'): string {
   const url = urlFor(currentUrl);
-  url.searchParams.set('tab', tab);
+  url.searchParams.set('tab', tab === 'config' ? 'seller' : tab);
   return `${url.pathname}?${url.searchParams.toString()}${url.hash}`;
 }
 
