@@ -1,7 +1,11 @@
 import { Global, Logger, Module } from '@nestjs/common';
 import { Pool } from 'pg';
 
-import { REQUIRED_TABLES, assertSchemaCurrent } from './schema-guard';
+import {
+  REQUIRED_OWNERSHIP_STRUCTURES,
+  REQUIRED_TABLES,
+  assertSchemaCurrent,
+} from './schema-guard';
 
 /**
  * PG_POOL resolves to a connected pg Pool, or null when Postgres is not
@@ -81,7 +85,7 @@ export async function createPoolOrNull(
 
   logger.log(
     `Postgres reachable — durable stores active (${url.replace(/:[^:@/]+@/, ':***@')}), ` +
-      `schema OK (${REQUIRED_TABLES.length}/${REQUIRED_TABLES.length} tables).`,
+      `schema OK (${REQUIRED_TABLES.length}/${REQUIRED_TABLES.length} tables, ${REQUIRED_OWNERSHIP_STRUCTURES.length}/${REQUIRED_OWNERSHIP_STRUCTURES.length} ownership structures).`,
   );
   return pool;
 }
