@@ -5,8 +5,20 @@ import { variantToSellerProduct } from '../seller-products';
 import { OnDeckPanel } from './OnDeckPanel';
 import { StageStatusPanel } from './StageStatusPanel';
 import type { StageStatusPanelProps } from './StageStatusPanel';
+import type { LiveTranscriptController } from '../use-live-transcript';
 
 const noop = () => undefined;
+const TRANSCRIPT_FIXTURE = {
+  provider: 'web-speech',
+  state: 'idle',
+  finalSegments: [],
+  interim: '',
+  error: null,
+  activeProduct: null,
+  suggestedProduct: null,
+  stageProduct: noop,
+  dismissSuggestion: noop,
+} satisfies LiveTranscriptController;
 
 function stageProps(overrides: Partial<StageStatusPanelProps> = {}): StageStatusPanelProps {
   return {
@@ -24,6 +36,7 @@ function stageProps(overrides: Partial<StageStatusPanelProps> = {}): StageStatus
     shareDisabled: true,
     copyState: 'idle',
     chat: <p>Seller room chat</p>,
+    transcript: TRANSCRIPT_FIXTURE,
     ...overrides,
   };
 }
@@ -47,6 +60,8 @@ describe('StageStatusPanel', () => {
     expect(markup).toContain('<span class="live-badge">room not started</span>');
     expect(markup).toContain('seller-video-chat-overlay');
     expect(markup).toContain('Seller room chat');
+    expect(markup).toContain('Captions start with the event');
+    expect(markup).toContain('>Transcript</button>');
   });
 
   it('labels each stream state and offers Start before a session exists', () => {
