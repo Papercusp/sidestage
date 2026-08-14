@@ -107,8 +107,17 @@ describe('SideStage web sync contract', () => {
       expect(checkout, `BuyerCheckout must route ${mutation} through useSyncMutate`).toContain(`'${mutation}'`);
     }
 
-    expect(copilot).toContain('useBuyerCheckout()');
-    expect(copilot).toContain('useEventChatSender({ eventId, apiBaseUrl })');
+    expect(copilot).toContain("queryName: 'event.copilot.proposals'");
+    for (const mutation of [
+      'copilot.createTurn',
+      'copilot.approve',
+      'copilot.skip',
+      'copilot.confirmAction',
+    ]) {
+      expect(copilot, `Copilot must route ${mutation} through useSyncMutate`).toContain(`'${mutation}'`);
+    }
+    expect(copilot).not.toContain('useBuyerCheckout');
+    expect(copilot).not.toContain('useEventChatSender');
     expect(copilot).not.toContain("'/cart/items'");
     expect(copilot).not.toContain("'/checkout/sessions'");
     expect(chat).toContain("'chat.sendMessage'");
