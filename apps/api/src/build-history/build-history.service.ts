@@ -130,6 +130,37 @@ function itemsFrom(payload: unknown): BuildHistoryWorkItem[] {
   });
 }
 
+function linkedItemsFromPlan(payload: unknown): BuildHistoryWorkItem[] {
+  const results = record(payload)?.results;
+  if (!Array.isArray(results)) return [];
+  const itemsById = new Map<string, BuildHistoryWorkItem>();
+  for (const result of results) {
+    const items = record(result)?.items;
+    if (!Array.isArray(items)) continue;
+    for (const value of items) {
+      const row = record(value);
+      const text = optionalString(row?.text);
+      const match = text?.match(/←\s+((?:WI|EI|F)-\d+)\s+completed\b/);
+      if (!match?.[1] || !text) continue;
+      const state = optionalString(row?.effectiveStatus) ?? optionalString(row?.storedStatus) ?? 'done';
+      if (state !== 'done') continue;
+      const noteStart = text.lastIndexOf('— note:');
+      const title = (noteStart >= 0 ? text.slice(0, noteStart) : text).trim();
+      itemsById.set(match[1], {
+        id: match[1],
+        kind: 'work-item',
+        title,
+        state,
+        completedAt: null,
+        completionAuthority: null,
+        completionSummary: null,
+        completionEvidence: null,
+      });
+    }
+  }
+  return [...itemsById.values()];
+}
+
 async function mapSixAtATime<T, R>(values: readonly T[], mapValue: (value: T) => Promise<R>): Promise<R[]> {
   const results = new Array<R>(values.length);
   let cursor = 0;
@@ -142,6 +173,31 @@ async function mapSixAtATime<T, R>(values: readonly T[], mapValue: (value: T) =>
   return results;
 }
 
+async function completedItemsForPlan(
+  plan: Pick<BuildHistoryPlan, 'slug'>,
+  config: BuildHistoryClientOptions,
+): Promise<BuildHistoryWorkItem[]> {
+  const planPayload = await callTool('plans/get', { harness: config.harness, slug: plan.slug }, config);
+  const linkedItems = linkedItemsFromPlan(planPayload);
+  if (linkedItems.length === 0) {
+    // Older plans predate the explicit `← WI-N completed` item link and used
+    // sourcePlanSlug directly. Keep that legacy path without making it the
+    // only relation the workbench understands.
+    return itemsFrom(await callTool('work_items/list', {
+      harness: config.harness,
+      sourcePlanSlug: plan.slug,
+      state: ['done'],
+      limit: MAX_ROWS,
+      payloadTier: 'full',
+    }, config));
+  }
+  // The plan index is the durable relationship authority and already carries
+  // the item title, terminal state, and linked work-item id. Rendering it
+  // directly avoids a second evidence-heavy read whose transport projection
+  // can trim records or exceed this public query's eight-second budget.
+  return linkedItems;
+}
+
 export async function fetchBuildHistory(overrides: Partial<BuildHistoryClientOptions> = {}): Promise<BuildHistoryPlan[]> {
   const config = options(overrides);
   const payload = await callTool('plans/list', {
@@ -150,13 +206,7 @@ export async function fetchBuildHistory(overrides: Partial<BuildHistoryClientOpt
   const plans = plansFrom(payload, config.planPrefix);
   return mapSixAtATime(plans, async (plan) => ({
     ...plan,
-    completedItems: itemsFrom(await callTool('work_items/list', {
-      harness: config.harness,
-      sourcePlanSlug: plan.slug,
-      state: ['done'],
-      limit: MAX_ROWS,
-      payloadTier: 'full',
-    }, config)),
+    completedItems: await completedItemsForPlan(plan, config),
   }));
 }
 
