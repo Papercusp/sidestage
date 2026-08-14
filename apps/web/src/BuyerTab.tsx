@@ -17,7 +17,7 @@ import { BuyerProductRail } from './BuyerProductRail';
 import { connectViewer, createEventRoom, type ViewerSession } from './streaming';
 import { EventThumbnail } from './event-creation/EventThumbnail';
 import { isRenderableThumbnailUrl } from './event-creation/thumbnail';
-import { fetchEventGuide, fetchEventThumbnailUrl, type GuideEvent } from './events/api';
+import type { GuideEvent } from './events/api';
 import { ChannelGuide } from './events/ChannelGuide';
 import { ReplayChapters } from './ReplayChapters';
 import { DemoIdentityControl } from './BuyerIdentityControl';
@@ -85,37 +85,22 @@ export function BuyerTab({
   guideEvents: guideEventsProp,
 }: BuyerTabProps) {
   /* ── Channel Guide (P-118 / D-019) ──────────────────────────────────────
-     The directory is loaded ONCE for the tab, not per drawer-open: the button
-     shows a live-room count, so the data has to exist before the buyer opens
-     anything. It is refreshed on event switch so viewer counts and the
-     live/ended split do not go stale while the drawer sits closed. */
+     The directory stays subscribed even while the drawer is closed because
+     the button exposes its live-room count. Config and chat-presence writers
+     invalidate this query, so title, thumbnail, status, ordering, and viewer
+     counts update without an event switch or component-owned refresh state. */
   const [guideOpen, setGuideOpen] = useState(false);
-  const [guideEvents, setGuideEvents] = useState<readonly GuideEvent[]>(guideEventsProp ?? []);
-  const [guideLoading, setGuideLoading] = useState(!guideEventsProp);
-  const [guideError, setGuideError] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (guideEventsProp) return;
-    let cancelled = false;
-    setGuideLoading(true);
-    fetchEventGuide()
-      .then((list) => {
-        if (cancelled) return;
-        setGuideEvents(list);
-        setGuideError(null);
-      })
-      .catch(() => {
-        // Say we could not ask, rather than rendering an empty guide that
-        // claims nothing is on.
-        if (!cancelled) setGuideError('Could not load the event guide.');
-      })
-      .finally(() => {
-        if (!cancelled) setGuideLoading(false);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [guideEventsProp, eventId]);
+  const guideQuery = useSyncQuery<GuideEvent>({
+    queryName: 'events.guide',
+    args: {},
+    enabled: guideEventsProp === undefined,
+    pollIntervalMs: 15_000,
+  });
+  const guideEvents = guideEventsProp ?? guideQuery.data ?? [];
+  const guideLoading = guideEventsProp === undefined && guideQuery.loading;
+  const guideError = guideEventsProp === undefined && guideQuery.error
+    ? 'Could not load the event guide.'
+    : null;
 
   const liveEventCount = useMemo(
     () => guideEvents.filter((event) => event.status === 'live').length,
@@ -157,20 +142,9 @@ export function BuyerTab({
     [catalogQuery.data, catalogQuery.error],
   );
   const products = productsProp ?? catalogProducts;
-  // The event thumbnail (P-014). Read once per event — it changes only when the
-  // seller re-uploads, so it does not share the stats poll.
-  const [fetchedThumbnailUrl, setFetchedThumbnailUrl] = useState<string | undefined>(undefined);
-  useEffect(() => {
-    if (thumbnailUrlProp) return;
-    let cancelled = false;
-    void fetchEventThumbnailUrl(eventId).then((url) => {
-      if (!cancelled) setFetchedThumbnailUrl(url);
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, [eventId, thumbnailUrlProp]);
-  const thumbnailUrl = thumbnailUrlProp ?? fetchedThumbnailUrl;
+  // The current room is one row in the same live guide, so its thumbnail and
+  // title advance atomically when a seller republishes event config.
+  const thumbnailUrl = thumbnailUrlProp ?? activeGuideEvent?.thumbnailUrl;
   const room = useMemo(() => createEventRoom(eventId, origin), [eventId, origin]);
   const shareUrl = useMemo(() => buildBuyerShareUrl(eventId, origin), [eventId, origin]);
   const [holdNotice, setHoldNotice] = useState<string | null>(null);
