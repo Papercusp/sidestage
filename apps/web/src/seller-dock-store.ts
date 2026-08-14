@@ -4,10 +4,17 @@ import {
   validateLayoutDoc,
   type DockLayoutRow,
   type DockLayoutStore,
+  type GroupNode,
   type LayoutDoc,
+  type TabStrip,
 } from '@papercusp/dock-workbench';
 
-import { SELLER_DOCK_LAYOUT_NAME, sellerDockDefaultLayout } from './seller-dock-layout';
+import {
+  SELLER_ACTIVE_DOCK_LAYOUT_NAME,
+  SELLER_DOCK_LAYOUT_NAME,
+  sellerActiveEventDockDefaultLayout,
+  sellerDockDefaultLayout,
+} from './seller-dock-layout';
 
 /**
  * Seller dock layout persistence (P-010).
@@ -128,6 +135,75 @@ function asError(err: unknown): Error {
   return err instanceof Error ? err : new Error(String(err));
 }
 
+function withoutPanel(node: GroupNode | TabStrip, panelId: string): GroupNode | TabStrip | null {
+  if (node.kind === 'tabs') {
+    const panels = node.panels.filter((panel) => panel.id !== panelId && panel.type !== panelId);
+    if (panels.length === 0) return null;
+    return {
+      ...node,
+      panels,
+      activePanelId: panels.some((panel) => panel.id === node.activePanelId)
+        ? node.activePanelId
+        : panels[0]!.id,
+    };
+  }
+
+  const children = node.children
+    .map((child) => withoutPanel(child, panelId))
+    .filter((child): child is GroupNode | TabStrip => child !== null);
+  if (children.length === 0) return null;
+  if (children.length === 1) return { ...children[0], size: node.size ?? children[0].size };
+  return { ...node, children };
+}
+
+function containsPanel(node: GroupNode | TabStrip, panelId: string): boolean {
+  if (node.kind === 'tabs') {
+    return node.panels.some((panel) => panel.id === panelId || panel.type === panelId);
+  }
+  return node.children.some((child) => containsPanel(child, panelId));
+}
+
+/**
+ * Option 3 replaces the standalone On Deck pane with the unified Run of Show.
+ * Remove that retired pane from saved Active Event layouts without discarding
+ * the seller's remaining dock geometry. If they had closed Run of Show, reseed
+ * instead: the route may not restore without its one live-lineup surface.
+ */
+export function migrateSellerActiveEventLayout(layout: LayoutDoc): LayoutDoc {
+  const floatingHasOnDeck = layout.floating?.some((group) => (
+    group.panels.some((panel) => panel.id === 'on-deck' || panel.type === 'on-deck')
+  )) ?? false;
+  const dockedHasOnDeck = containsPanel(layout.root, 'on-deck');
+  if (!dockedHasOnDeck && !floatingHasOnDeck) return layout;
+  if (!containsPanel(layout.root, 'run-of-show') && !(layout.floating?.some((group) => (
+    group.panels.some((panel) => panel.id === 'run-of-show' || panel.type === 'run-of-show')
+  )) ?? false)) {
+    return sellerActiveEventDockDefaultLayout();
+  }
+
+  const root = withoutPanel(layout.root, 'on-deck');
+  if (!root) return sellerActiveEventDockDefaultLayout();
+  const floating = layout.floating
+    ?.map((group) => {
+      const panels = group.panels.filter((panel) => panel.id !== 'on-deck' && panel.type !== 'on-deck');
+      if (panels.length === 0) return null;
+      return {
+        ...group,
+        panels,
+        activePanelId: panels.some((panel) => panel.id === group.activePanelId)
+          ? group.activePanelId
+          : panels[0]!.id,
+      };
+    })
+    .filter((group): group is NonNullable<typeof group> => group !== null);
+
+  return {
+    ...layout,
+    root,
+    floating: floating && floating.length > 0 ? floating : undefined,
+  };
+}
+
 /**
  * Return a copy of `layout` with `panelId` selected in its containing strip.
  * `null` means the panel was removed from the saved layout.
@@ -200,6 +276,14 @@ export function createSellerDockStore(opts: SellerDockStoreOptions = {}): DockLa
     return repaired ? { ...seeded, layoutJson: repaired } : seeded;
   };
 
+  const migrate = async (name: string, row: DockLayoutRow): Promise<DockLayoutRow> => {
+    if (name !== SELLER_ACTIVE_DOCK_LAYOUT_NAME || row.schemaVersion !== 1) return row;
+    const current = row.layoutJson as LayoutDoc;
+    const migrated = migrateSellerActiveEventLayout(current);
+    if (migrated === current) return row;
+    return inner.save(name, migrated, { expectedUpdatedTs: row.updatedTs });
+  };
+
   return {
     async load(name: string): Promise<DockLayoutRow> {
       let row: DockLayoutRow;
@@ -210,7 +294,7 @@ export function createSellerDockStore(opts: SellerDockStoreOptions = {}): DockLa
         // The row is gone, so this takes the store's seed path.
         row = await inner.load(name);
       }
-      return foreground(name, row);
+      return foreground(name, await migrate(name, row));
     },
 
     async save(name, layout, saveOpts): Promise<DockLayoutRow> {
