@@ -402,6 +402,10 @@ export class AuctionService {
   private emitAuctionUpdate(auction: Auction, inventoryChanged = false): void {
     this.updateSubject(auction.eventId).next(this.createAuctionEvent(auction.eventId, auction));
     this.syncInvalidations?.invalidate('event.auction.active', { eventId: auction.eventId });
+    this.syncInvalidations?.invalidate('event.pricingHistory', {
+      eventId: auction.eventId,
+      productId: auction.productId,
+    });
     if (inventoryChanged) {
       this.syncInvalidations?.invalidate('catalog.page');
       this.syncInvalidations?.invalidate('inventory.snapshot', { productId: auction.productId });

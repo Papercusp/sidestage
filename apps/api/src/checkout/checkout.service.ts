@@ -275,7 +275,7 @@ export class CheckoutService {
     }
     if (payment.status === 'failed') order.status = 'failed';
     await this.orders.set(order);
-    if (order.status !== previousStatus) this.invalidateBuyerOrders(order.buyerId);
+    if (order.status !== previousStatus) this.invalidateOrderStatus(order);
     return { order: this.cloneOrder(order), payment };
   }
 
@@ -335,5 +335,16 @@ export class CheckoutService {
 
   private invalidateBuyerOrders(buyerId: string): void {
     this.syncInvalidations?.invalidate('orders.byBuyer', { buyerId });
+  }
+
+  private invalidateOrderStatus(order: CheckoutOrder): void {
+    this.invalidateBuyerOrders(order.buyerId);
+    this.syncInvalidations?.invalidate('event.stats', { eventId: order.eventId });
+    for (const productId of new Set(order.items.map((item) => item.productId))) {
+      this.syncInvalidations?.invalidate('event.pricingHistory', {
+        eventId: order.eventId,
+        productId,
+      });
+    }
   }
 }

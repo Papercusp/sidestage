@@ -222,10 +222,13 @@ describe('AuctionService', () => {
 
     expect(published.map(({ name }) => name)).toEqual([
       'event.auction.active',
+      'event.pricingHistory',
       'catalog.page',
       'inventory.snapshot',
       'event.auction.active',
+      'event.pricingHistory',
       'event.auction.active',
+      'event.pricingHistory',
       'orders.byBuyer',
     ]);
     expect(published.filter(({ name }) => name === 'event.auction.active').map(({ args }) => args)).toEqual([
@@ -238,6 +241,11 @@ describe('AuctionService', () => {
     ]);
     expect(published.filter(({ name }) => name === 'inventory.snapshot').map(({ args }) => args)).toEqual([
       { productId: 'product-1' },
+    ]);
+    expect(published.filter(({ name }) => name === 'event.pricingHistory').map(({ args }) => args)).toEqual([
+      { eventId: 'event-1', productId: 'product-1' },
+      { eventId: 'event-1', productId: 'product-1' },
+      { eventId: 'event-1', productId: 'product-1' },
     ]);
   });
 

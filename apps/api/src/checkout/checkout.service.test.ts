@@ -108,7 +108,7 @@ describe('CheckoutService', () => {
     expect(confirmation.order.status).toBe('paid');
   });
 
-  it('invalidates only the affected buyer after order creation and payment status changes', async () => {
+  it('invalidates buyer orders, event stats, and product history after payment status changes', async () => {
     const carts = new CartService(new InMemoryCartStore());
     const cart = await carts.addItem({ cartId: 'cart-live-orders', productId: 'p-2', title: 'Headphones', priceCents: 19999 });
     const invalidations = new SyncInvalidationService();
@@ -123,6 +123,12 @@ describe('CheckoutService', () => {
     expect(published.filter(({ name }) => name === 'orders.byBuyer').map(({ args }) => args)).toEqual([
       { buyerId: 'buyer-live' },
       { buyerId: 'buyer-live' },
+    ]);
+    expect(published.filter(({ name }) => name === 'event.stats').map(({ args }) => args)).toEqual([
+      { eventId: 'event-live' },
+    ]);
+    expect(published.filter(({ name }) => name === 'event.pricingHistory').map(({ args }) => args)).toEqual([
+      { eventId: 'event-live', productId: 'p-2' },
     ]);
   });
 
