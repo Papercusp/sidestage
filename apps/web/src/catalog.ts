@@ -52,6 +52,11 @@ export function resolveApiBaseUrl(explicit?: string): string {
   return (explicit ?? import.meta.env.VITE_API_URL ?? 'http://localhost:3100').replace(/\/$/, '');
 }
 
+/** Demo inventory is available only in an explicit development build. */
+export function catalogDemoDataEnabled(isDevelopment: boolean = import.meta.env.DEV): boolean {
+  return isDevelopment;
+}
+
 export async function fetchCatalog(search: CatalogSearch, apiBaseUrl?: string): Promise<CatalogPage> {
   const params = new URLSearchParams();
   if (search.q) params.set('q', search.q);
@@ -75,8 +80,12 @@ export interface UseCatalogState {
   total: number;
   totalIsFloor: boolean;
   loading: boolean;
-  /** Set when the API was unreachable and the offline fixture is showing. */
+  /** Set whenever the catalog transport is unavailable. */
   offline: boolean;
+  /** True only when a development build is deliberately showing demo rows. */
+  showingDemo: boolean;
+  /** Production source loss: no rows are shown and consumers must alert. */
+  unavailable: boolean;
   productTypes: string[];
 }
 
@@ -90,8 +99,9 @@ export function resolveCatalogRows(
   offline: boolean,
   offlineRows: CatalogVariant[],
   pageResult?: CatalogPage,
+  allowDemoData: boolean = catalogDemoDataEnabled(),
 ): CatalogVariant[] {
-  if (offline) return offlineRows;
+  if (offline) return allowDemoData ? offlineRows : EMPTY_CATALOG_ROWS;
   return pageResult?.rows ?? EMPTY_CATALOG_ROWS;
 }
 
@@ -111,7 +121,12 @@ export function filterOfflineCatalog(search: CatalogSearch): CatalogVariant[] {
 }
 
 /** Debounced catalog search hook — the single client path to product data. */
-export function useCatalog(search: CatalogSearch, apiBaseUrl?: string, debounceMs = 250): UseCatalogState {
+export function useCatalog(
+  search: CatalogSearch,
+  apiBaseUrl?: string,
+  debounceMs = 250,
+  allowDemoData: boolean = catalogDemoDataEnabled(),
+): UseCatalogState {
   const { q = '', productType = 'all', availability = 'all', page = 1, pageSize = 24 } = search;
   const [debouncedSearch, setDebouncedSearch] = useState<CatalogSearch>(() => ({
     q, productType, availability, page, pageSize,
@@ -139,8 +154,11 @@ export function useCatalog(search: CatalogSearch, apiBaseUrl?: string, debounceM
   );
   const pageResult = pageQuery.data?.[0];
   const offline = Boolean(pageQuery.error);
+  const showingDemo = offline && allowDemoData;
   const productTypes = typesQuery.error
-    ? [...new Set(OFFLINE_FIXTURE.map((row) => row.productType))]
+    ? allowDemoData
+      ? [...new Set(OFFLINE_FIXTURE.map((row) => row.productType))]
+      : EMPTY_PRODUCT_TYPES
     : typesQuery.data ?? EMPTY_PRODUCT_TYPES;
 
   // The app-wide provider owns the transport URL. Keep apiBaseUrl in the
@@ -148,11 +166,13 @@ export function useCatalog(search: CatalogSearch, apiBaseUrl?: string, debounceM
   void apiBaseUrl;
 
   return {
-    rows: resolveCatalogRows(offline, offlineRows, pageResult),
-    total: offline ? offlineRows.length : pageResult?.total ?? 0,
+    rows: resolveCatalogRows(offline, offlineRows, pageResult, allowDemoData),
+    total: showingDemo ? offlineRows.length : pageResult?.total ?? 0,
     totalIsFloor: offline ? false : pageResult?.totalIsFloor ?? false,
     loading: pageQuery.loading || pageQuery.fetching,
     offline,
+    showingDemo,
+    unavailable: offline && !allowDemoData,
     productTypes,
   };
 }
@@ -190,7 +210,7 @@ export function variantToBuyerProduct(variant: CatalogVariant): BuyerProduct {
   };
 }
 
-/** The eight demo.sql products, for offline rendering only. */
+/** The eight demo.sql products, for explicit development rendering and tests. */
 export const OFFLINE_FIXTURE: readonly CatalogVariant[] = [
   { id: 'demo-espresso-matte-black', groupId: 'demo-espresso-machine', title: 'Barista Pro Espresso Machine', brand: 'BrewHaus', productType: 'KITCHEN_APPLIANCE', sku: 'BH-ESP-200-BLK', color: 'Matte Black', condition: 'NEW', handlingDays: 2, priceCents: 49999, availableQty: 12, imageUrl: 'https://placehold.co/640x640/2f3033/ffffff/png?text=Barista+Pro+Matte+Black' },
   { id: 'demo-espresso-cream', groupId: 'demo-espresso-machine', title: 'Barista Pro Espresso Machine', brand: 'BrewHaus', productType: 'KITCHEN_APPLIANCE', sku: 'BH-ESP-200-CRM', color: 'Cream', condition: 'NEW', handlingDays: 2, priceCents: 49999, availableQty: 5, imageUrl: 'https://placehold.co/640x640/efe6d5/3a352c/png?text=Barista+Pro+Cream' },

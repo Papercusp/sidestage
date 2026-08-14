@@ -144,7 +144,7 @@ describe('BuyerTab sync read models', () => {
     expect(buyerStatsFromSyncRows([])).toBeNull();
   });
 
-  it('maps a catalog page and reserves the fixture for transport failure', () => {
+  it('maps a catalog page and gates the transport-failure fixture to development', () => {
     const synced = buyerProductsFromSyncRows([{
       rows: [{
         id: 'variant-1',
@@ -168,6 +168,28 @@ describe('BuyerTab sync read models', () => {
       expect.objectContaining({ id: 'variant-1', title: 'Stoneware mug', priceCents: 2_400, availableQty: 3 }),
     ]);
     expect(buyerProductsFromSyncRows(undefined, false)).toEqual([]);
-    expect(buyerProductsFromSyncRows(undefined, true).length).toBeGreaterThan(0);
+    expect(buyerProductsFromSyncRows(undefined, true, true).length).toBeGreaterThan(0);
+    expect(buyerProductsFromSyncRows(undefined, true, false)).toEqual([]);
+  });
+
+  it('alerts production buyers instead of rendering products when the catalog source is down', () => {
+    const useDataImpl = vi.fn((options: { queryName: string }) => ({
+      data: [],
+      loading: false,
+      fetching: false,
+      transport: 'SSE',
+      invalidate: vi.fn(),
+      error: options.queryName === 'catalog.page' ? new Error('catalog unavailable') : null,
+    }));
+
+    const html = renderToStaticMarkup(
+      <SyncContext.Provider value={{ transport: 'SSE', useDataImpl, prefetch: vi.fn() } as never}>
+        <BuyerTab eventId="live-room" stats={STATS} guideEvents={[]} allowDemoData={false} />
+      </SyncContext.Provider>,
+    );
+
+    expect(html).toContain('role="alert"');
+    expect(html).toContain('Live inventory is unavailable');
+    expect(html).not.toContain('demo-espresso-matte-black');
   });
 });

@@ -4,7 +4,8 @@ import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 import { DEMO_CATALOG_FIXTURE } from './catalog.fixture';
-import { FixtureCatalogSource } from './catalog.sources';
+import { catalogSourceForPool } from './catalog.module';
+import { FixtureCatalogSource, UnavailableCatalogSource } from './catalog.sources';
 import type { CatalogVariant } from './catalog.types';
 
 /** db/seed/demo.sql, from the repo root (this file is apps/api/src/catalog/). */
@@ -88,6 +89,23 @@ describe('the demo catalog sells on a COLOUR axis', () => {
 
     expect(page.rows.map((variant) => variant.id)).toEqual(['demo-desk-walnut']);
     expect(page.rows[0].color).toBe('Walnut');
+  });
+});
+
+describe('catalog source selection', () => {
+  it('seeds fixtures only in development or explicit memory mode', () => {
+    expect(catalogSourceForPool(null, { NODE_ENV: 'development' })).toBeInstanceOf(FixtureCatalogSource);
+    expect(catalogSourceForPool(null, { NODE_ENV: 'production', DATA_BACKEND: 'memory' }))
+      .toBeInstanceOf(FixtureCatalogSource);
+  });
+
+  it('rejects reads instead of fabricating inventory when production durable storage is unavailable', async () => {
+    const source = catalogSourceForPool(null, { NODE_ENV: 'production', DATA_BACKEND: 'auto' });
+
+    expect(source).toBeInstanceOf(UnavailableCatalogSource);
+    await expect(source.search({})).rejects.toThrow('durable catalog storage is not connected');
+    await expect(source.productTypes()).rejects.toThrow('durable catalog storage is not connected');
+    await expect(source.variant('demo-espresso-matte-black')).rejects.toThrow('durable catalog storage is not connected');
   });
 });
 

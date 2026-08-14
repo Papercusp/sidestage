@@ -1,10 +1,10 @@
 import { Inject, Injectable, Module, type OnModuleInit } from '@nestjs/common';
 import type { Pool } from 'pg';
-import { DatabaseModule, PG_POOL } from '../db/database.module';
+import { DatabaseModule, PG_POOL, demoDataEnabled } from '../db/database.module';
 import { SyncModule } from '../sync/sync.module';
 import { SyncQueryRegistry, type SyncQueryArgs } from '../sync/sync-query.registry';
 import { CatalogController } from './catalog.controller';
-import { FixtureCatalogSource, PgCatalogSource } from './catalog.sources';
+import { FixtureCatalogSource, PgCatalogSource, UnavailableCatalogSource } from './catalog.sources';
 import { CATALOG_SOURCE, type CatalogQuery, type CatalogSource } from './catalog.types';
 
 function optionalString(args: SyncQueryArgs, key: string): string | undefined {
@@ -40,6 +40,14 @@ export class CatalogSyncQueries implements OnModuleInit {
   }
 }
 
+export function catalogSourceForPool(
+  pool: Pool | null,
+  env: NodeJS.ProcessEnv = process.env,
+): CatalogSource {
+  if (pool) return new PgCatalogSource(pool);
+  return demoDataEnabled(env) ? new FixtureCatalogSource() : new UnavailableCatalogSource();
+}
+
 @Module({
   imports: [DatabaseModule, SyncModule],
   controllers: [CatalogController],
@@ -48,7 +56,7 @@ export class CatalogSyncQueries implements OnModuleInit {
     {
       provide: CATALOG_SOURCE,
       inject: [PG_POOL],
-      useFactory: (pool: Pool | null) => (pool ? new PgCatalogSource(pool) : new FixtureCatalogSource()),
+      useFactory: catalogSourceForPool,
     },
   ],
   exports: [CATALOG_SOURCE],

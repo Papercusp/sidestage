@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { OFFLINE_FIXTURE, filterOfflineCatalog, resolveCatalogRows, variantToBuyerProduct } from './catalog';
+import {
+  catalogDemoDataEnabled,
+  OFFLINE_FIXTURE,
+  filterOfflineCatalog,
+  resolveCatalogRows,
+  variantToBuyerProduct,
+} from './catalog';
+import { sellerCatalogFallback } from './seller-products';
 
 describe('catalog sync fallback mapping', () => {
   it('preserves search, availability, type, and pagination semantics offline', () => {
@@ -18,13 +25,23 @@ describe('catalog sync fallback mapping', () => {
     expect(first).toBe(second);
     expect(first).toEqual([]);
   });
+
+  it('shows fixtures only in explicit development mode and empties every production fallback', () => {
+    const fixture = [OFFLINE_FIXTURE[0]];
+
+    expect(catalogDemoDataEnabled(true)).toBe(true);
+    expect(catalogDemoDataEnabled(false)).toBe(false);
+    expect(resolveCatalogRows(true, fixture, undefined, true)).toEqual(fixture);
+    expect(resolveCatalogRows(true, fixture, undefined, false)).toEqual([]);
+    expect(sellerCatalogFallback(true)).toHaveLength(3);
+    expect(sellerCatalogFallback(false)).toEqual([]);
+  });
 });
 
 /**
- * The offline mirror of the API's DEMO_CATALOG_FIXTURE. It is rendered when the
- * API is unreachable, which is exactly when nobody is watching — so the colour
- * axis has to hold here too, or the offline shop silently reverts to listing
- * each product twice under one label (WI-38716).
+ * The development mirror of the API's DEMO_CATALOG_FIXTURE. Production never
+ * renders it, but the explicit clean-clone demo still needs the same colour
+ * axis or it silently lists each product twice under one label (WI-38716).
  */
 describe('the offline demo fixture sells on a COLOUR axis', () => {
   it('gives every offline variant a colour', () => {

@@ -1,5 +1,10 @@
 import { useEffect, useState } from 'react';
-import { fetchCatalog, OFFLINE_FIXTURE, type CatalogVariant } from './catalog';
+import {
+  catalogDemoDataEnabled,
+  fetchCatalog,
+  OFFLINE_FIXTURE,
+  type CatalogVariant,
+} from './catalog';
 import type { ProductTone } from './components/ProductCard';
 import type { TranscriptProductOption } from './TranscriptPane';
 
@@ -42,6 +47,12 @@ export function variantToTranscriptOption(variant: CatalogVariant): TranscriptPr
   return { id: variant.id, label: variant.title, price: `$${(variant.priceCents / 100).toFixed(2)}`, aliases };
 }
 
+export function sellerCatalogFallback(
+  allowDemoData: boolean = catalogDemoDataEnabled(),
+): CatalogVariant[] {
+  return allowDemoData ? [...OFFLINE_FIXTURE.slice(0, 3)] : [];
+}
+
 /** The seller shell's on-stage products — the ONE catalog source (P-102). */
 export function useSellerCatalog(): CatalogVariant[] {
   const [variants, setVariants] = useState<CatalogVariant[]>([]);
@@ -52,7 +63,7 @@ export function useSellerCatalog(): CatalogVariant[] {
         if (!cancelled) setVariants(page.rows);
       })
       .catch(() => {
-        if (!cancelled) setVariants([...OFFLINE_FIXTURE.slice(0, 3)]);
+        if (!cancelled) setVariants(sellerCatalogFallback());
       });
     return () => {
       cancelled = true;

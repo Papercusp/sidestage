@@ -262,3 +262,23 @@ export class FixtureCatalogSource implements CatalogSource {
     return this.fixture.find((variant) => variant.id === id);
   }
 }
+
+/** Production no-source state: fail honestly instead of inventing inventory. */
+@Injectable()
+export class UnavailableCatalogSource implements CatalogSource {
+  private unavailable(): never {
+    throw new Error('Catalog data source unavailable: durable catalog storage is not connected.');
+  }
+
+  async search(): Promise<CatalogPage> {
+    return this.unavailable();
+  }
+
+  async productTypes(): Promise<string[]> {
+    return this.unavailable();
+  }
+
+  async variant(): Promise<CatalogVariant | undefined> {
+    return this.unavailable();
+  }
+}

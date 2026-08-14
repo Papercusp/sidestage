@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { useCatalog, variantToCatalogRow } from '../catalog';
+import { catalogDemoDataEnabled, useCatalog, variantToCatalogRow } from '../catalog';
 import {
   clampQuantity,
   createEventPayload,
@@ -24,6 +24,8 @@ export interface EventCreationPanelProps {
   copy?: string;
   submitLabel?: string;
   onCreateEvent?: (payload: EventCreationPayload) => void | Promise<void>;
+  /** Test/embed override; production builds default false via import.meta.env.DEV. */
+  allowDemoData?: boolean;
 }
 
 const ALL_PRODUCT_TYPES = 'all';
@@ -36,6 +38,7 @@ export function EventCreationPanel({
   copy = 'Search the full catalog, select multiple items, then set the live offer and quantity for each one.',
   submitLabel = 'Create event',
   onCreateEvent,
+  allowDemoData = catalogDemoDataEnabled(),
 }: EventCreationPanelProps) {
   const [eventName, setEventName] = useState(initialEventName);
   const [query, setQuery] = useState('');
@@ -64,7 +67,9 @@ export function EventCreationPanel({
     },
     undefined,
     catalogProp ? Number.MAX_SAFE_INTEGER : 250,
+    allowDemoData,
   );
+  const catalogUnavailable = catalogProp === undefined && remote.unavailable;
   const catalog = useMemo(
     () => catalogProp ?? remote.rows.map(variantToCatalogRow),
     [catalogProp, remote.rows],
@@ -84,15 +89,23 @@ export function EventCreationPanel({
     setPage(1);
   }, [availability, productType, query]);
   useEffect(() => {
+    if (catalogUnavailable) {
+      setCatalogById({});
+      setSelectedRowIds(new Set());
+      setDrafts({});
+      return;
+    }
     setCatalogById((current) => {
       const next = { ...current };
       for (const row of catalog) next[row.id] = row;
       return next;
     });
-  }, [catalog]);
+  }, [catalog, catalogUnavailable]);
   const selectedRows = useMemo(
-    () => [...selectedRowIds].map((id) => catalogById[id]).filter((row): row is CatalogRow => Boolean(row)),
-    [catalogById, selectedRowIds],
+    () => catalogUnavailable
+      ? []
+      : [...selectedRowIds].map((id) => catalogById[id]).filter((row): row is CatalogRow => Boolean(row)),
+    [catalogById, catalogUnavailable, selectedRowIds],
   );
   const selectedDrafts = useMemo(
     () => selectedRows.map((row) => drafts[row.id] ?? draftFromCatalog(row)),
@@ -283,6 +296,12 @@ export function EventCreationPanel({
         </label>
       </div>
 
+      {catalogUnavailable ? (
+        <p className="event-form-error" role="alert">
+          Catalog unavailable. No inventory is shown until durable catalog storage reconnects.
+        </p>
+      ) : null}
+
       <InventoryPickerGrid
         rows={filteredRows}
         selectedRowIds={selectedRowIds}
@@ -295,7 +314,7 @@ export function EventCreationPanel({
         <div className="event-pagination" aria-label="Catalog pagination">
           <span>
             {remote.loading ? 'Loading catalog…' : `Page ${page} · ${remote.totalIsFloor ? 'at least ' : ''}${remote.total.toLocaleString()} matches`}
-            {remote.offline ? ' · offline fixture' : ''}
+            {remote.showingDemo ? ' · development demo' : remote.unavailable ? ' · catalog unavailable' : ''}
           </span>
           <div>
             <button className="button tertiary" type="button" disabled={page <= 1 || remote.loading} onClick={() => setPage((current) => Math.max(1, current - 1))}>Previous</button>

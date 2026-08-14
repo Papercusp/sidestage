@@ -8,7 +8,13 @@ import {
   type BuyerProduct,
   type BuyerStats,
 } from './buyer';
-import { type CatalogPage, OFFLINE_FIXTURE, resolveApiBaseUrl, variantToBuyerProduct } from './catalog';
+import {
+  catalogDemoDataEnabled,
+  type CatalogPage,
+  OFFLINE_FIXTURE,
+  resolveApiBaseUrl,
+  variantToBuyerProduct,
+} from './catalog';
 import { EventChat } from './EventChat';
 import { DEFAULT_EVENT_ID, DEFAULT_EVENT_TITLE } from './event-identity';
 import { streamLabel, useCopyState, useStreamSession } from './hooks';
@@ -18,7 +24,6 @@ import { connectViewer, createEventRoom, type ViewerSession } from './streaming'
 import { EventThumbnail } from './event-creation/EventThumbnail';
 import { isRenderableThumbnailUrl } from './event-creation/thumbnail';
 import type { GuideEvent } from './events/api';
-import { ChannelGuide } from './events/ChannelGuide';
 import { ReplayChapters } from './ReplayChapters';
 import { DemoIdentityControl } from './BuyerIdentityControl';
 import { type BuyerCheckoutActions, useBuyerCheckout } from './BuyerCheckout';
@@ -35,14 +40,10 @@ export interface BuyerTabProps {
   origin?: string;
   /** Supplied by tests/embeds; otherwise read from the event config. */
   thumbnailUrl?: string;
-  /**
-   * Switch the active event (P-118 / D-019). The buyer tab owns the Channel
-   * Guide, but not which event the app is showing — that lives above it so the
-   * URL and every other surface stay in step.
-   */
-  onEventChange?: (eventId: string) => void;
-  /** Supplied by tests; otherwise fetched from GET /events. */
+  /** Supplied by the shared app shell/tests; standalone embeds fetch GET /events. */
   guideEvents?: readonly GuideEvent[];
+  /** Test/embed override; production builds default false via import.meta.env.DEV. */
+  allowDemoData?: boolean;
 }
 
 const EMPTY_BUYER_STATS: BuyerStats = { viewers: 0, itemsSold: 0, totalRaisedCents: 0 };
@@ -56,8 +57,9 @@ export function buyerStatsFromSyncRows(rows?: readonly BuyerStats[]): BuyerStats
 export function buyerProductsFromSyncRows(
   rows: readonly CatalogPage[] | undefined,
   offline: boolean,
+  allowDemoData: boolean = catalogDemoDataEnabled(),
 ): BuyerProduct[] {
-  const variants = offline ? OFFLINE_FIXTURE : rows?.[0]?.rows ?? [];
+  const variants = offline ? allowDemoData ? OFFLINE_FIXTURE : [] : rows?.[0]?.rows ?? [];
   return variants.map(variantToBuyerProduct);
 }
 
@@ -81,14 +83,11 @@ export function BuyerTab({
   mediaBaseUrl,
   origin,
   thumbnailUrl: thumbnailUrlProp,
-  onEventChange,
   guideEvents: guideEventsProp,
+  allowDemoData = catalogDemoDataEnabled(),
 }: BuyerTabProps) {
-  /* ── Channel Guide (P-118 / D-019) ──────────────────────────────────────
-     The directory stays subscribed while its persistent left sidebar is
-     visible. Config and chat-presence writers invalidate this query, so title,
-     thumbnail, status, ordering, and viewer counts update without an event
-     switch or component-owned refresh state. */
+  /* The app shell owns the persistent guide. Standalone renders still read the
+     same directory so the active room title and thumbnail stay authoritative. */
   const guideQuery = useSyncQuery<GuideEvent>({
     queryName: 'events.guide',
     args: {},
@@ -96,11 +95,6 @@ export function BuyerTab({
     pollIntervalMs: 15_000,
   });
   const guideEvents = guideEventsProp ?? guideQuery.data ?? [];
-  const guideLoading = guideEventsProp === undefined && guideQuery.loading;
-  const guideError = guideEventsProp === undefined && guideQuery.error
-    ? 'Could not load the event guide.'
-    : null;
-
   // The guide is the authority on an event's title once loaded: an event
   // reached from the guide has no config fetch behind it yet, and falling back
   // to the caller's title would label every room "Sunday vintage drop".
@@ -110,9 +104,6 @@ export function BuyerTab({
   );
   const resolvedTitle = activeGuideEvent?.title ?? eventTitle;
 
-  const selectEvent = (nextEventId: string) => {
-    if (nextEventId !== eventId) onEventChange?.(nextEventId);
-  };
   // Live stats (P-111 — no dummy data): real presence + paid orders through
   // the app-wide sync transport, with polling retained as its fallback mode.
   const statsQuery = useSyncQuery<BuyerStats>({
@@ -123,7 +114,8 @@ export function BuyerTab({
   });
   const stats = statsProp ?? buyerStatsFromSyncRows(statsQuery.data) ?? EMPTY_BUYER_STATS;
   // The event's product rail comes from the ONE catalog source (P-102): the
-  // API read model when reachable, the shared offline fixture otherwise.
+  // API read model when reachable; explicit development builds may use the
+  // shared fixture, while production source loss renders no inventory.
   const catalogQuery = useSyncQuery<CatalogPage>({
     queryName: 'catalog.page',
     args: { availability: 'in-stock', pageSize: 6 },
@@ -131,10 +123,11 @@ export function BuyerTab({
     pollIntervalMs: 10_000,
   });
   const catalogProducts = useMemo(
-    () => buyerProductsFromSyncRows(catalogQuery.data, Boolean(catalogQuery.error)),
-    [catalogQuery.data, catalogQuery.error],
+    () => buyerProductsFromSyncRows(catalogQuery.data, Boolean(catalogQuery.error), allowDemoData),
+    [allowDemoData, catalogQuery.data, catalogQuery.error],
   );
   const products = productsProp ?? catalogProducts;
+  const catalogUnavailable = productsProp === undefined && Boolean(catalogQuery.error) && !allowDemoData;
   // The current room is one row in the same live guide, so its thumbnail and
   // title advance atomically when a seller republishes event config.
   const thumbnailUrl = thumbnailUrlProp ?? activeGuideEvent?.thumbnailUrl;
@@ -266,17 +259,13 @@ export function BuyerTab({
         </div>
       </header>
 
-      <div className="buyer-layout">
-        <ChannelGuide
-          events={guideEvents}
-          currentEventId={eventId}
-          onSelect={selectEvent}
-          loading={guideLoading}
-          error={guideError}
-        />
+      {catalogUnavailable ? (
+        <p className="buyer-catalog-unavailable" role="alert">
+          Live inventory is unavailable. No products are shown until the durable catalog reconnects.
+        </p>
+      ) : null}
 
-        <div className="buyer-main-column">
-          <section className="buyer-stage-grid" aria-label="Live video and current offer">
+      <section className="buyer-stage-grid" aria-label="Live video and current offer">
         <div className="buyer-player-card">
           <video
             ref={videoRef}
@@ -368,14 +357,14 @@ export function BuyerTab({
             <p className="muted">Stay in the room—the offer updates when the seller brings an item on stage.</p>
           )}
         </article>
-          </section>
+      </section>
 
-          <div className="buyer-mode-switch" role="group" aria-label="Buyer mobile view">
+      <div className="buyer-mode-switch" role="group" aria-label="Buyer mobile view">
         <button type="button" aria-pressed={buyerMode === 'shop'} onClick={() => setBuyerMode('shop')}>Shop</button>
         <button type="button" aria-pressed={buyerMode === 'chat'} onClick={() => setBuyerMode('chat')}>Chat</button>
-          </div>
+      </div>
 
-          <div className="buyer-lower-grid" data-buyer-mode={buyerMode}>
+      <div className="buyer-lower-grid" data-buyer-mode={buyerMode}>
         <div className="buyer-shop-panel">
           <ReplayChapters eventId={eventId} videoRef={videoRef} apiBaseUrl={resolveApiBaseUrl()} />
 
@@ -416,9 +405,6 @@ export function BuyerTab({
               heldProductIds={heldProductIds}
               onHold={reserveProduct}
             />
-          </div>
-        </div>
-
           </div>
         </div>
       </div>

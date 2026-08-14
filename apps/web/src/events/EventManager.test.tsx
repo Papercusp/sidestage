@@ -1,5 +1,6 @@
 import { renderToStaticMarkup } from 'react-dom/server';
-import { describe, expect, it } from 'vitest';
+import { SyncContext } from '@papercusp/sync';
+import { describe, expect, it, vi } from 'vitest';
 import { EventManager } from './EventManager';
 import type { SellerEventItem } from './api';
 
@@ -16,6 +17,46 @@ const ITEMS: SellerEventItem[] = [{
 }];
 
 describe('EventManager', () => {
+  it('reads config and lineup through named sync queries without a component-owned fetch', () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal('fetch', fetchMock);
+    const useDataImpl = vi.fn((options: { queryName: string }) => ({
+      data: options.queryName === 'event.config'
+        ? [{
+            eventId: 'sunday-drop',
+            name: 'Live renamed drop',
+            replyTone: 'warm',
+            guardrails: { priceChanges: true, inventoryClaims: true, buyerSensitive: true },
+            updatedAt: '2026-08-14T15:00:00.000Z',
+          }]
+        : options.queryName === 'event.actions.items' ? ITEMS : [],
+      loading: false,
+      fetching: false,
+      transport: 'SSE',
+      invalidate: vi.fn(),
+      error: null,
+    }));
+
+    const markup = renderToStaticMarkup(
+      <SyncContext.Provider value={{ transport: 'SSE', useDataImpl, prefetch: vi.fn() } as never}>
+        <EventManager actorId="seller-27" eventId="sunday-drop" eventName="Stale title" />
+      </SyncContext.Provider>,
+    );
+
+    expect(useDataImpl).toHaveBeenCalledWith(expect.objectContaining({
+      queryName: 'event.config',
+      args: { eventId: 'sunday-drop' },
+    }));
+    expect(useDataImpl).toHaveBeenCalledWith(expect.objectContaining({
+      queryName: 'event.actions.items',
+      args: { eventId: 'sunday-drop' },
+    }));
+    expect(markup).toContain('Live renamed drop');
+    expect(markup).toContain('Barista Pro Espresso Machine');
+    expect(fetchMock).not.toHaveBeenCalled();
+    vi.unstubAllGlobals();
+  });
+
   it('renders the real guarded lineup through RichGrid', () => {
     const markup = renderToStaticMarkup(
       <EventManager actorId="seller-27" eventId="sunday-drop" eventName="Sunday drop" initialItems={ITEMS} />,
