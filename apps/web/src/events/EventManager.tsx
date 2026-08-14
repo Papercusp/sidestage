@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react';
+import { useCallback, useEffect, useMemo, useState, type FormEvent, type MouseEvent } from 'react';
 import { useSyncMutate, useSyncQuery } from '@papercusp/sync';
 import { EventSettingsPanel, type EventConfigView } from '../ConfigTab';
 import {
@@ -12,6 +12,7 @@ import type { EventCreationPayload } from '../event-creation/catalog';
 import {
   addItemsToSellerEvent,
   adjustSellerEventStock,
+  closeSellerAuction,
   executeSellerAction,
   readSellerAuctionToken,
   rememberSellerAuctionToken,
@@ -69,6 +70,11 @@ type StartAuctionMutation = {
   quantity: number;
   startingPriceCents: number;
 };
+type CloseAuctionMutation = { auctionId: string };
+
+function formatAuctionPrice(cents: number): string {
+  return new Intl.NumberFormat(undefined, { style: 'currency', currency: 'USD' }).format(cents / 100);
+}
 
 function eventInitials(title: string): string {
   return title
@@ -150,8 +156,16 @@ export function EventManager({
     enabled: initialItems === undefined && !isCreateView,
     pollIntervalMs: 10_000,
   });
+  const auctionQuery = useSyncQuery<SellerAuction>({
+    queryName: 'event.auction.active',
+    args: { eventId: selectedEventId },
+    enabled: !isCreateView,
+    pollIntervalMs: 2_000,
+    staleTime: 0,
+  });
   const name = configQuery.data?.[0]?.name ?? selectedEvent?.title ?? eventName;
   const items = initialItems ?? itemsQuery.data ?? [];
+  const currentAuction = auctionQuery.data?.[0] ?? null;
   const loaded = isCreateView || initialItems !== undefined || (!configQuery.loading && !itemsQuery.loading);
   const readError = initialItems === undefined ? configQuery.error ?? itemsQuery.error : null;
 
@@ -192,6 +206,14 @@ export function EventManager({
     [apiBaseUrl, sellerAuctionToken],
   );
   const mutateStartAuction = useSyncMutate<StartAuctionMutation, SellerAuction>('auction.start', auctionFallback);
+
+  const closeAuctionFallback = useCallback(
+    async ({ auctionId }: CloseAuctionMutation) => (
+      closeSellerAuction(auctionId, apiBaseUrl, sellerAuctionToken || undefined)
+    ),
+    [apiBaseUrl, sellerAuctionToken],
+  );
+  const mutateCloseAuction = useSyncMutate<CloseAuctionMutation, SellerAuction>('auction.close', closeAuctionFallback);
 
   useEffect(() => {
     setPickerOpen(false);
@@ -245,7 +267,7 @@ export function EventManager({
     }
   };
 
-  const openRoute = (next: EventManagerRoute) => (event: React.MouseEvent<HTMLAnchorElement>) => {
+  const openRoute = (next: EventManagerRoute) => (event: MouseEvent<HTMLAnchorElement>) => {
     event.preventDefault();
     navigateRoute(next);
   };
@@ -256,6 +278,28 @@ export function EventManager({
   };
 
   const eventStatus = selectedEvent?.status ?? 'draft';
+  const currentAuctionItem = currentAuction
+    ? items.find((item) => item.productId === currentAuction.productId)
+    : undefined;
+  const currentAuctionIsLive = currentAuction?.status === 'active';
+  const auctionWritesEnabled = Boolean(sellerAuctionToken) && !currentAuctionIsLive;
+  const auctionWriteDisabledReason = !sellerAuctionToken
+    ? 'Unlock seller auction writes before starting an auction'
+    : currentAuctionIsLive
+      ? 'Close the current auction before starting another'
+      : undefined;
+
+  const closeCurrentAuction = () => {
+    if (!currentAuctionIsLive || !currentAuction) return;
+    void runAction(
+      currentAuction.productId,
+      async () => {
+        await mutateCloseAuction({ auctionId: currentAuction.id });
+        auctionQuery.invalidate();
+      },
+      `${currentAuctionItem?.title ?? 'Auction'} closed. The authoritative result is refreshing.`,
+    );
+  };
 
   return (
     <section className="event-manager" aria-labelledby="event-manager-title">
@@ -436,6 +480,41 @@ export function EventManager({
                         </div>
                       ) : null}
                     </form>
+                    {auctionQuery.loading ? (
+                      <p className="event-current-auction-state" role="status">Checking the authoritative auction state…</p>
+                    ) : auctionQuery.error ? (
+                      <div className="event-current-auction-state is-error" role="alert">
+                        <span>{errorMessage(auctionQuery.error)}</span>
+                        <button className="button small" type="button" onClick={auctionQuery.invalidate}>Try again</button>
+                      </div>
+                    ) : currentAuction ? (
+                      <div className={`event-current-auction is-${currentAuction.status}`} aria-live="polite">
+                        <div>
+                          <span className={`event-status event-auction-status-${currentAuction.status}`}>
+                            {currentAuction.status === 'active' ? 'Live auction' : 'Closed result'}
+                          </span>
+                          <strong>{currentAuctionItem?.title ?? currentAuction.productId}</strong>
+                          <small>
+                            {currentAuction.status === 'active'
+                              ? `Current bid ${formatAuctionPrice(currentAuction.currentPriceCents)} · closes from server time ${new Date(currentAuction.endsAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}`
+                              : currentAuction.winnerOrder
+                                ? `Winner ${currentAuction.winnerOrder.bidderId} · ${formatAuctionPrice(currentAuction.winnerOrder.unitPriceCents)} each · recovered from the server`
+                                : 'Closed without a winning bid · recovered from the server'}
+                          </small>
+                        </div>
+                        {currentAuction.status === 'active' ? (
+                          <button
+                            className="button secondary"
+                            type="button"
+                            disabled={!sellerAuctionToken || busyProductId === currentAuction.productId}
+                            title={sellerAuctionToken ? undefined : 'Unlock seller auction writes before closing this auction'}
+                            onClick={closeCurrentAuction}
+                          >
+                            {busyProductId === currentAuction.productId ? 'Closing…' : 'Close auction'}
+                          </button>
+                        ) : null}
+                      </div>
+                    ) : null}
                     <div className="event-manager-queue-heading">
                       <div>
                         <p className="eyebrow">Event lineup</p>
@@ -445,6 +524,8 @@ export function EventManager({
                     <EventLineupGrid
                       items={items}
                       busyProductId={busyProductId}
+                      auctionWritesEnabled={auctionWritesEnabled}
+                      auctionWriteDisabledReason={auctionWriteDisabledReason}
                       onPush={(item) => void runAction(
                         item.productId,
                         () => mutateAction({
@@ -489,7 +570,10 @@ export function EventManager({
                       )}
                       onStartAuction={(item, quantity, startingPriceCents) => void runAction(
                         item.productId,
-                        () => mutateStartAuction({ eventId: selectedEventId, item, quantity, startingPriceCents }),
+                        async () => {
+                          await mutateStartAuction({ eventId: selectedEventId, item, quantity, startingPriceCents });
+                          auctionQuery.invalidate();
+                        },
                         `${quantity} × ${item.title} auction started.`,
                       )}
                       onSendOffer={(item, buyerId, quantity, priceCents) => void runAction(

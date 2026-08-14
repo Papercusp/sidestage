@@ -39,4 +39,22 @@ describe('EventLineupGrid', () => {
     expect(markup).toContain('Offer quantity for Aurora mug');
     expect(markup).toContain('Offer buyer ID for Aurora mug');
   });
+
+  it('keeps auction start visibly disabled until the seller write boundary is available', () => {
+    const markup = renderToStaticMarkup(
+      <EventLineupGrid
+        items={ITEMS}
+        auctionWritesEnabled={false}
+        auctionWriteDisabledReason="Close the current auction before starting another"
+        onPush={() => undefined}
+        onSwap={() => undefined}
+        onMarkdown={() => undefined}
+        onStockAdjust={() => undefined}
+        onStartAuction={() => undefined}
+        onSendOffer={() => undefined}
+      />,
+    );
+
+    expect(markup).toMatch(/<button[^>]*disabled=""[^>]*title="Close the current auction before starting another"[^>]*>Start auction<\/button>/);
+  });
 });

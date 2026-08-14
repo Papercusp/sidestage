@@ -1,7 +1,9 @@
+/** @vitest-environment jsdom */
+
 import { renderToStaticMarkup } from 'react-dom/server';
 import { SyncContext } from '@papercusp/sync';
-import { describe, expect, it, vi } from 'vitest';
-import { EventManager } from './EventManager';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { EventManager, type SellerOwnedEvent } from './EventManager';
 import type { SellerEventItem } from './api';
 
 const ITEMS: SellerEventItem[] = [{
@@ -16,7 +18,21 @@ const ITEMS: SellerEventItem[] = [{
   attributes: { brand: 'BrewHaus', sku: 'BH-ESP-200-NEW', basePriceCents: 49_999 },
 }];
 
+const EVENTS: SellerOwnedEvent[] = [{
+  eventId: 'sunday-drop',
+  title: 'Sunday drop',
+  sellerId: 'demo-seller',
+  sellerName: 'SideStage Seller',
+  status: 'live',
+  startsAt: '2026-08-14T15:00:00.000Z',
+  endedAt: null,
+}];
+
 describe('EventManager', () => {
+  beforeEach(() => {
+    window.history.replaceState({}, '', '/?tab=seller&studio=event-manager&manager=events');
+  });
+
   it('reads config and lineup through named sync queries without a component-owned fetch', () => {
     const fetchMock = vi.fn();
     vi.stubGlobal('fetch', fetchMock);
@@ -29,7 +45,8 @@ describe('EventManager', () => {
             guardrails: { priceChanges: true, inventoryClaims: true, buyerSensitive: true },
             updatedAt: '2026-08-14T15:00:00.000Z',
           }]
-        : options.queryName === 'event.actions.items' ? ITEMS : [],
+        : options.queryName === 'event.actions.items' ? ITEMS
+          : options.queryName === 'events.mine' ? EVENTS : [],
       loading: false,
       fetching: false,
       transport: 'SSE',
@@ -51,7 +68,12 @@ describe('EventManager', () => {
       queryName: 'event.actions.items',
       args: { eventId: 'sunday-drop' },
     }));
+    expect(useDataImpl).toHaveBeenCalledWith(expect.objectContaining({
+      queryName: 'events.mine',
+      args: {},
+    }));
     expect(markup).toContain('Live renamed drop');
+    expect(markup).toContain('My events');
     expect(markup).toContain('Barista Pro Espresso Machine');
     expect(fetchMock).not.toHaveBeenCalled();
     vi.unstubAllGlobals();
@@ -59,7 +81,13 @@ describe('EventManager', () => {
 
   it('renders the real guarded lineup through RichGrid', () => {
     const markup = renderToStaticMarkup(
-      <EventManager actorId="seller-27" eventId="sunday-drop" eventName="Sunday drop" initialItems={ITEMS} />,
+      <EventManager
+        actorId="seller-27"
+        eventId="sunday-drop"
+        eventName="Sunday drop"
+        initialItems={ITEMS}
+        initialEvents={EVENTS}
+      />,
     );
 
     expect(markup).toContain('Sunday drop');
@@ -69,24 +97,65 @@ describe('EventManager', () => {
     expect(markup).toContain('Markdown');
     expect(markup).toContain('Stock');
     expect(markup).toContain('Auction quantity for Barista Pro Espresso Machine');
-    expect(markup).toContain('start auctions');
+    expect(markup).toContain('Unlock auction writes');
     expect(markup).toContain('Start auction');
     expect(markup).toContain('Offer quantity for Barista Pro Espresso Machine');
     expect(markup).toContain('Barista Pro Espresso Machine');
-    expect(markup).toContain('Event queue');
-    expect(markup).toContain('Manage lineup');
-    expect(markup).toContain('Event settings &amp; readiness');
-    expect(markup).toContain('Loading event settings…');
+    expect(markup).toContain('Event lineup');
+    expect(markup).toContain('Add inventory');
+    expect(markup).toContain('Lineup');
+    expect(markup).toContain('Settings');
+    expect(markup).not.toContain('Event settings &amp; readiness');
   });
 
-  it('renders the reservation-backed setup picker for an empty event', () => {
+  it('renders an empty selected event with an inventory call to action', () => {
     const markup = renderToStaticMarkup(
-      <EventManager actorId="seller-27" eventId="new-event" eventName="New event" initialItems={[]} />,
+      <EventManager
+        actorId="seller-27"
+        eventId="new-event"
+        eventName="New event"
+        initialItems={[]}
+        initialEvents={[]}
+      />,
     );
 
-    expect(markup).toContain('Build the live lineup.');
+    expect(markup).toContain('This event has no reserved inventory yet.');
+    expect(markup).toContain('Add inventory');
     expect(markup).toContain('Create event');
-    expect(markup).toContain('reservation-backed quantity for every item');
     expect(markup).not.toContain('Event settings &amp; readiness');
+  });
+
+  it('nests settings under the selected event instead of the manager workspace switch', () => {
+    window.history.replaceState({}, '', '/?tab=seller&studio=event-manager&manager=events&event=sunday-drop&section=settings');
+    const markup = renderToStaticMarkup(
+      <EventManager
+        actorId="seller-27"
+        eventId="sunday-drop"
+        eventName="Sunday drop"
+        initialItems={ITEMS}
+        initialEvents={EVENTS}
+      />,
+    );
+
+    expect(markup).toContain('Event settings &amp; readiness');
+    expect(markup).toContain('Loading event settings…');
+    expect(markup).not.toContain('data-rg-screen-grid="true"');
+  });
+
+  it('renders the existing reservation-backed creation flow in Create event', () => {
+    window.history.replaceState({}, '', '/?tab=seller&studio=event-manager&manager=create');
+    const markup = renderToStaticMarkup(
+      <EventManager
+        actorId="seller-27"
+        eventId="new-event"
+        eventName="New event"
+        initialItems={[]}
+        initialEvents={[]}
+      />,
+    );
+
+    expect(markup).toContain('Build the live lineup');
+    expect(markup).toContain('reserve real catalog inventory');
+    expect(markup).toContain('Create event');
   });
 });
