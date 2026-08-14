@@ -1,5 +1,6 @@
 import { resolveApiBaseUrl, type CatalogVariant } from '../catalog';
 import type { EventCreationPayload } from '../event-creation/catalog';
+import type { RunOfShowEntry, RunOfShowPlan } from '../run-of-show';
 
 export type SellerActionKind = 'markdown' | 'targeted-offer' | 'push' | 'swap' | 'stock-adjust';
 
@@ -338,6 +339,36 @@ export async function startSellerAuction(
       availableQty: item.availableQty,
     }),
   });
+}
+
+/**
+ * Run-of-show client (plan sidestage-run-of-show-planner-2026-08-14).
+ *
+ * These live HERE, not in run-of-show.ts, on purpose: this module is the one
+ * budgeted HTTP transport for event surfaces (sync-contract.test.ts — every
+ * helper funnels through the single requestJson fetch). run-of-show.ts stays
+ * pure logic. Reads should prefer useSyncQuery('event.runOfShow'); this GET
+ * exists for non-hook callers, and the PUT is the useSyncMutate REST fallback.
+ */
+export async function fetchRunOfShowPlan(eventId: string, apiBaseUrl?: string): Promise<RunOfShowPlan> {
+  return requestJson<RunOfShowPlan>(
+    eventUrl(`/events/${encodeURIComponent(eventId)}/run-of-show`, apiBaseUrl),
+  );
+}
+
+export async function saveRunOfShowPlan(
+  eventId: string,
+  entries: readonly RunOfShowEntry[],
+  apiBaseUrl?: string,
+): Promise<RunOfShowPlan> {
+  return requestJson<RunOfShowPlan>(
+    eventUrl(`/events/${encodeURIComponent(eventId)}/run-of-show`, apiBaseUrl),
+    {
+      method: 'PUT',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ entries }),
+    },
+  );
 }
 
 export async function adjustSellerEventStock(

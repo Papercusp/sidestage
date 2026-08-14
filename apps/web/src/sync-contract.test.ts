@@ -28,6 +28,10 @@ const accessPatterns: Record<AccessKind, RegExp> = {
  */
 const legacyAccessBudget = {
   'AuctionPanel.tsx': { 'polling-timer': 1 },
+  // RunOfShowPanel's one timer ticks the on-stage elapsed clock; it reads no
+  // server state (the plan arrives via useSyncQuery('event.runOfShow')), so it
+  // is the same permanently-valid local-clock exception as AuctionPanel above.
+  'seller/RunOfShowPanel.tsx': { 'polling-timer': 1 },
   'ConfigTab.tsx': { fetch: 1 },
   'CopilotPanel.tsx': { fetch: 1 },
   'EventChat.tsx': { fetch: 2 },
