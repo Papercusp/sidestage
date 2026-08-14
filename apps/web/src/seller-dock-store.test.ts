@@ -108,10 +108,13 @@ describe('createSellerDockStore — round trip', () => {
     expect(reloaded.layoutJson).not.toEqual(sellerDockDefaultLayout());
   });
 
-  it('migrates the retired On Deck pane out of a saved Active Event layout', async () => {
+  it('migrates retired Transcript and On Deck panes out of docked and floating layouts', async () => {
     const legacy = sellerDockDefaultLayout();
     const root = legacy.root as Extract<LayoutDoc['root'], { kind: 'group' }>;
     const rail = root.children.find((node) => node.id === 'seller-active-rail') as Extract<LayoutDoc['root'], { kind: 'group' }>;
+    const chatStrip = rail.children[0] as Extract<LayoutDoc['root'], { kind: 'tabs' }>;
+    chatStrip.panels.unshift({ id: 'transcript', type: 'transcript', title: 'Transcript' });
+    chatStrip.activePanelId = 'transcript';
     rail.children.splice(1, 0, {
       kind: 'tabs',
       id: 'on-deck-group',
@@ -119,17 +122,37 @@ describe('createSellerDockStore — round trip', () => {
       panels: [{ id: 'on-deck', type: 'on-deck', title: 'On deck' }],
       size: 300,
     });
+    legacy.floating = [{
+      id: 'legacy-transcript-float',
+      x: 10,
+      y: 10,
+      width: 420,
+      height: 320,
+      activePanelId: 'transcript-floating',
+      panels: [
+        { id: 'transcript-floating', type: 'transcript', title: 'Transcript' },
+        { id: 'event-chat-floating', type: 'event-chat', title: 'Event chat' },
+      ],
+    }];
+    root.children[0]!.size = 701;
 
     expect(layoutPanelIds(legacy)).toContain('on-deck');
+    expect(layoutPanelIds(legacy)).toContain('transcript');
+    expect(layoutPanelIds(legacy)).toContain('transcript-floating');
     await createSellerDockStore().save(SELLER_DOCK_LAYOUT_NAME, legacy);
     const migrated = await createSellerDockStore().load(SELLER_DOCK_LAYOUT_NAME);
+    const migratedLayout = migrated.layoutJson as LayoutDoc;
 
-    expect(layoutPanelIds(migrated.layoutJson as LayoutDoc)).not.toContain('on-deck');
-    expect(layoutPanelIds(migrated.layoutJson as LayoutDoc)).toContain('run-of-show');
-    expect(layoutPanelIds(migrateSellerActiveEventLayout(migrated.layoutJson as LayoutDoc))).toEqual(
-      layoutPanelIds(migrated.layoutJson as LayoutDoc),
+    expect(layoutPanelIds(migratedLayout)).not.toContain('on-deck');
+    expect(layoutPanelIds(migratedLayout)).not.toContain('transcript');
+    expect(layoutPanelIds(migratedLayout)).not.toContain('transcript-floating');
+    expect(layoutPanelIds(migratedLayout)).toContain('run-of-show');
+    expect((migratedLayout.root as Extract<LayoutDoc['root'], { kind: 'group' }>).children[0]?.size).toBe(701);
+    expect(migratedLayout.floating?.[0]?.activePanelId).toBe('event-chat-floating');
+    expect(layoutPanelIds(migrateSellerActiveEventLayout(migratedLayout))).toEqual(
+      layoutPanelIds(migratedLayout),
     );
-    expect(JSON.parse(store.get(KEY)!).layoutJson).toEqual(migrated.layoutJson);
+    expect(JSON.parse(store.get(KEY)!).layoutJson).toEqual(migratedLayout);
   });
 
   it('foregrounds the route panel while preserving the saved manager geometry', async () => {
