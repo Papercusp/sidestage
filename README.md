@@ -31,6 +31,10 @@ The web shell runs at <http://localhost:5173> and the API health endpoint is
 <http://localhost:3100/healthz>. Start local infrastructure with
 `docker compose up -d` before using persistence, search, or live media.
 
+If either development port is already in use, change `WEB_PORT` and `API_PORT`
+in `.env` before running `npm run dev`. `VITE_API_URL` derives from `API_PORT` in
+the example file, so the browser client and Vite proxy follow the same API port.
+
 If the repository was cloned without submodules, initialize the pinned shared
 libraries before installing:
 
