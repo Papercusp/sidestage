@@ -10,6 +10,7 @@ import {
   PolicyService,
   type RequestContext,
 } from './policy.service';
+import type { ProviderCapabilities } from './policy.types';
 
 const EVENTS: EventRecord[] = [
   {
@@ -32,8 +33,8 @@ const EVENTS: EventRecord[] = [
   },
 ];
 
-const CAPS = {
-  configuredPaymentMethods: ['card', 'wallet'] as const,
+const CAPS: ProviderCapabilities = {
+  configuredPaymentMethods: ['card', 'wallet'],
   extendedWarrantyMonths: 12,
 };
 
@@ -83,6 +84,7 @@ describe('PolicyController seller ownership boundary (P-003)', () => {
       'seller-beta',
       { eventId: 'beta-event', body: baselinePolicyBody() },
       seedContext,
+      'seed-beta-revision',
     );
     const headers = {
       'x-demo-principal': 'seller-alpha',

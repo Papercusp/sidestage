@@ -120,11 +120,17 @@ describe('transcription transport', () => {
       json: vi.fn().mockResolvedValue({ accessToken: 'temporary-jwt', expiresIn: 30 }),
     } as unknown as Response);
 
-    await expect(requestDeepgramToken('https://api.sidestage.test/', fetchImpl as unknown as typeof fetch))
+    await expect(requestDeepgramToken('https://api.sidestage.test/', {
+      sellerAccessToken: 'seller-session-token',
+      fetchImpl: fetchImpl as unknown as typeof fetch,
+    }))
       .resolves.toBe('temporary-jwt');
     expect(fetchImpl).toHaveBeenCalledWith('https://api.sidestage.test/transcription/deepgram-token', {
       method: 'POST',
-      headers: { Accept: 'application/json' },
+      headers: {
+        Accept: 'application/json',
+        authorization: 'Bearer seller-session-token',
+      },
     });
   });
 
@@ -135,7 +141,22 @@ describe('transcription transport', () => {
       json: vi.fn().mockResolvedValue({ code: 'deepgram_not_configured' }),
     } as unknown as Response);
 
-    await expect(requestDeepgramToken(undefined, fetchImpl as unknown as typeof fetch)).resolves.toBeNull();
+    await expect(requestDeepgramToken(undefined, {
+      sellerAccessToken: 'seller-session-token',
+      fetchImpl: fetchImpl as unknown as typeof fetch,
+    })).resolves.toBeNull();
+  });
+
+  it('keeps seller authorization failures visible instead of treating them as a fallback signal', async () => {
+    const fetchImpl = vi.fn().mockResolvedValue({
+      ok: false,
+      status: 401,
+      json: vi.fn().mockResolvedValue({ message: 'A valid seller credential is required.' }),
+    } as unknown as Response);
+
+    await expect(requestDeepgramToken(undefined, {
+      fetchImpl: fetchImpl as unknown as typeof fetch,
+    })).rejects.toThrow('A valid seller credential is required.');
   });
 
   it('uses Web Speech when no Deepgram token is configured', async () => {

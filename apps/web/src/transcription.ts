@@ -209,15 +209,25 @@ interface DeepgramTokenGrant {
   message?: unknown;
 }
 
+export interface DeepgramTokenRequestOptions {
+  /** Session-scoped seller credential for the SideStage API boundary. */
+  sellerAccessToken?: string;
+  fetchImpl?: typeof fetch;
+}
+
 /** Fetch one 30-second JWT at connection start; never persist or cache it. */
 export async function requestDeepgramToken(
   apiBaseUrl?: string,
-  fetchImpl: typeof fetch = globalThis.fetch,
+  options: DeepgramTokenRequestOptions = {},
 ): Promise<string | null> {
   const apiOrigin = (apiBaseUrl || DEFAULT_API_ORIGIN).replace(/\/+$/, '');
-  const response = await fetchImpl(`${apiOrigin}/transcription/deepgram-token`, {
+  const sellerAccessToken = options.sellerAccessToken?.trim();
+  const response = await (options.fetchImpl ?? globalThis.fetch)(`${apiOrigin}/transcription/deepgram-token`, {
     method: 'POST',
-    headers: { Accept: 'application/json' },
+    headers: {
+      Accept: 'application/json',
+      ...(sellerAccessToken ? { authorization: `Bearer ${sellerAccessToken}` } : {}),
+    },
   });
   let body: DeepgramTokenGrant = {};
   try {

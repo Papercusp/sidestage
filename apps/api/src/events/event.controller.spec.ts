@@ -17,10 +17,18 @@ const PROBE: EventRecord = {
 
 describe('EventController seller teardown', () => {
   function build() {
-    const invalidated: string[] = [];
+    const invalidated: Array<{
+      name: string;
+      args?: Record<string, unknown>;
+      context?: { principal?: string | null };
+    }> = [];
     const service = new EventService(new InMemoryEventStore([{ ...PROBE }]), new ChatService());
     const controller = new EventController(service, {
-      invalidate: (name: string) => invalidated.push(name),
+      invalidate: (
+        name: string,
+        args?: Record<string, unknown>,
+        context?: { principal?: string | null },
+      ) => invalidated.push({ name, args, context }),
     } as unknown as SyncInvalidationService);
     return { controller, invalidated };
   }
@@ -40,7 +48,16 @@ describe('EventController seller teardown', () => {
       eventId: PROBE.eventId,
       status: 'draft',
     });
-    expect(invalidated).toEqual(['events.guide', 'events.mine', 'events.guide', 'events.mine']);
+    expect(invalidated.map(({ name }) => name)).toEqual([
+      'events.guide',
+      'events.mine',
+      'events.guide',
+      'events.mine',
+    ]);
+    expect(invalidated.filter(({ name }) => name === 'events.mine')).toEqual([
+      { name: 'events.mine', args: undefined, context: { principal: PROBE.sellerId } },
+      { name: 'events.mine', args: undefined, context: { principal: PROBE.sellerId } },
+    ]);
   });
 
   it('does not reveal whether another seller owns the event', async () => {
