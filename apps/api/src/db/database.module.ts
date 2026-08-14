@@ -16,6 +16,9 @@ import { REQUIRED_TABLES, assertSchemaCurrent } from './schema-guard';
  */
 export const PG_POOL = Symbol('PG_POOL');
 
+/** The isolated local data stack defined by infra/docker-compose.data.yml. */
+export const DEFAULT_DATABASE_URL = 'postgresql://sidestage:sidestage_dev@127.0.0.1:55434/sidestage';
+
 export type DataBackendMode = 'auto' | 'pg' | 'memory';
 
 export function dataBackendMode(raw: string | undefined = process.env.DATA_BACKEND): DataBackendMode {
@@ -38,7 +41,7 @@ export function demoDataEnabled(env: NodeJS.ProcessEnv = process.env): boolean {
 }
 
 export function databaseUrl(env: NodeJS.ProcessEnv = process.env): string {
-  return env.DATABASE_URL ?? 'postgresql://sidestage:dev-only-change-me@localhost:5432/sidestage';
+  return env.DATABASE_URL ?? DEFAULT_DATABASE_URL;
 }
 
 export async function createPoolOrNull(

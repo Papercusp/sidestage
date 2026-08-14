@@ -18,7 +18,7 @@ const IMPORT_BATCH = 250;
 
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL
-    ?? 'postgresql://sidestage:dev-only-change-me@localhost:5432/sidestage',
+    ?? 'postgresql://sidestage:sidestage_dev@127.0.0.1:55434/sidestage',
   max: 4,
 });
 

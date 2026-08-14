@@ -25,7 +25,7 @@
 set -Eeuo pipefail
 
 SOURCE_URL="${RESTART_DATABASE_URL:-${DATABASE_URL:-}}"
-TARGET_URL="${SIDESTAGE_DATABASE_URL:-postgresql://sidestage:dev-only-change-me@localhost:5432/sidestage}"
+TARGET_URL="${SIDESTAGE_DATABASE_URL:-postgresql://sidestage:sidestage_dev@127.0.0.1:55434/sidestage}"
 
 if [[ -z "$SOURCE_URL" ]]; then
   echo "Set RESTART_DATABASE_URL (or DATABASE_URL) to the Restart Postgres URL." >&2
