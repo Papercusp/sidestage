@@ -1,6 +1,9 @@
+import { readFileSync } from 'node:fs';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
 import { VideoChatOverlay } from './VideoChatOverlay';
+
+const overlayCss = readFileSync(new URL('./video-chat-overlay.css', import.meta.url), 'utf8');
 
 describe('VideoChatOverlay', () => {
   it('connects its toggle to always-mounted chat content', () => {
@@ -18,5 +21,13 @@ describe('VideoChatOverlay', () => {
     expect(markup).toContain('hidden=""');
     expect(markup).toContain('Subscribed chat');
   });
-});
 
+  it('anchors the audience chat lower-left without restoring an opaque card', () => {
+    expect(overlayCss).toMatch(/\.video-chat-overlay\s*\{[^}]*bottom:\s*\.75rem;[^}]*left:\s*\.75rem;/s);
+    expect(overlayCss).toMatch(/\.video-chat-overlay-content\s*\{[^}]*border:\s*0;[^}]*border-radius:\s*0;[^}]*background:\s*transparent;[^}]*box-shadow:\s*none;[^}]*backdrop-filter:\s*none;/s);
+    expect(overlayCss).toMatch(/\.event-chat-audience-messages\s*\{[^}]*background:\s*linear-gradient/s);
+    expect(overlayCss).toMatch(/\.event-chat-audience-message\s*\{[^}]*background:\s*transparent;[^}]*pointer-events:\s*none;/s);
+    expect(overlayCss).toMatch(/\.event-chat-audience-form\s*\{[^}]*border-radius:\s*999px;[^}]*backdrop-filter:\s*blur\(6px\);[^}]*pointer-events:\s*auto;/s);
+    expect(overlayCss).not.toContain('.video-chat-overlay-content > .event-chat-card');
+  });
+});

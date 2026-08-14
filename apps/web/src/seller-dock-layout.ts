@@ -84,12 +84,13 @@ export const SELLER_PANEL_TITLES: Readonly<Record<SellerPanelId, string>> = {
   'run-of-show-planner': 'Run of show',
 };
 
-/** Panels on the default Active Event board. Chat is embedded in stage-status. */
+/** Panels on the default Active Event board. Audience chat is embedded; management remains docked. */
 export const SELLER_ACTIVE_PANEL_IDS = [
   'stage-status',
   'transcript',
   'on-deck',
   'copilot',
+  'event-chat',
   'run-of-show',
 ] as const satisfies readonly SellerPanelId[];
 
@@ -155,7 +156,7 @@ export function sellerActiveEventDockDefaultLayout(): LayoutDoc {
           direction: 'col',
           size: 380,
           children: [
-            solo('transcript', 450),
+            strip(['transcript', 'event-chat'], 450, 'transcript'),
             solo('on-deck', 300),
             solo('run-of-show', 250),
           ],

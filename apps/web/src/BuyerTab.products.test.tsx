@@ -88,7 +88,9 @@ describe('BuyerTab product preview', () => {
     expect(markup).toContain('aria-pressed="true">Shop');
     expect(markup).toContain('aria-pressed="false">Chat');
     expect(markup).toContain('data-buyer-mode="shop"');
-    expect(markup).toContain('aria-label="Event chat"');
+    expect(markup).toContain('aria-label="Preview event audience chat"');
+    expect(markup).toContain('data-surface="audience-overlay"');
+    expect(markup).not.toContain('class="stage-panel event-chat-card"');
     expect(markup).toContain('buyer-video-chat-overlay');
     expect(markup).toContain('aria-expanded="false"');
     expect(markup).not.toContain('buyer-chat-card');
