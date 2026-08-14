@@ -12,11 +12,8 @@ import {
   type EventItemDraft,
 } from './catalog';
 import { InventoryPickerGrid } from './InventoryPickerGrid';
-import {
-  ALLOWED_THUMBNAIL_TYPES,
-  isRenderableThumbnailUrl,
-  readThumbnailFile,
-} from './thumbnail';
+import { EventThumbnail } from './EventThumbnail';
+import { ALLOWED_THUMBNAIL_TYPES, readThumbnailFile } from './thumbnail';
 import './event-creation.css';
 
 export interface EventCreationPanelProps {
@@ -199,15 +196,13 @@ export function EventCreationPanel({
         <div className="event-thumbnail-field">
           <span id="event-thumbnail-label">Event thumbnail</span>
           <div className="event-thumbnail-picker">
-            <div className="event-thumbnail-preview" aria-hidden={!thumbnailUrl}>
-              {thumbnailUrl && isRenderableThumbnailUrl(thumbnailUrl) ? (
-                <img src={thumbnailUrl} alt={`Thumbnail for ${eventName.trim() || 'this event'}`} />
-              ) : (
-                // The same placeholder glyph the buyer side falls back to, so a
-                // seller sees exactly what a missing thumbnail will look like.
-                <span className="event-thumbnail-placeholder" aria-hidden="true">◍</span>
-              )}
-            </div>
+            {/* The SAME component the buyer sees, so the seller's preview is
+                the real render — including the fallback — not a lookalike. */}
+            <EventThumbnail
+              url={thumbnailUrl}
+              eventName={eventName.trim() || 'this event'}
+              className="event-thumbnail-preview"
+            />
             <div className="event-thumbnail-actions">
               <label className="button tertiary event-thumbnail-choose">
                 {thumbnailUrl ? 'Replace image' : 'Upload image'}

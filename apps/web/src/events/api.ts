@@ -41,6 +41,8 @@ export interface SellerActionResult {
 interface EventConfigResponse {
   eventId: string;
   name: string;
+  /** Absent when the seller never uploaded one — the renderer falls back. */
+  thumbnailUrl?: string;
   policy: SellerEventPolicy;
 }
 
@@ -84,6 +86,26 @@ async function fetchEventConfig(eventId: string, apiBaseUrl?: string): Promise<E
   return requestJson<EventConfigResponse>(
     eventUrl(`/events/${encodeURIComponent(eventId)}/config`, apiBaseUrl),
   );
+}
+
+/**
+ * The event's thumbnail, for buyer-facing surfaces.
+ *
+ * A thumbnail is decoration, so this NEVER rejects: an unreachable API or an
+ * event with no config yet resolves to undefined and the caller renders its
+ * placeholder. Letting it throw would put a failed decoration fetch on the same
+ * footing as a failed inventory hold, and the buyer view would surface an error
+ * for a missing picture.
+ */
+export async function fetchEventThumbnailUrl(
+  eventId: string,
+  apiBaseUrl?: string,
+): Promise<string | undefined> {
+  try {
+    return (await fetchEventConfig(eventId, apiBaseUrl)).thumbnailUrl;
+  } catch {
+    return undefined;
+  }
 }
 
 async function fetchVariant(productId: string, apiBaseUrl?: string): Promise<CatalogVariant> {

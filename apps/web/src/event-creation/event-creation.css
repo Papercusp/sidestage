@@ -391,6 +391,9 @@
   align-items: center;
 }
 
+/* Shared by every surface that renders an event thumbnail (EventThumbnail),
+   so the seller's preview and the buyer's view cannot drift apart. */
+.event-thumbnail,
 .event-thumbnail-preview {
   display: grid;
   place-items: center;
@@ -403,10 +406,23 @@
   background: rgba(7, 17, 34, .55);
 }
 
+.event-thumbnail img,
 .event-thumbnail-preview img {
   width: 100%;
   height: 100%;
   object-fit: cover;
+}
+
+/* The buyer heading carries a slightly larger one beside the event title. */
+.buyer-heading-identity {
+  display: flex;
+  gap: .85rem;
+  align-items: center;
+}
+
+.buyer-event-thumbnail {
+  width: 3.25rem;
+  height: 3.25rem;
 }
 
 .event-thumbnail-placeholder {
