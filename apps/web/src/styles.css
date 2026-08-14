@@ -215,6 +215,18 @@ h1 { margin: 0; max-width: 720px; font-size: clamp(3rem, 7vw, 5.8rem); line-heig
    the tokens on the button fixes that case and every future one, rather than chasing each
    descendant selector that happens to reach inside a filled button. */
 .button.primary { color: var(--on-brand-red); background: var(--brand-red); border-color: var(--brand-red); box-shadow: 0 8px 28px color-mix(in srgb, var(--brand-red) 26%, transparent); --text: var(--on-brand-red); --muted: var(--on-brand-red); --red-text: var(--on-brand-red); --accent-strong: var(--on-brand-red); }
+/* A disabled control must LOOK unavailable, not merely refuse the click. There was
+   no :disabled rule anywhere in this app's CSS, so an inert button kept the full
+   enabled treatment — brand fill, drop shadow, and the :hover lift on pointer-over.
+   Caught in the auction panel's settling state, where the DOM correctly reported
+   `disabled` while the pixels showed an inviting "Place bid" (WI-38734).
+   Placed AFTER .button.primary deliberately: :disabled ties it on specificity, so
+   source order is what lets it drop the primary's shadow. The :hover pair outranks
+   .button:hover outright and must, or the lift survives on a dead control. */
+.button:disabled { opacity: .48; box-shadow: none; cursor: not-allowed; }
+.button:disabled:hover { transform: none; border-color: var(--border); }
+input:disabled, select:disabled, textarea:disabled { opacity: .55; cursor: not-allowed; }
+
 .seller-grid, .config-grid { display: grid; grid-template-columns: 1.2fr .8fr; gap: var(--ss-gap); margin-top: var(--ss-section-gap); }
 .stage-panel, .settings-panel, .readiness-panel { border: 1px solid var(--border); border-radius: .9rem; padding: var(--ss-pad); background: var(--panel-grad); box-shadow: 0 18px 50px rgb(var(--shadow-hue) / 17%); }
 .event-chat-card { grid-column: 1 / -1; }
