@@ -5,6 +5,7 @@ import type { CatalogSource } from '../catalog/catalog.types';
 import { SyncInvalidationService } from '../sync/sync-invalidation.service';
 
 export const AUCTION_INVENTORY = Symbol('AUCTION_INVENTORY');
+export const AUCTION_STORE = Symbol('AUCTION_STORE');
 
 export type AuctionStatus = 'active' | 'closed';
 
@@ -202,6 +203,33 @@ export interface Auction {
   winnerOrder?: AuctionWinnerOrder;
 }
 
+export interface AuctionCloseResult {
+  auction: Auction;
+  changed: boolean;
+  inventoryChanged: boolean;
+}
+
+export interface AuctionBidResult extends AuctionCloseResult {
+  accepted: boolean;
+}
+
+/**
+ * Transactional aggregate authority used when Postgres is available. The
+ * in-memory implementation remains inside AuctionService for clean clones;
+ * this seam owns every durable mutation so a process restart cannot split an
+ * auction from its bid order, inventory hold, or winner order.
+ */
+export interface AuctionStore {
+  start(auction: Auction, availableQty?: number): Promise<Auction>;
+  getCurrentByEvent(eventId: string): Promise<Auction | null>;
+  get(id: string): Promise<Auction | null>;
+  listByProduct(productId: string): Promise<Auction[]>;
+  listWinnerOrdersForBuyer(bidderId: string): Promise<AuctionWinnerOrder[]>;
+  placeBid(id: string, bid: AuctionBid): Promise<AuctionBidResult>;
+  close(id: string): Promise<AuctionCloseResult>;
+  closeExpired(): Promise<AuctionCloseResult[]>;
+}
+
 export interface StartAuctionInput {
   eventId: string;
   eventItemId: string;
@@ -249,6 +277,9 @@ export class AuctionService {
     @Optional()
     @Inject(SyncInvalidationService)
     private readonly syncInvalidations?: SyncInvalidationService,
+    @Optional()
+    @Inject(AUCTION_STORE)
+    private readonly store?: AuctionStore | null,
   ) {}
 
   async startAuction(input: StartAuctionInput): Promise<Auction> {
@@ -258,9 +289,11 @@ export class AuctionService {
     await this.expireActive(eventId);
     // The entry survives a close, so presence alone no longer proves an auction
     // is running — the status is what gates a new one.
-    const currentId = this.currentByEvent.get(eventId);
-    const current = currentId ? this.auctions.get(currentId) : undefined;
-    if (current?.status === 'active') throw new ConflictException(`Event ${eventId} already has an active auction`);
+    if (!this.store) {
+      const currentId = this.currentByEvent.get(eventId);
+      const current = currentId ? this.auctions.get(currentId) : undefined;
+      if (current?.status === 'active') throw new ConflictException(`Event ${eventId} already has an active auction`);
+    }
 
     const quantity = this.readPositiveInt(input.quantity, 'quantity');
     const startingPriceCents = this.readMoney(input.startingPriceCents, 'startingPriceCents');
@@ -272,17 +305,6 @@ export class AuctionService {
     // The auction id doubles as the inventory-hold source id, so it is minted
     // before the hold is placed.
     const auctionId = `auction_${randomUUID()}`;
-
-    // Event-item setup normally seeds this snapshot before the auction call.
-    // Accepting it here keeps a clean clone runnable while still reserving only
-    // against the inventory-owned quantity, never against a caller's quantity.
-    if (!(await this.inventory.get(productId))) {
-      if (input.availableQty === undefined) throw new NotFoundException(`Inventory item ${productId} was not found`);
-      await this.inventory.seed(productId, this.readNonNegativeInt(input.availableQty, 'availableQty'));
-    }
-    if (!(await this.inventory.reserve(productId, quantity, { kind: 'auction', id: auctionId }))) {
-      throw new ConflictException(`Insufficient available quantity for ${productId}`);
-    }
 
     const now = Date.now();
     const auction: Auction = {
@@ -298,6 +320,26 @@ export class AuctionService {
       endsAt: new Date(now + durationSec * 1000).toISOString(),
       bids: [],
     };
+
+    if (this.store) {
+      const availableQty = input.availableQty === undefined
+        ? undefined
+        : this.readNonNegativeInt(input.availableQty, 'availableQty');
+      const stored = await this.store.start(auction, availableQty);
+      this.emitAuctionUpdate(stored, true);
+      return this.cloneAuction(stored);
+    }
+
+    // Event-item setup normally seeds this snapshot before the auction call.
+    // Accepting it here keeps a clean clone runnable while still reserving only
+    // against the inventory-owned quantity, never against a caller's quantity.
+    if (!(await this.inventory.get(productId))) {
+      if (input.availableQty === undefined) throw new NotFoundException(`Inventory item ${productId} was not found`);
+      await this.inventory.seed(productId, this.readNonNegativeInt(input.availableQty, 'availableQty'));
+    }
+    if (!(await this.inventory.reserve(productId, quantity, { kind: 'auction', id: auctionId }))) {
+      throw new ConflictException(`Insufficient available quantity for ${productId}`);
+    }
     this.auctions.set(auction.id, auction);
     this.currentByEvent.set(eventId, auction.id);
     this.emitAuctionUpdate(auction, true);
@@ -316,6 +358,10 @@ export class AuctionService {
    */
   async getCurrentAuction(eventId: string): Promise<Auction | null> {
     const resolvedEventId = this.readId(eventId, 'eventId');
+    if (this.store) {
+      const auction = await this.store.getCurrentByEvent(resolvedEventId);
+      return auction ? this.cloneAuction(await this.settleStoredAuction(auction)) : null;
+    }
     const id = this.currentByEvent.get(resolvedEventId);
     if (!id) return null;
     // Settles a run-out clock first, so a caller never sees a stale 'active'.
@@ -325,6 +371,11 @@ export class AuctionService {
   }
 
   async getAuction(id: string): Promise<Auction | null> {
+    if (this.store) {
+      const auction = await this.store.get(this.readId(id, 'auctionId'));
+      if (!auction) throw new NotFoundException('Auction was not found');
+      return this.cloneAuction(await this.settleStoredAuction(auction));
+    }
     const auction = this.requireAuction(id);
     if (auction.status === 'active' && Date.now() >= Date.parse(auction.endsAt)) await this.closeInternal(auction);
     return this.cloneAuction(auction);
@@ -333,6 +384,10 @@ export class AuctionService {
   /** Completed and active auctions for one product, newest first. */
   async listByProduct(productIdInput: string): Promise<Auction[]> {
     const productId = this.readId(productIdInput, 'productId');
+    if (this.store) {
+      const matches = await this.store.listByProduct(productId);
+      return Promise.all(matches.map(async (auction) => this.cloneAuction(await this.settleStoredAuction(auction))));
+    }
     const matches: Auction[] = [];
     for (const auction of this.auctions.values()) {
       if (auction.productId !== productId) continue;
@@ -346,6 +401,10 @@ export class AuctionService {
 
   async listWinnerOrdersForBuyer(bidderIdInput: string): Promise<AuctionWinnerOrder[]> {
     const bidderId = this.readId(bidderIdInput, 'bidderId');
+    if (this.store) {
+      for (const result of await this.store.closeExpired()) this.publishStoredClose(result);
+      return this.store.listWinnerOrdersForBuyer(bidderId);
+    }
     const orders: AuctionWinnerOrder[] = [];
     for (const auction of this.auctions.values()) {
       if (auction.status === 'active' && Date.now() >= Date.parse(auction.endsAt)) {
@@ -357,14 +416,9 @@ export class AuctionService {
   }
 
   async placeBid(id: string, input: PlaceBidInput): Promise<Auction> {
-    const auction = this.requireAuction(id);
-    if (auction.status === 'active' && Date.now() >= Date.parse(auction.endsAt)) await this.closeInternal(auction);
-    if (auction.status !== 'active') throw new ConflictException('Auction is closed');
+    const resolvedId = this.readId(id, 'auctionId');
     const bidderId = this.readId(input.bidderId, 'bidderId');
     const amountCents = this.readMoney(input.amountCents, 'amountCents');
-    if (amountCents <= auction.currentPriceCents) {
-      throw new ConflictException(`Bid must be greater than the current price of ${auction.currentPriceCents} cents`);
-    }
     const bid: AuctionBid = {
       id: `bid_${randomUUID()}`,
       bidderId,
@@ -372,6 +426,22 @@ export class AuctionService {
       amountCents,
       createdAt: new Date().toISOString(),
     };
+    if (this.store) {
+      const result = await this.store.placeBid(resolvedId, bid);
+      if (!result.accepted) {
+        this.publishStoredClose(result);
+        throw new ConflictException('Auction is closed');
+      }
+      this.emitAuctionUpdate(result.auction);
+      return this.cloneAuction(result.auction);
+    }
+
+    const auction = this.requireAuction(resolvedId);
+    if (auction.status === 'active' && Date.now() >= Date.parse(auction.endsAt)) await this.closeInternal(auction);
+    if (auction.status !== 'active') throw new ConflictException('Auction is closed');
+    if (amountCents <= auction.currentPriceCents) {
+      throw new ConflictException(`Bid must be greater than the current price of ${auction.currentPriceCents} cents`);
+    }
     auction.bids.push(bid);
     auction.bids.sort((left, right) => right.amountCents - left.amountCents || left.createdAt.localeCompare(right.createdAt));
     auction.currentPriceCents = amountCents;
@@ -380,6 +450,11 @@ export class AuctionService {
   }
 
   async closeAuction(id: string): Promise<Auction> {
+    if (this.store) {
+      const result = await this.store.close(this.readId(id, 'auctionId'));
+      this.publishStoredClose(result);
+      return this.cloneAuction(result.auction);
+    }
     const auction = this.requireAuction(id);
     if (auction.status === 'active') await this.closeInternal(auction);
     return this.cloneAuction(auction);
@@ -399,10 +474,29 @@ export class AuctionService {
   }
 
   private async expireActive(eventId: string): Promise<void> {
+    if (this.store) {
+      const auction = await this.store.getCurrentByEvent(eventId);
+      if (auction) await this.settleStoredAuction(auction);
+      return;
+    }
     const id = this.currentByEvent.get(eventId);
     if (!id) return;
     const auction = this.auctions.get(id);
     if (auction?.status === 'active' && Date.now() >= Date.parse(auction.endsAt)) await this.closeInternal(auction);
+  }
+
+  private async settleStoredAuction(auction: Auction): Promise<Auction> {
+    if (!this.store || auction.status !== 'active' || Date.now() < Date.parse(auction.endsAt)) return auction;
+    const result = await this.store.close(auction.id);
+    this.publishStoredClose(result);
+    return result.auction;
+  }
+
+  private publishStoredClose(result: AuctionCloseResult): void {
+    if (!result.changed) return;
+    this.emitAuctionUpdate(result.auction, result.inventoryChanged);
+    const winner = result.auction.winnerOrder;
+    if (winner) this.syncInvalidations?.invalidate('orders.byBuyer', { buyerId: winner.bidderId });
   }
 
   private async closeInternal(auction: Auction): Promise<void> {
