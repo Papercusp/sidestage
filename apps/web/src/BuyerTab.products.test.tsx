@@ -103,4 +103,16 @@ describe('BuyerTab product preview', () => {
     expect(buyerCss).toContain(".buyer-lower-grid[data-buyer-mode='chat'] .buyer-shop-panel");
     expect(buyerCss).not.toContain(".buyer-lower-grid[data-buyer-mode='shop'] .buyer-chat-card");
   });
+
+  it('prevents buyer controls from widening the site column beside the mobile guide', () => {
+    const max900Start = buyerCss.indexOf('@media (max-width: 900px)');
+    const max760Start = buyerCss.indexOf('@media (max-width: 760px)', max900Start);
+    const max520Start = buyerCss.indexOf('@media (max-width: 520px)', max760Start);
+    const max900Css = buyerCss.slice(max900Start, max760Start);
+    const max520Css = buyerCss.slice(max520Start);
+
+    expect(max900Css).toMatch(/\.buyer-room-actions\s*\{[^}]*width:\s*100%;[^}]*min-width:\s*0;/s);
+    expect(max520Css).toMatch(/\.buyer-account-control\s*\{[^}]*width:\s*100%;[^}]*min-width:\s*0;/s);
+    expect(max520Css).toMatch(/\.buyer-current-offer\s*\{[^}]*display:\s*flex;[^}]*overflow:\s*hidden;[^}]*flex-direction:\s*column;/s);
+  });
 });
