@@ -1,0 +1,318 @@
+.buyer-room-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1.5rem;
+}
+
+.buyer-room-title {
+  display: grid;
+  grid-template-columns: 3.25rem minmax(0, 1fr);
+  align-items: center;
+  min-width: 0;
+  gap: 0.85rem;
+}
+
+.buyer-room-title h2 {
+  margin: 0.35rem 0 0.4rem;
+  font-size: clamp(1.35rem, 2.5vw, 1.85rem);
+  letter-spacing: -0.04em;
+}
+
+.buyer-room-status-line,
+.buyer-room-meta,
+.buyer-current-offer-trust {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.35rem 0.85rem;
+  color: var(--muted);
+  font-size: 0.72rem;
+}
+
+.buyer-room-status-line .buyer-live-state {
+  color: var(--success);
+  font-weight: 700;
+}
+
+.buyer-room-meta strong {
+  color: var(--text);
+}
+
+.buyer-room-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 0.55rem;
+}
+
+.buyer-account-control {
+  max-width: 15rem;
+}
+
+.buyer-stage-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.7fr) minmax(17rem, 0.62fr);
+  align-items: stretch;
+  gap: var(--ss-gap);
+  margin-top: calc(var(--ss-gap) * 1.35);
+}
+
+.buyer-stage-grid .buyer-player-card,
+.buyer-stage-grid .buyer-player {
+  min-height: 100%;
+}
+
+.buyer-current-offer {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-card);
+  padding: 1rem;
+  background: var(--surface-raised);
+}
+
+.buyer-current-offer-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.buyer-current-offer-heading .eyebrow {
+  margin: 0 0 0.35rem;
+}
+
+.buyer-current-offer-heading h3 {
+  margin: 0;
+  font-size: 1.05rem;
+  line-height: 1.2;
+}
+
+.buyer-offer-stock {
+  flex: 0 0 auto;
+  border-radius: 999px;
+  padding: 0.3rem 0.5rem;
+  color: var(--yellow-text);
+  background: color-mix(in srgb, var(--brand-yellow) 14%, transparent);
+  font-size: 0.68rem;
+  font-weight: 750;
+}
+
+.buyer-offer-stock.is-sold-out {
+  color: var(--danger);
+  background: color-mix(in srgb, var(--danger) 9%, transparent);
+}
+
+.buyer-current-offer-art {
+  display: grid;
+  min-height: 9rem;
+  overflow: hidden;
+  place-items: center;
+  border: 1px solid var(--border);
+  border-radius: 0.75rem;
+  color: var(--red-text);
+  background: color-mix(in srgb, var(--brand-red) 7%, var(--surface-soft));
+  aspect-ratio: 4 / 3;
+}
+
+.buyer-current-offer-art img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.buyer-current-offer-art > span {
+  font-size: 2.2rem;
+  font-weight: 800;
+}
+
+.buyer-current-offer-price {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.buyer-current-offer-price strong {
+  font-size: 1.4rem;
+}
+
+.buyer-current-offer-price del,
+.buyer-current-offer > p {
+  color: var(--muted);
+}
+
+.buyer-current-offer > p {
+  margin: 0;
+  font-size: 0.76rem;
+  line-height: 1.45;
+}
+
+.buyer-current-offer-action {
+  width: 100%;
+  margin-top: auto;
+}
+
+.buyer-current-offer-trust {
+  justify-content: space-between;
+  font-size: 0.62rem;
+}
+
+.buyer-mode-switch {
+  display: none;
+}
+
+.buyer-lower-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.45fr) minmax(18rem, 0.55fr);
+  align-items: start;
+  gap: var(--ss-gap);
+  margin-top: var(--ss-gap);
+}
+
+.buyer-shop-panel {
+  min-width: 0;
+}
+
+.buyer-mobile-action {
+  display: none;
+}
+
+@media (max-width: 900px) {
+  .buyer-room-header {
+    flex-direction: column;
+  }
+
+  .buyer-room-actions {
+    justify-content: flex-start;
+  }
+
+  .buyer-stage-grid {
+    grid-template-columns: minmax(0, 1.35fr) minmax(15rem, 0.65fr);
+  }
+}
+
+@media (max-width: 760px) {
+  .buyer-stage-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .buyer-current-offer {
+    display: grid;
+    grid-template-columns: 6.5rem minmax(0, 1fr);
+    align-items: start;
+  }
+
+  .buyer-current-offer-heading,
+  .buyer-current-offer-price,
+  .buyer-current-offer > p,
+  .buyer-current-offer-action,
+  .buyer-current-offer-trust {
+    grid-column: 2;
+  }
+
+  .buyer-current-offer-art {
+    grid-column: 1;
+    grid-row: 1 / span 5;
+    min-height: 6.5rem;
+  }
+
+  .buyer-mode-switch {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.35rem;
+    margin-top: var(--ss-gap);
+    border: 1px solid var(--border);
+    border-radius: 0.75rem;
+    padding: 0.3rem;
+    background: var(--surface-soft);
+  }
+
+  .buyer-mode-switch button {
+    min-height: 2.75rem;
+    border: 0;
+    border-radius: 0.55rem;
+    color: var(--muted);
+    background: transparent;
+    font: inherit;
+    font-weight: 700;
+    cursor: pointer;
+  }
+
+  .buyer-mode-switch button[aria-pressed='true'] {
+    color: var(--text);
+    background: var(--surface-raised);
+  }
+
+  .buyer-lower-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .buyer-lower-grid[data-buyer-mode='shop'] .buyer-chat-card,
+  .buyer-lower-grid[data-buyer-mode='chat'] .buyer-shop-panel {
+    display: none;
+  }
+
+  .buyer-chat-card {
+    position: static;
+  }
+
+  .buyer-mobile-action {
+    position: sticky;
+    bottom: 0;
+    z-index: 6;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 0.75rem;
+    margin: var(--ss-gap) -0.35rem 0;
+    border: 1px solid var(--border-strong);
+    border-radius: 0.75rem 0.75rem 0 0;
+    padding: 0.65rem 0.75rem;
+    background: var(--surface-raised);
+  }
+
+  .buyer-mobile-action strong,
+  .buyer-mobile-action span {
+    display: block;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .buyer-mobile-action strong {
+    font-size: 0.76rem;
+  }
+
+  .buyer-mobile-action span {
+    margin-top: 0.15rem;
+    color: var(--muted);
+    font-size: 0.66rem;
+  }
+}
+
+@media (max-width: 520px) {
+  .buyer-room-title {
+    grid-template-columns: 2.75rem minmax(0, 1fr);
+  }
+
+  .buyer-account-control {
+    max-width: 100%;
+  }
+
+  .buyer-current-offer {
+    grid-template-columns: 5.5rem minmax(0, 1fr);
+  }
+
+  .buyer-current-offer-art {
+    min-height: 5.5rem;
+  }
+
+  .buyer-current-offer-trust {
+    display: none;
+  }
+}
