@@ -6,6 +6,9 @@ import { withDerivedPriceFloors } from '../config/event-config.service';
 import { SyncInvalidationService, type SyncInvalidation } from '../sync/sync-invalidation.service';
 import { SyncQueryRegistry } from '../sync/sync-query.registry';
 import { ActionSyncQueries } from './action.module';
+import { ChatService } from '../chat/chat.service';
+import { EventOwnershipGuard } from '../events/event-ownership.guard';
+import { EventService, InMemoryEventStore } from '../events/event.service';
 
 const policy: CopilotPolicy = {
   automationLevel: 'auto',
@@ -37,11 +40,32 @@ describe('GuardedActionService', () => {
   it('registers the seller lineup as the event.actions.items named query', async () => {
     const actions = service();
     const queries = new SyncQueryRegistry();
-    new ActionSyncQueries(actions, queries).onModuleInit();
+    const ownership = new EventOwnershipGuard(new EventService(
+      new InMemoryEventStore([{
+        eventId: 'event-1',
+        title: 'Event one',
+        sellerId: 'seller-1',
+        sellerName: 'Seller one',
+        status: 'live',
+        startsAt: null,
+        endedAt: null,
+      }]),
+      new ChatService(),
+    ));
+    new ActionSyncQueries(actions, queries, ownership).onModuleInit();
 
-    await expect(queries.resolve('event.actions.items', { eventId: 'event-1' })).resolves.toEqual([
+    await expect(queries.resolve(
+      'event.actions.items',
+      { eventId: 'event-1' },
+      { principal: 'seller-1' },
+    )).resolves.toEqual([
       expect.objectContaining({ eventId: 'event-1', productId: 'mug' }),
     ]);
+    await expect(queries.resolve(
+      'event.actions.items',
+      { eventId: 'event-1' },
+      { principal: 'seller-2' },
+    )).rejects.toThrow('Event not found for this seller.');
   });
 
   it('invalidates the event-scoped lineup after registration, action, and rollback writes', async () => {

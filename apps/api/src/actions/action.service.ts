@@ -151,6 +151,14 @@ export class GuardedActionService implements ActionExecutor {
     return cloneAudit(audit);
   }
 
+  /** Lookup seam for owner-checking an audit id before exposing its resource. */
+  findAudit(auditIdInput: string): ActionAuditRecord | undefined {
+    const auditId = auditIdInput?.trim();
+    if (!auditId) return undefined;
+    const audit = this.audits.get(auditId);
+    return audit ? cloneAudit(audit) : undefined;
+  }
+
   listAudit(eventIdInput: string): ActionAuditRecord[] {
     const eventId = assertText(eventIdInput, 'eventId');
     return this.auditOrder
