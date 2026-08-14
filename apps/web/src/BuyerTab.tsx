@@ -56,6 +56,7 @@ interface InventoryHoldResult {
 class InventoryHoldConflict extends Error {}
 
 const EMPTY_BUYER_STATS: BuyerStats = { viewers: 0, itemsSold: 0, totalRaisedCents: 0 };
+export const BUYER_PRODUCT_PREVIEW_LIMIT = 3;
 
 export function buyerStatsFromSyncRows(rows?: readonly BuyerStats[]): BuyerStats | null {
   return rows?.[0] ?? null;
@@ -172,6 +173,7 @@ export function BuyerTab({
   const [selectedProductId, setSelectedProductId] = useState<string | null>(null);
   const [holdNotice, setHoldNotice] = useState<string | null>(null);
   const [holdOverrides, setHoldOverrides] = useState<Record<string, number>>({});
+  const [showAllProducts, setShowAllProducts] = useState(false);
   const stream = useStreamSession<ViewerSession>();
   const { streamState, setStreamState, streamError, session, videoRef } = stream;
   const { copyState, copy } = useCopyState();
@@ -199,6 +201,10 @@ export function BuyerTab({
   useEffect(() => {
     return () => stream.stop();
     // eslint-disable-next-line react-hooks/exhaustive-deps -- teardown per room change only
+  }, [eventId]);
+
+  useEffect(() => {
+    setShowAllProducts(false);
   }, [eventId]);
 
   const connectStream = () =>
@@ -253,7 +259,14 @@ export function BuyerTab({
   };
 
   const liveLabel = streamLabel(streamState);
-  const visibleProducts = availableBuyerProducts(products);
+  const productsWithLiveQuantity = products.map((product) => {
+    const liveQty = holdOverrides[product.id];
+    return liveQty === undefined ? product : { ...product, availableQty: liveQty };
+  });
+  const visibleProducts = availableBuyerProducts(productsWithLiveQuantity);
+  const displayedProducts = showAllProducts
+    ? productsWithLiveQuantity
+    : productsWithLiveQuantity.slice(0, BUYER_PRODUCT_PREVIEW_LIMIT);
 
   return (
     <section className="buyer-tab density-roomy" id="buyer" aria-labelledby="buyer-title">
@@ -348,15 +361,27 @@ export function BuyerTab({
               <p className="eyebrow">On stage now</p>
               <h3>Shop the drop</h3>
             </div>
-            <span className="muted">{visibleProducts.length} available</span>
+            <div className="buyer-products-heading-actions">
+              <span className="muted">{visibleProducts.length} available</span>
+              {productsWithLiveQuantity.length > BUYER_PRODUCT_PREVIEW_LIMIT ? (
+                <button
+                  className="button secondary buyer-products-toggle"
+                  type="button"
+                  aria-controls="buyer-event-products"
+                  aria-expanded={showAllProducts}
+                  onClick={() => setShowAllProducts((current) => !current)}
+                >
+                  {showAllProducts
+                    ? `Show next ${BUYER_PRODUCT_PREVIEW_LIMIT}`
+                    : `View all ${productsWithLiveQuantity.length} items`}
+                </button>
+              ) : null}
+            </div>
           </div>
           {holdNotice ? <p className="buyer-hold-notice" role="status">{holdNotice}</p> : null}
-          <div aria-label="Event products">
+          <div id="buyer-event-products" className="buyer-products-shell" aria-label="Event products">
             <BuyerProductRail
-              products={products.map((product) => {
-                const liveQty = holdOverrides[product.id];
-                return liveQty === undefined ? product : { ...product, availableQty: liveQty };
-              })}
+              products={displayedProducts}
               selectedProductId={selectedProductId}
               onHold={reserveProduct}
             />
