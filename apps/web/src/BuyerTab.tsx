@@ -291,19 +291,15 @@ export function BuyerTab({
             open={buyerMode === 'chat'}
             onOpenChange={(open) => setBuyerMode(open ? 'chat' : 'shop')}
           >
-            <div aria-label="Event chat">
-              <EventChat
-                eventId={eventId}
-                role="buyer"
-                userId={userId}
-                displayName={userId}
-                eventTitle={resolvedTitle}
-                apiBaseUrl={resolveApiBaseUrl()}
-              />
-              <p className="buyer-share-note">
-                Share this room: <button type="button" onClick={copyShareUrl}>{shareUrl}</button>
-              </p>
-            </div>
+            <EventChat
+              eventId={eventId}
+              role="buyer"
+              userId={userId}
+              displayName={userId}
+              eventTitle={resolvedTitle}
+              surface="audience-overlay"
+              apiBaseUrl={resolveApiBaseUrl()}
+            />
           </VideoChatOverlay>
         </div>
 
