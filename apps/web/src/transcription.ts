@@ -39,7 +39,7 @@ export interface TranscriptionSession {
   onError(listener: ErrorListener): () => void;
 }
 
-export type DeepgramTokenProvider = () => Promise<string>;
+export type DeepgramTokenProvider = () => Promise<string | null>;
 
 export interface WebSocketLike {
   readonly readyState: number;
@@ -51,7 +51,7 @@ export interface WebSocketLike {
   close(code?: number, reason?: string): void;
 }
 
-export type WebSocketFactory = (url: string) => WebSocketLike;
+export type WebSocketFactory = (url: string, protocols?: string | string[]) => WebSocketLike;
 
 export interface MediaRecorderLike {
   ondataavailable: ((event: { data: Blob; }) => void) | null;
@@ -92,6 +92,8 @@ export interface TranscriptionOptions {
   /** Short-lived token only. Never pass a permanent Deepgram API key here. */
   deepgramToken?: string;
   deepgramTokenProvider?: DeepgramTokenProvider;
+  /** Fall back only when the token provider explicitly reports Deepgram unconfigured. */
+  fallbackToWebSpeech?: boolean;
   deepgramUrl?: string;
   model?: string;
   language?: string;
@@ -105,9 +107,9 @@ export const DEFAULT_DEEPGRAM_MODEL = 'nova-3';
 export const DEFAULT_TRANSCRIPTION_LANGUAGE = 'en-US';
 const OPEN_SOCKET = 1;
 
-function browserWebSocketFactory(url: string): WebSocketLike {
+function browserWebSocketFactory(url: string, protocols?: string | string[]): WebSocketLike {
   if (typeof WebSocket === 'undefined') throw new Error('WebSocket is unavailable in this browser.');
-  return new WebSocket(url) as unknown as WebSocketLike;
+  return new WebSocket(url, protocols) as unknown as WebSocketLike;
 }
 
 function browserMediaRecorderFactory(stream: MediaStream): MediaRecorderLike {
@@ -188,16 +190,50 @@ interface DeepgramMessage {
   channel?: { alternatives?: Array<{ transcript?: string }> };
 }
 
-export function buildDeepgramUrl(options: Pick<TranscriptionOptions, 'deepgramUrl' | 'deepgramToken' | 'model' | 'language'>): string {
+export function buildDeepgramUrl(options: Pick<TranscriptionOptions, 'deepgramUrl' | 'model' | 'language'>): string {
   const url = new URL(options.deepgramUrl ?? DEFAULT_DEEPGRAM_URL);
   url.searchParams.set('model', options.model ?? DEFAULT_DEEPGRAM_MODEL);
   url.searchParams.set('language', options.language ?? DEFAULT_TRANSCRIPTION_LANGUAGE);
   url.searchParams.set('interim_results', 'true');
   url.searchParams.set('smart_format', 'true');
   url.searchParams.set('punctuate', 'true');
-  // Deepgram ephemeral tokens are intentionally scoped to this in-memory URL.
-  if (options.deepgramToken) url.searchParams.set('token', options.deepgramToken);
   return url.toString();
+}
+
+const DEFAULT_API_ORIGIN = 'http://localhost:3100';
+
+interface DeepgramTokenGrant {
+  accessToken?: unknown;
+  expiresIn?: unknown;
+  code?: unknown;
+  message?: unknown;
+}
+
+/** Fetch one 30-second JWT at connection start; never persist or cache it. */
+export async function requestDeepgramToken(
+  apiBaseUrl?: string,
+  fetchImpl: typeof fetch = globalThis.fetch,
+): Promise<string | null> {
+  const apiOrigin = (apiBaseUrl || DEFAULT_API_ORIGIN).replace(/\/+$/, '');
+  const response = await fetchImpl(`${apiOrigin}/transcription/deepgram-token`, {
+    method: 'POST',
+    headers: { Accept: 'application/json' },
+  });
+  let body: DeepgramTokenGrant = {};
+  try {
+    body = await response.json() as DeepgramTokenGrant;
+  } catch {
+    // The bounded status error below is safer than reflecting an arbitrary body.
+  }
+  if (response.status === 503 && body.code === 'deepgram_not_configured') return null;
+  if (!response.ok) {
+    throw new Error(typeof body.message === 'string'
+      ? body.message
+      : `Deepgram token request failed (${response.status}).`);
+  }
+  const token = typeof body.accessToken === 'string' ? body.accessToken.trim() : '';
+  if (!token) throw new Error('Deepgram token response was invalid.');
+  return token;
 }
 
 class DeepgramSession extends BaseSession {
@@ -220,7 +256,7 @@ class DeepgramSession extends BaseSession {
       if (!token) throw new Error('A short-lived Deepgram token is required.');
       const factory = this.options.webSocketFactory ?? browserWebSocketFactory;
       const recorderFactory = this.options.mediaRecorderFactory ?? browserMediaRecorderFactory;
-      const socket = factory(buildDeepgramUrl({ ...this.options, deepgramToken: token }));
+      const socket = factory(buildDeepgramUrl(this.options), ['bearer', token]);
       this.socket = socket;
       const opened = new Promise<void>((resolve, reject) => {
         socket.onopen = () => {
@@ -335,7 +371,69 @@ class WebSpeechSession extends BaseSession {
   }
 }
 
+/**
+ * Resolves the server capability before selecting a transport. Only a null
+ * token (the API's explicit not-configured signal) permits Web Speech; rejected
+ * grants and network failures stay visible as Deepgram errors.
+ */
+class ConfiguredProviderSession extends BaseSession {
+  private active: TranscriptionSession | null = null;
+  private removeListeners: Array<() => void> = [];
+
+  constructor(private readonly options: TranscriptionOptions) {
+    super();
+  }
+
+  get provider(): TranscriptionProvider {
+    return this.active?.provider ?? 'deepgram';
+  }
+
+  async start(): Promise<void> {
+    if (this.currentState === 'listening' || this.currentState === 'connecting') return;
+    this.setState('connecting');
+    try {
+      const token = (this.options.deepgramToken ?? await this.options.deepgramTokenProvider?.())?.trim() || null;
+      const next = token
+        ? new DeepgramSession({ ...this.options, deepgramToken: token, deepgramTokenProvider: undefined })
+        : new WebSpeechSession(this.options);
+      this.active = next;
+      this.removeListeners = [
+        next.onSegment((segment) => this.emitSegment({
+          text: segment.text,
+          isFinal: segment.isFinal,
+          startMs: segment.startMs,
+          endMs: segment.endMs,
+        })),
+        next.onState((state) => this.setState(state)),
+        next.onError((error) => this.emitError(error.cause ?? new Error(error.message))),
+      ];
+      await next.start();
+    } catch (error) {
+      this.cleanupListeners();
+      this.active = null;
+      this.emitError(error);
+      throw error;
+    }
+  }
+
+  async stop(): Promise<void> {
+    const active = this.active;
+    this.active = null;
+    if (active) await active.stop();
+    this.cleanupListeners();
+    this.setState('stopped');
+  }
+
+  private cleanupListeners(): void {
+    for (const remove of this.removeListeners) remove();
+    this.removeListeners = [];
+  }
+}
+
 export function createTranscriptionSession(options: TranscriptionOptions = {}): TranscriptionSession {
+  if (options.deepgramTokenProvider && options.fallbackToWebSpeech) {
+    return new ConfiguredProviderSession(options);
+  }
   if (options.deepgramToken || options.deepgramTokenProvider) return new DeepgramSession(options);
   return new WebSpeechSession(options);
 }

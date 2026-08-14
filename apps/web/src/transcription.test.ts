@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { buildDeepgramUrl, createTranscriptionSession, type MediaRecorderLike, type SpeechRecognitionLike, type WebSocketLike } from './transcription';
+import { buildDeepgramUrl, createTranscriptionSession, requestDeepgramToken, type MediaRecorderLike, type SpeechRecognitionLike, type WebSocketLike } from './transcription';
 
 class FakeSocket implements WebSocketLike {
   readyState = 0;
@@ -44,10 +44,10 @@ class FakeRecognition implements SpeechRecognitionLike {
 }
 
 describe('transcription transport', () => {
-  it('builds a Deepgram URL with an ephemeral token and interim settings', () => {
-    const url = new URL(buildDeepgramUrl({ deepgramToken: 'ephemeral-token', language: 'en-US' }));
+  it('keeps credentials out of the Deepgram URL while preserving listen settings', () => {
+    const url = new URL(buildDeepgramUrl({ language: 'en-US' }));
     expect(url.protocol).toBe('wss:');
-    expect(url.searchParams.get('token')).toBe('ephemeral-token');
+    expect(url.searchParams.has('token')).toBe(false);
     expect(url.searchParams.get('interim_results')).toBe('true');
     expect(url.searchParams.get('model')).toBe('nova-3');
   });
@@ -66,6 +66,7 @@ describe('transcription transport', () => {
     const started = session.start();
     socket.open();
     await started;
+    expect(session.provider).toBe('deepgram');
     recorder.data();
     socket.message(JSON.stringify({ is_final: false, channel: { alternatives: [{ transcript: 'hello' }] } }));
     socket.message(JSON.stringify({ is_final: true, start: 1.2, duration: 0.8, channel: { alternatives: [{ transcript: 'hello world' }] } }));
@@ -75,6 +76,65 @@ describe('transcription transport', () => {
     await session.stop();
     expect(recorder.stopped).toBe(true);
     expect(session.state).toBe('stopped');
+  });
+
+  it('authenticates a temporary JWT with the browser WebSocket subprotocol', async () => {
+    const socket = new FakeSocket();
+    const webSocketFactory = vi.fn(() => socket);
+    const session = createTranscriptionSession({
+      mediaStream: {} as MediaStream,
+      deepgramTokenProvider: async () => 'temporary-jwt',
+      webSocketFactory,
+      mediaRecorderFactory: () => new FakeRecorder(),
+    });
+
+    const started = session.start();
+    socket.open();
+    await started;
+
+    expect(webSocketFactory).toHaveBeenCalledWith(
+      expect.not.stringContaining('temporary-jwt'),
+      ['bearer', 'temporary-jwt'],
+    );
+  });
+
+  it('uses Web Speech only when the token API explicitly reports Deepgram unconfigured', async () => {
+    const recognition = new FakeRecognition();
+    const session = createTranscriptionSession({
+      deepgramTokenProvider: async () => null,
+      fallbackToWebSpeech: true,
+      speechRecognitionFactory: () => recognition,
+    });
+
+    await session.start();
+
+    expect(session.provider).toBe('web-speech');
+    expect(recognition.started).toBe(true);
+  });
+
+  it('requests a fresh token from the SideStage API without caching it in the client', async () => {
+    const fetchImpl = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 201,
+      json: vi.fn().mockResolvedValue({ accessToken: 'temporary-jwt', expiresIn: 30 }),
+    } as unknown as Response);
+
+    await expect(requestDeepgramToken('https://api.sidestage.test/', fetchImpl as unknown as typeof fetch))
+      .resolves.toBe('temporary-jwt');
+    expect(fetchImpl).toHaveBeenCalledWith('https://api.sidestage.test/transcription/deepgram-token', {
+      method: 'POST',
+      headers: { Accept: 'application/json' },
+    });
+  });
+
+  it('maps only the explicit unconfigured API response to the Web Speech fallback signal', async () => {
+    const fetchImpl = vi.fn().mockResolvedValue({
+      ok: false,
+      status: 503,
+      json: vi.fn().mockResolvedValue({ code: 'deepgram_not_configured' }),
+    } as unknown as Response);
+
+    await expect(requestDeepgramToken(undefined, fetchImpl as unknown as typeof fetch)).resolves.toBeNull();
   });
 
   it('uses Web Speech when no Deepgram token is configured', async () => {

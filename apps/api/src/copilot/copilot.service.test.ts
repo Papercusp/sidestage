@@ -118,6 +118,7 @@ describe('CopilotProposalService', () => {
 
     expect(retry).toEqual(first);
     expect(await runtime.service.list('event-1')).toEqual([first]);
+    expect(first.latencyMs).toBe(5);
     expect(runtime.pipeline.respond).toHaveBeenCalledTimes(1);
     expect(events).toEqual([
       { name: 'event.copilot.proposals', args: { eventId: 'event-1' } },
