@@ -16,7 +16,8 @@
     "build": "npm run build --workspaces --if-present",
     "typecheck": "npm run typecheck --workspaces --if-present",
     "db:apply": "bash scripts/db-apply.sh",
-    "test": "npm run test:apps",
+    "test": "npm run test:deploy && npm run test:apps",
+    "test:deploy": "vitest run --project sidestage-deploy",
     "test:apps": "npm run test --workspace @papercusp/sidestage-api && npm run test --workspace @papercusp/sidestage-web",
     "check": "npm run typecheck && npm test",
     "clean": "npm run clean --workspaces --if-present"
