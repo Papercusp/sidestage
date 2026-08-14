@@ -48,6 +48,49 @@ describe('EventChat', () => {
     expect(markup).toContain('All');
   });
 
+  it('renders a compact Buyer audience surface without management chrome', () => {
+    const markup = renderToStaticMarkup(
+      <EventChat
+        eventId="sunday-drop"
+        role="buyer"
+        userId="buyer-1"
+        displayName="Maya"
+        eventTitle="Sunday vintage drop"
+        surface="audience-overlay"
+        apiBaseUrl="https://sidestage.example"
+      />,
+    );
+
+    expect(markup).toContain('class="event-chat-audience"');
+    expect(markup).toContain('data-surface="audience-overlay"');
+    expect(markup).toContain('aria-label="Sunday vintage drop audience chat"');
+    expect(markup).toContain('aria-live="polite"');
+    expect(markup).toContain('Say something…');
+    expect(markup).toContain('Message the room');
+    expect(markup).not.toContain('event-chat-card');
+    expect(markup).not.toContain('Chat activity');
+    expect(markup).not.toContain('Message triage');
+    expect(markup).not.toContain('Active participants');
+  });
+
+  it('keeps the Seller audience surface read-only while management stays the default', () => {
+    const audience = renderToStaticMarkup(
+      <EventChat
+        eventId="sunday-drop"
+        role="seller"
+        userId="seller-1"
+        displayName="Host"
+        surface="audience-overlay"
+        apiBaseUrl="https://sidestage.example"
+      />,
+    );
+
+    expect(audience).toContain('class="event-chat-audience"');
+    expect(audience).not.toContain('Message the room');
+    expect(audience).not.toContain('Seller view is read-only');
+    expect(audience).not.toContain('Message triage');
+  });
+
   it('keeps presence heartbeat and leave behavior through the REST fallbacks', async () => {
     const calls: Array<{ url: string; init?: RequestInit }> = [];
     const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
