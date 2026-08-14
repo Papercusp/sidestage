@@ -87,6 +87,16 @@ describe('seller copilot proposal review', () => {
     expect(markup).not.toContain('Confirm action');
   });
 
+  it('announces a skipped transition without adding a second blocked/approved alert', () => {
+    const current = proposal({ status: 'skipped' });
+    const markup = renderToStaticMarkup(
+      <CopilotProposalCard proposal={current} draft={current.reply} {...handlers} />,
+    );
+
+    expect(markup).toContain('copilot-review-status" role="status" aria-live="polite" aria-atomic="true">skipped');
+    expect(markup).not.toContain('role="alert"');
+  });
+
   it('requires an explicit seller confirmation for a guarded action', () => {
     const current = proposal({
       action: {

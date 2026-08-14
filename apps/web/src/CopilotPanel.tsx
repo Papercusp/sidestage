@@ -144,7 +144,14 @@ export function CopilotProposalCard({
           <p className="panel-kicker">{proposal.question.buyerName}</p>
           <strong>{proposal.question.text}</strong>
         </div>
-        <span className="copilot-review-status">{proposal.status}</span>
+        <span
+          className="copilot-review-status"
+          role={proposal.status === 'skipped' ? 'status' : undefined}
+          aria-live={proposal.status === 'skipped' ? 'polite' : undefined}
+          aria-atomic={proposal.status === 'skipped' ? true : undefined}
+        >
+          {proposal.status}
+        </span>
       </header>
 
       <ProductResearchLatency latencyMs={proposal.latencyMs} />
@@ -271,7 +278,9 @@ export function CopilotPanel({
           <p className="eyebrow">Grounded seller copilot</p>
           <h2>Review before it reaches the room.</h2>
         </div>
-        <span className="live-badge">{rows.filter((proposal) => proposal.status === 'pending').length} PENDING</span>
+        <span className="live-badge" role="status" aria-live="polite" aria-atomic="true">
+          {rows.filter((proposal) => proposal.status === 'pending').length} PENDING
+        </span>
       </div>
 
       <form className="copilot-form" onSubmit={(event) => void submit(event)}>
