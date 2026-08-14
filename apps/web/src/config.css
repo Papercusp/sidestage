@@ -208,6 +208,78 @@
 .config-save-bar > div { display: flex; gap: .55rem; }
 .config-loading p { margin-top: 2rem; color: var(--muted); }
 
+.event-settings-panel.is-embedded {
+  display: grid;
+  gap: var(--ss-gap);
+  min-width: 0;
+  margin-top: 1rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--border);
+}
+
+.event-settings-panel-heading {
+  display: grid;
+  gap: .3rem;
+}
+
+.event-settings-panel-heading > * { margin: 0; }
+.event-settings-panel-heading h2 { font-size: 1.15rem; letter-spacing: -.025em; }
+.event-settings-panel-heading > p:last-child { max-width: 68ch; color: var(--muted); font-size: .72rem; line-height: 1.5; }
+.event-settings-panel.is-embedded .config-page { margin-top: 0; }
+.event-settings-panel.is-embedded .config-page-grid { grid-template-columns: 1fr; }
+.event-settings-panel.is-embedded .config-summary { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.event-settings-panel.is-embedded .config-save-bar { position: static; }
+
+.event-readiness-panel {
+  display: grid;
+  gap: .85rem;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-left: .28rem solid var(--muted);
+  border-radius: var(--radius-card);
+  padding: 1rem;
+  background: var(--surface-raised);
+  box-shadow: 0 14px 36px rgb(var(--shadow-hue) / 11%);
+}
+
+.event-readiness-panel.is-ready { border-left-color: var(--success); }
+.event-readiness-panel.is-blocked { border-left-color: var(--danger); }
+.event-readiness-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 1rem; }
+.event-readiness-heading > div { display: grid; gap: .25rem; }
+.event-readiness-heading h2 { margin: 0; font-size: 1rem; }
+.event-readiness-heading p { margin: 0; }
+.event-readiness-heading > div > p:last-child { color: var(--muted); font-size: .7rem; line-height: 1.5; }
+
+.event-readiness-context {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: .65rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-control);
+  padding: .65rem .75rem;
+  background: var(--surface-soft);
+}
+
+.event-readiness-context > span { color: var(--muted); font-size: .62rem; font-weight: 750; letter-spacing: .08em; text-transform: uppercase; }
+.event-readiness-context code { overflow: hidden; color: var(--muted); font-size: .68rem; text-overflow: ellipsis; white-space: nowrap; }
+.event-readiness-context strong { color: var(--muted); font-size: .7rem; }
+.event-readiness-panel.is-ready .event-readiness-context strong { color: var(--success); }
+.event-readiness-panel.is-blocked .event-readiness-context strong { color: var(--danger); }
+.event-readiness-error { margin: 0; color: var(--danger); font-size: .72rem; }
+
+.event-readiness-checks { display: grid; margin: 0; padding: 0; list-style: none; }
+.event-readiness-checks li { display: grid; grid-template-columns: 1.5rem minmax(0, 1fr) auto; align-items: center; gap: .65rem; min-height: 3.4rem; border-top: 1px solid var(--border); padding: .55rem 0; }
+.event-readiness-checks li > span:first-child { display: grid; place-items: center; width: 1.4rem; height: 1.4rem; border-radius: 50%; color: var(--muted); background: var(--surface-sunken); font-size: .68rem; font-weight: 850; }
+.event-readiness-checks li.is-ready > span:first-child { color: var(--success); }
+.event-readiness-checks li.is-blocker > span:first-child { color: var(--danger); }
+.event-readiness-checks li.is-warning > span:first-child { color: var(--warning); }
+.event-readiness-checks li > span:nth-child(2) { display: grid; gap: .15rem; }
+.event-readiness-checks strong { font-size: .72rem; }
+.event-readiness-checks small { color: var(--muted); font-size: .64rem; line-height: 1.4; }
+.event-readiness-checks .event-readiness-remedy { color: var(--text); }
+.event-readiness-checks em { color: var(--muted); font-size: .6rem; font-style: normal; font-weight: 750; text-transform: capitalize; }
+
 @media (max-width: 900px) {
   .config-page-grid { grid-template-columns: 1fr; }
   .config-summary { grid-row: 1; grid-template-columns: repeat(2, minmax(0, 1fr)); }
@@ -228,4 +300,9 @@
     flex-direction: column;
   }
   .config-save-bar > div { display: grid; grid-template-columns: 1fr 1fr; }
+  .event-settings-panel.is-embedded .config-summary { grid-template-columns: 1fr; }
+  .event-readiness-heading { flex-direction: column; }
+  .event-readiness-heading .button { width: 100%; }
+  .event-readiness-context { grid-template-columns: auto minmax(0, 1fr); }
+  .event-readiness-context strong { grid-column: 1 / -1; }
 }

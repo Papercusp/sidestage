@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { EventSettingsPanel } from '../ConfigTab';
 import EventCreationPanel from '../event-creation/EventCreationPanel';
 import type { EventCreationPayload } from '../event-creation/catalog';
 import {
@@ -202,6 +203,7 @@ export function EventManager({
               `${quantity} × ${item.title} offered to ${buyerId}.`,
             )}
           />
+          <EventSettingsPanel eventId={eventId} apiBaseUrl={apiBaseUrl} embedded />
         </>
       ) : null}
 

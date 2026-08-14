@@ -32,6 +32,8 @@ describe('EventManager', () => {
     expect(markup).toContain('Barista Pro Espresso Machine');
     expect(markup).toContain('Event queue');
     expect(markup).toContain('Manage lineup');
+    expect(markup).toContain('Event settings &amp; readiness');
+    expect(markup).toContain('Loading event settings…');
   });
 
   it('renders the reservation-backed setup picker for an empty event', () => {
@@ -42,5 +44,6 @@ describe('EventManager', () => {
     expect(markup).toContain('Build the live lineup.');
     expect(markup).toContain('Create event');
     expect(markup).toContain('source-tracked event reservations');
+    expect(markup).not.toContain('Event settings &amp; readiness');
   });
 });

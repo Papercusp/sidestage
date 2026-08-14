@@ -4,7 +4,6 @@ import { AppDownloadButtons } from './components/AppDownloadButtons';
 import { BuildHistoryTab } from './BuildHistoryTab';
 import { BuyerTab } from './BuyerTab';
 import { BuyerCheckoutProvider } from './BuyerCheckout';
-import { ConfigTab } from './ConfigTab';
 import { browserEventId, DEFAULT_EVENT_TITLE, mediaBaseUrl } from './event-identity';
 import { OrdersTab } from './OrdersTab';
 import { SellerTab } from './SellerTab';
@@ -13,11 +12,13 @@ import {
   variantToSellerProduct,
   variantToTranscriptOption,
 } from './seller-products';
+import { SystemTestsTab } from './SystemTestsTab';
 import { TestTab } from './TestTab';
 
 // Test-compat re-exports: the app shell remains the public face of these.
 export { getTabFromUrl, TAB_GROUPS, tabHref, TABS, type TabId } from './app-routing';
 export { variantToSellerProduct, variantToTranscriptOption, type CatalogProduct } from './seller-products';
+export { SystemTestsTab } from './SystemTestsTab';
 export { TestTab } from './TestTab';
 
 export function appLayoutForTab(tab: TabId) {
@@ -115,8 +116,7 @@ export function App() {
           />
         ) : null}
         {tab === 'history' ? <BuildHistoryTab /> : null}
-        {tab === 'config' ? <ConfigTab /> : null}
-        {tab === 'test' ? <TestTab /> : null}
+        {tab === 'test' ? <SystemTestsTab /> : null}
         {layout.showFooter ? (
           <footer className="footer">
             <span>SideStage preview</span>

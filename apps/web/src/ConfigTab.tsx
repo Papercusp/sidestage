@@ -115,7 +115,7 @@ export function eventConfigUpdate(config: EventConfigView): EventConfigUpdate {
 }
 
 function savedLabel(saveState: ConfigSaveState, savedAt: Date | null, dirtyCount: number): string {
-  if (saveState === 'saving') return 'Saving event defaults…';
+  if (saveState === 'saving') return 'Saving event settings…';
   if (saveState === 'saved' && savedAt) return `Saved ${savedAt.toLocaleTimeString()}`;
   if (saveState === 'error') return 'Save failed — check the API and try again.';
   if (saveState === 'offline') return 'API unreachable — these fallback values cannot be persisted.';
@@ -132,6 +132,7 @@ export interface ConfigEditorProps {
   baseline: EventConfigView | null;
   saveState: ConfigSaveState;
   savedAt: Date | null;
+  apiBaseUrl?: string;
   onChange: (next: EventConfigView) => void;
   onSave: () => void;
 }
@@ -141,6 +142,7 @@ export function ConfigEditor({
   baseline,
   saveState,
   savedAt,
+  apiBaseUrl,
   onChange,
   onSave,
 }: ConfigEditorProps) {
@@ -182,7 +184,7 @@ export function ConfigEditor({
               ? 'Configuration needs attention'
               : publishedPolicyActive
                 ? 'A published policy is active for this event'
-                : 'Ready to rehearse with these event defaults'}
+                : 'Event settings are complete'}
           </strong>
           <p>
             {!readiness.ready
@@ -320,7 +322,7 @@ export function ConfigEditor({
         </aside>
       </div>
 
-      <EventReadinessPanel eventId={config.eventId} />
+      <EventReadinessPanel eventId={config.eventId} apiBaseUrl={apiBaseUrl} />
 
       <footer className="config-save-bar">
         <p>
@@ -465,6 +467,7 @@ export function EventSettingsPanel({
         baseline={baseline}
         saveState={saveState}
         savedAt={savedAt}
+        apiBaseUrl={apiBaseUrl}
         onChange={updateConfig}
         onSave={() => void save()}
       />

@@ -7,7 +7,7 @@ import {
   getTabFromUrl,
   TAB_GROUPS,
   tabHref,
-  TestTab,
+  SystemTestsTab,
   variantToSellerProduct,
 } from './App';
 import { OFFLINE_FIXTURE } from './catalog';
@@ -21,12 +21,15 @@ describe('SideStage tab state', () => {
     expect(getTabFromUrl('/?tab=seller')).toBe('seller');
     expect(getTabFromUrl('/?tab=orders')).toBe('orders');
     expect(getTabFromUrl('/?tab=history')).toBe('history');
-    expect(getTabFromUrl('/config')).toBe('config');
+    expect(getTabFromUrl('/config')).toBe('seller');
+    expect(getTabFromUrl('/?tab=config')).toBe('seller');
+    expect(getTabFromUrl('/?tab=test')).toBe('test');
     expect(getTabFromUrl('/?tab=unknown')).toBe('buyer');
   });
 
   it('preserves the current route while writing the selected tab', () => {
     expect(tabHref('test', '/events?source=demo#ready')).toBe('/events?source=demo&tab=test#ready');
+    expect(tabHref('config', '/events?source=demo')).toBe('/events?source=demo&tab=seller');
   });
 });
 
@@ -43,11 +46,13 @@ describe('P-005 product card and shell', () => {
     const markup = renderToStaticMarkup(<App />);
     expect(TAB_GROUPS.map((group) => group.tabs.map((tab) => tab.id))).toEqual([
       ['buyer', 'orders'],
-      ['seller', 'history', 'config', 'test'],
+      ['seller', 'history', 'test'],
     ]);
-    for (const tab of ['Watch', 'Orders', 'Studio', 'Releases', 'Settings', 'Rehearse']) {
+    for (const tab of ['Watch', 'Orders', 'Studio', 'Releases', 'Tests']) {
       expect(markup).toContain(`>${tab}</a>`);
     }
+    expect(markup).not.toContain('>Settings</a>');
+    expect(markup).not.toContain('>Rehearse</a>');
     expect(markup).toContain('aria-label="Buyer work"');
     expect(markup).toContain('aria-label="Operator work"');
     expect(markup).toContain('aria-current="page"');
@@ -85,19 +90,19 @@ describe('Seller workbench shell', () => {
   });
 });
 
-describe('P-022 load simulator tab', () => {
-  it('renders deterministic load controls and keeps the rehearsal local', () => {
-    const markup = renderToStaticMarkup(<TestTab />);
+describe('system Tests tab', () => {
+  it('renders deterministic controls and keeps every suite away from live commerce data', () => {
+    const markup = renderToStaticMarkup(<SystemTestsTab />);
 
     expect(markup).toContain('Pressure-test the copilot seam.');
     expect(markup).toContain('Simulated users');
     expect(markup).toContain('Messages / user / sec');
     expect(markup).toContain('Duration (seconds)');
-    expect(markup).toContain('Run load rehearsal');
-    expect(markup).toContain('without sending anything to buyers');
+    expect(markup).toContain('Run load simulation');
+    expect(markup).toContain('No live room is joined and no buyer receives a message.');
     expect(markup).toContain('Reply judge');
-    expect(markup).toContain('Grade the copilot before buyers do.');
-    expect(markup).toContain('Run judge rehearsal');
-    expect(markup).toContain('same grounding, policy, price, and tone seam');
+    expect(markup).toContain('Grade generated replies in isolation.');
+    expect(markup).toContain('Run reply judge');
+    expect(markup).toContain('No reply is sent to a buyer.');
   });
 });
