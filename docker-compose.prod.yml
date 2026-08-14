@@ -48,7 +48,10 @@ services:
     image: bluenviron/mediamtx:1.9.3
     restart: unless-stopped
     environment:
-      MTX_WEBRTCADDITIONALHOSTS: ${PUBLIC_HOSTNAME:-sidestage.buyrestart.com}
+      # MediaMTX 1.9.3 copies additional hosts directly into ICE candidates;
+      # it does not resolve DNS names. A hostname here makes Firefox discard
+      # the candidate and leaves only Docker-private addresses in the answer.
+      MTX_WEBRTCADDITIONALHOSTS: ${MEDIAMTX_PUBLIC_IP:?set to the server public IPv4 in .env.production}
     ports:
       - "8189:8189/udp"   # WebRTC ICE
     networks:
