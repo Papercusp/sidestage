@@ -46,7 +46,11 @@ function render(): string {
  * the element it is actually about.
  */
 function previewBox(html: string): string {
-  const open = html.indexOf('<div class="event-thumbnail-preview"');
+  // Matched on the class TOKEN, not a full class string: the preview is
+  // rendered by EventThumbnail, which composes its own class with the one the
+  // panel passes, so pinning the exact attribute value would re-break on any
+  // future class added there.
+  const open = html.search(/<div class="[^"]*\bevent-thumbnail-preview\b/);
   expect(open).toBeGreaterThan(-1);
   const close = html.indexOf('</div>', open);
   return html.slice(open, close + '</div>'.length);

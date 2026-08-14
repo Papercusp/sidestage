@@ -1,16 +1,18 @@
 import { createContext, useContext, useMemo, type ReactNode } from 'react';
 import {
   DockWorkspace,
-  createLocalStorageDockLayoutStore,
   type DockLayoutStore,
+  type PanelComponent,
   type PanelRegistry,
 } from '@papercusp/dock-workbench';
 import './seller-dock.css';
 import {
   SELLER_DOCK_LAYOUT_NAME,
-  sellerDockDefaultLayout,
   type SellerPanelId,
 } from './seller-dock-layout';
+import { SELLER_DOCK_RESET_EVENT, createSellerDockStore } from './seller-dock-store';
+import { SellerDockToolbar } from './SellerDockToolbar';
+import type { SellerDockPanelContextValue } from './seller-dock-panel-props';
 
 /**
  * Seller dock host (P-007).
@@ -23,7 +25,11 @@ import {
  * Lane boundaries:
  *   P-007 (this file) — the host, the default layout, the chrome, the seam.
  *   P-009            — registers a component for each SellerPanelId.
- *   P-010            — hardens persistence (versioning, reset affordance).
+ *   P-010            — persistence hardening + the reset control. The store now
+ *                      lives in `./seller-dock-store` (it self-heals an
+ *                      unreadable saved layout instead of letting the dock fail
+ *                      to load) and the control in `./SellerDockToolbar`, which
+ *                      reaches the dock through `resetEventName` below.
  */
 
 /**
@@ -36,13 +42,14 @@ import {
  * `params` would either corrupt the persisted layout or force P-010 to strip
  * them back out on every save.
  *
- * The shape is intentionally open: P-009 owns the concrete per-panel props and
- * widens this as it wires each panel. Keeping it a single bundle means adding a
- * panel never changes the dock host.
+ * P-009 replaced the original open `[key: string]: unknown` bag with a concrete
+ * per-panel shape. That shape lives in `./seller-dock-panel-props` rather than
+ * here, which preserves the property the open bag was protecting: adding a
+ * panel does not change the dock host. Widening it in place would have made
+ * this host import all six panel components' types, so every new panel would
+ * edit the host — exactly what the open bag existed to avoid.
  */
-export interface SellerDockPanelContextValue {
-  [key: string]: unknown;
-}
+export type { SellerDockPanelContextValue };
 
 const SellerDockContext = createContext<SellerDockPanelContextValue | null>(null);
 
@@ -62,19 +69,6 @@ export function useSellerDockPanels(): SellerDockPanelContextValue {
 }
 
 /**
- * The localStorage-backed layout store, seeded with the default seller layout.
- *
- * Exported so P-010 can wrap or replace it (and so tests can hand in their own)
- * without reaching into this component.
- */
-export function createSellerDockStore(keyPrefix = 'sidestage.dock'): DockLayoutStore {
-  return createLocalStorageDockLayoutStore({
-    keyPrefix,
-    seed: () => sellerDockDefaultLayout(),
-  });
-}
-
-/**
  * Panel types that may be registered after first paint.
  *
  * Module scope, not an inline arrow: `DockWorkspace` documents that this must be
@@ -90,28 +84,49 @@ const isDeferredPanelType = (_type: string): boolean => false;
 export interface SellerDockProps {
   /** Panel props bundle, supplied to panels via context (never via params). */
   panels: SellerDockPanelContextValue;
-  /** Panel registry. P-009 populates it; defaults to the workbench's shared one. */
+  /** Panel registry. Defaults to P-009's registry with all six seller panels. */
   registry?: PanelRegistry;
   /** Layout store. Defaults to localStorage seeded with the default layout. */
   store?: DockLayoutStore;
+  /**
+   * Rendered when a persisted layout names a panel this build cannot render.
+   *
+   * Typed as the workbench's own `PanelComponent` rather than restating the
+   * prop shape: `DockWorkspace` passes every panel the full `PanelComponentProps`
+   * (which carries `params` and `api` alongside `panelId`/`panelType`), so a
+   * narrower local restatement is not assignable to the prop it feeds.
+   */
+  missingComponent?: PanelComponent;
   children?: ReactNode;
 }
 
-export function SellerDock({ panels, registry, store }: SellerDockProps) {
+export function SellerDock({ panels, registry, store, missingComponent }: SellerDockProps) {
   // A fresh store per mount would re-seed and drop the user's saved layout, so
   // it is memoised for the life of the component.
   const layoutStore = useMemo(() => store ?? createSellerDockStore(), [store]);
 
   return (
     <SellerDockContext.Provider value={panels}>
-      <div className="seller-dock-host">
-        <DockWorkspace
-          layoutName={SELLER_DOCK_LAYOUT_NAME}
-          store={layoutStore}
-          registry={registry}
-          className="seller-dock-theme"
-          isDeferredPanelType={isDeferredPanelType}
-        />
+      <div className="seller-dock-shell">
+        <SellerDockToolbar />
+        <div className="seller-dock-host">
+          {/*
+            `registry` and `missingComponent` are supplied by the caller rather
+            than defaulted here. Defaulting them would mean importing
+            ./seller-dock-panels, which imports this module for the context hook —
+            a cycle — and would re-couple the host to the panel inventory that the
+            props-module split above deliberately decoupled it from.
+          */}
+          <DockWorkspace
+            layoutName={SELLER_DOCK_LAYOUT_NAME}
+            store={layoutStore}
+            registry={registry}
+            className="seller-dock-theme"
+            resetEventName={SELLER_DOCK_RESET_EVENT}
+            isDeferredPanelType={isDeferredPanelType}
+            missingComponent={missingComponent}
+          />
+        </div>
       </div>
     </SellerDockContext.Provider>
   );
