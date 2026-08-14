@@ -2,9 +2,11 @@ import { useCallback, useMemo, useState } from 'react';
 import { useSyncQuery } from '@papercusp/sync';
 import { TAB_GROUPS, tabHref, type TabId, useUrlTab } from './app-routing';
 import { AppDownloadButtons } from './components/AppDownloadButtons';
+import { DemoIdentityControl } from './BuyerIdentityControl';
 import { BuildHistoryTab } from './BuildHistoryTab';
 import { BuyerTab } from './BuyerTab';
-import { BuyerCheckoutProvider } from './BuyerCheckout';
+import { BuyerCheckoutProvider, useBuyerCheckout } from './BuyerCheckout';
+import { useDemoIdentity } from './buyer-identity';
 import { browserEventId, DEFAULT_EVENT_TITLE, mediaBaseUrl } from './event-identity';
 import type { GuideEvent } from './events/api';
 import { ChannelGuide } from './events/ChannelGuide';
@@ -33,8 +35,19 @@ export function appLayoutForTab(tab: TabId) {
   };
 }
 
+function TopbarHeldItemsButton() {
+  const checkout = useBuyerCheckout();
+  if (!checkout) return null;
+  return (
+    <button className="button secondary topbar-held-items" type="button" onClick={checkout.openHeldItems}>
+      Held items <span aria-label={`${checkout.heldItemCount} held items`}>{checkout.heldItemCount}</span>
+    </button>
+  );
+}
+
 export function App() {
   const [tab, navigate] = useUrlTab();
+  const { userId, impersonate } = useDemoIdentity();
   const [selectedProductId, setSelectedProductId] = useState<string | null>(null);
 
   /* P-118 / D-019: the active event is app state, not a hard-pin. It seeds
@@ -78,7 +91,8 @@ export function App() {
   const layout = appLayoutForTab(tab);
 
   return (
-    <div className={layout.shellClassName}>
+    <BuyerCheckoutProvider eventId={activeEventId}>
+      <div className={layout.shellClassName}>
       <ChannelGuide
         events={guideEvents}
         currentEventId={activeEventId}
@@ -99,7 +113,16 @@ export function App() {
                   <small>Live commerce</small>
                 </span>
               </a>
-              <AppDownloadButtons />
+              <div className="topbar-install-and-identity">
+                <AppDownloadButtons />
+                <div className="topbar-demo-user">
+                  <DemoIdentityControl
+                    userId={userId}
+                    onImpersonate={impersonate}
+                    inputId="global-demo-user-id"
+                  />
+                </div>
+              </div>
             </div>
             <nav className="tab-nav" aria-label="SideStage pages">
               {TAB_GROUPS.map((group) => (
@@ -118,13 +141,15 @@ export function App() {
                 </span>
               ))}
             </nav>
-            <span className="connection-pill"><span className="connection-dot" /> Ready for your next event</span>
+            <div className="topbar-status-group">
+              <TopbarHeldItemsButton />
+              <span className="connection-pill"><span className="connection-dot" /> Ready for your next event</span>
+            </div>
           </div>
         </header>
 
         <main className={layout.contentClassName} id="main-content" tabIndex={-1}>
-          <BuyerCheckoutProvider eventId={activeEventId}>
-            {tab === 'buyer' ? (
+          {tab === 'buyer' ? (
               <BuyerTab
                 eventId={activeEventId}
                 eventTitle={DEFAULT_EVENT_TITLE}
@@ -143,15 +168,15 @@ export function App() {
             ) : null}
             {tab === 'history' ? <BuildHistoryTab /> : null}
             {tab === 'test' ? <SystemTestsTab /> : null}
-            {layout.showFooter ? (
+          {layout.showFooter ? (
               <footer className="footer">
                 <span>SideStage preview</span>
                 <span>Built for the live-selling floor</span>
               </footer>
-            ) : null}
-          </BuyerCheckoutProvider>
+          ) : null}
         </main>
       </div>
-    </div>
+      </div>
+    </BuyerCheckoutProvider>
   );
 }

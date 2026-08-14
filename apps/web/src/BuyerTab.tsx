@@ -25,7 +25,6 @@ import { EventThumbnail } from './event-creation/EventThumbnail';
 import { isRenderableThumbnailUrl } from './event-creation/thumbnail';
 import type { GuideEvent } from './events/api';
 import { ReplayChapters } from './ReplayChapters';
-import { DemoIdentityControl } from './BuyerIdentityControl';
 import { type BuyerCheckoutActions, useBuyerCheckout } from './BuyerCheckout';
 import { useDemoIdentity } from './buyer-identity';
 import { VideoChatOverlay } from './VideoChatOverlay';
@@ -249,13 +248,6 @@ export function BuyerTab({
               Held items <span aria-label={`${buyerCheckout.heldItemCount} held items`}>{buyerCheckout.heldItemCount}</span>
             </button>
           ) : null}
-          <div className="buyer-account-control">
-            <DemoIdentityControl
-              userId={userId}
-              onImpersonate={impersonate}
-              inputId="buyer-demo-user-id"
-            />
-          </div>
         </div>
       </header>
 

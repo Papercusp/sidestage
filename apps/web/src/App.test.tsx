@@ -65,6 +65,11 @@ describe('P-005 product card and shell', () => {
     expect(markup).toContain('aria-current="page"');
     expect(markup).toContain('href="#main-content"');
     expect(markup).toContain('Live commerce');
+    expect(markup.match(/Demo user impersonation/g)).toHaveLength(1);
+    expect(markup).toContain('id="global-demo-user-id"');
+    expect(markup).not.toContain('Seller demo user');
+    expect(markup.indexOf('data-platform="android"')).toBeLessThan(markup.indexOf('Demo user impersonation'));
+    expect(markup.indexOf('Held items')).toBeLessThan(markup.indexOf('Ready for your next event'));
     expect(markup).toContain('Now selling');
     expect(markup).toContain('Event products');
     expect(markup).toContain('Live chat');

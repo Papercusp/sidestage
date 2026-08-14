@@ -1,6 +1,5 @@
 import { useCallback, useState } from 'react';
 import { useSyncMutate } from '@papercusp/sync';
-import { DemoIdentityControl } from './BuyerIdentityControl';
 import { useDemoIdentity } from './buyer-identity';
 import { requestChatJson } from './chat-api';
 import { TabHeader } from './components/TabHeader';
@@ -261,14 +260,7 @@ export function SellerTab({
         foregroundPanelId={studioView === 'event-manager' ? 'event-manager' : undefined}
         resetEventName={resetEventName}
         missingComponent={SellerDockMissingPanel}
-      >
-        <DemoIdentityControl
-          userId={userId}
-          onImpersonate={impersonate}
-          inputId="seller-demo-user-id"
-          label="Seller demo user"
-        />
-      </SellerDock>
+      />
     </div>
   );
 }
