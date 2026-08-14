@@ -92,7 +92,7 @@ function integrationRuntime(action?: ActionResult) {
   subscriber.onModuleInit();
 
   async function ask(text: string, buyerId = 'buyer-1'): Promise<CopilotProposal> {
-    const question = chat.addMessage('event-live', {
+    const question = await chat.addMessage('event-live', {
       userId: buyerId,
       displayName: 'Maya',
       role: 'buyer',
@@ -138,7 +138,7 @@ describe('seller Copilot integration', () => {
         status: 'approved',
         decision: { actorId: 'seller-1', sentMessageId: expect.any(String) },
       });
-      expect(sellerMessages(runtime.chat.getMessages('event-live'))).toHaveLength(1);
+      expect(sellerMessages(await runtime.chat.getMessages('event-live'))).toHaveLength(1);
       await expect(runtime.queries.resolve('event.copilot.proposals', { eventId: 'event-live' }))
         .resolves.toEqual([first]);
     } finally {
@@ -155,7 +155,7 @@ describe('seller Copilot integration', () => {
 
       expect(retry).toEqual(skipped);
       expect(skipped.status).toBe('skipped');
-      expect(sellerMessages(runtime.chat.getMessages('event-live'))).toEqual([]);
+      expect(sellerMessages(await runtime.chat.getMessages('event-live'))).toEqual([]);
     } finally {
       runtime.destroy();
     }
@@ -174,7 +174,7 @@ describe('seller Copilot integration', () => {
         .rejects.toThrow('Grounding changed');
       await expect(runtime.queries.resolve('event.copilot.proposals', { eventId: 'event-live' }))
         .resolves.toEqual([expect.objectContaining({ status: 'blocked' })]);
-      expect(sellerMessages(runtime.chat.getMessages('event-live'))).toEqual([]);
+      expect(sellerMessages(await runtime.chat.getMessages('event-live'))).toEqual([]);
     } finally {
       runtime.destroy();
     }
@@ -222,7 +222,7 @@ describe('seller Copilot integration', () => {
         status: 'executed',
         decision: { auditId: expect.any(String), sentMessageId: expect.any(String) },
       });
-      expect(sellerMessages(runtime.chat.getMessages('event-live'))).toHaveLength(1);
+      expect(sellerMessages(await runtime.chat.getMessages('event-live'))).toHaveLength(1);
     } finally {
       runtime.destroy();
     }

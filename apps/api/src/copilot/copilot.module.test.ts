@@ -26,13 +26,13 @@ describe('Copilot runtime composition', () => {
     const subscriber = new BuyerQuestionCopilotSubscriber(chat, copilot);
     subscriber.onModuleInit();
 
-    const question = chat.addMessage('event-1', {
+    const question = await chat.addMessage('event-1', {
       userId: 'buyer-1', displayName: 'Maya', role: 'buyer', text: 'Is the blue mug available?',
     });
-    chat.addMessage('event-1', {
+    await chat.addMessage('event-1', {
       userId: 'buyer-1', displayName: 'Maya', role: 'buyer', text: 'The blue mug looks great.',
     });
-    chat.addMessage('event-1', {
+    await chat.addMessage('event-1', {
       userId: 'seller-1', displayName: 'Host', role: 'seller', text: 'It is still available.',
     });
 
@@ -40,7 +40,7 @@ describe('Copilot runtime composition', () => {
     expect(copilot.createFromChat).toHaveBeenCalledWith(question);
 
     subscriber.onModuleDestroy();
-    chat.addMessage('event-1', {
+    await chat.addMessage('event-1', {
       userId: 'buyer-2', displayName: 'Noah', role: 'buyer', text: 'Can you ship it tomorrow?',
     });
     await Promise.resolve();

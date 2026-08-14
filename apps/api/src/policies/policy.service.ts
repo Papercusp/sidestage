@@ -396,7 +396,7 @@ export class PolicyService {
     if (!revision || revision.sellerId !== sellerId) {
       throw new PolicyError(404, {
         code: 'POLICY_NOT_FOUND',
-        message: `no policy revision ${id}`,
+        message: 'policy revision not found',
       });
     }
     return revision;

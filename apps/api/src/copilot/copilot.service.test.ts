@@ -142,7 +142,7 @@ describe('CopilotProposalService', () => {
       revision: 2,
       decision: { actorId: 'seller-1', sentMessageId: expect.any(String) },
     });
-    expect(runtime.chat.getMessages('event-1')).toHaveLength(1);
+    expect(await runtime.chat.getMessages('event-1')).toHaveLength(1);
     expect(sent).toHaveLength(1);
   });
 
@@ -155,7 +155,7 @@ describe('CopilotProposalService', () => {
 
     expect(retry).toEqual(skipped);
     expect(skipped.status).toBe('skipped');
-    expect(runtime.chat.getMessages('event-1')).toEqual([]);
+    expect(await runtime.chat.getMessages('event-1')).toEqual([]);
   });
 
   it('blocks approval when fresh event facts differ from the generation snapshot', async () => {
@@ -173,7 +173,7 @@ describe('CopilotProposalService', () => {
       status: 'blocked',
       error: expect.stringContaining('Grounding changed'),
     });
-    expect(runtime.chat.getMessages('event-1')).toEqual([]);
+    expect(await runtime.chat.getMessages('event-1')).toEqual([]);
   });
 
   it('executes a confirmed action once and still allows its reply to be approved', async () => {
@@ -209,6 +209,6 @@ describe('CopilotProposalService', () => {
       status: 'executed',
       decision: { auditId: expect.any(String), sentMessageId: expect.any(String) },
     });
-    expect(runtime.chat.getMessages('event-1')).toHaveLength(1);
+    expect(await runtime.chat.getMessages('event-1')).toHaveLength(1);
   });
 });
