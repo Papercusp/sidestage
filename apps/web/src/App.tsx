@@ -28,10 +28,12 @@ export { TestTab } from './TestTab';
 
 export function appLayoutForTab(tab: TabId) {
   const isSeller = tab === 'seller';
+  const isBuyerSurface = tab === 'buyer' || tab === 'orders';
   return {
     shellClassName: `app-shell${isSeller ? ' app-shell--seller' : ''}`,
     contentClassName: `content${isSeller ? ' content-seller' : ''}`,
     showFooter: !isSeller,
+    showBuyerScout: isBuyerSurface,
   };
 }
 
@@ -91,7 +93,7 @@ export function App() {
   const layout = appLayoutForTab(tab);
 
   return (
-    <BuyerCheckoutProvider eventId={activeEventId}>
+    <BuyerCheckoutProvider eventId={activeEventId} showScout={layout.showBuyerScout}>
       <div className={layout.shellClassName}>
       <ChannelGuide
         events={guideEvents}

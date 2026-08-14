@@ -101,13 +101,19 @@ describe('Seller workbench shell', () => {
       shellClassName: 'app-shell app-shell--seller',
       contentClassName: 'content content-seller',
       showFooter: false,
+      showBuyerScout: false,
     });
 
     expect(appLayoutForTab('buyer')).toEqual({
       shellClassName: 'app-shell',
       contentClassName: 'content',
       showFooter: true,
+      showBuyerScout: true,
     });
+
+    expect(appLayoutForTab('orders').showBuyerScout).toBe(true);
+    expect(appLayoutForTab('history').showBuyerScout).toBe(false);
+    expect(appLayoutForTab('test').showBuyerScout).toBe(false);
   });
 });
 
