@@ -26,6 +26,15 @@
   "devDependencies": {
     "concurrently": "^9.2.1",
     "typescript": "^5.8.3",
-    "vitest": "^4.1.4"
+    "vitest": "^4.1.4",
+    "@linaria/react": "^4.5.4",
+    "canvas-hypertxt": "^1.0.3",
+    "react-number-format": "^5.0.0",
+    "react-responsive-carousel": "^3.2.7",
+    "marked": "^4.0.10"
+  },
+  "overrides": {
+    "react": "^19",
+    "react-dom": "^19"
   }
 }
