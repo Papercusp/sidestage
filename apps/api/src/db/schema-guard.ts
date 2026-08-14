@@ -66,6 +66,15 @@ export const REQUIRED_TABLES: readonly string[] = [
   'seller_policy_revision',
   'storefront_product',
   'storefront_product_option',
+  'system_test_artifact',
+  'system_test_cancellation',
+  'system_test_case',
+  'system_test_cleanup',
+  'system_test_environment',
+  'system_test_retention',
+  'system_test_run',
+  'system_test_suite',
+  'system_test_transition',
 ];
 
 /**

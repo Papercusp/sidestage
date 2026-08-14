@@ -951,3 +951,175 @@ DROP TRIGGER IF EXISTS scout_session_preserve_buyer ON scout_session;
 CREATE TRIGGER scout_session_preserve_buyer
 BEFORE UPDATE OF buyer_id ON scout_session
 FOR EACH ROW EXECUTE FUNCTION sidestage_preserve_owner('buyer_id');
+
+-- ── Durable real-system test runs (Tests-tab acceptance P-003 / D-007) ──────
+--
+-- This is the single run ledger for the Tests tab, API, and acceptance worker.
+-- Suite/case/environment/evidence data is snapshotted per launch so history
+-- remains interpretable after a manifest changes. Transitions are append-only;
+-- the current state on system_test_run is only the indexed projection.
+CREATE TABLE IF NOT EXISTS system_test_run (
+  id text PRIMARY KEY,
+  idempotency_key text NOT NULL UNIQUE,
+  request_hash text NOT NULL,
+  contract_version integer NOT NULL,
+  suite_id text NOT NULL,
+  suite_version integer NOT NULL,
+  profile text NOT NULL,
+  actor_id text NOT NULL,
+  actor_role text NOT NULL,
+  requested_sha text NOT NULL,
+  deployed_sha text,
+  state text NOT NULL DEFAULT 'queued',
+  blocked_reasons jsonb NOT NULL DEFAULT '[]'::jsonb,
+  summary text NOT NULL DEFAULT '',
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now(),
+  heartbeat_at timestamptz NOT NULL DEFAULT now(),
+  started_at timestamptz,
+  finished_at timestamptz,
+  CONSTRAINT system_test_run_contract_version_positive CHECK (contract_version > 0),
+  CONSTRAINT system_test_run_suite_version_positive CHECK (suite_version > 0),
+  CONSTRAINT system_test_run_suite_known
+    CHECK (suite_id IN ('actions', 'auction', 'checkout', 'injection', 'load', 'judge')),
+  CONSTRAINT system_test_run_profile_known
+    CHECK (profile IN ('smoke', 'full', 'sandbox', 'load')),
+  CONSTRAINT system_test_run_actor_role_known CHECK (actor_role IN ('operator', 'release')),
+  CONSTRAINT system_test_run_requested_sha_format CHECK (requested_sha ~ '^[0-9a-f]{40}$'),
+  CONSTRAINT system_test_run_deployed_sha_format
+    CHECK (deployed_sha IS NULL OR deployed_sha ~ '^[0-9a-f]{40}$'),
+  CONSTRAINT system_test_run_state_known CHECK (state IN (
+    'queued', 'provisioning', 'running', 'collecting', 'cleaning',
+    'passed', 'failed', 'blocked', 'cancelled', 'timed-out', 'cleanup-failed'
+  )),
+  CONSTRAINT system_test_run_blocked_reasons_array
+    CHECK (jsonb_typeof(blocked_reasons) = 'array')
+);
+
+CREATE INDEX IF NOT EXISTS system_test_run_state_heartbeat_idx
+  ON system_test_run (state, heartbeat_at);
+CREATE INDEX IF NOT EXISTS system_test_run_created_at_idx
+  ON system_test_run (created_at DESC);
+
+CREATE TABLE IF NOT EXISTS system_test_suite (
+  run_id text PRIMARY KEY REFERENCES system_test_run (id) ON DELETE CASCADE,
+  suite_id text NOT NULL,
+  suite_version integer NOT NULL,
+  profile text NOT NULL,
+  title text NOT NULL,
+  manifest_snapshot jsonb NOT NULL,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  CONSTRAINT system_test_suite_manifest_object
+    CHECK (jsonb_typeof(manifest_snapshot) = 'object')
+);
+
+CREATE TABLE IF NOT EXISTS system_test_case (
+  run_id text NOT NULL REFERENCES system_test_run (id) ON DELETE CASCADE,
+  case_id text NOT NULL,
+  ordinal integer NOT NULL,
+  title text NOT NULL,
+  status text NOT NULL DEFAULT 'not-run',
+  summary text NOT NULL DEFAULT '',
+  started_at timestamptz,
+  finished_at timestamptz,
+  PRIMARY KEY (run_id, case_id),
+  UNIQUE (run_id, ordinal),
+  CONSTRAINT system_test_case_status_known
+    CHECK (status IN ('passed', 'failed', 'blocked', 'not-run'))
+);
+
+CREATE TABLE IF NOT EXISTS system_test_artifact (
+  run_id text NOT NULL REFERENCES system_test_run (id) ON DELETE CASCADE,
+  artifact_id text NOT NULL,
+  case_id text,
+  kind text NOT NULL,
+  ref text NOT NULL,
+  summary text NOT NULL,
+  captured_at timestamptz NOT NULL,
+  deployed_sha text NOT NULL,
+  byte_size bigint,
+  redacted boolean NOT NULL DEFAULT true,
+  PRIMARY KEY (run_id, artifact_id),
+  CONSTRAINT system_test_artifact_case_fk
+    FOREIGN KEY (run_id, case_id) REFERENCES system_test_case (run_id, case_id) ON DELETE CASCADE,
+  CONSTRAINT system_test_artifact_byte_size_nonnegative
+    CHECK (byte_size IS NULL OR byte_size >= 0),
+  CONSTRAINT system_test_artifact_deployed_sha_format
+    CHECK (deployed_sha ~ '^[0-9a-f]{40}$')
+);
+
+CREATE INDEX IF NOT EXISTS system_test_artifact_case_idx
+  ON system_test_artifact (run_id, case_id, captured_at);
+
+CREATE TABLE IF NOT EXISTS system_test_environment (
+  run_id text NOT NULL REFERENCES system_test_run (id) ON DELETE CASCADE,
+  environment_id text NOT NULL,
+  kind text NOT NULL,
+  status text NOT NULL,
+  image_digest text,
+  endpoint_fingerprint text,
+  configuration_fingerprint text,
+  details jsonb NOT NULL DEFAULT '{}'::jsonb,
+  recorded_at timestamptz NOT NULL DEFAULT now(),
+  PRIMARY KEY (run_id, environment_id),
+  CONSTRAINT system_test_environment_details_object CHECK (jsonb_typeof(details) = 'object')
+);
+
+CREATE TABLE IF NOT EXISTS system_test_transition (
+  id bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  run_id text NOT NULL REFERENCES system_test_run (id) ON DELETE CASCADE,
+  sequence integer NOT NULL,
+  from_state text,
+  to_state text NOT NULL,
+  reason text NOT NULL DEFAULT '',
+  occurred_at timestamptz NOT NULL DEFAULT now(),
+  UNIQUE (run_id, sequence),
+  CONSTRAINT system_test_transition_from_state_known CHECK (from_state IS NULL OR from_state IN (
+    'queued', 'provisioning', 'running', 'collecting', 'cleaning',
+    'passed', 'failed', 'blocked', 'cancelled', 'timed-out', 'cleanup-failed'
+  )),
+  CONSTRAINT system_test_transition_to_state_known CHECK (to_state IN (
+    'queued', 'provisioning', 'running', 'collecting', 'cleaning',
+    'passed', 'failed', 'blocked', 'cancelled', 'timed-out', 'cleanup-failed'
+  ))
+);
+
+CREATE INDEX IF NOT EXISTS system_test_transition_run_time_idx
+  ON system_test_transition (run_id, occurred_at);
+
+CREATE TABLE IF NOT EXISTS system_test_cancellation (
+  run_id text PRIMARY KEY REFERENCES system_test_run (id) ON DELETE CASCADE,
+  requested_by_id text NOT NULL,
+  requested_by_role text NOT NULL,
+  reason text NOT NULL,
+  requested_at timestamptz NOT NULL DEFAULT now(),
+  acknowledged_at timestamptz,
+  CONSTRAINT system_test_cancellation_role_known
+    CHECK (requested_by_role IN ('operator', 'release'))
+);
+
+CREATE TABLE IF NOT EXISTS system_test_retention (
+  run_id text PRIMARY KEY REFERENCES system_test_run (id) ON DELETE CASCADE,
+  results_expires_at timestamptz NOT NULL,
+  artifacts_expires_at timestamptz NOT NULL,
+  created_at timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS system_test_retention_results_idx
+  ON system_test_retention (results_expires_at);
+CREATE INDEX IF NOT EXISTS system_test_retention_artifacts_idx
+  ON system_test_retention (artifacts_expires_at);
+
+CREATE TABLE IF NOT EXISTS system_test_cleanup (
+  run_id text PRIMARY KEY REFERENCES system_test_run (id) ON DELETE CASCADE,
+  status text NOT NULL DEFAULT 'not-started',
+  summary text NOT NULL DEFAULT '',
+  attempts integer NOT NULL DEFAULT 0,
+  requested_at timestamptz,
+  started_at timestamptz,
+  finished_at timestamptz,
+  updated_at timestamptz NOT NULL DEFAULT now(),
+  CONSTRAINT system_test_cleanup_status_known
+    CHECK (status IN ('not-started', 'pending', 'running', 'succeeded', 'failed')),
+  CONSTRAINT system_test_cleanup_attempts_nonnegative CHECK (attempts >= 0)
+);
