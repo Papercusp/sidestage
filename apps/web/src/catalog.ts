@@ -18,6 +18,9 @@ export interface CatalogVariant {
   brand: string;
   productType: string;
   sku: string;
+  /** The SideStage variant axis — what separates one variant from its siblings. */
+  color?: string;
+  /** Restart import compatibility (resale grade + lead time), never the axis. */
   condition: string | null;
   handlingDays: number | null;
   priceCents: number;
@@ -162,6 +165,7 @@ export function variantToCatalogRow(variant: CatalogVariant): CatalogRow {
     brand: variant.brand,
     productType: variant.productType,
     sku: variant.sku,
+    color: variant.color,
     condition: variant.condition ?? 'NEW',
     handlingDays: variant.handlingDays,
     priceCents: variant.priceCents,
@@ -171,7 +175,10 @@ export function variantToCatalogRow(variant: CatalogVariant): CatalogRow {
 }
 
 export function variantToBuyerProduct(variant: CatalogVariant): BuyerProduct {
-  const subtitleParts = [variant.brand, variant.condition ?? undefined].filter(Boolean);
+  // Colour is the variant axis, so it is what the subtitle must carry: two
+  // colorways of one product are otherwise the same line twice. An imported
+  // row with no colour axis falls back to its Restart grade (WI-38716).
+  const subtitleParts = [variant.brand, variant.color ?? variant.condition ?? undefined].filter(Boolean);
   return {
     id: variant.id,
     title: variant.title,
@@ -185,12 +192,12 @@ export function variantToBuyerProduct(variant: CatalogVariant): BuyerProduct {
 
 /** The eight demo.sql products, for offline rendering only. */
 export const OFFLINE_FIXTURE: readonly CatalogVariant[] = [
-  { id: 'demo-espresso-new', groupId: 'demo-espresso-machine', title: 'Barista Pro Espresso Machine', brand: 'BrewHaus', productType: 'KITCHEN_APPLIANCE', sku: 'BH-ESP-200-NEW', condition: 'NEW', handlingDays: 2, priceCents: 49999, availableQty: 12, imageUrl: 'https://placehold.co/640x640/png?text=Barista+Pro' },
-  { id: 'demo-espresso-refurbished', groupId: 'demo-espresso-machine', title: 'Barista Pro Espresso Machine', brand: 'BrewHaus', productType: 'KITCHEN_APPLIANCE', sku: 'BH-ESP-200-REF', condition: 'REFURBISHED', handlingDays: 4, priceCents: 34999, availableQty: 4, imageUrl: 'https://placehold.co/640x640/png?text=Barista+Pro' },
-  { id: 'demo-headphones-black', groupId: 'demo-wireless-headphones', title: 'Cloud ANC Wireless Headphones', brand: 'Northstar Audio', productType: 'AUDIO', sku: 'NSA-CLOUD-BLK', condition: 'NEW', handlingDays: 2, priceCents: 19999, availableQty: 24, imageUrl: 'https://placehold.co/640x640/png?text=Cloud+ANC' },
-  { id: 'demo-headphones-sand', groupId: 'demo-wireless-headphones', title: 'Cloud ANC Wireless Headphones', brand: 'Northstar Audio', productType: 'AUDIO', sku: 'NSA-CLOUD-SND', condition: 'NEW', handlingDays: 2, priceCents: 20999, availableQty: 8, imageUrl: 'https://placehold.co/640x640/png?text=Cloud+ANC' },
-  { id: 'demo-camera-body', groupId: 'demo-creator-camera', title: 'Creator 4K Mirrorless Camera', brand: 'FrameForge', productType: 'CAMERA', sku: 'FF-C4K-BODY', condition: 'NEW', handlingDays: 3, priceCents: 89999, availableQty: 6, imageUrl: 'https://placehold.co/640x640/png?text=Creator+4K' },
-  { id: 'demo-camera-kit', groupId: 'demo-creator-camera', title: 'Creator 4K Mirrorless Camera', brand: 'FrameForge', productType: 'CAMERA', sku: 'FF-C4K-KIT', condition: 'NEW', handlingDays: 5, priceCents: 109999, availableQty: 3, imageUrl: 'https://placehold.co/640x640/png?text=Creator+4K' },
-  { id: 'demo-desk-bamboo', groupId: 'demo-standing-desk', title: 'Lift Electric Standing Desk', brand: 'Field Office', productType: 'OFFICE_FURNITURE', sku: 'FO-LIFT-BAMBOO', condition: 'NEW', handlingDays: 7, priceCents: 54999, availableQty: 10, imageUrl: 'https://placehold.co/640x640/png?text=Lift+Desk' },
-  { id: 'demo-desk-open-box', groupId: 'demo-standing-desk', title: 'Lift Electric Standing Desk', brand: 'Field Office', productType: 'OFFICE_FURNITURE', sku: 'FO-LIFT-OPEN', condition: 'USED', handlingDays: 9, priceCents: 39999, availableQty: 2, imageUrl: 'https://placehold.co/640x640/png?text=Lift+Desk' },
+  { id: 'demo-espresso-matte-black', groupId: 'demo-espresso-machine', title: 'Barista Pro Espresso Machine', brand: 'BrewHaus', productType: 'KITCHEN_APPLIANCE', sku: 'BH-ESP-200-BLK', color: 'Matte Black', condition: 'NEW', handlingDays: 2, priceCents: 49999, availableQty: 12, imageUrl: 'https://placehold.co/640x640/2f3033/ffffff/png?text=Barista+Pro+Matte+Black' },
+  { id: 'demo-espresso-cream', groupId: 'demo-espresso-machine', title: 'Barista Pro Espresso Machine', brand: 'BrewHaus', productType: 'KITCHEN_APPLIANCE', sku: 'BH-ESP-200-CRM', color: 'Cream', condition: 'NEW', handlingDays: 2, priceCents: 49999, availableQty: 5, imageUrl: 'https://placehold.co/640x640/efe6d5/3a352c/png?text=Barista+Pro+Cream' },
+  { id: 'demo-headphones-midnight', groupId: 'demo-wireless-headphones', title: 'Cloud ANC Wireless Headphones', brand: 'Northstar Audio', productType: 'AUDIO', sku: 'NSA-CLOUD-MID', color: 'Midnight', condition: 'NEW', handlingDays: 2, priceCents: 19999, availableQty: 24, imageUrl: 'https://placehold.co/640x640/1b2033/ffffff/png?text=Cloud+ANC+Midnight' },
+  { id: 'demo-headphones-sand', groupId: 'demo-wireless-headphones', title: 'Cloud ANC Wireless Headphones', brand: 'Northstar Audio', productType: 'AUDIO', sku: 'NSA-CLOUD-SND', color: 'Sand', condition: 'NEW', handlingDays: 2, priceCents: 19999, availableQty: 8, imageUrl: 'https://placehold.co/640x640/d8c6a8/3a3226/png?text=Cloud+ANC+Sand' },
+  { id: 'demo-camera-black', groupId: 'demo-creator-camera', title: 'Creator 4K Mirrorless Camera', brand: 'FrameForge', productType: 'CAMERA', sku: 'FF-C4K-BLK', color: 'Black', condition: 'NEW', handlingDays: 3, priceCents: 89999, availableQty: 6, imageUrl: 'https://placehold.co/640x640/26262a/ffffff/png?text=Creator+4K+Black' },
+  { id: 'demo-camera-silver', groupId: 'demo-creator-camera', title: 'Creator 4K Mirrorless Camera', brand: 'FrameForge', productType: 'CAMERA', sku: 'FF-C4K-SLV', color: 'Silver', condition: 'NEW', handlingDays: 3, priceCents: 89999, availableQty: 3, imageUrl: 'https://placehold.co/640x640/c9ccd1/2b2e33/png?text=Creator+4K+Silver' },
+  { id: 'demo-desk-natural-oak', groupId: 'demo-standing-desk', title: 'Lift Electric Standing Desk', brand: 'Field Office', productType: 'OFFICE_FURNITURE', sku: 'FO-LIFT-OAK', color: 'Natural Oak', condition: 'NEW', handlingDays: 7, priceCents: 54999, availableQty: 10, imageUrl: 'https://placehold.co/640x640/c8a97a/3a2c18/png?text=Lift+Desk+Natural+Oak' },
+  { id: 'demo-desk-walnut', groupId: 'demo-standing-desk', title: 'Lift Electric Standing Desk', brand: 'Field Office', productType: 'OFFICE_FURNITURE', sku: 'FO-LIFT-WAL', color: 'Walnut', condition: 'NEW', handlingDays: 7, priceCents: 54999, availableQty: 2, imageUrl: 'https://placehold.co/640x640/5b3a2a/ffffff/png?text=Lift+Desk+Walnut' },
 ];
