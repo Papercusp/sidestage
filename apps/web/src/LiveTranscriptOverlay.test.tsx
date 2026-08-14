@@ -44,10 +44,14 @@ afterEach(async () => {
 describe('LiveTranscriptOverlay', () => {
   it('reserves separate mobile bands for status, audience chat, and captions', () => {
     expect(overlayCss).toMatch(/\.seller-stream-preview\s*\{[^}]*container-type:\s*inline-size;/);
-    expect(overlayCss).toMatch(/@container \(max-width: 32rem\) \{[\s\S]*?\.seller-stream-preview > \.stream-video \{[^}]*min-height:\s*25rem;[^}]*aspect-ratio:\s*auto;/);
+    expect(overlayCss).toMatch(/\.live-transcript-history\s*\{[^}]*max-height:\s*4\.5rem;/);
+    expect(overlayCss).not.toMatch(/\.live-transcript-history\s*\{[^}]*max-height:[^;}]*%/);
+    expect(overlayCss).toMatch(/@container \(max-width: 32rem\) \{[\s\S]*?\.seller-stream-preview > \.stream-video \{[^}]*min-height:\s*26rem;[^}]*aspect-ratio:\s*auto;/);
     expect(overlayCss).toMatch(/@container \(max-width: 32rem\) \{[\s\S]*?\.seller-stream-preview > \.stream-video-overlay \{[^}]*top:\s*\.5rem;[^}]*right:\s*\.5rem;[^}]*left:\s*\.5rem;[^}]*max-width:\s*none;/);
     expect(overlayCss).toMatch(/@container \(max-width: 32rem\) \{[\s\S]*?\.seller-stream-preview \.seller-video-chat-overlay \{[^}]*top:\s*5\.5rem;[^}]*right:\s*\.5rem;[^}]*left:\s*\.5rem;[^}]*width:\s*auto;/);
     expect(overlayCss).toMatch(/@container \(max-width: 32rem\) \{[\s\S]*?\.seller-stream-preview \.seller-video-chat-overlay\[data-open\] \{[^}]*height:\s*7\.5rem;/);
+    expect(overlayCss).toMatch(/@container \(max-width: 18rem\) \{[\s\S]*?\.seller-stream-preview > \.stream-video \{[^}]*min-height:\s*31rem;/);
+    expect(overlayCss).toMatch(/@container \(max-width: 18rem\) \{[\s\S]*?\.seller-stream-preview \.seller-video-chat-overlay \{[^}]*top:\s*7\.5rem;/);
   });
 
   it('uses explicit, user-facing labels for every transcription state', () => {
