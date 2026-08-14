@@ -7,6 +7,7 @@ import {
   shouldUseMobileStudio,
   STUDIO_VIEW_TABS,
   studioBoardConfig,
+  useSellerDeepgramTokenProvider,
   useTranscriptMomentRecorder,
 } from './SellerTab';
 import {
@@ -125,6 +126,31 @@ describe('Studio board selection', () => {
       await act(async () => root.unmount());
     } finally {
       vi.unstubAllGlobals();
+      delete (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT;
+    }
+  });
+
+  it('keeps the Deepgram token provider stable across ordinary Studio rerenders', async () => {
+    const container = document.createElement('div');
+    const root = createRoot(container);
+    const providers: Array<() => Promise<string | null>> = [];
+    (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
+
+    function Harness({ apiBaseUrl }: { apiBaseUrl?: string }) {
+      providers.push(useSellerDeepgramTokenProvider(apiBaseUrl));
+      return null;
+    }
+
+    try {
+      await act(async () => root.render(createElement(Harness, { apiBaseUrl: 'https://api.example' })));
+      const initial = providers.at(-1);
+      await act(async () => root.render(createElement(Harness, { apiBaseUrl: 'https://api.example' })));
+      expect(providers.at(-1)).toBe(initial);
+
+      await act(async () => root.render(createElement(Harness, { apiBaseUrl: 'https://other.example' })));
+      expect(providers.at(-1)).not.toBe(initial);
+      await act(async () => root.unmount());
+    } finally {
       delete (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT;
     }
   });

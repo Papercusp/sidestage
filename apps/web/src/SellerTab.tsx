@@ -5,6 +5,7 @@ import { requestChatJson } from './chat-api';
 import { TabHeader } from './components/TabHeader';
 import { EventChat, resolveApiOrigin } from './EventChat';
 import { chatEventId, DEFAULT_EVENT_ID, DEFAULT_EVENT_TITLE, mediaBaseUrl } from './event-identity';
+import { readSellerAuctionToken } from './events/api';
 import { useCopyState, useStreamSession } from './hooks';
 import { studioViewHref, useUrlStudioView, type StudioView } from './app-routing';
 import { InventoryPanel } from './InventoryPanel';
@@ -103,6 +104,20 @@ export function useTranscriptMomentRecorder({
   }, [mutateTranscript, selectedProductId, transcriptProducts]);
 }
 
+/**
+ * Keep the transcription session's token factory stable across Studio renders.
+ *
+ * `useLiveTranscript` treats this callback as session-construction input. An
+ * inline function would rebuild the session after every state update, feeding
+ * another render until React trips its maximum-depth guard. Read the seller
+ * token at invocation time so a stable callback still uses the latest grant.
+ */
+export function useSellerDeepgramTokenProvider(apiBaseUrl?: string) {
+  return useCallback(() => requestDeepgramToken(apiBaseUrl, {
+    sellerAccessToken: readSellerAuctionToken(),
+  }), [apiBaseUrl]);
+}
+
 export function SellerTab({
   selectedProduct,
   selectedProductId,
@@ -137,6 +152,7 @@ export function SellerTab({
     apiBaseUrl: import.meta.env.VITE_API_URL,
   });
   const transcriptEventId = room?.eventId ?? chatEventId(eventId);
+  const deepgramTokenProvider = useSellerDeepgramTokenProvider(import.meta.env.VITE_API_URL);
   const classifyProductFocus = useCallback<TranscriptProductFocusClassifier>((input) => (
     requestChatJson<TranscriptSemanticFocusResult>(
       `${resolveApiOrigin(import.meta.env.VITE_API_URL)}/chat/events/${encodeURIComponent(transcriptEventId)}/transcript/product-focus`,
@@ -146,7 +162,7 @@ export function SellerTab({
   const transcript = useLiveTranscript({
     active: Boolean(stream.session?.localStream),
     mediaStream: stream.session?.localStream,
-    deepgramTokenProvider: () => requestDeepgramToken(import.meta.env.VITE_API_URL),
+    deepgramTokenProvider,
     fallbackToWebSpeech: true,
     products: transcriptProducts,
     activeProductId: selectedProductId,
