@@ -70,10 +70,12 @@ describe('ChannelGuide (P-118 / D-019)', () => {
   it('uses fixed overlay geometry without reserving or blocking the page', () => {
     expect(channelGuideCss).toMatch(/\.channel-guide-layer\s*\{[^}]*position:\s*fixed/);
     expect(channelGuideCss).toMatch(/\.channel-guide-layer\s*\{[^}]*inset:\s*0/);
+    expect(channelGuideCss).toMatch(/\.channel-guide-layer\s*\{[^}]*justify-content:\s*flex-start/);
     expect(channelGuideCss).toMatch(/\.channel-guide-layer\s*\{[^}]*pointer-events:\s*none/);
     expect(channelGuideCss).toMatch(/\.channel-guide-panel\s*\{[^}]*width:\s*min\(26rem, calc\(100vw - 2\.5rem\)\)/);
     expect(channelGuideCss).toMatch(/\.channel-guide-panel\s*\{[^}]*pointer-events:\s*auto/);
-    expect(channelGuideCss).toMatch(/\.channel-guide-panel\s*\{[^}]*border-left:\s*1px solid var\(--border\)/);
+    expect(channelGuideCss).toMatch(/\.channel-guide-panel\s*\{[^}]*border-right:\s*1px solid var\(--border\)/);
+    expect(channelGuideCss).toMatch(/@keyframes channel-guide-slide\s*\{[^}]*translateX\(-1\.5rem\)/);
     expect(channelGuideCss).toMatch(/\.channel-guide-panel\s*\{[^}]*box-shadow:\s*var\(--shadow-float\)/);
     expect(channelGuideCss).not.toContain('.channel-guide-scrim');
   });
