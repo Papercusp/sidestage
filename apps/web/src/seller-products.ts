@@ -6,7 +6,7 @@ import {
   type CatalogVariant,
 } from './catalog';
 import type { ProductTone } from './components/ProductCard';
-import type { TranscriptProductOption } from './TranscriptPane';
+import type { TranscriptProductOption } from './use-live-transcript';
 
 export interface CatalogProduct {
   id: string;
