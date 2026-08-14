@@ -56,6 +56,28 @@ export interface RehearsalReport {
   caveats?: string[];
 }
 
+/** One failing case, lifted out of its report for the combined blocker list. */
+export interface DressRehearsalBlocker {
+  kind: RehearsalKind;
+  caseId: string;
+  title: string;
+  observed: string;
+}
+
+/** The single go / no-go answer the Test tab's dress rehearsal produces. */
+export interface DressRehearsalVerdict {
+  ranAt: string;
+  /** True only when every case in every rehearsal held. */
+  ready: boolean;
+  totalCases: number;
+  passedCases: number;
+  /** Every failing case across all rehearsals, so the host has one list to work through. */
+  blockers: DressRehearsalBlocker[];
+  /** De-duplicated caveats from the individual reports. */
+  caveats: string[];
+  reports: RehearsalReport[];
+}
+
 /** Request body accepted by every rehearsal endpoint. */
 export interface RehearsalRequest {
   /**

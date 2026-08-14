@@ -8,7 +8,12 @@ import {
   expectRefusal,
   runCase,
 } from './rehearsal.report';
-import type { RehearsalCaseResult, RehearsalCaseSpec, RehearsalReport } from './rehearsal.types';
+import type {
+  RehearsalCaseResult,
+  RehearsalCaseSpec,
+  RehearsalObservation,
+  RehearsalReport,
+} from './rehearsal.types';
 
 /**
  * The red-team rehearsal.
@@ -79,7 +84,10 @@ async function guardMustBlock(
   evaluate: () => Promise<GuardrailDecision>,
   expectedCode?: string,
 ): Promise<RehearsalCaseResult> {
-  return runCase(spec, async () => {
+  // The explicit return type matters: without it TypeScript unions the three
+  // literal shapes below and every branch inherits `code?: undefined` siblings,
+  // which the RehearsalEvidence index signature rejects.
+  return runCase(spec, async (): Promise<RehearsalObservation> => {
     const decision = await evaluate();
     if (decision.allowed) {
       return {

@@ -1,9 +1,27 @@
-import { useCallback, useEffect, useState, type FormEvent } from 'react';
+import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react';
 import { fetchCatalog, resolveApiBaseUrl } from './catalog';
 import { TabHeader } from './components/TabHeader';
-import { browserEventId, mediaBaseUrl } from './event-identity';
+import { browserEventId, DEFAULT_EVENT_TITLE, mediaBaseUrl } from './event-identity';
 import { JUDGE_DIMENSIONS, dimensionLabel, runJudgeRehearsal, scorePercent, type JudgeReport } from './judge';
 import { simulateLoad, type LoadSimulationResult } from './load-simulator';
+import { RehearsalPanel } from './RehearsalPanel';
+import {
+  buildReadinessReport,
+  fetchPreflight,
+  historyDelta,
+  readHistory,
+  readinessReportFilename,
+  recordHistory,
+  REHEARSAL_KINDS,
+  REHEARSAL_LABELS,
+  runDressRehearsal,
+  runRehearsal,
+  type DressRehearsalVerdict,
+  type PreflightReport,
+  type RehearsalHistoryEntry,
+  type RehearsalKind,
+  type RehearsalReport,
+} from './rehearsals';
 
 interface PreflightCheck {
   label: string;
@@ -56,9 +74,22 @@ async function runPreflight(eventId: string): Promise<PreflightCheck[]> {
   return [catalogCheck, configCheck, streamCheck, approvalCheck];
 }
 
+/** Written for the host: what this rehearsal is protecting them from. */
+const REHEARSAL_INTROS: Record<RehearsalKind, string> = {
+  actions: 'Can the copilot be talked into a write it should not make?',
+  auction: 'Does the auction hold up when the room bids all at once?',
+  checkout: 'Does the money add up, every time?',
+  injection: 'What happens when a buyer tries to work the copilot?',
+};
+
+type RehearsalState = Partial<Record<RehearsalKind, RehearsalReport>>;
+type RehearsalFlags = Partial<Record<RehearsalKind, boolean>>;
+type RehearsalErrors = Partial<Record<RehearsalKind, string>>;
+
 export function TestTab() {
   const eventId = browserEventId();
   const [checks, setChecks] = useState<readonly PreflightCheck[]>(PREFLIGHT_PENDING);
+  const [eventName, setEventName] = useState<string>(DEFAULT_EVENT_TITLE);
   const refreshPreflight = useCallback(() => {
     void runPreflight(eventId).then(setChecks);
   }, [eventId]);
@@ -66,6 +97,92 @@ export function TestTab() {
     refreshPreflight();
   }, [refreshPreflight]);
   const readyCount = checks.filter((check) => check.tone === 'success').length;
+
+  // ---- Event identity: show the host THEIR event, not a hardcoded example ----
+  useEffect(() => {
+    let cancelled = false;
+    void fetch(`${resolveApiBaseUrl()}/events/${encodeURIComponent(eventId)}/config`)
+      .then(async (response) => {
+        if (!response.ok) return;
+        const config = (await response.json()) as { name?: string };
+        if (!cancelled && config.name?.trim()) setEventName(config.name.trim());
+      })
+      .catch(() => { /* the readiness rows already report an unreachable API */ });
+    return () => { cancelled = true; };
+  }, [eventId]);
+
+  // ---- Server-side preflight (the config lint) --------------------------------
+  const [serverPreflight, setServerPreflight] = useState<PreflightReport | null>(null);
+  const [serverPreflightError, setServerPreflightError] = useState<string | null>(null);
+  const refreshServerPreflight = useCallback(() => {
+    void fetchPreflight(eventId)
+      .then((report) => { setServerPreflight(report); setServerPreflightError(null); })
+      .catch((error: unknown) => {
+        setServerPreflight(null);
+        setServerPreflightError(error instanceof Error ? error.message : 'The setup check could not be reached.');
+      });
+  }, [eventId]);
+  useEffect(() => { refreshServerPreflight(); }, [refreshServerPreflight]);
+
+  // ---- Rehearsals -------------------------------------------------------------
+  const [reports, setReports] = useState<RehearsalState>({});
+  const [running, setRunning] = useState<RehearsalFlags>({});
+  const [errors, setErrors] = useState<RehearsalErrors>({});
+  const [history, setHistory] = useState<RehearsalHistoryEntry[]>(() => readHistory(eventId));
+  const [verdict, setVerdict] = useState<DressRehearsalVerdict | null>(null);
+  const [dressRunning, setDressRunning] = useState(false);
+  const [dressError, setDressError] = useState<string | null>(null);
+
+  const absorb = useCallback((report: RehearsalReport) => {
+    setReports((current) => ({ ...current, [report.kind]: report }));
+    setHistory(recordHistory(eventId, report));
+  }, [eventId]);
+
+  const runOne = useCallback(async (kind: RehearsalKind) => {
+    setRunning((current) => ({ ...current, [kind]: true }));
+    setErrors((current) => ({ ...current, [kind]: undefined }));
+    try {
+      absorb(await runRehearsal(kind));
+    } catch (error) {
+      setErrors((current) => ({
+        ...current,
+        [kind]: error instanceof Error ? error.message : 'The rehearsal could not be reached.',
+      }));
+    } finally {
+      setRunning((current) => ({ ...current, [kind]: false }));
+    }
+  }, [absorb]);
+
+  const runDress = useCallback(async () => {
+    setDressRunning(true);
+    setDressError(null);
+    try {
+      const result = await runDressRehearsal();
+      setVerdict(result);
+      result.reports.forEach(absorb);
+      refreshServerPreflight();
+    } catch (error) {
+      setVerdict(null);
+      setDressError(error instanceof Error ? error.message : 'The full rehearsal could not be reached.');
+    } finally {
+      setDressRunning(false);
+    }
+  }, [absorb, refreshServerPreflight]);
+
+  const readinessReport = useMemo(
+    () => buildReadinessReport({ eventId, preflight: serverPreflight, verdict }),
+    [eventId, serverPreflight, verdict],
+  );
+
+  const downloadReport = useCallback(() => {
+    const blob = new Blob([JSON.stringify(readinessReport, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = readinessReportFilename(eventId, readinessReport.generatedAt);
+    link.click();
+    URL.revokeObjectURL(url);
+  }, [eventId, readinessReport]);
   const [users, setUsers] = useState('3');
   const [messagesPerSecond, setMessagesPerSecond] = useState('2');
   const [durationSeconds, setDurationSeconds] = useState('4');
@@ -113,12 +230,121 @@ export function TestTab() {
       />
       <section className="readiness-panel" aria-labelledby="readiness-title">
         <div className="panel-kicker">Preflight <span className="panel-status">{readyCount} of {checks.length} ready</span></div>
-        <h2 id="readiness-title">Sunday vintage drop</h2>
+        <h2 id="readiness-title">{eventName}</h2>
         <div className="readiness-list">
           {checks.map(({ label, value, tone }) => <div className="readiness-row" key={label}><span>{label}</span><strong className={`status-${tone}`}>{value}</strong></div>)}
         </div>
         <button className="button secondary" type="button" onClick={refreshPreflight}>Re-run preflight</button>
       </section>
+
+      <section className="readiness-panel" aria-labelledby="setup-check-title">
+        <div className="panel-kicker">
+          Setup check
+          <span className="panel-status">
+            {serverPreflight
+              ? (serverPreflight.ready ? 'No blockers' : `${serverPreflight.blockers} blocking`)
+              : serverPreflightError ? 'Unavailable' : 'Checking…'}
+          </span>
+        </div>
+        <h2 id="setup-check-title">Will your guardrails actually hold?</h2>
+        <p className="rehearsal-intro">
+          The rehearsals below prove the guard works. This checks the settings it will be working from —
+          the part that decides whether the copilot can do its job, or is silently refused all night.
+        </p>
+        {serverPreflightError ? <p className="rehearsal-error" role="alert">{serverPreflightError}</p> : null}
+        {serverPreflight ? (
+          <div className="setup-check-list">
+            {serverPreflight.checks.map((check) => (
+              <div className={`setup-check setup-check-${check.status}`} key={check.id}>
+                <div className="setup-check-heading">
+                  <strong>{check.label}</strong>
+                  <span className={check.status === 'ready' ? 'status-success' : check.status === 'blocker' ? 'status-danger' : 'status-warning'}>
+                    {check.status === 'ready' ? 'Ready' : check.status === 'blocker' ? 'Blocking' : check.status === 'warning' ? 'Heads up' : 'Unknown'}
+                  </span>
+                </div>
+                <p>{check.detail}</p>
+                {check.remedy ? <p className="setup-check-remedy">{check.remedy}</p> : null}
+              </div>
+            ))}
+          </div>
+        ) : null}
+        <button className="button secondary" type="button" onClick={refreshServerPreflight}>Re-check setup</button>
+      </section>
+
+      <section className="dress-rehearsal-panel" aria-labelledby="dress-title">
+        <div className="panel-kicker">
+          Full dress rehearsal
+          <span className="panel-status">
+            {verdict ? (verdict.ready ? 'Ready to go live' : `${verdict.blockers.length} blocking`) : dressRunning ? 'Running' : 'Not run'}
+          </span>
+        </div>
+        <h2 id="dress-title">One button, one answer.</h2>
+        <p className="rehearsal-intro">
+          Runs every rehearsal below in order and folds the result into a single go / no-go, with the
+          blocking list in one place. Nothing here reaches a buyer.
+        </p>
+        <div className="dress-rehearsal-actions">
+          <button className="button primary" type="button" onClick={() => void runDress()} disabled={dressRunning}>
+            {dressRunning ? 'Running everything…' : 'Run the full rehearsal'}
+          </button>
+          <button
+            className="button secondary"
+            type="button"
+            onClick={downloadReport}
+            disabled={!verdict && !serverPreflight}
+          >
+            Download readiness report
+          </button>
+        </div>
+        {dressError ? <p className="rehearsal-error" role="alert">{dressError}</p> : null}
+        {verdict ? (
+          <div className="dress-rehearsal-result" aria-live="polite">
+            <div className="rehearsal-summary">
+              <div>
+                <strong className={verdict.ready ? 'status-success' : 'status-warning'}>
+                  {verdict.passedCases}/{verdict.totalCases}
+                </strong>
+                <span>checks held</span>
+              </div>
+              <div><strong>{verdict.reports.length}</strong><span>rehearsals run</span></div>
+            </div>
+            {verdict.blockers.length > 0 ? (
+              <div className="dress-blockers">
+                <div className="rehearsal-section-heading">Fix before going live</div>
+                <ul>
+                  {verdict.blockers.map((blocker) => (
+                    <li key={`${blocker.kind}-${blocker.caseId}`}>
+                      <strong>{REHEARSAL_LABELS[blocker.kind]}: {blocker.title}</strong>
+                      <span>{blocker.observed}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ) : (
+              <p className="dress-ready">Every check held. Nothing is blocking this event.</p>
+            )}
+            {verdict.caveats.length > 0 ? (
+              <ul className="rehearsal-caveats">
+                {verdict.caveats.map((caveat) => <li key={caveat}>{caveat}</li>)}
+              </ul>
+            ) : null}
+          </div>
+        ) : null}
+      </section>
+
+      {REHEARSAL_KINDS.map((kind) => (
+        <RehearsalPanel
+          key={kind}
+          title={REHEARSAL_LABELS[kind]}
+          intro={REHEARSAL_INTROS[kind]}
+          report={reports[kind] ?? null}
+          running={running[kind] ?? false}
+          error={errors[kind] ?? null}
+          onRun={() => void runOne(kind)}
+          history={history.filter((entry) => entry.kind === kind)}
+          delta={historyDelta(history, kind)}
+        />
+      ))}
       <section className="load-simulator-panel" aria-labelledby="load-simulator-title">
         <div className="panel-kicker">Load rehearsal <span className="panel-status">{simulation ? 'Completed' : 'Not run'}</span></div>
         <h2 id="load-simulator-title">Pressure-test the copilot seam.</h2>
