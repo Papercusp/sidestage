@@ -19,3 +19,6 @@
 [submodule "libs/test-config"]
 	path = libs/test-config
 	url = https://github.com/Papercusp/test-config.git
+[submodule "libs/dock-workbench"]
+	path = libs/dock-workbench
+	url = git@github.com:Papercusp/dock-workbench.git
