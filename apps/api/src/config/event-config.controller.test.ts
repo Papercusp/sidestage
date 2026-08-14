@@ -60,7 +60,9 @@ describe('create → GET /events (EI-20426845001666103 / P-014)', () => {
     await controller.put('my-drop', { name: 'My drop' });
     await controller.put('my-drop', { name: 'My renamed drop' });
 
-    const guide = await new EventController(events).list();
+    const guide = await new EventController(events, {
+      invalidate: () => undefined,
+    } as unknown as SyncInvalidationService).list();
     expect(guide.events).toHaveLength(1);
     expect(guide.events[0]?.title).toBe('My renamed drop');
   });
