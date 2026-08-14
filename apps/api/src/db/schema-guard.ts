@@ -59,6 +59,7 @@ export const REQUIRED_TABLES: readonly string[] = [
   'product_catalog',
   'product_option_axes',
   'product_option_values',
+  'scout_session',
   'seller_policy_revision',
   'storefront_product',
   'storefront_product_option',
