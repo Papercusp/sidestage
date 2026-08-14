@@ -16,5 +16,10 @@ COPY --from=build /app/apps/api/package.json ./apps/api/package.json
 COPY --from=build /app/libs/typesense/dist ./libs/typesense/dist
 COPY --from=build /app/libs/typesense/package.json ./libs/typesense/package.json
 COPY --from=build /app/package.json ./package.json
+# Bake the deployed git sha in as the LAST layer: it changes every deploy, so
+# declaring it earlier would invalidate the cache for every COPY above it.
+# Surfaced at /healthz so .deployed-sha can be verified against what is running.
+ARG SIDESTAGE_SHA=unknown
+ENV SIDESTAGE_SHA=$SIDESTAGE_SHA
 EXPOSE 3100
 CMD ["node", "apps/api/dist/main.js"]
