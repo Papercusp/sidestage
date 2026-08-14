@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 
 export type TabId = 'buyer' | 'orders' | 'seller' | 'history' | 'config' | 'test';
+export type StudioView = 'active-event' | 'event-manager';
 
 export type TabGroupId = 'buyer-work' | 'operator-work';
 
@@ -55,6 +56,42 @@ export function tabHref(tab: TabId, currentUrl = '/'): string {
   url.searchParams.set('tab', tab === 'config' ? 'seller' : tab);
   return `${url.pathname}?${url.searchParams.toString()}${url.hash}`;
 }
+
+function isStudioView(value: string | null): value is StudioView {
+  return value === 'active-event' || value === 'event-manager';
+}
+
+export function getStudioViewFromUrl(value: string | URL | Pick<Location, 'pathname' | 'search' | 'hash'>): StudioView {
+  const url = urlFor(value);
+  const query = url.searchParams.get('studio');
+  if (isStudioView(query)) return query;
+  const path = url.pathname.split('/').filter(Boolean).at(-1) ?? '';
+  return isStudioView(path) ? path : 'active-event';
+}
+
+export function studioViewHref(view: StudioView, currentUrl = '/'): string {
+  const url = urlFor(currentUrl);
+  url.searchParams.set('tab', 'seller');
+  url.searchParams.set('studio', view);
+  return `${url.pathname}?${url.searchParams.toString()}${url.hash}`;
+}
+
+export function useUrlStudioView(): [StudioView, (view: StudioView) => void] {
+  const read = () => (typeof window === 'undefined' ? 'active-event' : getStudioViewFromUrl(window.location));
+  const [view, setView] = useState<StudioView>(read);
+  useEffect(() => {
+    const onPopState = () => setView(read());
+    window.addEventListener('popstate', onPopState);
+    return () => window.removeEventListener('popstate', onPopState);
+  }, []);
+  const navigate = (next: StudioView) => {
+    if (typeof window === 'undefined') return;
+    window.history.pushState({ tab: 'seller', studio: next }, '', studioViewHref(next, window.location.href));
+    setView(next);
+  };
+  return [view, navigate];
+}
+
 
 export function useUrlTab(): [TabId, (tab: TabId) => void] {
   const read = () => (typeof window === 'undefined' ? 'buyer' : getTabFromUrl(window.location));

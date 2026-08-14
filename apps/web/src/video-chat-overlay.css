@@ -1,0 +1,16 @@
+.video-chat-overlay { position: absolute; z-index: 4; top: .75rem; right: .75rem; display: grid; max-width: min(24rem, calc(100% - 1.5rem)); justify-items: end; gap: .45rem; pointer-events: none; }
+.video-chat-overlay-toggle, .video-chat-overlay-content { pointer-events: auto; }
+.video-chat-overlay-toggle { display: inline-flex; min-height: 2.75rem; align-items: center; gap: .45rem; border: 1px solid var(--border); border-radius: 999px; padding: .5rem .75rem; color: var(--text); background: color-mix(in srgb, var(--video-inset-bg) 86%, transparent); box-shadow: 0 10px 28px rgb(var(--shadow-hue) / 28%); backdrop-filter: blur(16px); font-size: .72rem; font-weight: 750; }
+.video-chat-overlay-toggle:focus-visible { outline: 2px solid var(--on-video-red); outline-offset: 2px; }
+.video-chat-overlay-content { width: min(24rem, calc(100vw - 2.5rem)); max-height: min(32rem, calc(100vh - 10rem)); overflow: auto; overscroll-behavior: contain; border: 1px solid var(--border); border-radius: .8rem; background: color-mix(in srgb, var(--video-inset-bg) 90%, transparent); box-shadow: 0 22px 60px rgb(var(--shadow-hue) / 38%); backdrop-filter: blur(20px); }
+.video-chat-overlay-content > .event-chat-card { min-height: 0; border: 0; border-radius: inherit; padding: .85rem; background: transparent; box-shadow: none; }
+.video-chat-overlay-content .event-chat-heading { margin-top: .8rem; }
+.video-chat-overlay-content .event-chat-heading h2 { margin-top: .2rem; font-size: 1rem; }
+.video-chat-overlay-content .event-chat-stats, .video-chat-overlay-content .event-chat-presence { font-size: .64rem; }
+.video-chat-overlay-content .event-chat-queue { margin-top: .7rem; padding: .55rem; }
+.video-chat-overlay-content .event-chat-queue-heading { align-items: flex-start; flex-direction: column; gap: .55rem; }
+.video-chat-overlay-content .event-chat-messages { min-height: 5rem; max-height: 13rem; margin-top: .7rem; padding: .55rem; }
+.video-chat-overlay-content .event-chat-form { position: sticky; bottom: 0; padding-top: .55rem; background: color-mix(in srgb, var(--video-inset-bg) 94%, transparent); }
+.buyer-video-chat-overlay .buyer-share-note { margin: 0; padding: 0 .85rem .85rem; }
+@media (max-width: 560px) { .video-chat-overlay { top: .5rem; right: .5rem; max-width: calc(100% - 1rem); } .video-chat-overlay-content { width: calc(100vw - 2rem); max-height: min(29rem, 70vh); } }
+
