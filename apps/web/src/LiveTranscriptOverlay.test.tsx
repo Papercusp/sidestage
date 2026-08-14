@@ -59,6 +59,15 @@ describe('LiveTranscriptOverlay', () => {
     expect(engagementCss).toMatch(/@container \(max-width: 32rem\) \{[\s\S]*?\.seller-stream-preview > \.stream-video \{[^}]*min-height:\s*27rem;[^}]*aspect-ratio:\s*auto;/);
   });
 
+  it('contains expanded buyer engagement controls in an ultra-narrow video rail', () => {
+    expect(engagementCss).toMatch(/\.buyer-player-card\s*\{[^}]*container-type:\s*inline-size;/);
+    expect(engagementCss).toMatch(/\.buyer-player-card > \.buyer-player-overlay\s*\{[^}]*top:\s*\.75rem;[^}]*bottom:\s*auto;/s);
+    expect(engagementCss).toMatch(/@container \(max-width: 32rem\) \{[\s\S]*?\.buyer-stage-grid \.buyer-player-card > \.buyer-player\s*\{[^}]*min-height:\s*30rem;[^}]*aspect-ratio:\s*auto;/);
+    expect(engagementCss).toMatch(/@container \(max-width: 18rem\) \{[\s\S]*?\.buyer-stage-grid \.buyer-player-card > \.buyer-player\s*\{[^}]*min-height:\s*34rem;/);
+    expect(overlayCss).toMatch(/@container \(max-width: 18rem\) \{[\s\S]*?\.live-transcript-toolbar\s*\{[^}]*display:\s*grid;[^}]*grid-template-columns:\s*minmax\(0, 1fr\);/);
+    expect(overlayCss).toMatch(/\.live-transcript-history-toggle,\s*\.live-transcript-toolbar > \.video-engagement-chat-toggle\s*\{[^}]*width:\s*100%;[^}]*min-width:\s*0;/s);
+  });
+
   it('uses explicit, user-facing labels for every transcription state', () => {
     expect(liveTranscriptStateLabel('idle')).toBe('Captions start with the event');
     expect(liveTranscriptStateLabel('connecting')).toBe('Starting captions…');
