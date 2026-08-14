@@ -37,8 +37,24 @@ if [[ -n "${SIDESTAGE_DATABASE_URL:-}" ]]; then
 fi
 
 COMPOSE_FILE="${SIDESTAGE_COMPOSE_FILE:-$ROOT_DIR/infra/docker-compose.data.yml}"
-docker compose -f "$COMPOSE_FILE" exec -T postgres \
-  psql -U "${POSTGRES_USER:-sidestage}" -d "${POSTGRES_DB:-sidestage}" \
-  -v ON_ERROR_STOP=1 -f - < "$SCHEMA_FILE"
+COMPOSE_ARGS=(-f "$COMPOSE_FILE")
 
-echo "db-apply: schema applied to ${POSTGRES_DB:-sidestage}. Restart the API to clear the boot guard."
+# Production keeps its compose substitutions in .env.production rather than
+# the repository's default .env. Accept that file explicitly instead of
+# teaching deploy.sh a second schema-apply implementation.
+if [[ -n "${SIDESTAGE_COMPOSE_ENV_FILE:-}" ]]; then
+  [[ -f "$SIDESTAGE_COMPOSE_ENV_FILE" ]] || {
+    echo "db-apply: compose env file not found at $SIDESTAGE_COMPOSE_ENV_FILE" >&2
+    exit 1
+  }
+  COMPOSE_ARGS+=(--env-file "$SIDESTAGE_COMPOSE_ENV_FILE")
+fi
+
+# Read POSTGRES_USER / POSTGRES_DB inside the running container. An env file is
+# consumed by Docker Compose for interpolation; it is not exported into this
+# shell, so host-side defaults could silently target the wrong production DB.
+docker compose "${COMPOSE_ARGS[@]}" exec -T postgres sh -c \
+  'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -v ON_ERROR_STOP=1 -f -' \
+  < "$SCHEMA_FILE"
+
+echo "db-apply: schema applied via compose. Restart the API to clear the boot guard."

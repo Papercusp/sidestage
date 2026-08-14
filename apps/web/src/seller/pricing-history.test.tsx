@@ -1,15 +1,56 @@
 import { renderToStaticMarkup } from 'react-dom/server';
-import { describe, expect, it } from 'vitest';
-import { PricingHistoryContent, pricingHistoryUrl, type PricingHistory } from './PricingHistoryPanel';
+import { SyncContext } from '@papercusp/sync';
+import { describe, expect, it, vi } from 'vitest';
+import { PricingHistoryContent, PricingHistoryPanel, type PricingHistory } from './PricingHistoryPanel';
 
 describe('seller pricing history', () => {
-  it('addresses the active event and product safely', () => {
-    expect(pricingHistoryUrl('Sunday drop', 'mug/red', 'https://api.test/')).toBe(
-      'https://api.test/events/Sunday%20drop/products/mug%2Fred/pricing-history',
+  it('binds the active event and product to the named live query without a direct fetch', () => {
+    const history: PricingHistory = { productId: 'mug', prices: [], offers: [], auctions: [] };
+    const fetchMock = vi.fn();
+    vi.stubGlobal('fetch', fetchMock);
+    const useDataImpl = vi.fn().mockReturnValue({
+      data: [history],
+      loading: false,
+      fetching: false,
+      transport: 'SSE',
+      invalidate: vi.fn(),
+      error: null,
+    });
+
+    const markup = renderToStaticMarkup(
+      <SyncContext.Provider value={{ transport: 'SSE', useDataImpl, prefetch: vi.fn() } as never}>
+        <PricingHistoryPanel eventId="Sunday drop" productId="mug/red" />
+      </SyncContext.Provider>,
     );
-    expect(pricingHistoryUrl('event-1', 'mug')).toBe(
-      'http://localhost:3100/events/event-1/products/mug/pricing-history',
+
+    expect(useDataImpl).toHaveBeenCalledWith({
+      queryName: 'event.pricingHistory',
+      args: { eventId: 'Sunday drop', productId: 'mug/red' },
+      pollIntervalMs: 15_000,
+    });
+    expect(markup).toContain('No sales, offers, or auctions for this product yet.');
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('keeps retry scoped to a real query error', () => {
+    const markup = renderToStaticMarkup(
+      <SyncContext.Provider value={{
+        transport: 'SSE',
+        prefetch: vi.fn(),
+        useDataImpl: vi.fn().mockReturnValue({
+          data: [],
+          loading: false,
+          fetching: false,
+          transport: 'SSE',
+          invalidate: vi.fn(),
+          error: new Error('sync unavailable'),
+        }),
+      } as never}>
+        <PricingHistoryPanel eventId="event-1" productId="mug" />
+      </SyncContext.Provider>,
     );
+    expect(markup).toContain('Pricing history could not be loaded.');
+    expect(markup).toContain('Try again');
   });
 
   it('renders price, per-buyer offer, and auction outcomes', () => {

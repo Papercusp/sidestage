@@ -24,6 +24,12 @@ PROD_DIR="/opt/SideStage"
 COMPOSE="docker compose -f docker-compose.prod.yml --env-file .env.production"
 DEPLOYED_SHA_FILE="$PROD_DIR/.deployed-sha"
 HISTORY_FILE="$PROD_DIR/.deploy-history"
+# The api container EXPOSES 3100 but never PUBLISHES it -- Traefik reaches it
+# over the `coolify` docker network -- so the PUBLIC url is the health contract.
+# Prod's .env.production does not define PUBLIC_HOSTNAME; default it to the same
+# value docker-compose.prod.yml defaults to. See deploy.sh's health_probe.
+PUBLIC_HOSTNAME="${PUBLIC_HOSTNAME:-sidestage.buyrestart.com}"
+HEALTH_URL="https://$PUBLIC_HOSTNAME/healthz"
 
 TARGET=""
 DRY_RUN=false
@@ -147,11 +153,36 @@ say "Health check"
 # leaving .deployed-sha pointing at a release that was no longer running. A
 # rollback tool that always reports failure is worse than none: it trains the
 # operator to ignore it during the one event it exists for.
+#
+# Both legs used to sit in ONE `a || b` condition reporting a single message, so
+# a run could never tell you WHICH leg answered -- and since the host leg can
+# never pass, every "healthy" verdict was really the fallback. Report the leg.
+HEALTH_LEG=none
+health_probe() {
+  local body
+  if body="$(curl -sf --max-time 6 "$HEALTH_URL" 2>/dev/null)"; then
+    HEALTH_LEG=public
+    printf '%s' "$body"
+    return 0
+  fi
+  if body="$("${SSH[@]}" "cd $PROD_DIR && SIDESTAGE_SHA=$TARGET $COMPOSE exec -T api node -e 'fetch(\"http://127.0.0.1:3100/healthz\").then(r=>{if(!r.ok)process.exit(1);return r.text()}).then(t=>process.stdout.write(t)).catch(()=>process.exit(1))'" 2>/dev/null)"; then
+    HEALTH_LEG=container
+    printf '%s' "$body"
+    return 0
+  fi
+  HEALTH_LEG=none
+  return 1
+}
+
 healthy=false
+served=""
 for attempt in $(seq 1 20); do
-  if "${SSH[@]}" "curl -sf --max-time 4 http://127.0.0.1:3100/healthz -H 'Host: sidestage'" >/dev/null 2>&1 \
-    || "${SSH[@]}" "cd $PROD_DIR && SIDESTAGE_SHA=$TARGET $COMPOSE exec -T api node -e 'fetch(\"http://127.0.0.1:3100/healthz\").then(r=>{if(!r.ok)throw 0})'" >/dev/null 2>&1; then
-    say "API healthy (attempt $attempt)"
+  if served="$(health_probe)"; then
+    say "API healthy via $HEALTH_LEG leg (attempt $attempt)"
+    if [[ "$HEALTH_LEG" != public ]]; then
+      echo "WARN: $HEALTH_URL did not answer; health was confirmed only INSIDE the" >&2
+      echo "      container. DNS/TLS/Traefik ingress is NOT verified by this rollback." >&2
+    fi
     healthy=true
     break
   fi
@@ -165,7 +196,31 @@ if ! $healthy; then
   exit 3
 fi
 
-say "Recording rollback (health check passed)"
+# VERIFY BEFORE RECORDING. "Healthy" only proves SOMETHING is up; it does not
+# prove the rollback actually landed on TARGET. Recording an unverified sha is
+# how $DEPLOYED_SHA_FILE comes to disagree with what prod runs -- the exact
+# inconsistency this script warns about at startup.
+say "Verifying /healthz reports the rolled-back sha"
+sha_ok=false
+for attempt in $(seq 1 5); do
+  if served="$(health_probe)" && [[ "$served" == *"$TARGET"* ]]; then
+    sha_ok=true
+    break
+  fi
+  sleep 3
+done
+
+if ! $sha_ok; then
+  echo "FATAL: prod came up healthy but does NOT report the rolled-back sha." >&2
+  echo "       expected: $TARGET" >&2
+  echo "       /healthz (leg: $HEALTH_LEG) returned: ${served:-<no response>}" >&2
+  echo "       $DEPLOYED_SHA_FILE was left at ${CURRENT:0:7} (not updated)." >&2
+  echo "       The rollback did not take -- prod needs hands." >&2
+  exit 3
+fi
+say "OK: /healthz (leg: $HEALTH_LEG) reports ${TARGET:0:7}"
+
+say "Recording rollback (health check + sha verification passed)"
 "${SSH[@]}" "
   set -e
   docker tag sidestage-api:$TARGET sidestage-api:latest

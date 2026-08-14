@@ -90,21 +90,21 @@ describe('production checkout configuration fails closed', () => {
 });
 
 describe('rollback.sh health check can actually pass', () => {
-  // REGRESSION GUARD for a defect that made rollback.sh useless in the exact
-  // situation it exists for. The api container EXPOSES 3100 but does not
-  // PUBLISH it to the host (traffic arrives via Traefik), so a curl to
-  // 127.0.0.1:3100 ON THE HOST fails with exit 7 against a perfectly healthy
-  // prod. That host-port curl was the ONLY probe, so every rollback ended in
-  // "FATAL: came up unhealthy -- prod needs hands" and skipped the record step,
-  // leaving .deployed-sha naming a release that was no longer running.
-  // Measured live 2026-08-14: rollback to 4c6ca94 reported FATAL while the
-  // public URL served HTTP 200 from that very build.
-  it('falls back to an in-container probe, not host-port curl alone', () => {
-    const check = rollbackSource.slice(rollbackSource.indexOf('say "Health check"'));
-    expect(check).toMatch(/curl -sf .*127\.0\.0\.1:3100\/healthz/);
-    expect(check, 'no in-container fallback: a not-published port fails forever').toMatch(
+  // REGRESSION GUARD for the false health verdict. The api container is reached
+  // through Traefik and deliberately is not published to host loopback, so the
+  // public URL is the primary contract: it exercises DNS, TLS, ingress, and the
+  // app. Container exec remains the diagnostic fallback, but must be reported as
+  // degraded evidence rather than silently passing the full production check.
+  it('probes public ingress first and retains an in-container fallback', () => {
+    const probe = rollbackSource.slice(
+      rollbackSource.indexOf('health_probe() {'),
+      rollbackSource.indexOf('\nhealthy=false'),
+    );
+    expect(probe).toMatch(/curl -sf .*"\$HEALTH_URL"/);
+    expect(probe, 'no in-container fallback when public ingress is unavailable').toMatch(
       /\$COMPOSE exec -T api node -e/,
     );
+    expect(probe).not.toMatch(/curl -sf .*127\.0\.0\.1:3100\/healthz/);
   });
 });
 

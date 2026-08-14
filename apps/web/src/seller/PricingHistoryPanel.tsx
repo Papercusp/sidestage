@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useSyncQuery } from '@papercusp/sync';
 
 export interface PricingHistory {
   productId: string;
@@ -20,11 +20,6 @@ export interface PricingHistory {
 }
 
 const money = (cents: number) => `$${(cents / 100).toFixed(2)}`;
-
-export function pricingHistoryUrl(eventId: string, productId: string, apiBaseUrl = 'http://localhost:3100'): string {
-  const base = apiBaseUrl.replace(/\/$/, '');
-  return `${base}/events/${encodeURIComponent(eventId)}/products/${encodeURIComponent(productId)}/pricing-history`;
-}
 
 export function PricingHistoryContent({ history }: { history: PricingHistory }) {
   const empty = history.prices.length === 0 && history.offers.length === 0 && history.auctions.length === 0;
@@ -59,29 +54,27 @@ export function PricingHistoryContent({ history }: { history: PricingHistory }) 
   );
 }
 
-export function PricingHistoryPanel({ eventId, productId, apiBaseUrl }: { eventId: string; productId: string; apiBaseUrl?: string }) {
-  const [history, setHistory] = useState<PricingHistory | null>(null);
-  const [error, setError] = useState(false);
-  useEffect(() => {
-    let cancelled = false;
-    setHistory(null);
-    setError(false);
-    fetch(pricingHistoryUrl(eventId, productId, apiBaseUrl))
-      .then(async (response) => {
-        if (!response.ok) throw new Error(`Pricing history failed (${response.status})`);
-        return response.json() as Promise<PricingHistory>;
-      })
-      .then((next) => { if (!cancelled) setHistory(next); })
-      .catch(() => { if (!cancelled) setError(true); });
-    return () => { cancelled = true; };
-  }, [apiBaseUrl, eventId, productId]);
+export function PricingHistoryPanel({ eventId, productId }: { eventId: string; productId: string }) {
+  const historyQuery = useSyncQuery<PricingHistory>({
+    queryName: 'event.pricingHistory',
+    args: { eventId, productId },
+    pollIntervalMs: 15_000,
+  });
+  const history = historyQuery.data?.[0] ?? null;
 
   return (
-    <section className="pricing-history" aria-labelledby="pricing-history-title" aria-busy={!history && !error}>
+    <section className="pricing-history" aria-labelledby="pricing-history-title" aria-busy={historyQuery.loading}>
       <div className="pricing-history-heading"><h3 id="pricing-history-title">Pricing history</h3><span>Active product</span></div>
-      {error ? <p className="pricing-history-error" role="alert">Pricing history could not be loaded.</p> : null}
-      {!history && !error ? <p className="pricing-history-empty">Loading product outcomes…</p> : null}
-      {history ? <PricingHistoryContent history={history} /> : null}
+      {historyQuery.error ? (
+        <div className="pricing-history-error" role="alert">
+          <p>Pricing history could not be loaded.</p>
+          <button className="button secondary" type="button" onClick={historyQuery.invalidate}>Try again</button>
+        </div>
+      ) : historyQuery.loading && !history ? (
+        <p className="pricing-history-empty">Loading product outcomes…</p>
+      ) : history ? (
+        <PricingHistoryContent history={history} />
+      ) : null}
     </section>
   );
 }
