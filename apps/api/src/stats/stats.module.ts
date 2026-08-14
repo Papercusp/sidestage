@@ -75,27 +75,23 @@ export class EventStatsService {
   }
 }
 
-@Controller('events')
-export class StatsController {
+/**
+ * The shared pricing-history read model used by both REST and named sync.
+ *
+ * Checkout prices and auctions are product-scoped by design. The event id
+ * scopes the guarded-action audit because offers live under an event. Keeping
+ * that distinction here prevents the sync resolver and REST controller from
+ * drifting into subtly different histories.
+ */
+@Injectable()
+export class PricingHistoryService {
   constructor(
-    @Inject(EventStatsService) private readonly eventStats: EventStatsService,
     @Inject(PG_POOL) private readonly pool: Pool | null,
     @Inject(GuardedActionService) private readonly actions: GuardedActionService,
     @Inject(AuctionService) private readonly auctions: AuctionService,
   ) {}
 
-  @Get(':eventId/stats')
-  async stats(@Param('eventId') eventId: string): Promise<EventStats> {
-    return this.eventStats.read(eventId);
-  }
-
-
-  /** Real seller history for the active product; no fixture rows are invented. */
-  @Get(':eventId/products/:productId/pricing-history')
-  async pricingHistory(
-    @Param('eventId') eventId: string,
-    @Param('productId') productId: string,
-  ): Promise<PricingHistory> {
+  async read(eventId: string, productId: string): Promise<PricingHistory> {
     const priceRows = new Map<number, { priceCents: number; soldQty: number; rejectedQty: number }>();
     if (this.pool) {
       const result = await this.pool.query<{ price_cents: string; sold_qty: string; rejected_qty: string }>(
@@ -152,10 +148,34 @@ export class StatsController {
   }
 }
 
+@Controller('events')
+export class StatsController {
+  constructor(
+    @Inject(EventStatsService) private readonly eventStats: EventStatsService,
+    @Inject(PricingHistoryService) private readonly pricingHistoryReader: PricingHistoryService,
+  ) {}
+
+  @Get(':eventId/stats')
+  async stats(@Param('eventId') eventId: string): Promise<EventStats> {
+    return this.eventStats.read(eventId);
+  }
+
+
+  /** Real seller history for the active product; no fixture rows are invented. */
+  @Get(':eventId/products/:productId/pricing-history')
+  async pricingHistory(
+    @Param('eventId') eventId: string,
+    @Param('productId') productId: string,
+  ): Promise<PricingHistory> {
+    return this.pricingHistoryReader.read(eventId, productId);
+  }
+}
+
 @Injectable()
 export class StatsSyncQueries implements OnModuleInit {
   constructor(
     @Inject(EventStatsService) private readonly stats: EventStatsService,
+    @Inject(PricingHistoryService) private readonly pricingHistory: PricingHistoryService,
     @Inject(SyncQueryRegistry) private readonly queries: SyncQueryRegistry,
   ) {}
 
@@ -164,12 +184,17 @@ export class StatsSyncQueries implements OnModuleInit {
       const eventId = typeof args.eventId === 'string' ? args.eventId : '';
       return [await this.stats.read(eventId)];
     });
+    this.queries.register('event.pricingHistory', async (args) => {
+      const eventId = typeof args.eventId === 'string' ? args.eventId : '';
+      const productId = typeof args.productId === 'string' ? args.productId : '';
+      return [await this.pricingHistory.read(eventId, productId)];
+    });
   }
 }
 
 @Module({
   imports: [ActionModule, AuctionModule, ChatModule, DatabaseModule, SyncModule],
   controllers: [StatsController],
-  providers: [EventStatsService, StatsSyncQueries],
+  providers: [EventStatsService, PricingHistoryService, StatsSyncQueries],
 })
 export class StatsModule {}

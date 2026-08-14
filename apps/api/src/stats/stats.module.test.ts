@@ -1,16 +1,25 @@
 import { Test } from '@nestjs/testing';
 import { describe, expect, it, vi } from 'vitest';
 import { SyncQueryRegistry } from '../sync/sync-query.registry';
-import { EventStatsService, StatsController, StatsSyncQueries } from './stats.module';
+import {
+  EventStatsService,
+  PricingHistoryService,
+  StatsController,
+  StatsSyncQueries,
+} from './stats.module';
 
 describe('StatsController pricing history', () => {
   it('registers event stats with the shared sync query registry', async () => {
     const stats = { read: vi.fn().mockResolvedValue({ eventId: 'event-1', viewers: 3, itemsSold: 2, totalRaisedCents: 4200 }) };
+    const pricingHistory = {
+      read: vi.fn().mockResolvedValue({ productId: 'mug', prices: [], offers: [], auctions: [] }),
+    };
     const queries = new SyncQueryRegistry();
     const moduleRef = await Test.createTestingModule({
       providers: [
         StatsSyncQueries,
         { provide: EventStatsService, useValue: stats },
+        { provide: PricingHistoryService, useValue: pricingHistory },
         { provide: SyncQueryRegistry, useValue: queries },
       ],
     }).compile();
@@ -20,6 +29,10 @@ describe('StatsController pricing history', () => {
       { eventId: 'event-1', viewers: 3, itemsSold: 2, totalRaisedCents: 4200 },
     ]);
     expect(stats.read).toHaveBeenCalledWith('event-1');
+    await expect(queries.resolve('event.pricingHistory', { eventId: 'event-1', productId: 'mug' })).resolves.toEqual([
+      { productId: 'mug', prices: [], offers: [], auctions: [] },
+    ]);
+    expect(pricingHistory.read).toHaveBeenCalledWith('event-1', 'mug');
     await moduleRef.close();
   });
 
@@ -47,12 +60,12 @@ describe('StatsController pricing history', () => {
         { id: 'auction-2', status: 'closed', currentPriceCents: 1800, quantity: 1 },
       ]),
     };
-    const controller = new StatsController(
-      { read: vi.fn() } as never,
+    const pricingHistory = new PricingHistoryService(
       pool as never,
       actions as never,
       auctions as never,
     );
+    const controller = new StatsController({ read: vi.fn() } as never, pricingHistory);
 
     const history = await controller.pricingHistory('event-1', 'mug');
 
@@ -147,12 +160,12 @@ describe('StatsController pricing history', () => {
   });
 
   it('returns honest empty settled history when Postgres is unavailable', async () => {
-    const controller = new StatsController(
-      { read: vi.fn() } as never,
+    const pricingHistory = new PricingHistoryService(
       null,
       { listAudit: () => [] } as never,
       { listByProduct: async () => [] } as never,
     );
+    const controller = new StatsController({ read: vi.fn() } as never, pricingHistory);
     await expect(controller.pricingHistory('event-1', 'mug')).resolves.toEqual({
       productId: 'mug', prices: [], offers: [], auctions: [],
     });
