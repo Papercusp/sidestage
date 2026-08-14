@@ -25,6 +25,7 @@ describe('Studio board selection', () => {
       'copilot',
       'transcript',
       'on-deck',
+      'run-of-show',
     ]);
   });
 
@@ -33,7 +34,11 @@ describe('Studio board selection', () => {
     const manager = studioBoardConfig('event-manager');
     expect(manager.layoutName).toBe('seller-event-manager');
     expect(manager.resetEventName).toContain('event-manager');
-    expect(panelIds(manager.layoutSeed)).toEqual(['event-manager', 'event-settings']);
+    expect(panelIds(manager.layoutSeed)).toEqual([
+      'event-manager',
+      'event-settings',
+      'run-of-show-planner',
+    ]);
     expect(manager.layoutName).not.toBe(active.layoutName);
     expect(manager.resetEventName).not.toBe(active.resetEventName);
   });

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useSyncMutate, useSyncQuery } from '@papercusp/sync';
 import type { RunOfShowEntry, RunOfShowPlan } from '../run-of-show';
 import { fetchSellerEvent, saveRunOfShowPlan } from '../events/api';
+import '../run-of-show.css';
 
 /**
  * The run-of-show planner (plan P-003): the pre-show authoring surface.

@@ -11,6 +11,7 @@ import {
   type StageLog,
 } from '../run-of-show';
 import { fetchSellerEvent } from '../events/api';
+import '../run-of-show.css';
 
 /**
  * The live run-of-show panel (plan P-004/P-005).

@@ -155,9 +155,18 @@ export function buildRunOfShowView(input: {
 
   const nextUp = slots.find((slot) => slot.state === 'upcoming') ?? null;
 
+  /**
+   * Pace: closed slots contribute their full over/under; the ACTIVE slot
+   * contributes only overage. Being one minute into a five-minute slot is not
+   * "four minutes ahead" — under-time counts only once the seller moves on.
+   */
   const touchedBudgeted = slots.filter((slot) => slot.overBudgetSec !== null);
   const paceDeltaSec = touchedBudgeted.length
-    ? touchedBudgeted.reduce((sum, slot) => sum + (slot.overBudgetSec ?? 0), 0)
+    ? touchedBudgeted.reduce(
+        (sum, slot) =>
+          sum + (slot.state === 'active' ? Math.max(0, slot.overBudgetSec ?? 0) : (slot.overBudgetSec ?? 0)),
+        0,
+      )
     : null;
 
   const remainingCount = slots.filter((slot) => slot.state === 'upcoming').length;

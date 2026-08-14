@@ -14,9 +14,11 @@ const here = path.dirname(fileURLToPath(import.meta.url));
 // where git-sync would commit the mutant on its next sweep.
 const deployScript = process.env.PROBE_DEPLOY_SCRIPT ?? path.join(here, 'deploy.sh');
 const rollbackScript = process.env.PROBE_ROLLBACK_SCRIPT ?? path.join(here, 'rollback.sh');
+const composeFile = path.join(here, '..', 'docker-compose.prod.yml');
 
 const deploySource = readFileSync(deployScript, 'utf8');
 const rollbackSource = readFileSync(rollbackScript, 'utf8');
+const composeSource = readFileSync(composeFile, 'utf8');
 
 /** Index of the first line matching `pattern`, or -1. */
 function lineIndex(source, pattern) {
@@ -58,6 +60,32 @@ describe('deploy.sh records the deployed sha only after the health check', () =>
   it('tags built images with the sha so the release stays recoverable', () => {
     expect(deploySource).toMatch(/SIDESTAGE_SHA=\$SHA \$COMPOSE build/);
     expect(deploySource).toMatch(/docker tag sidestage-api:\$SHA sidestage-api:latest/);
+  });
+});
+
+describe('production checkout configuration fails closed', () => {
+  const requiredCheckoutVariables = [
+    'EASYPOST_API_KEY',
+    'WAREHOUSE_FROM_STREET1',
+    'WAREHOUSE_FROM_CITY',
+    'WAREHOUSE_FROM_STATE',
+    'WAREHOUSE_FROM_ZIP',
+    'SQUARE_APP_ID',
+    'SQUARE_LOCATION_ID',
+    'SQUARE_ACCESS_TOKEN',
+  ];
+
+  it.each(requiredCheckoutVariables)('requires %s instead of defaulting it empty', (name) => {
+    expect(composeSource).toContain(`\${${name}:?set in .env.production}`);
+  });
+
+  it('validates compose configuration before starting the build', () => {
+    const configCheck = lineIndex(deploySource, /\$COMPOSE config --quiet/);
+    const build = lineIndex(deploySource, /SIDESTAGE_SHA=\$SHA \$COMPOSE build --pull/);
+
+    expect(configCheck).toBeGreaterThan(-1);
+    expect(build).toBeGreaterThan(-1);
+    expect(configCheck).toBeLessThan(build);
   });
 });
 

@@ -1,0 +1,165 @@
+/* Run of show (plan sidestage-run-of-show-planner-2026-08-14).
+   Advisory styling on purpose: soft emphasis, no alarm colors — the plan is a
+   guide, and over-budget reads as information, not failure. */
+
+.run-of-show-panel,
+.run-of-show-planner {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.run-of-show-error {
+  color: var(--status-warning, #b45309);
+  margin: 0;
+}
+
+.run-of-show-current {
+  border: 1px solid var(--border-muted, rgba(127, 127, 127, 0.25));
+  border-radius: 8px;
+  padding: 0.6rem 0.75rem;
+}
+
+.run-of-show-current-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.run-of-show-clock {
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.run-of-show-clock.over {
+  color: var(--status-warning, #b45309);
+}
+
+.run-of-show-off-plan {
+  font-size: 0.8em;
+  opacity: 0.75;
+}
+
+.run-of-show-notes {
+  margin: 0.4rem 0 0;
+  white-space: pre-wrap;
+}
+
+.run-of-show-next {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.run-of-show-list,
+.run-of-show-planner-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.run-of-show-slot {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.run-of-show-slot.state-done {
+  opacity: 0.55;
+}
+
+.run-of-show-slot.state-active {
+  font-weight: 600;
+}
+
+.run-of-show-slot-marker {
+  flex: none;
+  width: 1.5rem;
+  height: 1.5rem;
+  border-radius: 50%;
+  border: 1px solid var(--border-muted, rgba(127, 127, 127, 0.35));
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.75em;
+}
+
+.run-of-show-slot-title {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.run-of-show-slot-time {
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  opacity: 0.8;
+}
+
+.run-of-show-planner-row {
+  border: 1px solid var(--border-muted, rgba(127, 127, 127, 0.25));
+  border-radius: 8px;
+  padding: 0.5rem 0.65rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.run-of-show-planner-row-head {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.run-of-show-planner-row-tools {
+  display: inline-flex;
+  gap: 0.25rem;
+}
+
+.run-of-show-planner-minutes,
+.run-of-show-planner-notes {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  font-size: 0.85em;
+}
+
+.run-of-show-planner-minutes input {
+  width: 6rem;
+}
+
+.run-of-show-planner-notes textarea {
+  resize: vertical;
+}
+
+.run-of-show-planner-unplanned ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+.run-of-show-planner-unplanned li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
