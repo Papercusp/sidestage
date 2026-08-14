@@ -64,4 +64,16 @@ describe("BuyerProductRail", () => {
     expect(markup).toContain(">Held for you</button>");
     expect(markup).not.toContain('disabled=""');
   });
+
+  it("renders every product still present in the held cart as reopenable", () => {
+    const markup = renderToStaticMarkup(
+      <BuyerProductRail
+        products={PRODUCTS}
+        heldProductIds={PRODUCTS.map((product) => product.id)}
+        onHold={() => undefined}
+      />,
+    );
+
+    expect(markup.match(/>Held for you<\/button>/g)).toHaveLength(2);
+  });
 });

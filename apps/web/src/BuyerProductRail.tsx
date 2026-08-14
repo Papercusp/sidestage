@@ -4,6 +4,7 @@ import "./BuyerProductRail.css";
 export interface BuyerProductRailProps {
   products: readonly BuyerProduct[];
   selectedProductId?: string | null;
+  heldProductIds?: readonly string[];
   onHold: (product: BuyerProduct) => void | Promise<void>;
 }
 
@@ -67,9 +68,11 @@ function ProductCard({
 export function BuyerProductRail({
   products,
   selectedProductId = null,
+  heldProductIds = [],
   onHold,
 }: BuyerProductRailProps) {
   if (products.length === 0) return <div className="buyer-rail-empty">No products are on stage yet.</div>;
+  const heldProductIdSet = new Set(heldProductIds);
 
   return (
     <ul className="buyer-product-rail" aria-label="Coming up">
@@ -77,7 +80,7 @@ export function BuyerProductRail({
         <ProductCard
           key={product.id}
           product={product}
-          selected={selectedProductId === product.id}
+          selected={selectedProductId === product.id || heldProductIdSet.has(product.id)}
           onHold={onHold}
         />
       ))}
