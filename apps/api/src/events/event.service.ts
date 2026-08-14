@@ -1,6 +1,5 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { ChatService } from '../chat/chat.service';
-import { DEFAULT_SELLER_ID } from '../policies/policy.service';
 
 /**
  * The event directory behind the buyer "What's on" Channel Guide (P-118 /
@@ -66,6 +65,12 @@ export interface EventStore {
   /** Every event owned by one seller, including unpublished drafts. */
   listBySeller(sellerId: string): Promise<EventRecord[]>;
 
+  /** Internal owner-oracle lookup; never exposed as a public directory read. */
+  findById(eventId: string): Promise<EventRecord | undefined>;
+
+  /** Atomic non-enumerating lookup for one seller-owned event. */
+  findOwned(eventId: string, sellerId: string): Promise<EventRecord | undefined>;
+
   /**
    * Upsert the directory row for a seller-created event (EI-20426845001666103
    * / P-014): before this existed, the UI create flow wrote event_config and
@@ -80,7 +85,7 @@ export interface EventStore {
    * starts_at and ended_at are deliberately preserved so a rename or a
    * thumbnail swap on a live or ended event never resets its lifecycle.
    */
-  publish(input: EventPublication): Promise<void>;
+  publish(input: EventPublication): Promise<boolean>;
 
   /**
    * Remove one seller-owned event from every buyer read without destroying
@@ -199,11 +204,21 @@ export class InMemoryEventStore implements EventStore {
     return this.records.filter((record) => record.sellerId === sellerId);
   }
 
-  async publish(input: EventPublication): Promise<void> {
+  async findById(eventId: string): Promise<EventRecord | undefined> {
+    return this.records.find((record) => record.eventId === eventId);
+  }
+
+  async findOwned(eventId: string, sellerId: string): Promise<EventRecord | undefined> {
+    return this.records.find(
+      (record) => record.eventId === eventId && record.sellerId === sellerId,
+    );
+  }
+
+  async publish(input: EventPublication): Promise<boolean> {
     const existing = this.records.find((record) => record.eventId === input.eventId);
     if (existing) {
+      if (existing.sellerId !== input.sellerId) return false;
       existing.title = input.title;
-      existing.sellerId = input.sellerId;
       existing.sellerName = input.sellerName;
       if (input.thumbnailUrl) {
         existing.thumbnailUrl = input.thumbnailUrl;
@@ -213,7 +228,7 @@ export class InMemoryEventStore implements EventStore {
       // A seller can publish a previously withdrawn draft again. Other
       // lifecycle states remain untouched on ordinary config saves.
       if (existing.status === 'draft') existing.status = 'scheduled';
-      return;
+      return true;
     }
     this.records.push({
       eventId: input.eventId,
@@ -225,6 +240,7 @@ export class InMemoryEventStore implements EventStore {
       endedAt: null,
       ...(input.thumbnailUrl ? { thumbnailUrl: input.thumbnailUrl } : {}),
     });
+    return true;
   }
 
   async unpublish(eventId: string, sellerId: string): Promise<boolean> {
@@ -253,7 +269,15 @@ export class UnavailableEventStore implements EventStore {
     return this.unavailable();
   }
 
-  async publish(): Promise<void> {
+  async findById(): Promise<EventRecord | undefined> {
+    return this.unavailable();
+  }
+
+  async findOwned(): Promise<EventRecord | undefined> {
+    return this.unavailable();
+  }
+
+  async publish(): Promise<boolean> {
     return this.unavailable();
   }
 
@@ -352,7 +376,7 @@ export function compareForSeller(a: EventRecord, b: EventRecord): number {
   return a.title.localeCompare(b.title);
 }
 
-/** Display identity used only when an older caller omits seller headers. */
+/** Display identity for explicit legacy/demo fixtures. Runtime routes do not default ownership. */
 export const DEFAULT_SELLER_NAME = 'SideStage Seller';
 
 export interface EventSellerIdentity {
@@ -377,8 +401,8 @@ export class EventService {
   async publishFromConfig(
     config: { eventId: string; name: string; thumbnailUrl?: string },
     seller: EventSellerIdentity,
-  ): Promise<void> {
-    await this.store.publish({
+  ): Promise<boolean> {
+    return this.store.publish({
       eventId: config.eventId,
       title: config.name,
       sellerId: seller.sellerId,
@@ -392,8 +416,18 @@ export class EventService {
    * deleting preserves every event-scoped record and lets the normal config
    * save path publish it again later.
    */
-  async unpublish(eventId: string, sellerId = DEFAULT_SELLER_ID): Promise<boolean> {
+  async unpublish(eventId: string, sellerId: string): Promise<boolean> {
     return this.store.unpublish(eventId.trim(), sellerId.trim());
+  }
+
+  /** The event table is the sole owner oracle for every event-anchored row. */
+  async findById(eventId: string): Promise<EventRecord | undefined> {
+    return this.store.findById(eventId.trim());
+  }
+
+  /** Foreign and absent ids deliberately collapse to the same undefined result. */
+  async findOwned(eventId: string, sellerId: string): Promise<EventRecord | undefined> {
+    return this.store.findOwned(eventId.trim(), sellerId.trim());
   }
 
   /**
@@ -419,8 +453,9 @@ export class EventService {
    * drafts, never derives audience presence, and is scoped at the store read
    * so another seller's rows do not cross the API boundary.
    */
-  async listForSeller(sellerId = DEFAULT_SELLER_ID): Promise<EventRecord[]> {
-    const id = sellerId.trim() || DEFAULT_SELLER_ID;
+  async listForSeller(sellerId: string): Promise<EventRecord[]> {
+    const id = sellerId.trim();
+    if (!id) return [];
     return (await this.store.listBySeller(id)).sort(compareForSeller);
   }
 }

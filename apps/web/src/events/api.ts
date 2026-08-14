@@ -1,4 +1,5 @@
 import { resolveApiBaseUrl, type CatalogVariant } from '../catalog';
+import { DEMO_PRINCIPAL_HEADER } from '@papercusp/sync';
 import type { EventCreationPayload } from '../event-creation/catalog';
 import type { RunOfShowEntry, RunOfShowPlan } from '../run-of-show';
 
@@ -36,6 +37,8 @@ export interface SellerEventSetup {
 export interface SellerIdentity {
   sellerId: string;
   sellerName: string;
+  /** Canonical app-wide identity transported to the server trust boundary. */
+  principal?: string;
 }
 
 export interface SellerActionResult {
@@ -161,9 +164,14 @@ function eventUrl(path: string, apiBaseUrl?: string): string {
   return `${resolveApiBaseUrl(apiBaseUrl)}${path}`;
 }
 
-async function fetchEventConfig(eventId: string, apiBaseUrl?: string): Promise<EventConfigResponse> {
+async function fetchEventConfig(
+  eventId: string,
+  apiBaseUrl?: string,
+  principal?: string,
+): Promise<EventConfigResponse> {
   return requestJson<EventConfigResponse>(
     eventUrl(`/events/${encodeURIComponent(eventId)}/config`, apiBaseUrl),
+    principal ? { headers: { [DEMO_PRINCIPAL_HEADER]: principal } } : undefined,
   );
 }
 
@@ -288,8 +296,9 @@ async function reserveAndRegister(
   eventId: string,
   payload: EventCreationPayload,
   apiBaseUrl?: string,
+  principal?: string,
 ): Promise<SellerEventSetup> {
-  const config = await fetchEventConfig(eventId, apiBaseUrl);
+  const config = await fetchEventConfig(eventId, apiBaseUrl, principal);
   const variants = await Promise.all(
     payload.items.map((item) => fetchVariant(item.catalogId, apiBaseUrl)),
   );
@@ -328,7 +337,7 @@ export async function setupSellerEvent(
     {
       method: 'PUT',
       headers: {
-        'x-seller-id': seller.sellerId,
+        [DEMO_PRINCIPAL_HEADER]: seller.principal ?? seller.sellerId,
         'x-seller-name': seller.sellerName,
       },
       // `thumbnailUrl` is tri-state server-side (absent keeps, null/'' clears,
@@ -338,15 +347,16 @@ export async function setupSellerEvent(
       body: JSON.stringify({ name: payload.name, thumbnailUrl: payload.thumbnailUrl }),
     },
   );
-  return reserveAndRegister(eventId, payload, apiBaseUrl);
+  return reserveAndRegister(eventId, payload, apiBaseUrl, seller.principal ?? seller.sellerId);
 }
 
 export async function addItemsToSellerEvent(
   eventId: string,
   payload: EventCreationPayload,
   apiBaseUrl?: string,
+  principal?: string,
 ): Promise<SellerEventSetup> {
-  return reserveAndRegister(eventId, payload, apiBaseUrl);
+  return reserveAndRegister(eventId, payload, apiBaseUrl, principal);
 }
 
 export async function executeSellerAction(

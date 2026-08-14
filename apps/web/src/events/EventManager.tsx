@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState, type FormEvent, type MouseEvent } from 'react';
-import { useSyncMutate, useSyncQuery } from '@papercusp/sync';
+import { useSyncMutate, useSyncPrincipal, useSyncQuery } from '@papercusp/sync';
 import { EventSettingsPanel, type EventConfigView } from '../ConfigTab';
 import {
   eventManagerHref,
@@ -135,6 +135,7 @@ export function EventManager({
   const [sellerAccessDraft, setSellerAccessDraft] = useState('');
   const [sellerAccessBusy, setSellerAccessBusy] = useState(false);
   const sellerDisplayName = sellerName?.trim() || actorId;
+  const demoPrincipal = useSyncPrincipal() ?? actorId;
 
   const directoryQuery = useSyncQuery<SellerOwnedEvent>({
     queryName: 'events.mine',
@@ -185,18 +186,18 @@ export function EventManager({
   const setupFallback = useCallback(
     async (payload: EventCreationPayload) => setupSellerEvent(
       payload,
-      { sellerId: actorId, sellerName: sellerDisplayName },
+      { sellerId: actorId, sellerName: sellerDisplayName, principal: demoPrincipal },
       apiBaseUrl,
     ),
-    [actorId, apiBaseUrl, sellerDisplayName],
+    [actorId, apiBaseUrl, demoPrincipal, sellerDisplayName],
   );
   const mutateSetup = useSyncMutate<EventCreationPayload, SellerEventSetup>('event.setup', setupFallback);
 
   const addItemsFallback = useCallback(
     async ({ eventId: resolvedEventId, payload }: AddItemsMutation) => (
-      addItemsToSellerEvent(resolvedEventId, payload, apiBaseUrl)
+      addItemsToSellerEvent(resolvedEventId, payload, apiBaseUrl, demoPrincipal)
     ),
-    [apiBaseUrl],
+    [apiBaseUrl, demoPrincipal],
   );
   const mutateAddItems = useSyncMutate<AddItemsMutation, SellerEventSetup>('event.addItems', addItemsFallback);
 
@@ -449,7 +450,12 @@ export function EventManager({
 
             {route.section === 'settings' ? (
               <div className="event-settings-view" role="tabpanel">
-                <EventSettingsPanel eventId={selectedEventId} apiBaseUrl={apiBaseUrl} embedded />
+                <EventSettingsPanel
+                  eventId={selectedEventId}
+                  principal={demoPrincipal}
+                  apiBaseUrl={apiBaseUrl}
+                  embedded
+                />
               </div>
             ) : route.section === 'rehearse' ? (
               <div className="event-rehearse-view" role="tabpanel">

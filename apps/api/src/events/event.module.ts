@@ -5,6 +5,7 @@ import { DatabaseModule, PG_POOL, demoDataEnabled } from '../db/database.module'
 import { PgEventStore } from '../db/pg-event-store';
 import { SyncModule } from '../sync/sync.module';
 import { SyncQueryRegistry } from '../sync/sync-query.registry';
+import { rolePrincipal } from '../sync/sync-request-context';
 import { EventController } from './event.controller';
 import {
   EVENT_STORE,
@@ -23,9 +24,11 @@ export class EventSyncQueries implements OnModuleInit {
 
   onModuleInit(): void {
     this.queries.register('events.guide', () => this.events.listForGuide());
-    this.queries.register('events.mine', (args) => this.events.listForSeller(
-      typeof args.sellerId === 'string' ? args.sellerId : undefined,
-    ));
+    this.queries.register('events.mine', (_args, context) => {
+      const sellerId = rolePrincipal(context.principal, 'seller');
+      if (!sellerId) throw new Error('x-demo-principal is required for events.mine');
+      return this.events.listForSeller(sellerId);
+    });
   }
 }
 
