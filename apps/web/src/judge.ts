@@ -1,3 +1,5 @@
+import { resolveApiBaseUrl } from './catalog';
+
 export const JUDGE_DIMENSIONS = [
   'grounding',
   'policy',
@@ -146,8 +148,8 @@ export function scorePercent(score: number): string {
   return `${Math.round(Math.max(0, Math.min(1, score)) * 100)}%`;
 }
 
-export async function runJudgeRehearsal(apiBaseUrl = ''): Promise<JudgeReport> {
-  const baseUrl = apiBaseUrl.replace(/\/$/, '');
+export async function runJudgeRehearsal(apiBaseUrl?: string): Promise<JudgeReport> {
+  const baseUrl = resolveApiBaseUrl(apiBaseUrl);
   const response = await fetch(`${baseUrl}/judge/run`, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },

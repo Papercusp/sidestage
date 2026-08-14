@@ -1,6 +1,10 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { DEMO_JUDGE_CASES } from './judge';
+import { DEMO_JUDGE_CASES, runJudgeRehearsal } from './judge';
+
+afterEach(() => {
+  vi.restoreAllMocks();
+});
 
 describe('reply judge rehearsal corpus', () => {
   it('keeps every visible release case grounded and aligned with the event policy', () => {
@@ -24,5 +28,18 @@ describe('reply judge rehearsal corpus', () => {
     });
     expect(guardedPrice?.reply).toContain('$28');
     expect(guardedPrice?.reply).not.toContain('$9.99');
+  });
+
+  it('routes the browser rehearsal to the local API when VITE_API_URL is absent', async () => {
+    const report = { runId: 'judge-run-1' };
+    const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(JSON.stringify(report), {
+      status: 201,
+      headers: { 'content-type': 'application/json' },
+    }));
+
+    await expect(runJudgeRehearsal()).resolves.toEqual(report);
+    expect(fetchMock).toHaveBeenCalledWith('http://localhost:3100/judge/run', expect.objectContaining({
+      method: 'POST',
+    }));
   });
 });
