@@ -6,11 +6,21 @@ import {
   EventVisibilityGuard,
   PricingHistoryService,
   StatsController,
+  StatsModule,
   StatsSyncQueries,
 } from './stats.module';
 
 /** A guard that lets every event through — for tests that are not about visibility. */
 const permissiveGuard = { assertBuyerVisible: async () => {} } as never;
+
+describe('StatsModule wiring', () => {
+  it('resolves EventVisibilityGuard from EventModule at application bootstrap', async () => {
+    const moduleRef = await Test.createTestingModule({ imports: [StatsModule] }).compile();
+
+    expect(moduleRef.select(StatsModule).get(EventVisibilityGuard, { strict: true })).toBeInstanceOf(EventVisibilityGuard);
+    await moduleRef.close();
+  });
+});
 
 describe('StatsController pricing history', () => {
   it('registers event stats with the shared sync query registry', async () => {

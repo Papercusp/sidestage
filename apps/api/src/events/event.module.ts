@@ -56,6 +56,6 @@ export function eventStoreForPool(
       useFactory: eventStoreForPool,
     },
   ],
-  exports: [EventService],
+  exports: [EventService, EVENT_STORE],
 })
 export class EventModule {}
