@@ -53,6 +53,11 @@
 .auction-bid-row { gap: .55rem; }
 .auction-bid-row > span { margin-right: -.25rem; color: var(--muted); }
 .auction-bid-row input { min-width: 0; flex: 1; padding: .7rem .8rem; border: 1px solid color-mix(in srgb, var(--brand-red) 24%, transparent); border-radius: .72rem; background: var(--surface); color: var(--text); font: inherit; }
+/* Restated here on purpose. The generic `input:disabled` in styles.css ties this
+   rule on specificity (0,1,1), and auction.css loads later — so without a local,
+   higher-specificity rule the enabled treatment above wins and the input the
+   settling state just closed off still reads as editable. */
+.auction-bid-row input:disabled { opacity: .55; cursor: not-allowed; background: color-mix(in srgb, var(--muted) 10%, var(--surface)); }
 .auction-empty { display: grid; gap: .25rem; margin: 0; padding: 1rem; border: 1px dashed var(--border); border-radius: .9rem; color: var(--text); }
 /* P-109b: promote the auction block ONLY when an auction is active (design
    report, Buyer §"Recommended design" 3). With no live auction the panel still
