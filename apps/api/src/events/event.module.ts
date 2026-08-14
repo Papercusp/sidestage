@@ -23,6 +23,7 @@ export class EventSyncQueries implements OnModuleInit {
 
   onModuleInit(): void {
     this.queries.register('events.guide', () => this.events.listForGuide());
+    this.queries.register('events.mine', () => this.events.listForSeller());
   }
 }
 
