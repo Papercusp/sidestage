@@ -28,6 +28,13 @@ export interface EventItemDraft {
 
 export interface EventCreationPayload {
   name: string;
+  /**
+   * Optional buyer-facing thumbnail for the event, as a `data:` URL produced by
+   * readThumbnailFile() or an ordinary http(s) URL. Absent means the seller did
+   * not pick one and every renderer falls back to its placeholder — it is never
+   * an empty string, so `thumbnailUrl ? … : placeholder` is the whole contract.
+   */
+  thumbnailUrl?: string;
   items: Array<{
     catalogId: string;
     groupId: string;
@@ -94,11 +101,17 @@ export function draftFromCatalog(row: CatalogRow): EventItemDraft {
 export function createEventPayload(
   name: string,
   drafts: readonly EventItemDraft[],
+  thumbnailUrl?: string,
 ): EventCreationPayload | null {
   const trimmedName = name.trim();
   if (!trimmedName || drafts.length === 0) return null;
+  // A blank/whitespace thumbnail is normalized AWAY rather than forwarded: the
+  // absent case is the one every renderer already handles, so there is no
+  // second "empty but present" state for a caller to get wrong.
+  const trimmedThumbnail = thumbnailUrl?.trim();
   return {
     name: trimmedName,
+    ...(trimmedThumbnail ? { thumbnailUrl: trimmedThumbnail } : {}),
     items: drafts.map((draft) => ({
       catalogId: draft.catalogId,
       groupId: draft.groupId,

@@ -48,4 +48,20 @@ describe('event creation catalog helpers', () => {
     expect(createEventPayload(' ', [draft])).toBeNull();
     expect(createEventPayload('Sunday drop', [])).toBeNull();
   });
+
+  it('carries a thumbnail when one is picked and omits the key entirely when not', () => {
+    const draft = draftFromCatalog(DEMO_CATALOG[0]);
+    const url = 'data:image/png;base64,iVBORw0KGgo=';
+
+    expect(createEventPayload('Sunday drop', [draft], `  ${url}  `)?.thumbnailUrl).toBe(url);
+
+    // Absent is the ONLY no-thumbnail state — a blank string must not survive as
+    // an "empty but present" second one, or the API's tri-state merge reads it
+    // as an explicit clear and every renderer needs a second falsy check.
+    for (const blank of [undefined, '', '   ']) {
+      const payload = createEventPayload('Sunday drop', [draft], blank);
+      expect(payload?.thumbnailUrl).toBeUndefined();
+      expect(payload && 'thumbnailUrl' in payload).toBe(false);
+    }
+  });
 });
