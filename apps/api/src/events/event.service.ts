@@ -439,12 +439,14 @@ export class EventService {
    */
   async listForGuide(): Promise<EventSummary[]> {
     const records = await this.store.listBuyerVisible();
-    const summaries = records.map((record) => ({
+    const summaries = await Promise.all(records.map(async (record) => ({
       ...record,
       // Only a live room can have anyone in it; reporting presence for an
       // ended event would be reporting whoever is idling on its replay page.
-      viewers: record.status === 'live' ? this.chat.getStats(record.eventId).activeUsers : 0,
-    }));
+      viewers: record.status === 'live'
+        ? (await this.chat.getStats(record.eventId)).activeUsers
+        : 0,
+    })));
     return summaries.sort(compareForGuide);
   }
 
