@@ -19,6 +19,16 @@ export default defineConfig({
     projects: [
       {
         test: {
+          name: 'sidestage-deploy',
+          root: '.',
+          sequence: { groupOrder: 0 },
+          environment: 'node',
+          include: ['deploy/**/*.test.mjs'],
+          exclude: sourceExclude,
+        },
+      },
+      {
+        test: {
           name: 'sidestage-node',
           root: '.',
           sequence: { groupOrder: 1 },

@@ -13,7 +13,7 @@ libs/*      pinned shared libraries (grid-core/papergrid, sync, sse,
 db/         schema.sql (Restart-compatible port) + demo seed
 docker-compose.yml        dev data plane: Postgres, Typesense, Redis, MediaMTX
 docker-compose.prod.yml   production stack + Traefik routing labels
-deploy/deploy.sh          rsync-the-git-tracked-set production deploy
+deploy/deploy.sh          immutable working-tree snapshot production deploy
 ```
 
 ## API architecture
@@ -105,10 +105,14 @@ running stack. CI runs the exact reviewer commands from a clean clone.
 ## Deployment
 
 Production mirrors the shop.buyrestart.com pattern, as an independent stack:
-`deploy/deploy.sh` rsyncs the git-tracked file set to `/opt/SideStage` on the
-host, builds two images there (API: workspace build → `node dist`; web: Vite
-build → nginx static), and `docker compose up`s the stack. Traefik (external,
-`coolify` network) terminates TLS and routes `sidestage.buyrestart.com` — web
-as catch-all, `/api` + `/healthz` to the API (`API_PREFIX=api`), and
+`deploy/deploy.sh` uses temporary Git indexes to export one immutable snapshot
+of the superproject and initialized submodules. The snapshot includes tracked
+edits and non-ignored new files without touching the real indexes; ignored
+files and `.git` metadata never ship. The script rsyncs that snapshot to
+`/opt/SideStage` while preserving the host-only `.env.production`, builds two
+images there (API: workspace build → `node dist`; web: Vite build → nginx
+static), and `docker compose up`s the stack. Traefik (external, `coolify`
+network) terminates TLS and routes `sidestage.buyrestart.com` — web as
+catch-all, `/api` + `/healthz` to the API (`API_PREFIX=api`), and
 `media.sidestage.buyrestart.com` (DNS-only) to MediaMTX for WebRTC. Secrets
 live only in the on-box `.env.production`.
