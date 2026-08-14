@@ -83,8 +83,12 @@ SSH=(ssh -i "$PROD_SSH_KEY" -o ConnectTimeout=10 "root@$PROD_HOST")
 
 say() { echo "==> $*"; }
 
-# health_probe <sha> -- echo the /healthz body from the first leg that answers,
-# and set HEALTH_LEG to which leg that was ("public" | "container" | "none").
+# health_probe <sha> -- set HEALTH_BODY to the /healthz body from the first leg
+# that answers, and HEALTH_LEG to that leg ("public" | "container" | "none").
+#
+# Call this function DIRECTLY, never through command substitution. Bash runs a
+# command substitution in a subshell, which discards the HEALTH_LEG assignment
+# and makes a container-only fallback print as the impossible "none" leg.
 #
 # ORDER MATTERS. The PUBLIC url is the real contract: it exercises DNS + TLS +
 # Traefik + the app, and its body carries the sha the running image was built
@@ -95,19 +99,21 @@ say() { echo "==> $*"; }
 # which is most of what a deploy can break -- so falling back to it is REPORTED,
 # never silent.
 HEALTH_LEG=none
+HEALTH_BODY=""
 health_probe() {
   local target_sha="$1" body
+  HEALTH_LEG=none
+  HEALTH_BODY=""
   if body="$(curl -sf --max-time 6 "$HEALTH_URL" 2>/dev/null)"; then
     HEALTH_LEG=public
-    printf '%s' "$body"
+    HEALTH_BODY="$body"
     return 0
   fi
   if body="$("${SSH[@]}" "cd $PROD_DIR && SIDESTAGE_SHA=$target_sha $COMPOSE exec -T api node -e 'fetch(\"http://127.0.0.1:3100/healthz\").then(r=>{if(!r.ok)process.exit(1);return r.text()}).then(t=>process.stdout.write(t)).catch(()=>process.exit(1))'" 2>/dev/null)"; then
     HEALTH_LEG=container
-    printf '%s' "$body"
+    HEALTH_BODY="$body"
     return 0
   fi
-  HEALTH_LEG=none
   return 1
 }
 
@@ -192,9 +198,8 @@ say "Build + up on prod (SIDESTAGE_SHA=${SHA:0:7}, previous=${PREV_SHA:0:7})"
 
 say "Health check"
 healthy=false
-HEALTH_BODY=""
 for attempt in $(seq 1 20); do
-  if HEALTH_BODY="$(health_probe "$SHA")"; then
+  if health_probe "$SHA"; then
     say "API healthy via $HEALTH_LEG leg (attempt $attempt)"
     if [[ "$HEALTH_LEG" != public ]]; then
       echo "WARN: $HEALTH_URL did not answer; health was confirmed only INSIDE the" >&2
@@ -232,9 +237,14 @@ say "Verifying /healthz reports the sha we just shipped"
 served=""
 sha_ok=false
 for attempt in $(seq 1 5); do
-  if served="$(health_probe "$SHA")" && [[ "$served" == *"$SHA"* ]]; then
-    sha_ok=true
-    break
+  if health_probe "$SHA"; then
+    served="$HEALTH_BODY"
+    if [[ "$served" == *"$SHA"* ]]; then
+      sha_ok=true
+      break
+    fi
+  else
+    served="$HEALTH_BODY"
   fi
   sleep 3
 done
