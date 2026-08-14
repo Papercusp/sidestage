@@ -339,6 +339,8 @@ input:disabled, select:disabled, textarea:disabled { opacity: .55; cursor: not-a
 .copilot-input-row { display: flex; align-items: stretch; gap: .65rem; }
 .copilot-input-row input { flex: 1; min-width: 0; border: 1px solid var(--border); border-radius: .55rem; padding: .72rem .8rem; color: var(--text); background: var(--surface); }
 .copilot-input-row input:focus { outline: 2px solid color-mix(in srgb, var(--brand-red) 36%, transparent); outline-offset: 1px; border-color: var(--red-text); }
+.copilot-latency { display: flex; align-items: center; justify-content: space-between; gap: .75rem; margin: .65rem 0 0; color: var(--muted); font-size: .72rem; }
+.copilot-latency strong { font-variant-numeric: tabular-nums; }
 .copilot-products { display: grid; gap: .65rem; margin-top: 1rem; }
 .copilot-product { display: grid; grid-template-columns: 3rem minmax(0, 1fr) auto; align-items: center; gap: .85rem; padding: .75rem; border: 1px solid var(--border); border-radius: .65rem; background: var(--surface-sunken); }
 .copilot-product img, .copilot-product-placeholder { width: 3rem; height: 3rem; border-radius: .55rem; object-fit: cover; background: radial-gradient(circle at 40% 35%, color-mix(in srgb, var(--brand-red) 32%, transparent), transparent 52%), color-mix(in srgb, var(--brand-red) 8%, transparent); }
