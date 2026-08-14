@@ -54,9 +54,11 @@ services:
       MTX_WEBRTCADDITIONALHOSTS: ${MEDIAMTX_PUBLIC_IP:?set to the server public IPv4 in .env.production}
       # Keep direct UDP as the low-latency path, but give browsers on networks
       # that block arbitrary UDP/high ports an authenticated TURN fallback.
-      # Traefik terminates TURNS on the existing media hostname/443 and sends
-      # the decrypted TURN/TCP stream to the `turn` service below.
-      MTX_WEBRTCICESERVERS2_0_URL: turns:media.${PUBLIC_HOSTNAME:-sidestage.buyrestart.com}:443?transport=tcp
+      # Traefik terminates TURNS on a dedicated DNS-only hostname/443 and sends
+      # the decrypted TURN/TCP stream to the `turn` service below. Keeping TURN
+      # on its own SNI avoids relying on absent-ALPN matching, which Traefik's
+      # Docker provider can route to the HTTP service instead.
+      MTX_WEBRTCICESERVERS2_0_URL: turns:turn.${PUBLIC_HOSTNAME:-sidestage.buyrestart.com}:443?transport=tcp
       MTX_WEBRTCICESERVERS2_0_USERNAME: AUTH_SECRET
       MTX_WEBRTCICESERVERS2_0_PASSWORD: ${TURN_AUTH_SECRET:?set in .env.production}
       # MediaMTX is on the same host as coturn and can reach its relay ports
@@ -107,9 +109,9 @@ services:
     labels:
       - traefik.enable=true
       - traefik.docker.network=coolify
-      # HTTPS advertises h2/http1 ALPN. TURN/TLS advertises neither, so this
-      # TCP router can share media.<host>:443 without stealing WHIP/WHEP HTTP.
-      - "traefik.tcp.routers.sidestage-turn.rule=HostSNI(`media.${PUBLIC_HOSTNAME:-sidestage.buyrestart.com}`) && !ALPN(`h2`) && !ALPN(`http/1.1`)"
+      # TURN has a dedicated SNI, so routing never depends on whether a client
+      # advertises ALPN and cannot steal media.<host> WHIP/WHEP HTTP traffic.
+      - "traefik.tcp.routers.sidestage-turn.rule=HostSNI(`turn.${PUBLIC_HOSTNAME:-sidestage.buyrestart.com}`)"
       - traefik.tcp.routers.sidestage-turn.entrypoints=https
       - traefik.tcp.routers.sidestage-turn.tls=true
       - traefik.tcp.routers.sidestage-turn.tls.certresolver=letsencrypt
