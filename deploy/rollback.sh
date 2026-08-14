@@ -17,6 +17,7 @@
 # rollback that cannot work fails loudly instead of half-running.
 set -euo pipefail
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
+source "$SCRIPT_DIR/deploy-lock.sh"
 
 PROD_HOST="${PROD_HOST:-178.156.254.59}"
 PROD_SSH_KEY="${SSH_KEY:-$HOME/.ssh/papercusp-latitude-frame}"
@@ -138,6 +139,9 @@ if $DRY_RUN; then
   say "[dry-run] would: retag :latest -> $TARGET, record $TARGET in .deployed-sha, append rollback to history"
   exit 0
 fi
+
+sidestage_acquire_release_lock
+trap sidestage_release_release_lock EXIT
 
 START=$(date +%s)
 

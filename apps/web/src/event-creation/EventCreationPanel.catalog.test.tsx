@@ -1,8 +1,12 @@
+import { readFileSync } from 'node:fs';
+
 import { SyncContext } from '@papercusp/sync';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
 
 import { EventCreationPanel } from './EventCreationPanel';
+
+const eventCreationCss = readFileSync(new URL('./event-creation.css', import.meta.url), 'utf8');
 
 describe('EventCreationPanel catalog source loss', () => {
   it('renders an honest production alert and no demo inventory', () => {
@@ -31,5 +35,15 @@ describe('EventCreationPanel catalog source loss', () => {
     expect(html.match(/Create event/g)).toHaveLength(1);
     expect(html).not.toContain('demo-espresso-matte-black');
     expect(html).not.toContain('offline fixture');
+  });
+
+  it('contains the sticky toolbar inside a phone-width seller dock', () => {
+    const mobileCss = eventCreationCss.match(/@media \(max-width: 560px\) \{([\s\S]*)\}\s*$/)?.[1] ?? '';
+
+    expect(mobileCss).toMatch(/\.event-creation\s*\{[^}]*min-width:\s*0;[^}]*width:\s*100%;/s);
+    expect(mobileCss).toMatch(
+      /\.event-creation-toolbar-action\s*\{[^}]*align-items:\s*stretch;[^}]*flex-direction:\s*column;/s,
+    );
+    expect(mobileCss).toMatch(/\.event-creation-toolbar \.button\s*\{[^}]*width:\s*100%;/s);
   });
 });

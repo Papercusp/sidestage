@@ -356,3 +356,87 @@ describe('docker-compose.prod.yml keeps the api unpublished', () => {
     expect(composeSource).toMatch(/loadbalancer\.server\.port=3100/);
   });
 });
+
+describe('deploy.sh argument handling', () => {
+  // REGRESSION GUARD (WI-38905). Until 2026-08-14 deploy.sh parsed arguments
+  // with a single exact-match test on $1:
+  //     [[ "${1:-}" == "--dry-run" ]] && DRY_RUN=true
+  // Every OTHER argument was silently ignored and fell through into a REAL
+  // PRODUCTION DEPLOY. `deploy.sh --help` -- the universal safe-probe reflex --
+  // was run on 2026-08-14T17:20Z believing it printed usage; it rsync'd 748
+  // files to /opt/SideStage and applied prod schema before being killed, which
+  // in turn aborted a concurrent deploy with `tuple concurrently updated`
+  // (WI-38904). rollback.sh had had the correct case-loop guard all along;
+  // deploy.sh, the more destructive of the pair, never did.
+  //
+  // SAFETY OF THIS BLOCK: these tests EXECUTE deploy.sh with arguments, which
+  // is only safe while the guard under test is intact -- exactly what a
+  // regression removes. So PROD_HOST is pinned to 192.0.2.1 (RFC5737
+  // TEST-NET-1, guaranteed unroutable). If the guard is ever deleted, these
+  // calls fail here on an unroutable connect instead of shipping to real prod.
+  function run(args) {
+    try {
+      const stdout = execFileSync('bash', [deployScript, ...args], {
+        encoding: 'utf8',
+        stdio: ['ignore', 'pipe', 'pipe'],
+        env: { ...process.env, PROD_HOST: '192.0.2.1' },
+        timeout: 30_000,
+      });
+      return { code: 0, stdout, stderr: '' };
+    } catch (error) {
+      return { code: error.status, stdout: error.stdout ?? '', stderr: error.stderr ?? '' };
+    }
+  }
+
+  it('refuses an unknown argument instead of silently deploying', () => {
+    const { code, stderr } = run(['--bogus']);
+    expect(code).toBe(2);
+    expect(stderr).toMatch(/unknown argument/);
+  });
+
+  it('refuses a TYPO of the safe flag rather than treating it as a deploy', () => {
+    // `deploy.sh --dry-runn` was a full production deploy before this guard.
+    const { code, stderr } = run(['--dry-runn']);
+    expect(code).toBe(2);
+    expect(stderr).toMatch(/unknown argument/);
+  });
+
+  it('prints usage for --help without touching prod', () => {
+    const { code, stdout } = run(['--help']);
+    expect(code).toBe(0);
+    expect(stdout).toMatch(/--dry-run/);
+  });
+
+  it('prints the WHOLE header for --help, not a hardcoded line range', () => {
+    // The first version of this guard printed `sed -n '2,18p'`, which silently
+    // truncated the Requirements section the moment the usage block grew by
+    // three lines. The range is now derived from the `set -euo pipefail` line.
+    const { stdout } = run(['--help']);
+    expect(stdout).toMatch(/Requirements on the dev box/);
+  });
+
+  it('parses flags in a loop, so a safe flag is honoured in any position', () => {
+    // Asserted on the parser rather than by execution: with only one valid
+    // flag there is no two-valid-flag invocation to demonstrate positional
+    // independence behaviourally. The old idiom read $1 and nothing else.
+    //
+    // Assert on CODE, not raw source. deploy.sh's own comment block quotes the
+    // retired idiom verbatim so the next reader knows what was wrong -- and the
+    // first version of this test matched that citation and went red against a
+    // correct script. A source-text guard that cannot tell code from prose
+    // punishes documenting the very fix it protects.
+    const deployCode = deploySource
+      .split('\n')
+      .filter((line) => !/^\s*#/.test(line))
+      .join('\n');
+
+    expect(deployCode).not.toMatch(/\[\[\s*"\$\{1:-\}"\s*==\s*"--dry-run"\s*\]\]/);
+    expect(deployCode).toMatch(/while\s*\[\[\s*\$#\s*-gt\s*0\s*\]\]/);
+  });
+
+  it('refuses rather than ignores — the unknown-arg branch exits non-zero', () => {
+    // Guard against a "fix" that prints a warning and deploys anyway.
+    expect(deploySource).toMatch(/unknown argument/);
+    expect(deploySource).toMatch(/exit 2/);
+  });
+});
