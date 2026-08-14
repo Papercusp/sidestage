@@ -9,8 +9,12 @@
 # /opt/Restart or the restart-* containers.
 #
 # Usage:
-#   ./deploy/deploy.sh              # build + up all services
+#   ./deploy/deploy.sh              # build + up all services (SHIPS TO PROD)
 #   ./deploy/deploy.sh --dry-run    # show what would ship, change nothing
+#   ./deploy/deploy.sh --help       # print this header, touch nothing
+#
+# Any unrecognised argument is REFUSED (exit 2) rather than ignored: the
+# default action of this script is an irreversible production deploy.
 #
 # Requirements on the dev box: ssh key ($SSH_KEY, default the papercusp frame
 # key) authorized as root on the prod host. Requirements on prod (one-time):
@@ -18,6 +22,7 @@
 # warehouse-origin, and public-hostname values required by docker-compose.prod.yml.
 set -euo pipefail
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
+source "$SCRIPT_DIR/deploy-lock.sh"
 cd "$(git rev-parse --show-toplevel)"
 
 PROD_HOST="${PROD_HOST:-178.156.254.59}"
@@ -38,8 +43,41 @@ HISTORY_FILE="$PROD_DIR/.deploy-history"
 # default it to the same value docker-compose.prod.yml defaults to.
 PUBLIC_HOSTNAME="${PUBLIC_HOSTNAME:-sidestage.buyrestart.com}"
 HEALTH_URL="https://$PUBLIC_HOSTNAME/healthz"
+# ARGUMENT PARSING -- deliberately mirrors deploy/rollback.sh's case loop.
+# Until 2026-08-14 this was a single exact-match test on $1:
+#     [[ "${1:-}" == "--dry-run" ]] && DRY_RUN=true
+# which recognised --dry-run ONLY in position 1 and SILENTLY IGNORED every
+# other argument, falling through into a REAL PRODUCTION DEPLOY. All of
+# `deploy.sh --help`, `deploy.sh --dry-runn` (typo), `deploy.sh -n`, and
+# `deploy.sh --verbose --dry-run` (safe flag present, but not $1) therefore
+# shipped to prod. That is not hypothetical: `deploy.sh --help` was run on
+# 2026-08-14T17:20Z believing it printed usage, and rsync'd 748 files to
+# /opt/SideStage + applied prod schema before it was killed -- which in turn
+# aborted a concurrent deploy with `tuple concurrently updated` (WI-38904).
+# An unrecognised argument now REFUSES rather than deploying: for a script
+# whose default action is irreversible, silence on an unknown flag is the
+# most dangerous branch available. (WI-38905)
 DRY_RUN=false
-[[ "${1:-}" == "--dry-run" ]] && DRY_RUN=true
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --dry-run) DRY_RUN=true; shift ;;
+    # Print the whole comment header, up to (not including) `set -euo pipefail`,
+    # so --help cannot silently drop the Requirements section when the header
+    # grows. Derived, never a hardcoded line range: a literal '2,18p' already
+    # truncated this once when the usage block gained three lines.
+    -h|--help)
+      header_end=$(( $(grep -n '^set -euo pipefail' "${BASH_SOURCE[0]}" | head -1 | cut -d: -f1) - 1 ))
+      sed -n "2,${header_end}p" "${BASH_SOURCE[0]}"
+      exit 0
+      ;;
+    *)
+      echo "deploy.sh: unknown argument: $1" >&2
+      echo "deploy.sh: refusing to deploy on an unrecognised argument -- this script's" >&2
+      echo "           default action ships to production. Run with --help for usage." >&2
+      exit 2
+      ;;
+  esac
+done
 
 SSH=(ssh -i "$PROD_SSH_KEY" -o ConnectTimeout=10 "root@$PROD_HOST")
 
@@ -74,7 +112,13 @@ health_probe() {
 }
 
 SNAPSHOT_DIR="$(mktemp -d "${TMPDIR:-/tmp}/sidestage-deploy.XXXXXX")"
-trap 'rm -rf -- "$SNAPSHOT_DIR"' EXIT INT TERM
+cleanup() {
+  sidestage_release_release_lock
+  rm -rf -- "$SNAPSHOT_DIR"
+}
+trap cleanup EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
 bash "$SCRIPT_DIR/snapshot-source.sh" "$PWD" "$SNAPSHOT_DIR"
 SNAPSHOT_FILE_COUNT="$(find "$SNAPSHOT_DIR" \( -type f -o -type l \) -print | wc -l | tr -d ' ')"
 
@@ -83,6 +127,8 @@ if $DRY_RUN; then
   say "[dry-run] would rsync $SNAPSHOT_FILE_COUNT snapshot files, then: $COMPOSE build && up -d"
   exit 0
 fi
+
+sidestage_acquire_release_lock
 
 "${SSH[@]}" "mkdir -p $PROD_DIR"
 
@@ -164,7 +210,7 @@ if ! $healthy; then
   echo "ERROR: API health check failed after 20 attempts" >&2
   if [[ -n "$PREV_SHA" ]]; then
     echo "==> AUTO-ROLLBACK to ${PREV_SHA:0:7}" >&2
-    if bash "$SCRIPT_DIR/rollback.sh" --to "$PREV_SHA"; then
+    if SIDESTAGE_DEPLOY_LOCK_HELD=1 bash "$SCRIPT_DIR/rollback.sh" --to "$PREV_SHA"; then
       echo "ERROR: deploy of ${SHA:0:7} failed health check; prod rolled back to ${PREV_SHA:0:7}" >&2
       exit 3
     fi
