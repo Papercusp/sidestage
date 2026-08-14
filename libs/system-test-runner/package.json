@@ -21,13 +21,17 @@
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
     "typecheck": "tsc --noEmit -p tsconfig.json",
-    "test": "vitest run --config vitest.config.ts"
+    "test": "vitest run --config vitest.config.ts",
+    "test:integration": "vitest run --config vitest.integration.config.ts"
   },
   "dependencies": {
-    "@papercusp/system-test-contract": "*"
+    "@papercusp/system-test-contract": "*",
+    "pg": "^8.23.0"
   },
   "devDependencies": {
+    "@papercusp/test-config": "*",
     "@types/node": "^26.0.0",
+    "@types/pg": "^8.15.6",
     "vitest": "^4.1.4"
   }
 }

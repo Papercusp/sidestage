@@ -1,7 +1,9 @@
 import 'reflect-metadata';
 import { describe, expect, it } from 'vitest';
 import { ActionModule } from '../actions/action.module';
+import { ChatService } from '../chat/chat.service';
 import type { CopilotPolicy } from '../copilot/copilot.types';
+import { EventService, InMemoryEventStore } from '../events/event.service';
 import type { PolicyService } from '../policies/policy.service';
 import { EventConfigModule } from './event-config.module';
 import { EventConfigService, InMemoryEventConfigStore, withDerivedPriceFloors } from './event-config.service';
@@ -23,6 +25,18 @@ const BASE: CopilotPolicy = {
 
 function policyStub(result: { policy: CopilotPolicy } | null): PolicyService {
   return { effectiveCopilotPolicy: async () => result } as unknown as PolicyService;
+}
+
+function eventService(): EventService {
+  return new EventService(new InMemoryEventStore([{
+    eventId: 'event-1',
+    title: 'Event 1',
+    sellerId: 'seller-alice',
+    sellerName: 'Alice',
+    status: 'scheduled',
+    startsAt: null,
+    endedAt: null,
+  }]), new ChatService());
 }
 
 describe('withDerivedPriceFloors', () => {
@@ -53,6 +67,7 @@ describe('ConfigEventPolicyResolver', () => {
     const resolver = new ConfigEventPolicyResolver(
       new EventConfigService(new InMemoryEventConfigStore()),
       policyStub(null),
+      eventService(),
     );
     const policy = await resolver.resolve('event-1', ITEMS);
     // The default config keeps priceChanges guarded → confirm level, 30% cap.
@@ -74,6 +89,7 @@ describe('ConfigEventPolicyResolver', () => {
     const resolver = new ConfigEventPolicyResolver(
       new EventConfigService(new InMemoryEventConfigStore()),
       policyStub({ policy: published }),
+      eventService(),
     );
     const policy = await resolver.resolve('event-1', ITEMS);
     expect(policy.priceFloorCentsByProduct.mug).toBe(1_400); // explicit floor wins

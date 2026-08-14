@@ -506,3 +506,5 @@ export class AcceptanceEnvironmentProvisioner {
     }
   }
 }
+
+export * from './postgres-run-store';
