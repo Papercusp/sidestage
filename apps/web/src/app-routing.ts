@@ -57,6 +57,14 @@ export function tabHref(tab: TabId, currentUrl = '/'): string {
   return `${url.pathname}?${url.searchParams.toString()}${url.hash}`;
 }
 
+/** A durable link to one event on the Watch page, preserving unrelated URL state. */
+export function eventWatchHref(eventId: string, currentUrl = '/'): string {
+  const url = urlFor(currentUrl);
+  url.searchParams.set('tab', 'buyer');
+  url.searchParams.set('event', eventId);
+  return `${url.pathname}?${url.searchParams.toString()}${url.hash}`;
+}
+
 function isStudioView(value: string | null): value is StudioView {
   return value === 'active-event' || value === 'event-manager';
 }

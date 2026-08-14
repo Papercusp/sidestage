@@ -4,6 +4,7 @@ import { describe, expect, it } from 'vitest';
 import {
   App,
   appLayoutForTab,
+  eventWatchHref,
   getTabFromUrl,
   TAB_GROUPS,
   tabHref,
@@ -30,6 +31,12 @@ describe('SideStage tab state', () => {
   it('preserves the current route while writing the selected tab', () => {
     expect(tabHref('test', '/events?source=demo#ready')).toBe('/events?source=demo&tab=test#ready');
     expect(tabHref('config', '/events?source=demo')).toBe('/events?source=demo&tab=seller');
+  });
+
+  it('builds durable Watch links for guide events without dropping URL state', () => {
+    expect(eventWatchHref('spring-room', '/events?source=demo#ready')).toBe(
+      '/events?source=demo&tab=buyer&event=spring-room#ready',
+    );
   });
 });
 
@@ -63,6 +70,9 @@ describe('P-005 product card and shell', () => {
     expect(markup).toContain('Live chat');
     expect(markup).toContain('Message the room');
     expect(markup).toContain('Share room');
+    expect(markup).toContain('class="app-content-layout"');
+    expect(markup).toContain('class="channel-guide-panel"');
+    expect(markup.indexOf('class="channel-guide-panel"')).toBeLessThan(markup.indexOf('id="buyer"'));
   });
 
   it('keeps the shared paper shell and keyboard-control baseline tokenized', () => {
@@ -71,6 +81,7 @@ describe('P-005 product card and shell', () => {
     expect(stylesCss).toMatch(/\.nav-cluster\s*\{[^}]*background:\s*color-mix\(/);
     expect(stylesCss).toMatch(/\.button\s*\{[^}]*min-height:\s*2\.5rem/);
     expect(stylesCss).toMatch(/:where\(a, button, input, select, textarea\):focus-visible/);
+    expect(stylesCss).toMatch(/\.app-content-layout\s*\{[^}]*grid-template-columns:\s*minmax\(16rem, 19rem\) minmax\(0, 1fr\)/);
   });
 });
 

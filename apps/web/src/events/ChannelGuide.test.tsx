@@ -1,9 +1,11 @@
+import { readFileSync } from 'node:fs';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
 import type { GuideEvent } from './api';
 import { ChannelGuide } from './ChannelGuide';
 
 const NOW = new Date('2026-08-14T12:00:00.000Z');
+const channelGuideCss = readFileSync(new URL('./channel-guide.css', import.meta.url), 'utf8');
 
 const EVENTS: GuideEvent[] = [
   {
@@ -51,11 +53,27 @@ function render(props: Partial<React.ComponentProps<typeof ChannelGuide>> = {}) 
 }
 
 describe('ChannelGuide (P-118 / D-019)', () => {
-  it('always renders as the buyer layout\'s What\'s on sidebar', () => {
+  it('always renders as the shared app shell\'s What\'s on sidebar', () => {
     const markup = render({ events: [] });
     expect(markup).toContain('<aside');
     expect(markup).toContain('class="channel-guide-panel"');
     expect(markup).toContain('aria-labelledby="channel-guide-title"');
+  });
+
+  it('links every event to its Watch route while retaining in-app selection', () => {
+    const markup = render();
+    expect(markup).toContain('href="/?tab=buyer&amp;event=sunday-drop"');
+    expect(markup).toContain('href="/?tab=buyer&amp;event=tuesday-tool-run"');
+  });
+
+  it('uses sticky, space-taking rail geometry with a narrow stacked fallback', () => {
+    expect(channelGuideCss).toMatch(/\.channel-guide-panel\s*\{[^}]*position:\s*sticky/);
+    expect(channelGuideCss).toMatch(/\.channel-guide-panel\s*\{[^}]*height:\s*calc\(100vh - 4\.25rem\)/);
+    expect(channelGuideCss).toMatch(/\.channel-guide-panel\s*\{[^}]*border-right:\s*1px solid var\(--border\)/);
+    expect(channelGuideCss).not.toMatch(/\.channel-guide-panel\s*\{[^}]*border-radius/);
+    expect(channelGuideCss).toMatch(/@media \(max-width: 900px\)[\s\S]*?\.channel-guide-panel\s*\{[^}]*position:\s*static/);
+    expect(channelGuideCss).not.toContain('.channel-guide-layer');
+    expect(channelGuideCss).not.toContain('.channel-guide-scrim');
   });
 
   it('groups events under the three headings the owner picked', () => {

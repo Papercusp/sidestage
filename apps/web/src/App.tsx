@@ -1,10 +1,13 @@
 import { useCallback, useMemo, useState } from 'react';
+import { useSyncQuery } from '@papercusp/sync';
 import { TAB_GROUPS, tabHref, type TabId, useUrlTab } from './app-routing';
 import { AppDownloadButtons } from './components/AppDownloadButtons';
 import { BuildHistoryTab } from './BuildHistoryTab';
 import { BuyerTab } from './BuyerTab';
 import { BuyerCheckoutProvider } from './BuyerCheckout';
 import { browserEventId, DEFAULT_EVENT_TITLE, mediaBaseUrl } from './event-identity';
+import type { GuideEvent } from './events/api';
+import { ChannelGuide } from './events/ChannelGuide';
 import { OrdersTab } from './OrdersTab';
 import { SellerTab } from './SellerTab';
 import {
@@ -16,7 +19,7 @@ import { SystemTestsTab } from './SystemTestsTab';
 import { TestTab } from './TestTab';
 
 // Test-compat re-exports: the app shell remains the public face of these.
-export { getTabFromUrl, TAB_GROUPS, tabHref, TABS, type TabId } from './app-routing';
+export { eventWatchHref, getTabFromUrl, TAB_GROUPS, tabHref, TABS, type TabId } from './app-routing';
 export { variantToSellerProduct, variantToTranscriptOption, type CatalogProduct } from './seller-products';
 export { SystemTestsTab } from './SystemTestsTab';
 export { TestTab } from './TestTab';
@@ -39,17 +42,29 @@ export function App() {
      moves it. */
   const [activeEventId, setActiveEventId] = useState(browserEventId);
 
+  /* P-118 / D-019: one live directory powers the site-wide guide. Keeping the
+     query at this shell boundary means the rail and its data remain mounted as
+     the user moves among Watch, Orders, Studio, Releases, and Tests. */
+  const guideQuery = useSyncQuery<GuideEvent>({
+    queryName: 'events.guide',
+    args: {},
+    pollIntervalMs: 15_000,
+  });
+  const guideEvents = guideQuery.data ?? [];
+  const guideError = guideQuery.error ? 'Could not load the event guide.' : null;
+
   const selectEvent = useCallback((nextEventId: string) => {
     setActiveEventId(nextEventId);
     if (typeof window === 'undefined') return;
-    // Keep ?event= in step with what the buyer is watching. replaceState, not
-    // push: switching rooms in a guide is not a navigation a Back press should
-    // walk through one room at a time. The share button reads the same id, so
-    // a link copied after a switch points at the room actually on screen.
+    // From another page, first create the Watch history entry. Within Watch,
+    // room switches replace the current entry so Back does not walk through a
+    // stack of guide clicks. Either way the semantic row href stays copyable.
+    if (tab !== 'buyer') navigate('buyer');
     const url = new URL(window.location.href);
+    url.searchParams.set('tab', 'buyer');
     url.searchParams.set('event', nextEventId);
-    window.history.replaceState({}, '', url);
-  }, []);
+    window.history.replaceState({ tab: 'buyer', event: nextEventId }, '', url);
+  }, [navigate, tab]);
   const sellerVariants = useSellerCatalog();
   const sellerProducts = useMemo(
     () => sellerVariants.map((variant, index) => variantToSellerProduct(variant, index)),
@@ -96,34 +111,46 @@ export function App() {
       </header>
 
       <main className={layout.contentClassName} id="main-content" tabIndex={-1}>
-        {tab === 'buyer' ? (
-          <BuyerCheckoutProvider eventId={activeEventId}>
-            <BuyerTab
-              eventId={activeEventId}
-              eventTitle={DEFAULT_EVENT_TITLE}
-              mediaBaseUrl={mediaBaseUrl()}
-              onEventChange={selectEvent}
-            />
-          </BuyerCheckoutProvider>
-        ) : null}
-        {tab === 'orders' ? <OrdersTab /> : null}
-        {tab === 'seller' ? (
-          <SellerTab
-            selectedProduct={selectedProduct}
-            selectedProductId={selectedProductId}
-            transcriptProducts={transcriptProducts}
-            onActiveProductChange={setSelectedProductId}
+        <div className="app-content-layout">
+          <ChannelGuide
+            events={guideEvents}
+            currentEventId={activeEventId}
+            onSelect={selectEvent}
+            loading={guideQuery.loading}
+            error={guideError}
           />
-        ) : null}
-        {tab === 'history' ? <BuildHistoryTab /> : null}
-        {tab === 'test' ? <SystemTestsTab /> : null}
-        {layout.showFooter ? (
-          <footer className="footer">
-            <span>SideStage preview</span>
-            <AppDownloadButtons />
-            <span>Built for the live-selling floor</span>
-          </footer>
-        ) : null}
+
+          <div className="app-page-column">
+            {tab === 'buyer' ? (
+              <BuyerCheckoutProvider eventId={activeEventId}>
+                <BuyerTab
+                  eventId={activeEventId}
+                  eventTitle={DEFAULT_EVENT_TITLE}
+                  mediaBaseUrl={mediaBaseUrl()}
+                  guideEvents={guideEvents}
+                />
+              </BuyerCheckoutProvider>
+            ) : null}
+            {tab === 'orders' ? <OrdersTab /> : null}
+            {tab === 'seller' ? (
+              <SellerTab
+                selectedProduct={selectedProduct}
+                selectedProductId={selectedProductId}
+                transcriptProducts={transcriptProducts}
+                onActiveProductChange={setSelectedProductId}
+              />
+            ) : null}
+            {tab === 'history' ? <BuildHistoryTab /> : null}
+            {tab === 'test' ? <SystemTestsTab /> : null}
+            {layout.showFooter ? (
+              <footer className="footer">
+                <span>SideStage preview</span>
+                <AppDownloadButtons />
+                <span>Built for the live-selling floor</span>
+              </footer>
+            ) : null}
+          </div>
+        </div>
       </main>
     </div>
   );

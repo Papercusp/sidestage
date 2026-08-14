@@ -7,16 +7,16 @@
 
 .channel-guide-panel {
   position: sticky;
-  top: 1rem;
+  top: 4.25rem;
   align-self: start;
   display: flex;
   flex-direction: column;
   min-width: 0;
   width: 100%;
-  max-height: calc(100vh - 2rem);
+  height: calc(100vh - 4.25rem);
+  margin-top: clamp(-5rem, -6vw, -2.75rem);
   overflow: hidden;
-  border: 1px solid var(--border);
-  border-radius: .9rem;
+  border-right: 1px solid var(--border);
   background: var(--surface);
   box-shadow: var(--shadow-float);
 }
@@ -208,10 +208,16 @@
   font-weight: 700;
 }
 
-@media (max-width: 800px) {
+@media (max-width: 900px) {
   .channel-guide-panel {
     position: static;
+    height: auto;
     max-height: none;
+    margin-top: 0;
+    border-top: 1px solid var(--border);
+    border-right: 0;
+    border-bottom: 1px solid var(--border);
+    box-shadow: none;
   }
 
   .channel-guide-body {

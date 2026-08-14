@@ -1,4 +1,5 @@
 import { EventThumbnail } from '../event-creation/EventThumbnail';
+import { eventWatchHref } from '../app-routing';
 import type { GuideEvent } from './api';
 import { groupGuideEvents, rowMetaLabel } from './channel-guide';
 import './channel-guide.css';
@@ -19,9 +20,9 @@ export interface ChannelGuideProps {
 /**
  * The persistent "What's on" Channel Guide sidebar (P-118 / D-019).
  *
- * The guide is the leftmost child of the buyer grid, so it always occupies
- * layout space and never obscures the stream. At narrow widths the grid stacks
- * this same landmark above the room rather than turning it back into a drawer.
+ * The guide is the leftmost child of the shared app grid, so it stays mounted
+ * across every page, always occupies layout space, and never obscures content.
+ * At narrow widths the grid stacks this landmark rather than restoring a drawer.
  *
  * Every colour comes from the R3 :root tokens (D-004). No hex literal appears
  * in this component or its stylesheet.
@@ -74,10 +75,23 @@ export function ChannelGuide({
                       const current = event.eventId === currentEventId;
                       return (
                         <li key={event.eventId}>
-                          <button
-                            type="button"
+                          <a
+                            href={eventWatchHref(
+                              event.eventId,
+                              typeof window === 'undefined' ? '/' : window.location.href,
+                            )}
                             className={`channel-guide-row${current ? ' is-current' : ''}`}
-                            onClick={() => onSelect(event.eventId)}
+                            onClick={(click) => {
+                              if (
+                                click.button !== 0
+                                || click.metaKey
+                                || click.ctrlKey
+                                || click.shiftKey
+                                || click.altKey
+                              ) return;
+                              click.preventDefault();
+                              onSelect(event.eventId);
+                            }}
                             aria-current={current ? 'true' : undefined}
                           >
                             <EventThumbnail
@@ -97,7 +111,7 @@ export function ChannelGuide({
                                 ✓
                               </span>
                             ) : null}
-                          </button>
+                          </a>
                         </li>
                       );
                     })}
