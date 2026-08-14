@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   createTranscriptionSession,
   type TranscriptSegment,
@@ -20,6 +20,7 @@ export interface TranscriptPaneProps extends Omit<TranscriptionOptions, 'speechR
 export interface TranscriptProductOption {
   id: string;
   label: string;
+  price?: string;
   aliases?: readonly string[];
 }
 
@@ -41,6 +42,27 @@ export function findTranscriptProductMention(
     const normalizedTerm = normalizeMentionText(term);
     return normalizedTerm.length >= 2 && normalizedText.includes(` ${normalizedTerm} `);
   })) ?? null;
+}
+
+const STAGE_CONFIRMATIONS = new Set(['confirm', 'yes', 'stage it', 'do it', 'make active']);
+
+export type TranscriptStageIntent =
+  | { kind: 'propose'; product: TranscriptProductOption }
+  | { kind: 'confirm'; product: TranscriptProductOption }
+  | null;
+
+/** Resolve a final transcript into either a new proposal or confirmation of the pending one. */
+export function resolveTranscriptStageIntent(
+  text: string,
+  products: readonly TranscriptProductOption[],
+  pendingProduct: TranscriptProductOption | null,
+): TranscriptStageIntent {
+  const mention = findTranscriptProductMention(text, products);
+  if (mention) return { kind: 'propose', product: mention };
+  if (pendingProduct && STAGE_CONFIRMATIONS.has(normalizeMentionText(text))) {
+    return { kind: 'confirm', product: pendingProduct };
+  }
+  return null;
 }
 
 function stateLabel(state: TranscriptionState): string {
@@ -67,6 +89,7 @@ export function TranscriptPane({
   const [interim, setInterim] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [suggestedProduct, setSuggestedProduct] = useState<TranscriptProductOption | null>(null);
+  const suggestedProductRef = useRef<TranscriptProductOption | null>(null);
   const [internalActiveProductId, setInternalActiveProductId] = useState<string | null>(null);
   const resolvedActiveProductId = activeProductId === undefined ? internalActiveProductId : activeProductId;
   const activeProduct = products.find((product) => product.id === resolvedActiveProductId) ?? null;
@@ -74,7 +97,13 @@ export function TranscriptPane({
   const selectActiveProduct = (productId: string | null) => {
     if (activeProductId === undefined) setInternalActiveProductId(productId);
     onActiveProductChange?.(productId);
+    suggestedProductRef.current = null;
     setSuggestedProduct(null);
+  };
+
+  const proposeProduct = (product: TranscriptProductOption) => {
+    suggestedProductRef.current = product;
+    setSuggestedProduct(product);
   };
 
   useEffect(() => {
@@ -83,8 +112,9 @@ export function TranscriptPane({
       if (segment.isFinal) {
         setFinalSegments((current) => [...current, segment]);
         void onFinalSegment?.(segment);
-        const mention = findTranscriptProductMention(segment.text, products);
-        if (mention) setSuggestedProduct(mention);
+        const intent = resolveTranscriptStageIntent(segment.text, products, suggestedProductRef.current);
+        if (intent?.kind === 'propose') proposeProduct(intent.product);
+        if (intent?.kind === 'confirm') selectActiveProduct(intent.product.id);
         setInterim('');
       } else {
         setInterim(segment.text);
@@ -135,8 +165,12 @@ export function TranscriptPane({
           {activeProduct ? <p className="transcript-active-item">Now guiding replies toward <strong>{activeProduct.label}</strong>.</p> : null}
           {suggestedProduct ? (
             <div className="transcript-suggestion" role="status">
-              <span>Mention detected: <strong>{suggestedProduct.label}</strong></span>
-              <button className="button secondary" type="button" onClick={() => selectActiveProduct(suggestedProduct.id)}>Make active</button>
+              <span>
+                Mention detected: <strong>{suggestedProduct.label}</strong>
+                {suggestedProduct.price ? <small>{suggestedProduct.price}</small> : null}
+                <small>Say “confirm” or tap Stage it.</small>
+              </span>
+              <button className="button secondary" type="button" onClick={() => selectActiveProduct(suggestedProduct.id)}>Stage it</button>
             </div>
           ) : null}
         </div>

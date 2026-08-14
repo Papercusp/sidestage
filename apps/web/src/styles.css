@@ -16,17 +16,26 @@
   --surface-raised: #FFFFFF;     /* raised = white card + border/shadow on cream */
   --border: #EBDFCC;
   --text: #2A1F1A;               /* espresso — ~13.9:1 on --bg */
-  --muted: #8A7A6C;              /* from the picked mockup */
+  /* Secondary text. The mockup's #8A7A6C measured 3.54–4.13:1 against the light surfaces it
+     actually lands on (worst: a tinted well at #FAEBE2), i.e. below the 4.5:1 AA floor for
+     body text — and it is the single most-used colour in the app, so it accounted for EVERY
+     contrast failure on all four tabs in the P-004 audit. Darkened along the same warm-brown
+     hue until the worst case clears AA (measured 4.61:1 there, 5.09 on --bg, 5.37 on white)
+     while staying clearly lighter than --text. */
+  --muted: #77685A;
 
   /* Brand set */
   --brand-red: #D62B1F;          /* CTAs / LIVE badge / logo accent */
   --on-brand-red: #FFF8F5;       /* text on red fills */
-  --red-text: #C2271C;           /* red used AS text on light ground */
+  /* Red used AS text. Measured 4.30:1 on the red-tinted chip grounds it actually sits on
+     (#F8D6CD) — under AA — so it is darkened a step. The BRAND red above is untouched: D-004
+     pins #D62B1F, and this is its text-only derivative, not the CTA fill. */
+  --red-text: #B52218;
   --brand-red-hover: #C2271C;
   --brand-red-active: #B42217;
   --brand-yellow: #FFC400;       /* deal bands, prices, timer */
   --on-brand-yellow: #2A1F04;    /* text on yellow fills */
-  --yellow-text: #A66A00;        /* yellow-derived text on light (AA) */
+  --yellow-text: #9B6300;        /* yellow-derived text on light — 4.77:1 on --bg (was 4.25, under AA) */
   --brand-yellow-hover: #EDB400;
   --brand-yellow-active: #D9A500;
 
@@ -39,8 +48,13 @@
   --amber: var(--brand-yellow);
 
   /* Semantic set (D-003: visibly distinct from brand) */
-  --success: #1E7F4F;            /* forest green */
-  --warning: #A66A00;            /* dark amber — must NOT read as brand yellow */
+  /* Both darkened a step after the P-004 audit measured them as text on their OWN tint chips
+     ("100 ready", "Required"): success was 3.96:1 there and warning 4.25:1, both under AA.
+     Darkening the ink rather than lightening the tints keeps the chips readable as coloured
+     status without weakening the tint that carries the status meaning. D-003 still holds —
+     warning stays a dark amber that cannot be mistaken for the brand yellow. */
+  --success: #196B42;            /* forest green — 5.15:1 on its own tint chip */
+  --warning: #9B6300;            /* dark amber — must NOT read as brand yellow */
   --danger: #A61B10;             /* darker crimson; outlined treatment, never CTA fill */
 
   /* Elevation. A named token so panel/dock chrome never inlines a shadow
@@ -183,7 +197,13 @@ h1 { margin: 0; max-width: 720px; font-size: clamp(3rem, 7vw, 5.8rem); line-heig
 .card-action:hover { border-color: var(--red-text); color: var(--red-text); }
 .button { border: 1px solid var(--border); border-radius: .65rem; padding: .72rem 1rem; color: var(--text); background: var(--surface-glass); font-weight: 650; transition: transform .2s ease, border-color .2s ease, background .2s ease; }
 .button:hover { transform: translateY(-1px); border-color: color-mix(in srgb, var(--brand-red) 55%, transparent); }
-.button.primary { color: var(--on-brand-red); background: var(--brand-red); border-color: var(--brand-red); box-shadow: 0 8px 28px color-mix(in srgb, var(--brand-red) 26%, transparent); }
+/* The primary CTA is a brand-red FILL, which makes it a small theme island like the video
+   inset: a descendant asking for --text or --muted must get an on-red value or it disappears
+   into the fill. Concretely, `.event-creation-footer span { color: var(--muted) }` also
+   catches the arrow glyph inside "Create event →", which measured 1.2:1 before this. Binding
+   the tokens on the button fixes that case and every future one, rather than chasing each
+   descendant selector that happens to reach inside a filled button. */
+.button.primary { color: var(--on-brand-red); background: var(--brand-red); border-color: var(--brand-red); box-shadow: 0 8px 28px color-mix(in srgb, var(--brand-red) 26%, transparent); --text: var(--on-brand-red); --muted: var(--on-brand-red); --red-text: var(--on-brand-red); --accent-strong: var(--on-brand-red); }
 .seller-grid, .config-grid { display: grid; grid-template-columns: 1.2fr .8fr; gap: var(--ss-gap); margin-top: var(--ss-section-gap); }
 .stage-panel, .settings-panel, .readiness-panel { border: 1px solid var(--border); border-radius: .9rem; padding: var(--ss-pad); background: var(--panel-grad); box-shadow: 0 18px 50px rgb(var(--shadow-hue) / 17%); }
 .event-chat-card { grid-column: 1 / -1; }
@@ -246,6 +266,9 @@ h1 { margin: 0; max-width: 720px; font-size: clamp(3rem, 7vw, 5.8rem); line-heig
 .transcript-picker select:focus { outline: 2px solid color-mix(in srgb, var(--brand-red) 36%, transparent); outline-offset: 1px; border-color: var(--red-text); }
 .transcript-active-item { margin: 0; color: var(--success); font-size: .74rem; line-height: 1.45; }
 .transcript-suggestion { display: flex; align-items: center; justify-content: space-between; gap: .75rem; padding: .65rem .75rem; border: 1px solid color-mix(in srgb, var(--brand-yellow) 30%, transparent); border-radius: .55rem; color: var(--red-text); background: color-mix(in srgb, var(--brand-yellow) 7%, transparent); font-size: .74rem; line-height: 1.4; }
+.transcript-suggestion > span { display: grid; gap: .18rem; }
+.transcript-suggestion small { color: var(--muted); font-size: .66rem; }
+.transcript-suggestion small:first-of-type { color: var(--yellow-text); font-weight: 750; font-variant-numeric: tabular-nums; }
 .transcript-suggestion .button { flex: 0 0 auto; padding: .48rem .65rem; font-size: .7rem; }
 .copilot-panel { grid-column: 1 / -1; border: 1px solid color-mix(in srgb, var(--brand-red) 24%, transparent); border-radius: .9rem; padding: 1.35rem; background: var(--panel-grad-brand); box-shadow: 0 18px 50px rgb(var(--shadow-hue) / 18%); }
 .copilot-panel-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 1rem; }
