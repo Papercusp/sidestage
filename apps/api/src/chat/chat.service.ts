@@ -254,6 +254,7 @@ export class ChatService {
     if (state.transcript.length > MAX_TRANSCRIPT_MOMENTS) {
       state.transcript.splice(0, state.transcript.length - MAX_TRANSCRIPT_MOMENTS);
     }
+    this.emitInvalidation(eventId, 'event.chat.transcript');
     this.emitInvalidation(eventId, 'event.replay.chapters');
     return { ...moment };
   }
