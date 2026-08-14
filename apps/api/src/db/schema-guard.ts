@@ -49,6 +49,7 @@ export interface SchemaQueryable {
 export const REQUIRED_TABLES: readonly string[] = [
   'cart',
   'checkout_order',
+  'copilot_proposal',
   'event',
   'event_config',
   'event_run_of_show',

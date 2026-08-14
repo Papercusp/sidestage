@@ -45,6 +45,16 @@ export interface WebResearchFinding {
   attributes?: Record<string, string | number | boolean>;
 }
 
+/** A seller transcript excerpt that can ground a buyer-facing reply. */
+export interface TranscriptGroundingContext {
+  transcriptId: string;
+  text: string;
+  startMs?: number;
+  endMs?: number;
+  productId?: string;
+  productTitle?: string;
+}
+
 /** The Config tab's policy snapshot used for one copilot turn. */
 export interface CopilotPolicy {
   automationLevel: AutomationLevel;
@@ -74,13 +84,14 @@ export interface CopilotPolicy {
 
 export interface GroundingSource {
   id: string;
-  kind: 'event-item' | 'catalog-product' | 'web-research' | 'policy';
+  kind: 'event-item' | 'catalog-product' | 'web-research' | 'transcript' | 'policy';
   label: string;
 }
 
 export interface GroundingContext {
   eventItems: readonly EventItemContext[];
   catalogProducts: readonly CatalogProductContext[];
+  transcriptMoments?: readonly TranscriptGroundingContext[];
   webFindings?: readonly WebResearchFinding[];
   policy: CopilotPolicy;
   sources: readonly GroundingSource[];

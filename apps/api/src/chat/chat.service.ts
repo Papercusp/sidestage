@@ -13,6 +13,8 @@ export interface ChatMessage {
   text: string;
   createdAt: string;
   grounding?: ChatGrounding;
+  /** Mutation idempotency key; Copilot approval uses the proposal id. */
+  clientRequestId?: string;
 }
 
 export interface ChatGrounding {
@@ -73,6 +75,7 @@ export interface ChatMessageInput {
   displayName?: unknown;
   role?: unknown;
   text?: unknown;
+  clientRequestId?: unknown;
 }
 
 export interface PresenceInput {
@@ -92,6 +95,7 @@ interface EventState {
   transcript: TranscriptMoment[];
   presence: Map<string, ChatPresence>;
   updates: Subject<ChatSseEvent>;
+  idempotentMessages: Map<string, ChatMessage>;
 }
 
 const EVENT_ID_RE = /^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$/;
@@ -125,7 +129,7 @@ function questionTokens(value: string): string[] {
     .filter((token) => token.length >= 3 && !STOP_WORDS.has(token));
 }
 
-function isBuyerQuestion(value: string): boolean {
+export function isBuyerQuestion(value: string): boolean {
   return value.includes('?') || /^(what|when|where|who|why|how|is|are|does|do|can|could|will|would)\b/i.test(value.trim());
 }
 
@@ -148,6 +152,7 @@ function citationLabel(startMs?: number): string {
 @Injectable()
 export class ChatService {
   private readonly events = new Map<string, EventState>();
+  private readonly messages = new Subject<ChatMessage>();
   private readonly clock = () => Date.now();
   private sequence = 0;
 
@@ -161,6 +166,14 @@ export class ChatService {
     const state = this.getEvent(eventId);
     this.prunePresence(state);
     return state.messages.map((message) => ({ ...message }));
+  }
+
+  getTranscript(eventId: string): TranscriptMoment[] {
+    return this.getEvent(eventId).transcript.map((moment) => ({ ...moment }));
+  }
+
+  messageEvents(): Observable<ChatMessage> {
+    return this.messages.asObservable();
   }
 
   getPresence(eventId: string): ChatPresence[] {
@@ -213,6 +226,11 @@ export class ChatService {
     const displayName = this.readBoundedString(input.displayName, 'displayName', MAX_DISPLAY_NAME_LENGTH);
     const text = this.readBoundedString(input.text, 'text', MAX_MESSAGE_LENGTH);
     const role = this.readRole(input.role);
+    const clientRequestId = this.readOptionalBoundedString(input.clientRequestId, 'clientRequestId', 160);
+    if (clientRequestId) {
+      const existing = state.idempotentMessages.get(clientRequestId);
+      if (existing) return { ...existing };
+    }
     const now = this.clock();
     const message: ChatMessage = {
       id: `${eventId}-${++this.sequence}`,
@@ -222,39 +240,11 @@ export class ChatService {
       role,
       text,
       createdAt: new Date(now).toISOString(),
+      ...(clientRequestId ? { clientRequestId } : {}),
     };
-
-    if (role === 'buyer' && isBuyerQuestion(text)) {
-      const groundedMoment = this.findGroundedMoment(state, text);
-      if (groundedMoment) {
-        const citation = {
-          transcriptId: groundedMoment.id,
-          label: citationLabel(groundedMoment.startMs),
-          quote: groundedMoment.text,
-          startMs: groundedMoment.startMs,
-        };
-        message.grounding = { status: 'answered', citation };
-        state.messages.push(message, {
-          id: `${eventId}-${++this.sequence}`,
-          eventId,
-          userId: 'sidestage-copilot',
-          displayName: 'SideStage copilot',
-          role: 'seller',
-          text: `From the live transcript: “${groundedMoment.text}”`,
-          createdAt: message.createdAt,
-          grounding: {
-            status: 'answered',
-            sourceMessageId: message.id,
-            citation,
-          },
-        });
-      } else {
-        message.grounding = { status: 'seller-queue' };
-        state.messages.push(message);
-      }
-    } else {
-      state.messages.push(message);
-    }
+    if (role === 'buyer' && isBuyerQuestion(text)) message.grounding = { status: 'seller-queue' };
+    state.messages.push(message);
+    if (clientRequestId) state.idempotentMessages.set(clientRequestId, message);
 
     if (state.messages.length > MAX_MESSAGES) state.messages.splice(0, state.messages.length - MAX_MESSAGES);
     state.presence.set(userId, {
@@ -266,6 +256,7 @@ export class ChatService {
     this.emitInvalidation(eventId, 'event.chat.messages');
     this.emitInvalidation(eventId, 'event.chat.presence');
     this.emitInvalidation(eventId, 'event.chat.stats');
+    this.messages.next({ ...message });
     return { ...message };
   }
 
@@ -322,22 +313,16 @@ export class ChatService {
     }
     let state = this.events.get(eventId);
     if (!state) {
-      state = { messages: [], transcript: [], presence: new Map(), updates: new Subject<ChatSseEvent>() };
+      state = {
+        messages: [],
+        transcript: [],
+        presence: new Map(),
+        updates: new Subject<ChatSseEvent>(),
+        idempotentMessages: new Map(),
+      };
       this.events.set(eventId, state);
     }
     return state;
-  }
-
-  private findGroundedMoment(state: EventState, question: string): TranscriptMoment | null {
-    const tokens = new Set(questionTokens(question));
-    if (tokens.size === 0) return null;
-    let winner: { moment: TranscriptMoment; score: number } | null = null;
-    for (const moment of state.transcript) {
-      const momentTokens = new Set(questionTokens(moment.text));
-      const score = [...tokens].filter((token) => momentTokens.has(token)).length;
-      if (score > 0 && (!winner || score >= winner.score)) winner = { moment, score };
-    }
-    return winner?.moment ?? null;
   }
 
   private prunePresence(state: EventState): void {

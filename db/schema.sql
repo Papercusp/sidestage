@@ -563,6 +563,25 @@ CREATE TABLE IF NOT EXISTS event_config (
   CONSTRAINT event_config_payload_object CHECK (jsonb_typeof(payload) = 'object')
 );
 
+-- Seller Copilot review queue. The JSON payload is the auditable generation
+-- snapshot; hot lifecycle columns make event/status reads and optimistic review
+-- transitions cheap without splitting the provider-neutral contract apart.
+CREATE TABLE IF NOT EXISTS copilot_proposal (
+  id text PRIMARY KEY,
+  event_id text NOT NULL,
+  source_message_id text NOT NULL,
+  status text NOT NULL CHECK (status IN ('pending', 'approved', 'skipped', 'blocked', 'executed')),
+  revision integer NOT NULL CHECK (revision > 0),
+  payload jsonb NOT NULL,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now(),
+  CONSTRAINT copilot_proposal_payload_object CHECK (jsonb_typeof(payload) = 'object'),
+  CONSTRAINT copilot_proposal_source_unique UNIQUE (event_id, source_message_id)
+);
+
+CREATE INDEX IF NOT EXISTS copilot_proposal_event_created_idx
+  ON copilot_proposal (event_id, created_at DESC);
+
 -- The seller's run of show for one event: planned product order, per-product
 -- time budgets, and talking-point notes (plan sidestage-run-of-show-planner-
 -- 2026-08-14). One jsonb document per event, same shape of seam as

@@ -63,6 +63,14 @@ export function buildGroundingPrompt(context: GroundingContext): string {
     url: finding.url ?? null,
     attributes: finding.attributes ?? {},
   }));
+  const transcriptMoments = (context.transcriptMoments ?? []).map((moment) => ({
+    sourceId: `transcript:${moment.transcriptId}`,
+    transcriptId: moment.transcriptId,
+    text: moment.text,
+    startMs: moment.startMs ?? null,
+    productId: moment.productId ?? null,
+    productTitle: moment.productTitle ?? null,
+  }));
 
   return [
     'You are the SideStage seller copilot. Answer only from VERIFIED_CONTEXT.',
@@ -73,6 +81,7 @@ export function buildGroundingPrompt(context: GroundingContext): string {
     JSON.stringify({
       eventItems,
       catalogProducts,
+      transcriptMoments,
       webFindings,
       policy: context.policy,
       sources: context.sources,
