@@ -46,12 +46,34 @@ function formatCountdown(seconds: number): string {
 }
 
 /**
+ * The auction's phase, from the two authorities that actually hold it.
+ *
+ * The CLOCK is authoritative for "bidding is over": `endsAt` is already in
+ * hand, so it needs no round-trip and cannot go stale. The SERVER is
+ * authoritative only for the OUTCOME — who won, at what price.
+ *
+ * Splitting them that way is what keeps a dropped stream from ever rendering a
+ * live-looking panel past `endsAt`. Deriving closedness from `status` alone
+ * left a window where the clock had run out but the snapshot still said
+ * 'active', and the panel showed "0:00 left" beside a live bid count and a
+ * present-tense "X leads" — a pre-close reading the clock already disproved.
+ * The worst case now is 'settling' (over; winner not confirmed yet), which is
+ * true rather than merely stale.
+ */
+export type AuctionPhase = 'live' | 'settling' | 'closed';
+
+export function auctionPhase(status: AuctionStatus | undefined, remaining: number): AuctionPhase {
+  if (status === 'closed') return 'closed';
+  return remaining > 0 ? 'live' : 'settling';
+}
+
+/**
  * The closing call, derived from the real server clock — never invented.
  * Absolute thresholds (not a fraction of the total) because urgency is felt
  * in seconds, and an auction here can be extended by a late bid.
  */
-function closingCall(status: AuctionStatus | undefined, remaining: number): 'once' | 'twice' | null {
-  if (status !== 'active' || remaining <= 0) return null;
+function closingCall(phase: AuctionPhase, remaining: number): 'once' | 'twice' | null {
+  if (phase !== 'live') return null;
   if (remaining <= 2) return 'twice';
   if (remaining <= 5) return 'once';
   return null;
@@ -134,17 +156,21 @@ export function AuctionPanel({
   }, []);
 
   const remaining = auction ? secondsRemaining(auction.endsAt, nowMs) : 0;
+  const phase = auctionPhase(auction?.status, remaining);
+
+  // Entering `settling` asks for the outcome we don't have yet — it never
+  // re-checks one we do. The 2s `pollIntervalMs` below already carries the
+  // result on its own; this only shortens the wait for it.
   useEffect(() => {
-    if (auction?.status !== 'active' || remaining !== 0) return;
+    if (!auction || phase !== 'settling') return;
     auctionQuery.invalidate();
-    if (auctionQuery.error) void refreshFromRest();
-  }, [auction?.id, auction?.status, auctionQuery.error, auctionQuery.invalidate, refreshFromRest, remaining]);
+  }, [auction, auctionQuery.invalidate, phase]);
 
   const product = useMemo(() => products.find((candidate) => candidate.id === auction?.productId), [auction?.productId, products]);
   const leadingBid = auction?.bids[0];
   const isLeading = leadingBid?.bidderId === bidderId;
   const parsedBid = parseBidDollars(bidDraft);
-  const canBid = Boolean(auction && auction.status === 'active' && remaining > 0 && parsedBid !== null && parsedBid > auction.currentPriceCents && !submitting);
+  const canBid = Boolean(auction && phase === 'live' && parsedBid !== null && parsedBid > auction.currentPriceCents && !submitting);
 
   // The ring is drawn against the auction's OWN duration, which moves when a
   // late bid extends endsAt — so it is recomputed rather than pinned at start.
@@ -153,8 +179,9 @@ export function AuctionPanel({
     : 1;
   const remainingFraction = Math.min(1, Math.max(0, remaining / totalSeconds));
   const urgency = urgencyOf(remaining);
-  const call = closingCall(auction?.status, remaining);
-  const isClosed = auction?.status === 'closed';
+  const call = closingCall(phase, remaining);
+  const isClosed = phase === 'closed';
+  const isSettling = phase === 'settling';
   const recentBids = auction ? auction.bids.slice(0, FEED_LENGTH) : [];
 
   const submitBid = async (event: FormEvent<HTMLFormElement>) => {
@@ -197,14 +224,20 @@ export function AuctionPanel({
 
       {auction ? (
         <>
-          <div className={`auction-stage auction-stage-${urgency}${isClosed ? ' is-closed' : ''}`}>
+          <div className={`auction-stage auction-stage-${urgency}${isClosed ? ' is-closed' : ''}${isSettling ? ' is-settling' : ''}`}>
             {/* The clock is a timer, not a live region: it ticks four times a
                 second and would drown every other announcement. */}
             <div
               className="auction-clock"
               role="timer"
               aria-live="off"
-              aria-label={isClosed ? 'Auction closed' : `${Math.max(0, Math.ceil(remaining))} seconds left`}
+              aria-label={
+                isClosed
+                  ? 'Auction closed'
+                  : isSettling
+                    ? 'Bidding closed, confirming the result'
+                    : `${Math.max(0, Math.ceil(remaining))} seconds left`
+              }
             >
               <svg className="auction-ring" viewBox="0 0 100 100" aria-hidden="true">
                 <circle className="auction-ring-track" cx="50" cy="50" r={RING_RADIUS} />
@@ -219,21 +252,25 @@ export function AuctionPanel({
               </svg>
               <span className="auction-clock-face" aria-hidden="true">
                 <strong>{isClosed ? '—' : formatCountdown(remaining)}</strong>
-                <small>{isClosed ? 'closed' : 'left'}</small>
+                {/* "left" would be a lie at 0:00 — bidding has already ended,
+                    only the result is outstanding. */}
+                <small>{isClosed ? 'closed' : isSettling ? 'closing' : 'left'}</small>
               </span>
             </div>
 
             <div className="auction-headline" aria-live="polite">
               <span className="auction-price-label">Current bid</span>
               <strong className="auction-price">{formatBuyerPrice(auction.currentPriceCents)}</strong>
-              <span className={`auction-call${call ? ` is-${call}` : ''}${isClosed ? ' is-sold' : ''}`}>
+              <span className={`auction-call${call ? ` is-${call}` : ''}${isClosed ? ' is-sold' : ''}${isSettling ? ' is-settling' : ''}`}>
                 {isClosed
                   ? 'Sold'
-                  : call === 'twice'
-                    ? 'Going twice'
-                    : call === 'once'
-                      ? 'Going once'
-                      : `${auction.bids.length} ${auction.bids.length === 1 ? 'bid' : 'bids'}`}
+                  : isSettling
+                    ? 'Confirming'
+                    : call === 'twice'
+                      ? 'Going twice'
+                      : call === 'once'
+                        ? 'Going once'
+                        : `${auction.bids.length} ${auction.bids.length === 1 ? 'bid' : 'bids'}`}
               </span>
             </div>
 
@@ -259,13 +296,20 @@ export function AuctionPanel({
             </div>
           </div>
           <div className={`auction-leader${isLeading ? ' is-you' : ''}`}>
-            {auction.status === 'closed'
+            {isClosed
               ? auction.winnerOrder?.bidderId === bidderId
                 ? 'You won—your item is ready for checkout.'
                 : leadingBid ? `${leadingBid.displayName ?? 'A buyer'} won at ${formatBuyerPrice(leadingBid.amountCents)}.` : 'The auction closed without a bid.'
-              : isLeading
-                ? `You’re leading at ${formatBuyerPrice(leadingBid.amountCents)}.`
-                : leadingBid ? `${leadingBid.displayName ?? 'A buyer'} leads at ${formatBuyerPrice(leadingBid.amountCents)}.` : `Opening bid is ${formatBuyerPrice(auction.startingPriceCents)}.`}
+              /* Past tense while settling: bidding is over, so "leads" would
+                 invite a bid that can no longer be placed. The winner is not
+                 announced until the server confirms it. */
+              : isSettling
+                ? leadingBid
+                  ? `${isLeading ? 'You' : leadingBid.displayName ?? 'A buyer'} had the last bid at ${formatBuyerPrice(leadingBid.amountCents)}—confirming the result.`
+                  : 'Bidding closed without a bid.'
+                : isLeading
+                  ? `You’re leading at ${formatBuyerPrice(leadingBid.amountCents)}.`
+                  : leadingBid ? `${leadingBid.displayName ?? 'A buyer'} leads at ${formatBuyerPrice(leadingBid.amountCents)}.` : `Opening bid is ${formatBuyerPrice(auction.startingPriceCents)}.`}
           </div>
           <form className="auction-bid-form" onSubmit={(event) => void submitBid(event)}>
             <label htmlFor={`auction-bid-${auction.id}`}>Your bid</label>
@@ -276,7 +320,7 @@ export function AuctionPanel({
                 inputMode="decimal"
                 value={bidDraft}
                 onChange={(event) => setBidDraft(event.target.value)}
-                disabled={auction.status !== 'active' || remaining === 0 || submitting}
+                disabled={phase !== 'live' || submitting}
                 aria-describedby={`auction-bid-help-${auction.id}`}
               />
               <button className="button primary" type="submit" disabled={!canBid}>{submitting ? 'Placing…' : 'Place bid'}</button>

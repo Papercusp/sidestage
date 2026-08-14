@@ -330,9 +330,9 @@ export function BuyerTab({
           <ReplayChapters eventId={eventId} videoRef={videoRef} apiBaseUrl={resolveApiBaseUrl()} />
 
           <div className="buyer-stats" aria-label="Event stats">
-            <div><strong>{stats.viewers}</strong><span>watching</span></div>
-            <div><strong>{stats.itemsSold}</strong><span>items sold</span></div>
-            <div><strong>{formatBuyerPrice(stats.totalRaisedCents)}</strong><span>raised</span></div>
+            <span><strong>{stats.viewers}</strong> watching</span>
+            <span><strong>{stats.itemsSold}</strong> items sold</span>
+            <span><strong>{formatBuyerPrice(stats.totalRaisedCents)}</strong> raised</span>
           </div>
 
           <AuctionPanel
