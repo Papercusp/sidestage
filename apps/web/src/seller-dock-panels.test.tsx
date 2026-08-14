@@ -42,7 +42,7 @@ describe('seller panel registry', () => {
   /**
    * Guards the remount hazard documented on the components: dockview keys a
    * panel's React tree by component identity, so an adapter rebuilt per call
-   * would tear down the video preview / transcript socket / chat subscription
+   * would tear down the video preview or chat subscription
    * on every render. Two independent registries must hand back the SAME
    * component objects.
    */
