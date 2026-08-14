@@ -54,6 +54,7 @@ describe('buildRunOfShowView', () => {
     expect(view.nextUp?.productId).toBe('b');
     expect(view.remainingCount).toBe(2);
     expect(view.offPlanActive).toBeNull();
+    expect(view.totalElapsedSec).toBe(30);
   });
 
   it('an off-plan product is a detour, never an error — plan resumes where left', () => {
@@ -65,6 +66,7 @@ describe('buildRunOfShowView', () => {
     expect(view.activeSlot).toBeNull();
     expect(view.slots[0]!.state).toBe('done');
     expect(view.nextUp?.productId).toBe('b');
+    expect(view.totalElapsedSec).toBe(90);
   });
 
   it('pace sums over/under across touched budgeted slots only', () => {

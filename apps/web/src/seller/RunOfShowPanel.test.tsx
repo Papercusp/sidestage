@@ -14,8 +14,18 @@ const T0 = 1_000_000_000_000;
 const ENTRIES: RunOfShowEntry[] = [
   { productId: 'a', plannedDurationSec: 300, notes: 'Lead with the glaze story.' },
   { productId: 'b', plannedDurationSec: 120, notes: '' },
+  { productId: 'c', plannedDurationSec: 180, notes: 'Call out the hand-painted rim.' },
 ];
-const TITLES = { a: 'Aurora Cup', b: 'Beacon Mug' };
+const TITLES = { a: 'Aurora Cup', b: 'Beacon Mug', c: 'Comet Bowl' };
+const ACTIVE_PRODUCT = {
+  id: 'a',
+  name: 'Aurora Cup',
+  price: '$42.00',
+  description: 'Hand-finished stoneware.',
+  stockLabel: '3 available',
+  tone: 'cyan' as const,
+  glyph: '◒',
+};
 
 function viewAt(activeProductId: string | null) {
   let log = emptyStageLog();
@@ -26,7 +36,14 @@ function viewAt(activeProductId: string | null) {
 describe('RunOfShowPanelView', () => {
   it('surfaces the staged product notes, its clock against budget, and the pace line', () => {
     const html = renderToStaticMarkup(
-      <RunOfShowPanelView view={viewAt('a')} loaded error={null} onStageNext={() => undefined} />,
+      <RunOfShowPanelView
+        view={viewAt('a')}
+        loaded
+        error={null}
+        onStageNext={() => undefined}
+        activeProduct={ACTIVE_PRODUCT}
+        pricingHistory={<p>Pricing history fixture</p>}
+      />,
     );
     // Notes appear unprompted with the staged product (D-002).
     expect(html).toContain('Lead with the glaze story.');
@@ -36,9 +53,30 @@ describe('RunOfShowPanelView', () => {
     // Next-up is a suggestion with a one-tap action, not an auto-stage (D-001).
     expect(html).toContain('Next up');
     expect(html).toContain('Beacon Mug');
-    expect(html).toContain('Put on deck');
+    expect(html).toContain('Take live');
+    // The former On Deck content now lives inside the one active timeline card.
+    expect(html).toContain('$42.00');
+    expect(html).toContain('3 available');
+    expect(html).toContain('Pricing history fixture');
     // Aggregate pace line present.
     expect(html).toContain('On pace');
+    expect(html).toContain('1:05 elapsed');
+    // Later products are compact disclosures rather than additional open panes.
+    expect(html).toContain('run-of-show-later-card');
+    expect(html).toContain('Comet Bowl');
+  });
+
+  it('groups completed slots behind a collapsed disclosure', () => {
+    let log = stageLogOnProductChange(emptyStageLog(), 'a', T0);
+    log = stageLogOnProductChange(log, 'b', T0 + 45_000);
+    const view = buildRunOfShowView({ entries: ENTRIES, titles: TITLES, log, nowMs: T0 + 65_000 });
+    const html = renderToStaticMarkup(
+      <RunOfShowPanelView view={view} loaded error={null} onStageNext={() => undefined} />,
+    );
+
+    expect(html).toContain('<summary>1 completed</summary>');
+    expect(html).toContain('Aurora Cup');
+    expect(html).toContain('aria-current="step"');
   });
 
   it('renders the planless empty state with a pointer to the planner', () => {
