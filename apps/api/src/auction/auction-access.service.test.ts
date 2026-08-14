@@ -41,12 +41,13 @@ describe('AuctionAccessService', () => {
 
   it('fails closed in production and accepts only the configured seller bearer', () => {
     const production = new AuctionAccessService({ NODE_ENV: 'production' } as NodeJS.ProcessEnv);
-    expect(statusOf(() => production.requireSeller(`Bearer ${SELLER_TOKEN}`))).toBe(503);
+    expect(statusOf(() => production.requireSeller(`Bearer ${SELLER_TOKEN}`, 'seller-alpha'))).toBe(503);
 
     const access = accessAt();
-    expect(access.requireSeller(`Bearer ${SELLER_TOKEN}`)).toEqual({ sellerId: 'sidestage-seller' });
-    expect(statusOf(() => access.requireSeller('Bearer forged-token'))).toBe(401);
-    expect(statusOf(() => access.requireSeller(undefined))).toBe(401);
+    expect(access.requireSeller(`Bearer ${SELLER_TOKEN}`, 'buyer-alpha')).toEqual({ sellerId: 'seller-alpha' });
+    expect(statusOf(() => access.requireSeller(`Bearer ${SELLER_TOKEN}`, undefined))).toBe(401);
+    expect(statusOf(() => access.requireSeller('Bearer forged-token', 'seller-alpha'))).toBe(401);
+    expect(statusOf(() => access.requireSeller(undefined, 'seller-alpha'))).toBe(401);
   });
 
   it('mints, verifies, reuses, expires, and rejects tampered HttpOnly guest identity', () => {
@@ -95,7 +96,12 @@ describe('AuctionController write boundary', () => {
       record: (record: AuctionAuditRecord) => records.push(record),
       reasonCode: vi.fn().mockReturnValue('UNEXPECTED'),
     };
-    const controller = new AuctionController(auctions as never, access as never, audit as never);
+    const controller = new AuctionController(
+      auctions as never,
+      access as never,
+      audit as never,
+      { requireOwnedForSeller: vi.fn() } as never,
+    );
 
     await expect(controller.bid(
       'auction-1',
@@ -133,7 +139,12 @@ describe('AuctionController write boundary', () => {
       record: (record: AuctionAuditRecord) => records.push(record),
       reasonCode: vi.fn().mockReturnValue('AUCTION_SELLER_AUTH_REQUIRED'),
     };
-    const controller = new AuctionController(auctions as never, access as never, audit as never);
+    const controller = new AuctionController(
+      auctions as never,
+      access as never,
+      audit as never,
+      { requireOwnedForSeller: vi.fn() } as never,
+    );
     const input = {
       eventId: 'event-1',
       eventItemId: 'item-1',
