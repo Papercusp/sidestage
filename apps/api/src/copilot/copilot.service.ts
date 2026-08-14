@@ -199,6 +199,7 @@ export class CopilotProposalService {
         groundingFingerprint: groundingFingerprint(response.context),
         replyGuardrail: response.replyGuardrail ?? { allowed: false, explanation: 'Reply guard did not run.' },
         action: response.action,
+        latencyMs: response.latencyMs,
         status: response.grounding === 'grounded' && response.replyGuardrail?.allowed ? 'pending' : 'blocked',
         revision: 1,
         ...(

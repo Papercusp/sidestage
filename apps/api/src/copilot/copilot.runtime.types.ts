@@ -39,6 +39,8 @@ export interface CopilotProposal {
   groundingFingerprint: string;
   replyGuardrail: GuardrailDecision;
   action?: ActionResult;
+  /** Measured end-to-end generation latency for the visible release budget. */
+  latencyMs?: number;
   status: CopilotProposalStatus;
   revision: number;
   error?: string;

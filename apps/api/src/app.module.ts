@@ -20,9 +20,10 @@ import { ScoutModule } from './scout/scout.module';
 import { ShippingModule } from './shipping/shipping.module';
 import { StatsModule } from './stats/stats.module';
 import { SyncModule } from './sync/sync.module';
+import { TranscriptionModule } from './transcription/transcription.module';
 
 @Module({
-  imports: [DatabaseModule, SyncModule, ActionModule, AuctionModule, BuildHistoryModule, CartModule, CatalogModule, ChatModule, CheckoutModule, CopilotModule, EventConfigModule, EventModule, InventoryModule, JudgeModule, PolicyModule, RehearsalModule, RunOfShowModule, ScoutModule, ShippingModule, StatsModule],
+  imports: [DatabaseModule, SyncModule, ActionModule, AuctionModule, BuildHistoryModule, CartModule, CatalogModule, ChatModule, CheckoutModule, CopilotModule, EventConfigModule, EventModule, InventoryModule, JudgeModule, PolicyModule, RehearsalModule, RunOfShowModule, ScoutModule, ShippingModule, StatsModule, TranscriptionModule],
   controllers: [HealthController],
 })
 export class AppModule {}
