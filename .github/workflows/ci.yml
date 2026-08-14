@@ -29,6 +29,9 @@ jobs:
       - name: Install dependencies from the lockfile
         run: npm ci
 
+      - name: Reject high-severity production advisories
+        run: npm run audit:prod
+
       - name: Run the SideStage app Vitest suites
         run: npm test
 
