@@ -52,6 +52,7 @@ export interface BuyerCheckoutActions {
   holdProduct: (product: BuyerProduct) => Promise<BuyerCart>;
   openHeldItems: () => void;
   heldItemCount: number;
+  heldProductIds: readonly string[];
 }
 
 const BuyerCheckoutContext = createContext<BuyerCheckoutActions | null>(null);
@@ -554,6 +555,7 @@ export function BuyerCheckoutProvider({
     holdProduct: addHeldProduct,
     openHeldItems: () => { setStep('cart'); setOpen(true); setError(undefined); },
     heldItemCount: cart?.items.reduce((sum, item) => sum + item.quantity, 0) ?? 0,
+    heldProductIds: cart?.items.map((item) => item.productId) ?? [],
   }), [addHeldProduct, cart]);
 
   return (
