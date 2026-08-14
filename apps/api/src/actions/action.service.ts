@@ -110,6 +110,7 @@ export class GuardedActionService implements ActionExecutor {
   private readonly offers = new Map<string, TargetedOffer>();
   private readonly audits = new Map<string, ActionAuditRecord>();
   private readonly auditOrder: string[] = [];
+  private readonly idempotentExecutions = new Map<string, Promise<ActionExecutionResult>>();
 
   /**
    * WI-38673: when the config-backed resolver is wired (the production DI
@@ -193,6 +194,25 @@ export class GuardedActionService implements ActionExecutor {
   }
 
   async apply(input: ApplyActionInput): Promise<ActionExecutionResult> {
+    const requestId = input?.clientRequestId?.trim();
+    if (!requestId) return this.applyOnce(input);
+
+    const eventId = assertText(input?.eventId, 'eventId');
+    const key = `${eventId}\u0000${requestId}`;
+    const existing = this.idempotentExecutions.get(key);
+    if (existing) return structuredClone(await existing);
+
+    const pending = this.applyOnce({ ...input, eventId, clientRequestId: requestId });
+    this.idempotentExecutions.set(key, pending);
+    try {
+      return structuredClone(await pending);
+    } catch (error) {
+      if (this.idempotentExecutions.get(key) === pending) this.idempotentExecutions.delete(key);
+      throw error;
+    }
+  }
+
+  private async applyOnce(input: ApplyActionInput): Promise<ActionExecutionResult> {
     const eventId = assertText(input?.eventId, 'eventId');
     const actorId = assertText(input?.actorId, 'actorId');
     const action = this.normalizeAction(input?.action);

@@ -58,8 +58,10 @@ describe('ChatService', () => {
     await expect(queries.resolve('event.replay.chapters', { eventId: 'demo-event' })).resolves.toEqual([]);
   });
 
-  it('answers from the closest transcript moment and cites the stream timestamp', () => {
+  it('queues buyer questions for Copilot without auto-sending a transcript quote', () => {
     const service = new ChatService();
+    const observed: string[] = [];
+    service.messageEvents().subscribe((message) => observed.push(message.id));
     service.addTranscriptMoment('demo-event', {
       text: 'The Aurora cup is dishwasher safe and made in Portugal.',
       startMs: 83_000,
@@ -73,22 +75,32 @@ describe('ChatService', () => {
     });
     const messages = service.getMessages('demo-event');
 
-    expect(question.grounding).toMatchObject({
-      status: 'answered',
-      citation: { label: 'Stream 1:23' },
+    expect(question.grounding).toEqual({ status: 'seller-queue' });
+    expect(messages).toEqual([question]);
+    expect(observed).toEqual([question.id]);
+    expect(service.getTranscript('demo-event')).toEqual([
+      expect.objectContaining({ text: expect.stringContaining('dishwasher safe'), startMs: 83_000 }),
+    ]);
+    expect(service.getStats('demo-event').totalMessages).toBe(1);
+  });
+
+  it('deduplicates Copilot-approved messages by client request id', () => {
+    const service = new ChatService();
+    const observed: string[] = [];
+    service.messageEvents().subscribe((message) => observed.push(message.id));
+
+    const first = service.addMessage('demo-event', {
+      userId: 'seller-1', displayName: 'Host', role: 'seller', text: 'The cup is available.',
+      clientRequestId: 'copilot-proposal:p-1',
     });
-    expect(messages).toHaveLength(2);
-    expect(messages[1]).toMatchObject({
-      displayName: 'SideStage copilot',
-      role: 'seller',
-      grounding: {
-        status: 'answered',
-        sourceMessageId: question.id,
-        citation: { label: 'Stream 1:23' },
-      },
+    const retry = service.addMessage('demo-event', {
+      userId: 'seller-1', displayName: 'Host', role: 'seller', text: 'A duplicate retry.',
+      clientRequestId: 'copilot-proposal:p-1',
     });
-    expect(messages[1]?.text).toContain('dishwasher safe');
-    expect(service.getStats('demo-event').totalMessages).toBe(2);
+
+    expect(retry).toEqual(first);
+    expect(service.getMessages('demo-event')).toEqual([first]);
+    expect(observed).toEqual([first.id]);
   });
 
   it('indexes product-tagged transcript moments as replay chapters and invalidates sync', () => {

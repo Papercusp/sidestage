@@ -90,6 +90,30 @@ describe('GuardedActionService', () => {
     expect(actions.getAudit(rollback.auditId).kind).toBe('rollback');
   });
 
+  it('returns one audited result for concurrent retries with the same client request id', async () => {
+    const actions = service();
+    const input = {
+      eventId: 'event-1',
+      actorId: 'seller-1',
+      clientRequestId: 'copilot-proposal:p-1:action',
+      action: {
+        kind: 'targeted-offer' as const,
+        productId: 'mug',
+        buyerId: 'buyer-9',
+        quantity: 1,
+        priceCents: 1_200,
+        reason: 'Seller-confirmed Copilot offer',
+      },
+    };
+
+    const [first, retry] = await Promise.all([actions.apply(input), actions.apply(input)]);
+
+    expect(retry).toEqual(first);
+    expect(actions.listAudit('event-1')).toHaveLength(1);
+    expect(actions.listOffersForBuyer('buyer-9')).toHaveLength(1);
+    expect(actions.listItems('event-1')[0]?.availableQty).toBe(4);
+  });
+
   it('adjusts price and quantity in one audited write while respecting availability', async () => {
     const actions = service();
     const result = await actions.apply({
