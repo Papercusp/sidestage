@@ -67,9 +67,12 @@ export interface PreflightCheck {
 export interface PreflightReport {
   eventId: string;
   ranAt: string;
+  /** False when anything blocks OR anything could not be measured. */
   ready: boolean;
   blockers: number;
   warnings: number;
+  /** Checks that could not be established either way — these hold back `ready`. */
+  unknowns: number;
   checks: PreflightCheck[];
 }
 

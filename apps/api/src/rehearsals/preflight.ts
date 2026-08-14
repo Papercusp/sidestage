@@ -30,11 +30,74 @@ export interface PreflightCheck {
 export interface PreflightReport {
   eventId: string;
   ranAt: string;
-  /** True only when nothing is blocking. Warnings do not stop a launch. */
+  /**
+   * True only when nothing is blocking AND nothing is unmeasured. Warnings do
+   * not stop a launch; an `unknown` check does, because a green light standing
+   * on a question nobody answered is the specific lie this screen exists to
+   * prevent.
+   */
   ready: boolean;
   blockers: number;
   warnings: number;
+  unknowns: number;
   checks: PreflightCheck[];
+}
+
+/**
+ * The outcome of the live durability probe.
+ *
+ * Four cases rather than a boolean, because they ask four different things of
+ * the host — and collapsing them is exactly how "we never asked" ends up
+ * rendering as "yes".
+ */
+export type DurabilityProbe =
+  | { kind: 'reachable'; latencyMs: number }
+  | { kind: 'unreachable'; message: string }
+  | { kind: 'unknown'; message: string }
+  | { kind: 'absent' };
+
+/** The narrow slice of a pg Pool the probe needs — structural, so tests need no database. */
+export interface DurabilityQuery {
+  query(sql: string): Promise<unknown>;
+}
+
+export const DURABILITY_PROBE_TIMEOUT_MS = 2_000;
+
+/**
+ * Ask the database, right now, whether it is answering.
+ *
+ * A non-null pool already means Postgres answered ONCE — createPoolOrNull
+ * probes with SELECT 1 at startup. That is precisely the trap this closes:
+ * boot may have been hours ago, and a host runs this check in the minutes
+ * before going live. On screen, a boot-time fact stated in the present tense
+ * is indistinguishable from one measured just now.
+ *
+ * A hang is reported as `unknown`, not as failure: a query that never returns
+ * has not told us the database is down, only that we did not find out. The
+ * timeout also keeps the probe from outliving the request that asked for it.
+ */
+export async function probeDurability(
+  pool: DurabilityQuery | null,
+  options: { now?: () => number; timeoutMs?: number } = {},
+): Promise<DurabilityProbe> {
+  if (pool === null) return { kind: 'absent' };
+  const now = options.now ?? Date.now;
+  const timeoutMs = options.timeoutMs ?? DURABILITY_PROBE_TIMEOUT_MS;
+  const started = now();
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    const answered = await Promise.race([
+      pool.query('SELECT 1').then(() => true as const),
+      new Promise<false>((resolve) => { timer = setTimeout(() => resolve(false), timeoutMs); }),
+    ]);
+    return answered
+      ? { kind: 'reachable', latencyMs: Math.max(0, Math.round(now() - started)) }
+      : { kind: 'unknown', message: `no answer within ${timeoutMs}ms` };
+  } catch (error) {
+    return { kind: 'unreachable', message: error instanceof Error ? error.message : String(error) };
+  } finally {
+    if (timer !== undefined) clearTimeout(timer);
+  }
 }
 
 export interface PreflightInput {
@@ -42,8 +105,8 @@ export interface PreflightInput {
   config: EventConfig;
   /** The policy the saved config actually produces — what the guard will enforce. */
   policy: CopilotPolicy;
-  /** Whether a Postgres pool is wired. Null/undefined means "no database". */
-  hasDatabase: boolean;
+  /** The outcome of a LIVE durability probe — never a cached or boot-time verdict. */
+  durability: DurabilityProbe;
   now?: () => number;
 }
 
@@ -152,21 +215,50 @@ export function lintEventConfig(config: EventConfig): PreflightCheck[] {
   return checks;
 }
 
-export function lintDurability(hasDatabase: boolean): PreflightCheck {
-  return hasDatabase
-    ? {
-      id: 'durability',
-      label: 'Saved data',
-      status: 'ready',
-      detail: 'Postgres is connected, so orders and settings survive a restart.',
-    }
-    : {
-      id: 'durability',
-      label: 'Saved data',
-      status: 'warning',
-      detail: 'Running without a database: orders, carts and settings are held in memory and are lost if the API restarts.',
-      remedy: 'Start Postgres (docker compose up -d) before a real event.',
-    };
+/**
+ * Report what the probe actually found.
+ *
+ * Note the asymmetry between the two failure cases, which is deliberate: NO
+ * database is a warning (the API falls back to in-memory stores and still
+ * works, just without durability), while a database that is wired but not
+ * answering is a BLOCKER — the stores bound themselves to Postgres at boot, so
+ * every write during the event would fail. "Worse than nothing" is the honest
+ * reading, and the earlier boolean could not express it.
+ */
+export function lintDurability(probe: DurabilityProbe): PreflightCheck {
+  switch (probe.kind) {
+    case 'reachable':
+      return {
+        id: 'durability',
+        label: 'Saved data',
+        status: 'ready',
+        detail: `Postgres answered a live check in ${probe.latencyMs}ms, so orders and settings survive a restart.`,
+      };
+    case 'unreachable':
+      return {
+        id: 'durability',
+        label: 'Saved data',
+        status: 'blocker',
+        detail: `This API is wired to Postgres, but the database did not answer just now (${probe.message}). Orders, carts and settings written during the event would fail to save.`,
+        remedy: 'Bring Postgres back up (docker compose up -d), then run this check again before going live.',
+      };
+    case 'unknown':
+      return {
+        id: 'durability',
+        label: 'Saved data',
+        status: 'unknown',
+        detail: `Postgres is configured, but it did not answer in time (${probe.message}), so whether your data will be saved could not be established.`,
+        remedy: 'Run the check again. If it keeps timing out, treat the database as down and look into it before going live.',
+      };
+    case 'absent':
+      return {
+        id: 'durability',
+        label: 'Saved data',
+        status: 'warning',
+        detail: 'Running without a database: orders, carts and settings are held in memory and are lost if the API restarts.',
+        remedy: 'Start Postgres (docker compose up -d) before a real event.',
+      };
+  }
 }
 
 export function buildPreflightReport(input: PreflightInput): PreflightReport {
@@ -174,16 +266,18 @@ export function buildPreflightReport(input: PreflightInput): PreflightReport {
   const checks: PreflightCheck[] = [
     ...lintEventConfig(input.config),
     ...lintPricingPolicy(input.policy),
-    lintDurability(input.hasDatabase),
+    lintDurability(input.durability),
   ];
   const blockers = checks.filter((check) => check.status === 'blocker').length;
   const warnings = checks.filter((check) => check.status === 'warning').length;
+  const unknowns = checks.filter((check) => check.status === 'unknown').length;
   return {
     eventId: input.eventId,
     ranAt: new Date(now()).toISOString(),
-    ready: blockers === 0,
+    ready: blockers === 0 && unknowns === 0,
     blockers,
     warnings,
+    unknowns,
     checks,
   };
 }

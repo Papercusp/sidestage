@@ -242,7 +242,11 @@ export function TestTab() {
           Setup check
           <span className="panel-status">
             {serverPreflight
-              ? (serverPreflight.ready ? 'No blockers' : `${serverPreflight.blockers} blocking`)
+              ? serverPreflight.ready ? 'No blockers'
+                : serverPreflight.blockers > 0 ? `${serverPreflight.blockers} blocking`
+                  // Not-ready with nothing blocking means something could not be
+                  // measured. Saying "0 blocking" here would read as reassurance.
+                  : `${serverPreflight.unknowns} unverified`
               : serverPreflightError ? 'Unavailable' : 'Checking…'}
           </span>
         </div>

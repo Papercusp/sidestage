@@ -6,6 +6,7 @@ import {
   lintDurability,
   lintEventConfig,
   lintPricingPolicy,
+  probeDurability,
 } from './preflight';
 
 const savedConfig: EventConfig = {
@@ -98,10 +99,61 @@ describe('event config lint', () => {
 });
 
 describe('durability lint', () => {
-  it('warns when there is no database behind the API', () => {
-    expect(lintDurability(false).status).toBe('warning');
-    expect(lintDurability(false).detail).toContain('lost if the API restarts');
-    expect(lintDurability(true).status).toBe('ready');
+  it('warns, but does not block, when there is no database behind the API', () => {
+    const check = lintDurability({ kind: 'absent' });
+    expect(check.status).toBe('warning');
+    expect(check.detail).toContain('lost if the API restarts');
+  });
+
+  it('reports the measured latency when Postgres answers', () => {
+    const check = lintDurability({ kind: 'reachable', latencyMs: 7 });
+    expect(check.status).toBe('ready');
+    expect(check.detail).toContain('7ms');
+  });
+
+  // A wired-but-dead database is WORSE than no database: the stores bound
+  // themselves to Postgres at boot, so every write during the event fails.
+  // No-database merely falls back to memory. Hence blocker vs warning.
+  it('BLOCKS when a wired database has stopped answering', () => {
+    const check = lintDurability({ kind: 'unreachable', message: 'ECONNREFUSED' });
+    expect(check.status).toBe('blocker');
+    expect(check.detail).toContain('ECONNREFUSED');
+    expect(check.remedy).toBeTruthy();
+  });
+
+  it('reports unknown — never ready — when the probe could not establish an answer', () => {
+    const check = lintDurability({ kind: 'unknown', message: 'no answer within 2000ms' });
+    expect(check.status).toBe('unknown');
+    expect(check.remedy).toBeTruthy();
+  });
+});
+
+describe('the live durability probe', () => {
+  it('returns absent, touching nothing, when no pool is wired', async () => {
+    await expect(probeDurability(null)).resolves.toEqual({ kind: 'absent' });
+  });
+
+  // The regression this whole change exists for: the check must issue a query
+  // NOW, not report the boot-time verdict that made the pool non-null.
+  it('issues a real query and times it', async () => {
+    const issued: string[] = [];
+    let clock = 1_000;
+    const probe = await probeDurability(
+      { query: async (sql: string) => { issued.push(sql); clock += 12; return {}; } },
+      { now: () => clock },
+    );
+    expect(issued).toEqual(['SELECT 1']);
+    expect(probe).toEqual({ kind: 'reachable', latencyMs: 12 });
+  });
+
+  it('reports unreachable, carrying the driver message, when the query rejects', async () => {
+    const probe = await probeDurability({ query: () => Promise.reject(new Error('ECONNREFUSED')) });
+    expect(probe).toEqual({ kind: 'unreachable', message: 'ECONNREFUSED' });
+  });
+
+  it('reports unknown rather than reachable when the query never answers', async () => {
+    const probe = await probeDurability({ query: () => new Promise(() => {}) }, { timeoutMs: 5 });
+    expect(probe.kind).toBe('unknown');
   });
 });
 
@@ -111,7 +163,7 @@ describe('preflight report', () => {
       eventId: 'sunday-drop',
       config: defaultEventConfig('sunday-drop'),
       policy: policyFromConfig(defaultEventConfig('sunday-drop')),
-      hasDatabase: false,
+      durability: { kind: 'absent' },
       now: () => 1_700_000_000_000,
     });
     expect(report.ready).toBe(false);
@@ -126,13 +178,30 @@ describe('preflight report', () => {
       eventId: 'sunday-drop',
       config: savedConfig,
       policy: guardedPolicy,
-      hasDatabase: true,
+      durability: { kind: 'reachable', latencyMs: 3 },
       now: () => 1,
     });
     expect(report.ready).toBe(true);
     expect(report.blockers).toBe(0);
     expect(report.warnings).toBe(0);
+    expect(report.unknowns).toBe(0);
     expect(report.checks.every((check) => check.status === 'ready')).toBe(true);
+  });
+
+  // The doctrine in this module's header, pinned: a check that could not be
+  // measured must never render as a green light. Nothing is blocking here, so
+  // a `blockers === 0` readiness rule would call this ready.
+  it('is NOT ready when a check could not be measured, even with nothing blocking', () => {
+    const report = buildPreflightReport({
+      eventId: 'sunday-drop',
+      config: savedConfig,
+      policy: guardedPolicy,
+      durability: { kind: 'unknown', message: 'no answer within 2000ms' },
+      now: () => 1,
+    });
+    expect(report.blockers).toBe(0);
+    expect(report.unknowns).toBe(1);
+    expect(report.ready).toBe(false);
   });
 
   it('gives every non-ready check something to do about it', () => {
@@ -140,7 +209,7 @@ describe('preflight report', () => {
       eventId: 'sunday-drop',
       config: defaultEventConfig('sunday-drop'),
       policy: policyFromConfig(defaultEventConfig('sunday-drop')),
-      hasDatabase: false,
+      durability: { kind: 'absent' },
     });
     for (const check of report.checks.filter((entry) => entry.status !== 'ready')) {
       expect(check.remedy, `${check.id} has no remedy`).toBeTruthy();

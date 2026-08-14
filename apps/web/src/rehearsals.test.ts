@@ -215,6 +215,7 @@ describe('buildReadinessReport', () => {
     ready,
     blockers: ready ? 0 : 1,
     warnings: 0,
+    unknowns: 0,
     checks: [],
   });
 
@@ -319,7 +320,7 @@ describe('rehearsal API client', () => {
 
   it('url-encodes the event id when fetching preflight', async () => {
     const spy = stubFetch(() => jsonResponse({
-      eventId: 'a/b', ranAt: 'now', ready: true, blockers: 0, warnings: 0, checks: [],
+      eventId: 'a/b', ranAt: 'now', ready: true, blockers: 0, warnings: 0, unknowns: 0, checks: [],
     }));
     await fetchPreflight('a/b', 'http://api.test');
     expect(spy.mock.calls[0]?.[0]).toBe('http://api.test/rehearsals/preflight/a%2Fb');

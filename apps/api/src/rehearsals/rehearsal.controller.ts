@@ -2,7 +2,7 @@ import { BadRequestException, Controller, Get, Inject, Param, Post } from '@nest
 import type { Pool } from 'pg';
 import { PG_POOL } from '../db/database.module';
 import { EventConfigService, policyFromConfig } from '../config/event-config.service';
-import { buildPreflightReport, type PreflightReport } from './preflight';
+import { buildPreflightReport, probeDurability, type PreflightReport } from './preflight';
 import { RehearsalService } from './rehearsal.service';
 import { REHEARSAL_KINDS, type DressRehearsalVerdict, type RehearsalKind, type RehearsalReport } from './rehearsal.types';
 
@@ -23,11 +23,15 @@ export class RehearsalController {
   @Get('preflight/:eventId')
   async preflight(@Param('eventId') eventId: string): Promise<PreflightReport> {
     const config = await this.configs.get(eventId);
+    // Probe on every request. `this.pool !== null` would only tell us Postgres
+    // was up when the API booted, which may have been hours before the host
+    // opened this screen.
+    const durability = await probeDurability(this.pool);
     return buildPreflightReport({
       eventId: config.eventId,
       config,
       policy: policyFromConfig(config),
-      hasDatabase: this.pool !== null,
+      durability,
     });
   }
 
