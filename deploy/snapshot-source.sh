@@ -50,6 +50,11 @@ snapshot_repository() {
 
   GIT_INDEX_FILE="$index_file" git -c core.excludesFile="$snapshot_exclude_file" -C "$repository" read-tree HEAD
   GIT_INDEX_FILE="$index_file" git -c core.excludesFile="$snapshot_exclude_file" -C "$repository" add -A -- .
+  # Some shared libraries historically committed Vitest cache entries before
+  # the convention was ignored. Remove both tracked and untracked cache state
+  # from this temporary export index; the real index and worktree stay intact.
+  GIT_INDEX_FILE="$index_file" git -c core.excludesFile="$snapshot_exclude_file" -C "$repository" \
+    rm -r -f --cached --ignore-unmatch -- '.vitest-tmp' ':(glob)**/.vitest-tmp/**' >/dev/null
 
   status="$(
     GIT_INDEX_FILE="$index_file" git -c core.excludesFile="$snapshot_exclude_file" -C "$repository" \

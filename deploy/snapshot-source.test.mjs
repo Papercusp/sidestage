@@ -54,6 +54,8 @@ describe('snapshot-source.sh', () => {
 
     initializeRepository(submoduleSource);
     writeFileSync(path.join(submoduleSource, 'tracked.txt'), 'submodule committed\n');
+    mkdirSync(path.join(submoduleSource, '.vitest-tmp'), { recursive: true });
+    writeFileSync(path.join(submoduleSource, '.vitest-tmp/results.json'), '{"tracked":true}\n');
     git(submoduleSource, 'add', '.');
     git(submoduleSource, 'commit', '--quiet', '-m', 'initial submodule');
 
@@ -61,6 +63,8 @@ describe('snapshot-source.sh', () => {
     mkdirSync(path.join(repository, 'src'), { recursive: true });
     writeFileSync(path.join(repository, '.gitignore'), 'ignored.env\n');
     writeFileSync(path.join(repository, 'src/importer.ts'), 'export const committed = true;\n');
+    mkdirSync(path.join(repository, '.vitest-tmp'), { recursive: true });
+    writeFileSync(path.join(repository, '.vitest-tmp/results.json'), '{"tracked":true}\n');
     git(repository, 'add', '.');
     git(repository, 'commit', '--quiet', '-m', 'initial root');
     git(repository, '-c', 'protocol.file.allow=always', 'submodule', 'add', '--quiet', submoduleSource, 'libs/example');
@@ -71,12 +75,10 @@ describe('snapshot-source.sh', () => {
     writeFileSync(path.join(repository, 'src/importer.ts'), importerAtSnapshot);
     writeFileSync(path.join(repository, 'src/new-module.ts'), 'export const value = 1;\n');
     writeFileSync(path.join(repository, 'ignored.env'), 'must-not-ship\n');
-    mkdirSync(path.join(repository, '.vitest-tmp'), { recursive: true });
-    writeFileSync(path.join(repository, '.vitest-tmp/results.json'), '{"stale":true}\n');
+    writeFileSync(path.join(repository, '.vitest-tmp/untracked.json'), '{"untracked":true}\n');
     writeFileSync(path.join(repository, 'libs/example/tracked.txt'), 'submodule snapshot\n');
     writeFileSync(path.join(repository, 'libs/example/new.txt'), 'submodule new\n');
-    mkdirSync(path.join(repository, 'libs/example/.vitest-tmp'), { recursive: true });
-    writeFileSync(path.join(repository, 'libs/example/.vitest-tmp/results.json'), '{"stale":true}\n');
+    writeFileSync(path.join(repository, 'libs/example/.vitest-tmp/untracked.json'), '{"untracked":true}\n');
 
     const rootStatusBefore = git(repository, 'status', '--short');
     const submoduleStatusBefore = git(path.join(repository, 'libs/example'), 'status', '--short');
