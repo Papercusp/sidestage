@@ -80,6 +80,54 @@
   text-align: right;
 }
 
+.event-commerce-actions {
+  display: grid;
+  min-width: 350px;
+  gap: .35rem;
+}
+
+.event-commerce-row {
+  display: grid;
+  grid-template-columns: minmax(72px, 1fr) 76px 54px auto;
+  align-items: center;
+  gap: .35rem;
+}
+
+.event-commerce-kind {
+  color: var(--muted);
+  font-size: .66rem;
+  font-weight: 700;
+}
+
+.event-commerce-row label {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  min-height: 1.9rem;
+  gap: .18rem;
+  padding: 0 .35rem;
+  border: 1px solid var(--border);
+  border-radius: .45rem;
+  color: var(--muted);
+  background: var(--surface);
+  font-size: .66rem;
+}
+
+.event-commerce-row input {
+  width: 100%;
+  min-width: 0;
+  border: 0;
+  outline: 0;
+  color: var(--text);
+  background: transparent;
+  font-size: .7rem;
+  text-align: right;
+}
+
+.event-commerce-buyer { grid-column: 1; }
+.event-commerce-buyer input { text-align: left; }
+.event-commerce-quantity input { width: 30px; }
+
 .button.tertiary {
   min-height: 1.9rem;
   padding: .35rem .52rem;

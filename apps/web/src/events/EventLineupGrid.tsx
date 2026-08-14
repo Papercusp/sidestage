@@ -10,6 +10,39 @@ export interface EventLineupGridProps {
   onSwap: (current: SellerEventItem, target: SellerEventItem) => void;
   onMarkdown: (item: SellerEventItem, percent: number) => void;
   onStockAdjust: (item: SellerEventItem, quantity: number) => void;
+  onStartAuction: (item: SellerEventItem, quantity: number, startingPriceCents: number) => void;
+  onSendOffer: (item: SellerEventItem, buyerId: string, quantity: number, priceCents: number) => void;
+}
+
+interface CommerceDraft {
+  auctionPrice: string;
+  auctionQuantity: string;
+  offerBuyer: string;
+  offerPrice: string;
+  offerQuantity: string;
+}
+
+function defaultCommerceDraft(item: SellerEventItem): CommerceDraft {
+  const price = (item.priceCents / 100).toFixed(2);
+  return {
+    auctionPrice: price,
+    auctionQuantity: '1',
+    offerBuyer: '',
+    offerPrice: price,
+    offerQuantity: '1',
+  };
+}
+
+function positiveWholeNumber(value: string, maximum: number): number | null {
+  const parsed = Number(value);
+  return Number.isSafeInteger(parsed) && parsed > 0 && parsed <= maximum ? parsed : null;
+}
+
+function priceInCents(value: string): number | null {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed) || parsed <= 0) return null;
+  const cents = Math.round(parsed * 100);
+  return Number.isSafeInteger(cents) && cents > 0 ? cents : null;
 }
 
 function initials(value: string): string {
@@ -23,10 +56,20 @@ export function EventLineupGrid({
   onSwap,
   onMarkdown,
   onStockAdjust,
+  onStartAuction,
+  onSendOffer,
 }: EventLineupGridProps) {
   const [markdowns, setMarkdowns] = useState<Record<string, string>>({});
   const [quantities, setQuantities] = useState<Record<string, string>>({});
+  const [commerceDrafts, setCommerceDrafts] = useState<Record<string, CommerceDraft>>({});
   const onStage = items.find((item) => item.onStage);
+
+  const updateCommerceDraft = (item: SellerEventItem, patch: Partial<CommerceDraft>) => {
+    setCommerceDrafts((current) => ({
+      ...current,
+      [item.productId]: { ...(current[item.productId] ?? defaultCommerceDraft(item)), ...patch },
+    }));
+  };
 
   const columns = useMemo<ColumnDef<SellerEventItem>[]>(() => [
     {
@@ -142,7 +185,109 @@ export function EventLineupGrid({
         </div>
       ),
     },
-  ], [busyProductId, markdowns, onMarkdown, onPush, onStage, onStockAdjust, onSwap, quantities]);
+    {
+      key: 'commerce',
+      header: 'Auction / offer',
+      headerText: 'Auction and targeted offer creation',
+      width: 'minmax(360px, 1.8fr)',
+      toCopyText: (item) => `Auction or offer ${item.quantity} reserved units`,
+      render: ({ row }) => {
+        const draft = commerceDrafts[row.productId] ?? defaultCommerceDraft(row);
+        const maximum = Math.max(1, row.quantity);
+        const auctionQuantity = positiveWholeNumber(draft.auctionQuantity, maximum);
+        const auctionPriceCents = priceInCents(draft.auctionPrice);
+        const offerQuantity = positiveWholeNumber(draft.offerQuantity, maximum);
+        const offerPriceCents = priceInCents(draft.offerPrice);
+        const disabled = busyProductId === row.productId;
+        return (
+          <div className="event-commerce-actions">
+            <div className="event-commerce-row">
+              <span className="event-commerce-kind">Auction</span>
+              <label className="event-commerce-price">
+                <span aria-hidden="true">$</span>
+                <span className="sr-only">Auction starting price for {row.title}</span>
+                <input
+                  aria-label={`Auction starting price for ${row.title}`}
+                  type="number"
+                  min={0.01}
+                  step={0.01}
+                  value={draft.auctionPrice}
+                  onChange={(event) => updateCommerceDraft(row, { auctionPrice: event.target.value })}
+                />
+              </label>
+              <label className="event-commerce-quantity">
+                <span aria-hidden="true">×</span>
+                <span className="sr-only">Auction quantity for {row.title}</span>
+                <input
+                  aria-label={`Auction quantity for ${row.title}`}
+                  type="number"
+                  min={1}
+                  max={maximum}
+                  step={1}
+                  value={draft.auctionQuantity}
+                  onChange={(event) => updateCommerceDraft(row, { auctionQuantity: event.target.value })}
+                />
+              </label>
+              <button
+                className="button tertiary"
+                type="button"
+                disabled={disabled || auctionQuantity === null || auctionPriceCents === null}
+                onClick={() => auctionQuantity !== null && auctionPriceCents !== null
+                  && onStartAuction(row, auctionQuantity, auctionPriceCents)}
+              >
+                Start
+              </button>
+            </div>
+            <div className="event-commerce-row">
+              <label className="event-commerce-buyer">
+                <span className="sr-only">Offer buyer ID for {row.title}</span>
+                <input
+                  aria-label={`Offer buyer ID for ${row.title}`}
+                  value={draft.offerBuyer}
+                  placeholder="Buyer ID"
+                  onChange={(event) => updateCommerceDraft(row, { offerBuyer: event.target.value })}
+                />
+              </label>
+              <label className="event-commerce-price">
+                <span aria-hidden="true">$</span>
+                <span className="sr-only">Offer price for {row.title}</span>
+                <input
+                  aria-label={`Offer price for ${row.title}`}
+                  type="number"
+                  min={0.01}
+                  step={0.01}
+                  value={draft.offerPrice}
+                  onChange={(event) => updateCommerceDraft(row, { offerPrice: event.target.value })}
+                />
+              </label>
+              <label className="event-commerce-quantity">
+                <span aria-hidden="true">×</span>
+                <span className="sr-only">Offer quantity for {row.title}</span>
+                <input
+                  aria-label={`Offer quantity for ${row.title}`}
+                  type="number"
+                  min={1}
+                  max={maximum}
+                  step={1}
+                  value={draft.offerQuantity}
+                  onChange={(event) => updateCommerceDraft(row, { offerQuantity: event.target.value })}
+                />
+              </label>
+              <button
+                className="button tertiary"
+                type="button"
+                disabled={disabled || !draft.offerBuyer.trim() || offerQuantity === null || offerPriceCents === null}
+                onClick={() => offerQuantity !== null && offerPriceCents !== null
+                  && onSendOffer(row, draft.offerBuyer.trim(), offerQuantity, offerPriceCents)}
+              >
+                Send
+              </button>
+            </div>
+          </div>
+        );
+      },
+    },
+  ], [busyProductId, commerceDrafts, markdowns, onMarkdown, onPush, onSendOffer, onStage, onStartAuction, onStockAdjust, onSwap, quantities]);
 
   return (
     <RichGrid

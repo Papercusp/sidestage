@@ -7,6 +7,7 @@ import {
   executeSellerAction,
   fetchSellerEvent,
   setupSellerEvent,
+  startSellerAuction,
   type SellerEventItem,
 } from './api';
 import EventLineupGrid from './EventLineupGrid';
@@ -176,6 +177,23 @@ export function EventManager({
               item.productId,
               () => adjustSellerEventStock(eventId, item, quantity, apiBaseUrl),
               `${item.title} inventory reservation is now ${quantity}.`,
+            )}
+            onStartAuction={(item, quantity, startingPriceCents) => void runAction(
+              item.productId,
+              () => startSellerAuction(eventId, item, quantity, startingPriceCents, apiBaseUrl),
+              `${quantity} × ${item.title} auction started.`,
+            )}
+            onSendOffer={(item, buyerId, quantity, priceCents) => void runAction(
+              item.productId,
+              () => executeSellerAction(eventId, {
+                kind: 'targeted-offer',
+                productId: item.productId,
+                buyerId,
+                quantity,
+                priceCents,
+                reason: `Seller sent ${buyerId} a quantity-aware targeted offer`,
+              }, apiBaseUrl),
+              `${quantity} × ${item.title} offered to ${buyerId}.`,
             )}
           />
         </>

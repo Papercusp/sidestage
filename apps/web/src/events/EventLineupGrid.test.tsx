@@ -24,11 +24,18 @@ describe('EventLineupGrid', () => {
         onSwap={() => undefined}
         onMarkdown={() => undefined}
         onStockAdjust={() => undefined}
+        onStartAuction={() => undefined}
+        onSendOffer={() => undefined}
       />,
     );
     expect(markup).toContain('data-rg-screen-grid="true"');
     expect(markup).toContain('On stage');
     expect(markup).toContain('Markdown');
     expect(markup).toContain('Stock');
+    expect(markup).toContain('Auction starting price for Aurora mug');
+    expect(markup).toContain('Auction quantity for Aurora mug');
+    expect(markup).toContain('Offer price for Aurora mug');
+    expect(markup).toContain('Offer quantity for Aurora mug');
+    expect(markup).toContain('Offer buyer ID for Aurora mug');
   });
 });

@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { adjustSellerEventStock, setupSellerEvent, type SellerEventItem } from './api';
+import { adjustSellerEventStock, executeSellerAction, setupSellerEvent, startSellerAuction, type SellerEventItem } from './api';
 
 function json(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {
@@ -130,6 +130,40 @@ describe('seller event API orchestration', () => {
       'http://localhost:3100/inventory/mug/hold',
       'http://localhost:3100/actions/events/drop/execute',
     ]);
+  });
+
+  it('keeps seller-entered quantity in auction and targeted-offer requests', async () => {
+    vi.stubGlobal('fetch', vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
+      const url = String(input);
+      const body = JSON.parse(String(init?.body)) as Record<string, unknown>;
+      if (url.endsWith('/auctions/start')) {
+        expect(body).toMatchObject({
+          eventId: 'drop', eventItemId: 'drop:mug', productId: 'mug',
+          quantity: 3, startingPriceCents: 1_100, availableQty: 5,
+        });
+        return json({ id: 'auction-1', ...body, currentPriceCents: 1_100, status: 'active', startedAt: 'now', endsAt: 'later' });
+      }
+      if (url.endsWith('/actions/events/drop/execute')) {
+        expect(body).toMatchObject({
+          actorId: 'seller-demo',
+          action: { kind: 'targeted-offer', productId: 'mug', buyerId: 'buyer-7', quantity: 2, priceCents: 1_200 },
+        });
+        return json({
+          auditId: 'audit-offer', status: 'executed', state: ITEM,
+          offer: { id: 'offer-1', eventId: 'drop', eventItemId: 'drop:mug', productId: 'mug', buyerId: 'buyer-7', quantity: 2, priceCents: 1_200, status: 'pending' },
+        });
+      }
+      throw new Error(`Unexpected URL ${url}`);
+    }));
+
+    const auction = await startSellerAuction('drop', ITEM, 3, 1_100);
+    const offer = await executeSellerAction('drop', {
+      kind: 'targeted-offer', productId: 'mug', buyerId: 'buyer-7', quantity: 2,
+      priceCents: 1_200, reason: 'Quantity-aware offer',
+    });
+
+    expect(auction.quantity).toBe(3);
+    expect(offer.offer?.quantity).toBe(2);
   });
 });
 
