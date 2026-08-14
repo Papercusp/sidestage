@@ -1,10 +1,60 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { InMemoryAuctionInventory } from '../auction/auction.service';
 import { BUYER_HOLD_DURATION_MS } from '../inventory/hold-policy';
+import { SyncInvalidationService, type SyncInvalidation } from '../sync/sync-invalidation.service';
+import { SyncQueryRegistry } from '../sync/sync-query.registry';
+import { CartSyncQueries } from './cart.module';
 import { CartService, InMemoryCartStore } from './cart.service';
 
 describe('CartService', () => {
   afterEach(() => vi.useRealTimers());
+
+  it('registers cart.byId as a bounded cart query', async () => {
+    const carts = new CartService(new InMemoryCartStore());
+    await carts.addItem({ cartId: 'cart-live', productId: 'p-1', title: 'Mug', priceCents: 1250 });
+    const queries = new SyncQueryRegistry();
+    new CartSyncQueries(carts, queries).onModuleInit();
+
+    await expect(queries.resolve('cart.byId', { cartId: ' cart-live ' })).resolves.toEqual([
+      expect.objectContaining({ id: 'cart-live', subtotalCents: 1250 }),
+    ]);
+    await expect(queries.resolve('cart.byId', { cartId: 'missing' })).resolves.toEqual([]);
+    await expect(queries.resolve('cart.byId', {})).resolves.toEqual([]);
+  });
+
+  it('invalidates the scoped cart and inventory views after authoritative writes', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime('2026-08-14T06:00:00Z');
+    const inventory = new InMemoryAuctionInventory();
+    await inventory.seed('p-1', 3);
+    const invalidations = new SyncInvalidationService();
+    const published: SyncInvalidation[] = [];
+    const subscription = invalidations.events().subscribe((event) => published.push(event));
+    const carts = new CartService(new InMemoryCartStore(), inventory, invalidations);
+
+    const held = await carts.holdItem({ cartId: 'cart-live', productId: 'p-1', title: 'Mug', priceCents: 1250 });
+    await carts.setQuantity(held.id, 'p-1', 2);
+    await carts.removeItem(held.id, 'p-1');
+    await carts.holdItem({ cartId: held.id, productId: 'p-1', title: 'Mug', priceCents: 1250 });
+    await carts.commit(held.id);
+    subscription.unsubscribe();
+
+    expect(published.filter(({ name }) => name === 'cart.byId').map(({ args }) => args)).toEqual(
+      expect.arrayContaining([
+        { cartId: 'cart-live' },
+        { cartId: 'cart-live' },
+        { cartId: 'cart-live' },
+        { cartId: 'cart-live' },
+      ]),
+    );
+    expect(published.filter(({ name }) => name === 'inventory.snapshot').map(({ args }) => args)).toEqual([
+      { productId: 'p-1' },
+      { productId: 'p-1' },
+      { productId: 'p-1' },
+      { productId: 'p-1' },
+      { productId: 'p-1' },
+    ]);
+  });
   it('merges repeated products and calculates a cents subtotal', async () => {
     const carts = new CartService(new InMemoryCartStore());
     const first = await carts.addItem({ cartId: 'cart-1', productId: 'p-1', title: 'Mug', priceCents: 1250, quantity: 2 });

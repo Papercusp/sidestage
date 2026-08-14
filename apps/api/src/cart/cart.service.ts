@@ -2,6 +2,7 @@ import { ConflictException, Inject, Injectable, Optional } from '@nestjs/common'
 import { randomUUID } from 'node:crypto';
 import { AUCTION_INVENTORY, type AuctionInventory, type InventoryHoldSource } from '../auction/auction.service';
 import { buyerHoldExpiresAt } from '../inventory/hold-policy';
+import { SyncInvalidationService } from '../sync/sync-invalidation.service';
 
 export const CART_STORE = Symbol('CART_STORE');
 
@@ -63,6 +64,7 @@ export class CartService {
   constructor(
     @Inject(CART_STORE) private readonly store: CartStore,
     @Optional() @Inject(AUCTION_INVENTORY) private readonly inventory?: AuctionInventory,
+    @Optional() @Inject(SyncInvalidationService) private readonly syncInvalidations?: SyncInvalidationService,
   ) {}
 
   async findCart(id: string): Promise<Cart | null> {
@@ -73,7 +75,8 @@ export class CartService {
     await Promise.all(expired.map((item) => this.releaseReservation(cart.id, item)));
     cart.items = cart.items.filter((item) => !this.isExpired(item));
     const updated = summarize(cart);
-    await this.store.set(updated);
+    await this.persist(updated);
+    this.invalidateInventory(expired.map((item) => item.productId));
     return cloneCart(updated);
   }
 
@@ -90,7 +93,7 @@ export class CartService {
       subtotalCents: 0,
       updatedAt: new Date().toISOString(),
     };
-    await this.store.set(cart);
+    await this.persist(cart);
     return cloneCart(cart);
   }
 
@@ -124,7 +127,7 @@ export class CartService {
       });
     }
     const updated = summarize(cart);
-    await this.store.set(updated);
+    await this.persist(updated);
     return cloneCart(updated);
   }
 
@@ -147,7 +150,9 @@ export class CartService {
       if (!reserved) throw new ConflictException(`Insufficient available quantity for ${input.productId}`);
     }
     try {
-      return await this.addItem({ ...input, cartId: cart.id, expiresAt });
+      const updated = await this.addItem({ ...input, cartId: cart.id, expiresAt });
+      if (this.inventory) this.invalidateInventory([input.productId]);
+      return updated;
     } catch (error) {
       await this.inventory?.release(input.productId, nextQuantity, this.holdSource(cart.id));
       throw error;
@@ -165,7 +170,8 @@ export class CartService {
     }
     item.quantity = nextQuantity;
     const updated = summarize(cart);
-    await this.store.set(updated);
+    await this.persist(updated);
+    if (this.inventory && item.expiresAt) this.invalidateInventory([productId]);
     return cloneCart(updated);
   }
 
@@ -175,7 +181,8 @@ export class CartService {
     if (heldItem) await this.releaseReservation(cart.id, heldItem);
     cart.items = cart.items.filter((item) => item.productId !== productId);
     const updated = summarize(cart);
-    await this.store.set(updated);
+    await this.persist(updated);
+    if (heldItem?.expiresAt) this.invalidateInventory([productId]);
     return cloneCart(updated);
   }
 
@@ -190,8 +197,20 @@ export class CartService {
       }));
     }
     const updated = summarize({ ...cart, items: [] });
-    await this.store.set(updated);
+    await this.persist(updated);
+    this.invalidateInventory(cart.items.filter((item) => item.expiresAt).map((item) => item.productId));
     return cloneCart(updated);
+  }
+
+  private async persist(cart: Cart): Promise<void> {
+    await this.store.set(cart);
+    this.syncInvalidations?.invalidate('cart.byId', { cartId: cart.id });
+  }
+
+  private invalidateInventory(productIds: readonly string[]): void {
+    for (const productId of new Set(productIds)) {
+      this.syncInvalidations?.invalidate('inventory.snapshot', { productId });
+    }
   }
 
   private async requireCart(id: string): Promise<Cart> {
