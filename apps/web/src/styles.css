@@ -51,6 +51,12 @@
      instead of in every rule that hardcodes rgb(0 0 0 / 17%). */
   --shadow-float: 0 18px 50px rgb(var(--shadow-hue) / 17%);
 
+  /* Modal/overlay scrim. Same rationale as --shadow-hue below: a pure-black scrim
+     reads as a grey smudge over the cream ground, so the dim is expressed in the warm
+     shadow family instead. Named because D-002 forbids a component inlining its own
+     overlay colour — channel-guide.css hardcoded rgb(0 0 0 / 38%) before this token. */
+  --scrim: rgb(var(--shadow-hue) / 38%);
+
   /* Surfaces derived from the cream ground. The pre-retheme theme expressed every
      recessed area as a dark navy alpha wash (rgba(4,13,28,…) / rgba(7,17,34,…)), which
      is invisible-to-wrong on a light page — so the P-003 sweep needs a light equivalent
