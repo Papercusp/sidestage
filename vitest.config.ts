@@ -1,6 +1,8 @@
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { mergeConfig } from 'vite';
 import { defineConfig } from 'vitest/config';
+import webViteConfig from './apps/web/vite.config';
 
 const repositoryRoot = fileURLToPath(new URL('.', import.meta.url));
 
@@ -41,8 +43,7 @@ export default defineConfig({
           exclude: sourceExclude,
         },
       },
-      {
-        extends: path.join(repositoryRoot, 'apps/web/vite.config.ts'),
+      mergeConfig(webViteConfig, {
         test: {
           name: 'sidestage-web',
           root: path.join(repositoryRoot, 'apps/web'),
@@ -50,7 +51,7 @@ export default defineConfig({
           include: ['src/**/*.{test,spec}.{ts,tsx}'],
           exclude: sourceExclude,
         },
-      },
+      }),
 
     ],
   },
