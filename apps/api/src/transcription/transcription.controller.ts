@@ -1,6 +1,7 @@
 import { Controller, Headers, Inject, Ip, Post } from '@nestjs/common';
 import { AuctionAccessService, auctionHeader } from '../auction/auction-access.service';
 import { DeepgramTokenService, type DeepgramTemporaryToken } from './deepgram-token.service';
+import { DEMO_PRINCIPAL_HEADER } from '../sync/sync-request-context';
 
 type HeadersMap = Record<string, string | string[] | undefined>;
 
@@ -17,7 +18,10 @@ export class TranscriptionController {
     @Ip() ip: string,
   ): Promise<DeepgramTemporaryToken> {
     this.sellerAccess.consumeRateLimit('deepgram-token-ip', ip || 'unknown', 30, 60_000);
-    const seller = this.sellerAccess.requireSeller(auctionHeader(headers, 'authorization'));
+    const seller = this.sellerAccess.requireSeller(
+      auctionHeader(headers, 'authorization'),
+      auctionHeader(headers, DEMO_PRINCIPAL_HEADER),
+    );
     this.sellerAccess.consumeRateLimit('deepgram-token-seller', seller.sellerId, 10, 60_000);
     return this.deepgramTokens.mint();
   }
