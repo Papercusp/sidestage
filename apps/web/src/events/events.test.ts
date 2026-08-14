@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest';
 import {
-  DEMO_EVENTS,
   addCatalogItems,
   applyMarkdown,
   createEmptyEvent,
@@ -10,6 +9,19 @@ import {
   updateEventItem,
 } from './events';
 import { DEMO_CATALOG } from '../event-creation/catalog';
+
+/**
+ * DEMO_EVENTS was removed from ./events; these cases build the same shape the
+ * way the rest of the suite does, so they exercise the real construction path
+ * rather than a fixture that can drift away from it.
+ */
+function demoEvent() {
+  return addCatalogItems(
+    createEmptyEvent('Studio sale', '2026-08-16T18:00:00.000Z'),
+    DEMO_CATALOG,
+    [DEMO_CATALOG[0].id],
+  );
+}
 
 describe('seller event helpers', () => {
   it('maps a catalog row into an event item with the event identity', () => {
@@ -31,7 +43,7 @@ describe('seller event helpers', () => {
   });
 
   it('updates price and quantity while enforcing event inventory bounds', () => {
-    const event = DEMO_EVENTS[0];
+    const event = demoEvent();
     const item = event.items[0];
     const result = updateEventItem(event, item.id, { priceCents: 1200, quantity: 2 });
     const invalid = updateEventItem(event, item.id, { quantity: item.availableQty + 1 });
@@ -43,7 +55,7 @@ describe('seller event helpers', () => {
   });
 
   it('applies markdowns and rejects values above the event guardrail', () => {
-    const event = DEMO_EVENTS[0];
+    const event = demoEvent();
     const item = event.items[0];
     const result = applyMarkdown(event, item.id, 10);
     const invalid = applyMarkdown(event, item.id, event.maxMarkdownPercent + 1);
