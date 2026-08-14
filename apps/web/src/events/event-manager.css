@@ -715,6 +715,31 @@
   font-size: 0.78rem;
 }
 
+.event-current-auction,
+.event-current-auction-state {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: .85rem;
+  padding: .75rem;
+  border: 1px solid var(--border);
+  border-radius: .6rem;
+  background: var(--surface-sunken);
+}
+
+.event-current-auction > div {
+  display: grid;
+  min-width: 0;
+  gap: .3rem;
+}
+
+.event-current-auction strong { font-size: .82rem; }
+.event-current-auction small,
+.event-current-auction-state { color: var(--muted); font-size: .7rem; }
+.event-current-auction-state.is-error { color: var(--red-text); }
+.event-auction-status-active { color: var(--success); background: color-mix(in srgb, var(--success) 10%, transparent); }
+.event-auction-status-closed { color: var(--muted); background: var(--surface); }
+
 @media (max-width: 720px) {
   .event-auction-access {
     align-items: stretch;
