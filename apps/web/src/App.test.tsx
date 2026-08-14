@@ -55,7 +55,7 @@ describe('P-005 product card and shell', () => {
       ['buyer', 'orders'],
       ['seller', 'history', 'test'],
     ]);
-    for (const tab of ['Watch', 'Orders', 'Studio', 'Releases', 'Tests']) {
+    for (const tab of ['Watch', 'Orders', 'Studio', 'History', 'Tests']) {
       expect(markup).toContain(`>${tab}</a>`);
     }
     expect(markup).not.toContain('>Settings</a>');

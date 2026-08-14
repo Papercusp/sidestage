@@ -59,7 +59,7 @@ export function App() {
 
   /* P-118 / D-019: one live directory powers the site-wide guide. Keeping the
      query at this shell boundary means the rail and its data remain mounted as
-     the user moves among Watch, Orders, Studio, Releases, and Tests. */
+     the user moves among Watch, Orders, Studio, History, and Tests. */
   const guideQuery = useSyncQuery<GuideEvent>({
     queryName: 'events.guide',
     args: {},
