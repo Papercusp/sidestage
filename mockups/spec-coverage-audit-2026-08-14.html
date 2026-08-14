@@ -1,0 +1,199 @@
+<title>SideStage Spec Coverage</title>
+<style>
+  :root {
+    --bg: #F4F5F7; --surface: #FFFFFF; --ink: #1A1E24; --ink2: #46505C;
+    --muted: #667080; --rule: #DDE1E7; --accent: #C92A1D;
+    --ok: #17693F; --okbg: #E6F2EA; --warn: #8A5A00; --warnbg: #F7EDDA;
+    --plan: #1D4F8A; --planbg: #E4EDF8; --flight: #6A3FA0; --flightbg: #EEE7F8;
+    --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #14171B; --surface: #1B2026; --ink: #E8EBEF; --ink2: #C0C7D0;
+      --muted: #8D97A3; --rule: #2A313A; --accent: #FF7A66;
+      --ok: #5FD39B; --okbg: #17301F; --warn: #E0B15C; --warnbg: #33290F;
+      --plan: #7FB0E8; --planbg: #14263C; --flight: #C5A6EE; --flightbg: #291C3D;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #14171B; --surface: #1B2026; --ink: #E8EBEF; --ink2: #C0C7D0;
+    --muted: #8D97A3; --rule: #2A313A; --accent: #FF7A66;
+    --ok: #5FD39B; --okbg: #17301F; --warn: #E0B15C; --warnbg: #33290F;
+    --plan: #7FB0E8; --planbg: #14263C; --flight: #C5A6EE; --flightbg: #291C3D;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink);
+    font: 15px/1.55 system-ui, -apple-system, "Segoe UI", sans-serif; -webkit-font-smoothing: antialiased; }
+  .wrap { max-width: 880px; margin: 0 auto; padding: 40px 22px 80px; }
+  .eyebrow { font-family: var(--mono); font-size: 11px; letter-spacing: .13em;
+    text-transform: uppercase; color: var(--accent); margin: 0 0 10px; }
+  h1 { font-size: clamp(28px, 5vw, 40px); font-weight: 750; letter-spacing: -.03em;
+    line-height: 1.05; margin: 0 0 10px; text-wrap: balance; }
+  .lede { color: var(--ink2); max-width: 64ch; margin: 0 0 24px; font-size: 16px; }
+  .verdict { display: flex; flex-wrap: wrap; gap: 10px; margin: 0 0 34px; }
+  .v { background: var(--surface); border: 1px solid var(--rule); border-radius: 8px;
+    padding: 12px 16px; flex: 1 1 150px; min-width: 150px; }
+  .v b { display: block; font-size: 22px; font-weight: 750; letter-spacing: -.02em;
+    font-variant-numeric: tabular-nums; }
+  .v span { font-size: 12px; color: var(--muted); }
+  h2 { font-size: 13px; font-family: var(--mono); letter-spacing: .1em; text-transform: uppercase;
+    color: var(--muted); font-weight: 600; margin: 38px 0 10px; }
+  .tbl { overflow-x: auto; border: 1px solid var(--rule); border-radius: 8px; background: var(--surface); }
+  table { border-collapse: collapse; width: 100%; min-width: 640px; font-size: 14px; }
+  th, td { text-align: left; padding: 10px 14px; border-bottom: 1px solid var(--rule); vertical-align: top; }
+  th { font-family: var(--mono); font-size: 10.5px; letter-spacing: .07em; text-transform: uppercase;
+    color: var(--muted); font-weight: 600; }
+  tr:last-child td { border-bottom: none; }
+  td.req { font-weight: 620; min-width: 180px; }
+  td.ev { color: var(--ink2); font-size: 13.5px; }
+  .pill { display: inline-block; font-size: 11px; font-weight: 700; border-radius: 999px;
+    padding: 2px 10px; white-space: nowrap; }
+  .p-ok { color: var(--ok); background: var(--okbg); }
+  .p-verify { color: var(--warn); background: var(--warnbg); }
+  .p-plan { color: var(--plan); background: var(--planbg); }
+  .p-flight { color: var(--flight); background: var(--flightbg); }
+  .note { background: var(--surface); border: 1px solid var(--rule); border-left: 3px solid var(--accent);
+    border-radius: 6px; padding: 14px 18px; margin: 14px 0 0; font-size: 14px; color: var(--ink2); }
+  .note b { color: var(--ink); }
+  code { font-family: var(--mono); font-size: .92em; }
+  footer { margin-top: 48px; padding-top: 18px; border-top: 1px solid var(--rule);
+    font-family: var(--mono); font-size: 11.5px; color: var(--muted); line-height: 1.7; }
+  a { color: var(--accent); }
+</style>
+
+<div class="wrap">
+  <p class="eyebrow">Audit · 2026-08-14 · against docs/PRD.md (the challenge-brief spec)</p>
+  <h1>SideStage Spec Coverage</h1>
+  <p class="lede">Every requirement in the original specification, mapped to what exists in code and
+    on production today — or to the plan that lands it. Verdict: <b>nothing in the original spec is
+    unimplemented-and-unplanned.</b> Two items are implemented but need live re-measurement; both are
+    lanes in the new release-testing campaign.</p>
+
+  <div class="verdict">
+    <div class="v"><b>5 / 5</b><span>challenge requirements implemented</span></div>
+    <div class="v"><b>4 / 4</b><span>product tabs live on prod</span></div>
+    <div class="v"><b>2</b><span>verify-only residues → campaign lanes</span></div>
+    <div class="v"><b>0</b><span>spec items with no plan</span></div>
+  </div>
+
+  <h2>Challenge requirements (PRD §Requirements)</h2>
+  <div class="tbl"><table>
+    <thead><tr><th>Requirement</th><th>Status</th><th>Evidence</th></tr></thead>
+    <tbody>
+      <tr><td class="req">1 · Live chat ingestion, grounded replies</td>
+        <td><span class="pill p-ok">Implemented</span></td>
+        <td class="ev">Copilot pipeline (<code>copilot.pipeline.ts</code>) with labelled grounding sources;
+          transcript-grounded chat answers shipped (standout P-009); judge grades the grounding dimension.</td></tr>
+      <tr><td class="req">2 · Guardrails before send</td>
+        <td><span class="pill p-ok">Implemented</span></td>
+        <td class="ev">Server-side policy gate: config guardrails → <code>policyFromConfig</code> +
+          published-policy override (P-114), per-product price floors (WI-38673), thumbnail-URL trust
+          boundary re-validated server-side; uncertain replies held in review.</td></tr>
+      <tr><td class="req">3 · Listing / inventory actions, audited</td>
+        <td><span class="pill p-ok">Implemented</span></td>
+        <td class="ev">Guarded-action service with push / swap / markdown / stock-adjust (P-115), audit
+          records per action, markdown cap + derived floors enforced on both sides of the wire.</td></tr>
+      <tr><td class="req">4 · On-demand product research, sub-2s budget</td>
+        <td><span class="pill p-verify">Implemented · verify live</span></td>
+        <td class="ev">Research path exists (<code>copilot/research.ts</code>) and is written against the
+          latency budget; the <b>measured</b> sub-2s number on prod is campaign lane P-005.</td></tr>
+      <tr><td class="req">5 · Depth: agentic-write safety</td>
+        <td><span class="pill p-ok">Implemented</span></td>
+        <td class="ev">Guarded-action service + deterministic reply judge (4 dimensions:
+          grounding / policy / price-correctness / tone) + load simulator & rehearsal modules;
+          the test-tab rehearsals plan shipped with a graded acceptance.</td></tr>
+    </tbody>
+  </table></div>
+
+  <h2>Product shape — one site, four tabs</h2>
+  <div class="tbl"><table>
+    <thead><tr><th>Tab</th><th>Status</th><th>Evidence</th></tr></thead>
+    <tbody>
+      <tr><td class="req">Buyer</td><td><span class="pill p-ok">Live</span></td>
+        <td class="ev">Stream, chat, drop browsing, holds, auction bids, checkout; event selector +
+          Channel Guide with thumbnails (directory-write fix deployed today); demo impersonation.</td></tr>
+      <tr><td class="req">Seller</td><td><span class="pill p-ok">Live</span></td>
+        <td class="ev">Full console as draggable/resizable dockview panels (plan complete, independently
+          graded 8.3); transcript mention→on-deck; copilot approve/edit/skip; pricing history.</td></tr>
+      <tr><td class="req">Config</td><td><span class="pill p-ok">Live</span></td>
+        <td class="ev">Event terms + always-ask guardrails persisted (<code>event_config</code>), feeding
+          the copilot policy (P-105/P-114 contract).</td></tr>
+      <tr><td class="req">Test</td><td><span class="pill p-ok">Live</span></td>
+        <td class="ev">Preflight probes, N-user × M-msg/s load rehearsal, reply judge — the shipped
+          test-tab rehearsals plan.</td></tr>
+    </tbody>
+  </table></div>
+
+  <h2>Commerce model</h2>
+  <div class="tbl"><table>
+    <thead><tr><th>Domain</th><th>Status</th><th>Evidence</th></tr></thead>
+    <tbody>
+      <tr><td class="req">Catalog + search</td>
+        <td><span class="pill p-verify">Implemented · verify scale</span></td>
+        <td class="ev">Real Restart catalog model, catalog read-model endpoint, Typesense search with SQL
+          fallback, Restart search parity shipped (P-110). The PRD's "full 1.1M-product import on the
+          production instance" claim is re-verified in campaign lane P-006.</td></tr>
+      <tr><td class="req">Inventory integrity</td><td><span class="pill p-ok">Implemented</span></td>
+        <td class="ev">Source-tracked reservations in Postgres; availability derived, never counted;
+          idempotent holds; release on auction close (P-101/P-103).</td></tr>
+      <tr><td class="req">Auctions</td><td><span class="pill p-ok">Implemented</span></td>
+        <td class="ev">One active auction per event, quantity holds at start, server-ordered bids,
+          winner order retains the reservation; quantity on auctions + offers added (standout P-114).</td></tr>
+      <tr><td class="req">Checkout</td><td><span class="pill p-ok">Implemented</span></td>
+        <td class="ev">Square-sandbox sessions over the cart, persisted orders with status, box-packing
+          shipping estimator — the checkout-shipping plan's items are all done.</td></tr>
+    </tbody>
+  </table></div>
+
+  <h2>Success criteria (PRD)</h2>
+  <div class="tbl"><table>
+    <thead><tr><th>Criterion</th><th>Status</th><th>Evidence</th></tr></thead>
+    <tbody>
+      <tr><td class="req">Clone → install → dev → test from README alone</td>
+        <td><span class="pill p-verify">Verify fresh</span></td>
+        <td class="ev">README carries the path; CI exists (<code>ci.yml</code>). A fresh-clone re-run
+          outside the shared tree is campaign lane P-001.</td></tr>
+      <tr><td class="req">Public instance serves the real catalog</td>
+        <td><span class="pill p-ok">Met</span></td>
+        <td class="ev"><a href="https://sidestage.buyrestart.com">sidestage.buyrestart.com</a> is live
+          (re-verified today). Stale "no public URL" line in <code>docs/submission.md</code> found by
+          this audit and fixed. <code>shop.buyrestart.com</code> is a separate project (owner ruling,
+          2026-08-14) and out of scope.</td></tr>
+      <tr><td class="req">Judge + load rehearsal thresholds</td>
+        <td><span class="pill p-verify">Re-run at cut</span></td>
+        <td class="ev">Both exist and shipped with the Test tab; the release-gate re-run on current prod
+          is campaign lane P-005.</td></tr>
+    </tbody>
+  </table></div>
+
+  <h2>Open work beyond the original spec (owner-added since)</h2>
+  <div class="tbl"><table>
+    <thead><tr><th>Work</th><th>Status</th><th>Where</th></tr></thead>
+    <tbody>
+      <tr><td class="req">Engagement meter chain</td><td><span class="pill p-plan">In plan</span></td>
+        <td class="ev">standout P-001 core (open, being routed to the fleet now) → P-003 / P-004 / P-010.</td></tr>
+      <tr><td class="req">Seller demo impersonation</td><td><span class="pill p-flight">In flight</span></td>
+        <td class="ev">standout P-119 / WI-38669 — actively being built.</td></tr>
+      <tr><td class="req">Combined-shipping cart meter</td><td><span class="pill p-plan">In plan</span></td>
+        <td class="ev">standout P-008, unclaimed, routed with P-001.</td></tr>
+      <tr><td class="req">Mobile apps (iPhone + Android)</td><td><span class="pill p-flight">In flight</span></td>
+        <td class="ev">A PRD non-goal, added by the owner. Mockup approved today; Android scaffold
+          already claimed; 12 items across the two plans.</td></tr>
+      <tr><td class="req">Ship ceremonies ×3</td><td><span class="pill p-flight">In flight</span></td>
+        <td class="ev">dockview, checkout-shipping, code-quality are done in substance; the
+          <code>shipped</code> flips wait on the platform audit-gate fix (EI-20430092702151575, claimed).</td></tr>
+    </tbody>
+  </table></div>
+
+  <div class="note"><b>How this gets certified:</b> the release-testing campaign
+    (<code>sidestage-public-release-testing-2026-08-14</code>, 10 lanes) exercises every row above on
+    the live product, routes every red through a fix loop, and ends with an independent grade of the
+    <code>release-readiness-sidestage-2026-08-14</code> rubric — 7 criteria, graded
+    healthy / degraded / broken by a non-implementer. Every criterion healthy = ready for public release.</div>
+
+  <footer>
+    Audited 2026-08-14 by su-c18ba (WI-38781) · spec: docs/PRD.md + docs/TDD.md + docs/submission.md ·
+    evidence: sidestage hive tree at HEAD + live probes of sidestage.buyrestart.com ·
+    campaign: sidestage-public-release-testing-2026-08-14 · rubric: release-readiness-sidestage-2026-08-14
+  </footer>
+</div>

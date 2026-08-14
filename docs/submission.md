@@ -14,7 +14,7 @@ Read first: [`PRD.md`](PRD.md) (product requirements) and [`TDD.md`](TDD.md)
 | --- | --- |
 | Project | SideStage — Live Selling Copilot |
 | Repository | <https://github.com/Papercusp/sidestage> |
-| Live demo | No public URL is claimed yet. The public-deploy item is still blocked on the `shop.buyrestart.com` infrastructure path; use the clean-clone path below. |
+| Live demo | <https://sidestage.buyrestart.com> — the public instance, serving the real catalog. (The clean-clone path below remains the reviewer-verifiable route.) |
 | Run command | `npm run dev` |
 | Test command | `npm test` |
 | Full local gate | `npm run check` followed by `npm run build` |
