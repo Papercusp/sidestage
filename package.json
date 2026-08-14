@@ -13,6 +13,7 @@
     "dev:api": "npm run start:dev --workspace @papercusp/sidestage-api",
     "dev:web": "npm run dev --workspace @papercusp/sidestage-web -- --strictPort",
     "install:safe": "node \"$PAPERCUSP_REPO_ROOT/scripts/npm-install-safe.mjs\" --repo-root . --",
+    "audit:prod": "npm audit --omit=dev --audit-level=high",
     "build": "npm run build --workspaces --if-present",
     "typecheck": "npm run typecheck --workspaces --if-present",
     "db:apply": "bash scripts/db-apply.sh",
@@ -38,6 +39,9 @@
     "vitest": "^4.1.4"
   },
   "overrides": {
+    "@opentelemetry/sdk-node@0.218.0": {
+      "@opentelemetry/propagator-jaeger": "2.10.0"
+    },
     "react": "^19",
     "react-dom": "^19"
   }
