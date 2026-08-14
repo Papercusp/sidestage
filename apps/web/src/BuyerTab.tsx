@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useSyncMutate, useSyncQuery } from '@papercusp/sync';
 
 import {
@@ -21,7 +21,9 @@ import { fetchEventGuide, fetchEventThumbnailUrl, type GuideEvent } from './even
 import { ChannelGuide } from './events/ChannelGuide';
 import { ReplayChapters } from './ReplayChapters';
 import { DemoIdentityControl } from './BuyerIdentityControl';
+import { useBuyerCheckout } from './BuyerCheckout';
 import { useDemoIdentity } from './buyer-identity';
+import './BuyerTab.css';
 
 export interface BuyerTabProps {
   eventId?: string;
@@ -57,6 +59,7 @@ class InventoryHoldConflict extends Error {}
 
 const EMPTY_BUYER_STATS: BuyerStats = { viewers: 0, itemsSold: 0, totalRaisedCents: 0 };
 export const BUYER_PRODUCT_PREVIEW_LIMIT = 3;
+type BuyerMode = 'shop' | 'chat';
 
 export function buyerStatsFromSyncRows(rows?: readonly BuyerStats[]): BuyerStats | null {
   return rows?.[0] ?? null;
@@ -174,6 +177,7 @@ export function BuyerTab({
   const [holdNotice, setHoldNotice] = useState<string | null>(null);
   const [holdOverrides, setHoldOverrides] = useState<Record<string, number>>({});
   const [showAllProducts, setShowAllProducts] = useState(false);
+  const [buyerMode, setBuyerMode] = useState<BuyerMode>('shop');
   const stream = useStreamSession<ViewerSession>();
   const { streamState, setStreamState, streamError, session, videoRef } = stream;
   const { copyState, copy } = useCopyState();
@@ -181,6 +185,8 @@ export function BuyerTab({
   // action consumes the same persisted id, and the Orders tab imports the same
   // hook rather than inventing a second notion of "current user".
   const { userId, impersonate } = useDemoIdentity();
+  const addHeldProductToCheckout = useBuyerCheckout();
+  const lastQueuedHold = useRef<string | null>(null);
 
   const holdProductFallback = useCallback(async (input: InventoryHoldMutation): Promise<InventoryHoldResult> => {
     const response = await fetch(`${resolveApiBaseUrl()}/inventory/${encodeURIComponent(input.productId)}/hold`, {
@@ -205,6 +211,7 @@ export function BuyerTab({
 
   useEffect(() => {
     setShowAllProducts(false);
+    setBuyerMode('shop');
   }, [eventId]);
 
   const connectStream = () =>
@@ -259,34 +266,52 @@ export function BuyerTab({
   };
 
   const liveLabel = streamLabel(streamState);
-  const productsWithLiveQuantity = products.map((product) => {
+  const productsWithLiveQuantity = useMemo(() => products.map((product) => {
     const liveQty = holdOverrides[product.id];
     return liveQty === undefined ? product : { ...product, availableQty: liveQty };
-  });
+  }), [holdOverrides, products]);
   const visibleProducts = availableBuyerProducts(productsWithLiveQuantity);
+  const currentProduct = visibleProducts[0] ?? productsWithLiveQuantity[0] ?? null;
+  const upcomingProducts = currentProduct
+    ? productsWithLiveQuantity.filter((product) => product.id !== currentProduct.id)
+    : productsWithLiveQuantity;
   const displayedProducts = showAllProducts
     ? productsWithLiveQuantity
-    : productsWithLiveQuantity.slice(0, BUYER_PRODUCT_PREVIEW_LIMIT);
+    : upcomingProducts.slice(0, BUYER_PRODUCT_PREVIEW_LIMIT);
+
+  useEffect(() => {
+    if (!selectedProductId) {
+      lastQueuedHold.current = null;
+      return;
+    }
+    if (!addHeldProductToCheckout || lastQueuedHold.current === selectedProductId) return;
+    const heldProduct = productsWithLiveQuantity.find((product) => product.id === selectedProductId);
+    if (!heldProduct) return;
+    lastQueuedHold.current = selectedProductId;
+    void addHeldProductToCheckout(heldProduct);
+  }, [addHeldProductToCheckout, productsWithLiveQuantity, selectedProductId]);
 
   return (
     <section className="buyer-tab density-roomy" id="buyer" aria-labelledby="buyer-title">
-      <div className="buyer-heading">
-        <div className="buyer-heading-identity">
+      <header className="buyer-room-header">
+        <div className="buyer-room-title">
           <EventThumbnail url={thumbnailUrl} eventName={resolvedTitle} className="buyer-event-thumbnail" />
           <div>
-            <p className="eyebrow">Join the room</p>
+            <div className="buyer-room-status-line">
+              <span className={`buyer-live-state buyer-live-state-${streamState}`}>
+                <span aria-hidden="true" /> {liveLabel}
+              </span>
+              <span>{stats.viewers} watching</span>
+            </div>
             <h2 id="buyer-title">{resolvedTitle}</h2>
-            <p className="muted">Watch together, ask questions, and keep the good finds moving.</p>
+            <div className="buyer-room-meta" aria-label="Event stats">
+              <span><strong>{stats.itemsSold}</strong> items sold</span>
+              <span><strong>{formatBuyerPrice(stats.totalRaisedCents)}</strong> raised</span>
+              <span>Hosted live on SideStage</span>
+            </div>
           </div>
         </div>
-        <div className="buyer-heading-actions">
-          <DemoIdentityControl
-            userId={userId}
-            onImpersonate={impersonate}
-            inputId="buyer-demo-user-id"
-          />
-          {/* D-019: the "What's on" trigger. It carries the live-room count so
-              the guide advertises what is happening without being opened. */}
+        <div className="buyer-room-actions">
           <button
             className="whats-on-button"
             type="button"
@@ -297,14 +322,18 @@ export function BuyerTab({
             What&rsquo;s on
             {liveEventCount > 0 ? <span className="whats-on-count">{liveEventCount}</span> : null}
           </button>
-          <span className={`buyer-live-state buyer-live-state-${streamState}`}>
-            <span aria-hidden="true" /> {liveLabel}
-          </span>
           <button className="button secondary" type="button" onClick={copyShareUrl}>
-            {copyState === 'copied' ? 'Link copied' : copyState === 'failed' ? 'Copy failed' : 'Share event'}
+            {copyState === 'copied' ? 'Link copied' : copyState === 'failed' ? 'Copy failed' : 'Share room'}
           </button>
+          <div className="buyer-account-control">
+            <DemoIdentityControl
+              userId={userId}
+              onImpersonate={impersonate}
+              inputId="buyer-demo-user-id"
+            />
+          </div>
         </div>
-      </div>
+      </header>
 
       <ChannelGuide
         open={guideOpen}
@@ -316,41 +345,89 @@ export function BuyerTab({
         error={guideError}
       />
 
-      <div className="buyer-layout">
-        <div className="buyer-main-column">
-          <div className="buyer-player-card">
-            {/* The thumbnail doubles as the player poster, so the event has a
-                face before the stream connects instead of a black rectangle.
-                Guarded by the same allow-list as every other render: `poster`
-                takes a URL, so an unvetted value does not belong here either. */}
-            <video
-              ref={videoRef}
-              className="buyer-player"
-              controls
-              playsInline
-              poster={isRenderableThumbnailUrl(thumbnailUrl) ? thumbnailUrl : undefined}
-              aria-label={`${eventTitle} stream`}
-            />
-            <div className="buyer-player-overlay">
-              <span className="live-badge">{room.eventId}</span>
-              <p>{streamState === 'error' ? streamError : 'The seller stream appears here when the room is live.'}</p>
-              {session ? (
-                <button className="button secondary" type="button" onClick={disconnectStream}>Disconnect</button>
-              ) : (
-                <button className="button primary" type="button" onClick={() => void connectStream()} disabled={streamState === 'connecting'}>
-                  {streamState === 'connecting' ? 'Connecting…' : 'Connect to stream'}
-                </button>
-              )}
+      <section className="buyer-stage-grid" aria-label="Live video and current offer">
+        <div className="buyer-player-card">
+          <video
+            ref={videoRef}
+            className="buyer-player"
+            controls
+            playsInline
+            poster={isRenderableThumbnailUrl(thumbnailUrl) ? thumbnailUrl : undefined}
+            aria-label={`${resolvedTitle} stream`}
+          />
+          <div className="buyer-player-overlay">
+            <span className="live-badge">{room.eventId}</span>
+            <p>{streamState === 'error' ? streamError : 'The seller stream appears here when the room is live.'}</p>
+            {session ? (
+              <button className="button secondary" type="button" onClick={disconnectStream}>Disconnect</button>
+            ) : (
+              <button className="button primary" type="button" onClick={() => void connectStream()} disabled={streamState === 'connecting'}>
+                {streamState === 'connecting' ? 'Connecting…' : 'Connect to stream'}
+              </button>
+            )}
+          </div>
+        </div>
+
+        <article
+          className="buyer-current-offer"
+          aria-labelledby="buyer-current-offer-title"
+          data-current-product-id={currentProduct?.id}
+        >
+          <div className="buyer-current-offer-heading">
+            <div>
+              <p className="eyebrow">Now selling</p>
+              <h3 id="buyer-current-offer-title">{currentProduct?.title ?? 'The next item is almost ready'}</h3>
             </div>
+            {currentProduct ? (
+              <span className={`buyer-offer-stock${currentProduct.availableQty <= 0 ? ' is-sold-out' : ''}`} role="status" aria-live="polite">
+                {currentProduct.availableQty > 0 ? `${currentProduct.availableQty} left` : 'Sold out'}
+              </span>
+            ) : null}
           </div>
+          <div className="buyer-current-offer-art">
+            {currentProduct?.imageUrl ? (
+              <img src={currentProduct.imageUrl} alt={currentProduct.title} width="640" height="480" />
+            ) : (
+              <span aria-hidden="true">{currentProduct?.title.slice(0, 1) ?? 'S'}</span>
+            )}
+          </div>
+          {currentProduct ? (
+            <>
+              <div className="buyer-current-offer-price">
+                <strong>{formatBuyerPrice(currentProduct.priceCents)}</strong>
+                {currentProduct.compareAtPriceCents ? <del>{formatBuyerPrice(currentProduct.compareAtPriceCents)}</del> : null}
+              </div>
+              <p>{currentProduct.subtitle}</p>
+              <button
+                className="button primary buyer-current-offer-action"
+                type="button"
+                disabled={currentProduct.availableQty <= 0}
+                onClick={() => void reserveProduct(currentProduct)}
+              >
+                {selectedProductId === currentProduct.id
+                  ? 'Held for you'
+                  : currentProduct.availableQty <= 0
+                    ? 'Sold out'
+                    : `Hold ${currentProduct.title} · ${formatBuyerPrice(currentProduct.priceCents)}`}
+              </button>
+              <div className="buyer-current-offer-trust">
+                <span>12-minute hold</span><span>Secure checkout</span><span>Easy returns</span>
+              </div>
+            </>
+          ) : (
+            <p className="muted">Stay in the room—the offer updates when the seller brings an item on stage.</p>
+          )}
+        </article>
+      </section>
 
+      <div className="buyer-mode-switch" role="group" aria-label="Buyer mobile view">
+        <button type="button" aria-pressed={buyerMode === 'shop'} onClick={() => setBuyerMode('shop')}>Shop</button>
+        <button type="button" aria-pressed={buyerMode === 'chat'} onClick={() => setBuyerMode('chat')}>Chat</button>
+      </div>
+
+      <div className="buyer-lower-grid" data-buyer-mode={buyerMode}>
+        <div className="buyer-shop-panel">
           <ReplayChapters eventId={eventId} videoRef={videoRef} apiBaseUrl={resolveApiBaseUrl()} />
-
-          <div className="buyer-stats" aria-label="Event stats">
-            <span><strong>{stats.viewers}</strong> watching</span>
-            <span><strong>{stats.itemsSold}</strong> items sold</span>
-            <span><strong>{formatBuyerPrice(stats.totalRaisedCents)}</strong> raised</span>
-          </div>
 
           <AuctionPanel
             eventId={eventId}
@@ -362,12 +439,12 @@ export function BuyerTab({
 
           <div className="buyer-products-heading">
             <div>
-              <p className="eyebrow">On stage now</p>
-              <h3>Shop the drop</h3>
+              <p className="eyebrow">Coming up</p>
+              <h3>Next in the drop</h3>
             </div>
             <div className="buyer-products-heading-actions">
               <span className="muted">{visibleProducts.length} available</span>
-              {productsWithLiveQuantity.length > BUYER_PRODUCT_PREVIEW_LIMIT ? (
+              {upcomingProducts.length > BUYER_PRODUCT_PREVIEW_LIMIT ? (
                 <button
                   className="button secondary buyer-products-toggle"
                   type="button"
@@ -393,19 +470,31 @@ export function BuyerTab({
         </div>
 
         <aside className="buyer-chat-card" aria-label="Event chat">
-          {/* The SAME chat the seller console uses (P-103) — the local demo
-              chat this replaced never reached the room. */}
           <EventChat
             eventId={eventId}
             role="buyer"
             userId={userId}
             displayName={userId}
-            eventTitle={eventTitle}
+            eventTitle={resolvedTitle}
             apiBaseUrl={resolveApiBaseUrl()}
           />
           <p className="buyer-share-note">Share this room: <button type="button" onClick={copyShareUrl}>{shareUrl}</button></p>
         </aside>
       </div>
+
+      {currentProduct ? (
+        <div className="buyer-mobile-action" aria-label="Current offer">
+          <div><strong>{currentProduct.title}</strong><span>{formatBuyerPrice(currentProduct.priceCents)} · {currentProduct.availableQty} left</span></div>
+          <button
+            className="button primary"
+            type="button"
+            disabled={currentProduct.availableQty <= 0}
+            onClick={() => void reserveProduct(currentProduct)}
+          >
+            {selectedProductId === currentProduct.id ? 'Held for you' : 'Hold item'}
+          </button>
+        </div>
+      ) : null}
     </section>
   );
 }

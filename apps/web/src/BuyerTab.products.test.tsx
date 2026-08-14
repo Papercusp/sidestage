@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
 
@@ -11,6 +12,7 @@ const PRODUCTS: BuyerProduct[] = Array.from({ length: 5 }, (_, index) => ({
   priceCents: 2_000 + index * 100,
   availableQty: index === 4 ? 0 : index + 1,
 }));
+const buyerCss = readFileSync(new URL('./BuyerTab.css', import.meta.url), 'utf8');
 
 function render(products: readonly BuyerProduct[]): string {
   return renderToStaticMarkup(
@@ -25,14 +27,17 @@ function render(products: readonly BuyerProduct[]): string {
 }
 
 describe('BuyerTab product preview', () => {
-  it('shows only the next three products before the catalog is expanded', () => {
+  it('keeps the current offer above the fold and previews the next three products', () => {
     const markup = render(PRODUCTS);
 
     expect(BUYER_PRODUCT_PREVIEW_LIMIT).toBe(3);
-    for (const product of PRODUCTS.slice(0, BUYER_PRODUCT_PREVIEW_LIMIT)) {
+    expect(markup).toContain(`data-current-product-id="${PRODUCTS[0].id}"`);
+    expect(markup).toContain(`Hold ${PRODUCTS[0].title} · $20.00`);
+    expect(markup).not.toContain(`data-product-id="${PRODUCTS[0].id}"`);
+    for (const product of PRODUCTS.slice(1, BUYER_PRODUCT_PREVIEW_LIMIT + 1)) {
       expect(markup).toContain(`data-product-id="${product.id}"`);
     }
-    for (const product of PRODUCTS.slice(BUYER_PRODUCT_PREVIEW_LIMIT)) {
+    for (const product of PRODUCTS.slice(BUYER_PRODUCT_PREVIEW_LIMIT + 1)) {
       expect(markup).not.toContain(`data-product-id="${product.id}"`);
     }
   });
@@ -47,9 +52,26 @@ describe('BuyerTab product preview', () => {
   });
 
   it('does not add a redundant catalog toggle when every item is already visible', () => {
-    const markup = render(PRODUCTS.slice(0, BUYER_PRODUCT_PREVIEW_LIMIT));
+    const markup = render(PRODUCTS.slice(0, BUYER_PRODUCT_PREVIEW_LIMIT + 1));
 
     expect(markup).not.toContain('aria-controls="buyer-event-products"');
     expect(markup).not.toContain('View all');
+  });
+
+  it('exposes mobile Shop and Chat modes without removing either desktop surface', () => {
+    const markup = render(PRODUCTS);
+
+    expect(markup).toContain('aria-label="Buyer mobile view"');
+    expect(markup).toContain('aria-pressed="true">Shop');
+    expect(markup).toContain('aria-pressed="false">Chat');
+    expect(markup).toContain('data-buyer-mode="shop"');
+    expect(markup).toContain('aria-label="Event chat"');
+  });
+
+  it('pins the approved responsive stage and non-covering sticky action in page CSS', () => {
+    expect(buyerCss).toMatch(/\.buyer-stage-grid\s*\{[^}]*grid-template-columns:/s);
+    expect(buyerCss).toMatch(/\.buyer-mobile-action\s*\{[^}]*position:\s*sticky/s);
+    expect(buyerCss).toMatch(/\.buyer-mode-switch button\s*\{[^}]*min-height:\s*2\.75rem/s);
+    expect(buyerCss).toContain(".buyer-lower-grid[data-buyer-mode='chat'] .buyer-shop-panel");
   });
 });
