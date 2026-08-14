@@ -63,6 +63,10 @@ describe('AuctionService', () => {
     const closed = await auctions.closeAuction(started.id);
     expect(closed.status).toBe('closed');
     expect(closed.winnerOrder).toMatchObject({ bidderId: 'buyer-b', quantity: 2, unitPriceCents: 1500, totalCents: 3000, status: 'pending' });
+    await expect(auctions.listWinnerOrdersForBuyer('buyer-b')).resolves.toEqual([
+      expect.objectContaining({ id: closed.winnerOrder?.id, bidderId: 'buyer-b' }),
+    ]);
+    await expect(auctions.listWinnerOrdersForBuyer('buyer-a')).resolves.toEqual([]);
     await expect(inventory.get('product-1')).resolves.toMatchObject({ reservedQty: 2, availableQty: 8 });
     await expect(auctions.getActiveAuction('event-1')).resolves.toBeNull();
   });

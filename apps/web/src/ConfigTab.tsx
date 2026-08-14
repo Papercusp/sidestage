@@ -1,4 +1,5 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
+import { useSyncMutate, useSyncQuery } from '@papercusp/sync';
 import { resolveApiBaseUrl } from './catalog';
 import { TabHeader } from './components/TabHeader';
 import { browserEventId } from './event-identity';
@@ -9,13 +10,15 @@ interface EventGuardrails {
   buyerSensitive: boolean;
 }
 
-interface EventConfigView {
+export interface EventConfigView {
   eventId: string;
   name: string;
   replyTone: 'warm' | 'playful' | 'minimal';
   guardrails: EventGuardrails;
   updatedAt: string;
 }
+
+export type EventConfigUpdate = Pick<EventConfigView, 'name' | 'replyTone' | 'guardrails'>;
 
 type SaveState = 'idle' | 'saving' | 'saved' | 'error' | 'offline';
 
@@ -24,6 +27,24 @@ const GUARDRAIL_COPY: ReadonlyArray<{ key: keyof EventGuardrails; title: string;
   { key: 'inventoryClaims', title: 'Inventory claims', detail: 'Use the latest catalog quantity only.' },
   { key: 'buyerSensitive', title: 'Buyer-sensitive topics', detail: 'Keep uncertain replies in review.' },
 ];
+
+export function offlineEventConfig(eventId: string): EventConfigView {
+  return {
+    eventId,
+    name: 'Sunday vintage drop',
+    replyTone: 'warm',
+    guardrails: { priceChanges: true, inventoryClaims: true, buyerSensitive: true },
+    updatedAt: new Date(0).toISOString(),
+  };
+}
+
+export function eventConfigUpdate(config: EventConfigView): EventConfigUpdate {
+  return {
+    name: config.name,
+    replyTone: config.replyTone,
+    guardrails: config.guardrails,
+  };
+}
 
 /**
  * Real event configuration (P-105): loads and persists via
@@ -36,46 +57,44 @@ export function ConfigTab() {
   const [saveState, setSaveState] = useState<SaveState>('idle');
   const [savedAt, setSavedAt] = useState<Date | null>(null);
 
-  useEffect(() => {
-    let cancelled = false;
-    fetch(`${resolveApiBaseUrl()}/events/${encodeURIComponent(eventId)}/config`)
-      .then(async (response) => {
-        if (!response.ok) throw new Error(`HTTP ${response.status}`);
-        return (await response.json()) as EventConfigView;
-      })
-      .then((loaded) => {
-        if (!cancelled) setConfig(loaded);
-      })
-      .catch(() => {
-        if (!cancelled) {
-          setSaveState('offline');
-          setConfig({
-            eventId,
-            name: 'Sunday vintage drop',
-            replyTone: 'warm',
-            guardrails: { priceChanges: true, inventoryClaims: true, buyerSensitive: true },
-            updatedAt: new Date(0).toISOString(),
-          });
-        }
-      });
-    return () => {
-      cancelled = true;
-    };
+  const configQuery = useSyncQuery<EventConfigView>({
+    queryName: 'event.config',
+    args: { eventId },
+    pollIntervalMs: 30_000,
+  });
+
+  const saveFallback = useCallback(async (input: EventConfigUpdate) => {
+    const response = await fetch(`${resolveApiBaseUrl()}/events/${encodeURIComponent(eventId)}/config`, {
+      method: 'PUT',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(input),
+    });
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    return (await response.json()) as EventConfigView;
   }, [eventId]);
+  const mutateConfig = useSyncMutate<EventConfigUpdate, EventConfigView>('event.updateConfig', saveFallback);
+
+  useEffect(() => {
+    const loaded = configQuery.data?.[0];
+    if (loaded) {
+      setConfig(loaded);
+      setSaveState((current) => current === 'offline' ? 'idle' : current);
+      return;
+    }
+    if (configQuery.error) {
+      setSaveState('offline');
+      setConfig((current) => current ?? offlineEventConfig(eventId));
+    }
+  }, [configQuery.data, configQuery.error, eventId]);
 
   const save = async () => {
     if (!config) return;
     setSaveState('saving');
     try {
-      const response = await fetch(`${resolveApiBaseUrl()}/events/${encodeURIComponent(eventId)}/config`, {
-        method: 'PUT',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ name: config.name, replyTone: config.replyTone, guardrails: config.guardrails }),
-      });
-      if (!response.ok) throw new Error(`HTTP ${response.status}`);
-      setConfig((await response.json()) as EventConfigView);
+      setConfig(await mutateConfig(eventConfigUpdate(config)));
       setSaveState('saved');
       setSavedAt(new Date());
+      configQuery.invalidate();
     } catch {
       setSaveState('error');
     }

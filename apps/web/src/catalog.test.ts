@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { filterOfflineCatalog } from './catalog';
+import { filterOfflineCatalog, resolveCatalogRows } from './catalog';
 
 describe('catalog sync fallback mapping', () => {
   it('preserves search, availability, type, and pagination semantics offline', () => {
@@ -9,5 +9,13 @@ describe('catalog sync fallback mapping', () => {
     ]);
     expect(filterOfflineCatalog({ productType: 'CAMERA', availability: 'in-stock' }))
       .toHaveLength(2);
+  });
+
+  it('keeps the pending-page row fallback identity stable across renders', () => {
+    const first = resolveCatalogRows(false, []);
+    const second = resolveCatalogRows(false, []);
+
+    expect(first).toBe(second);
+    expect(first).toEqual([]);
   });
 });

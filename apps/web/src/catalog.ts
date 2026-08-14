@@ -77,6 +77,21 @@ export interface UseCatalogState {
   productTypes: string[];
 }
 
+// Loading sync queries have no data yet. These module-level fallbacks must be
+// identity-stable: returning a fresh [] from the hook on every render makes a
+// consumer effect that indexes rows look like its dependency changed forever.
+const EMPTY_CATALOG_ROWS: CatalogVariant[] = [];
+const EMPTY_PRODUCT_TYPES: string[] = [];
+
+export function resolveCatalogRows(
+  offline: boolean,
+  offlineRows: CatalogVariant[],
+  pageResult?: CatalogPage,
+): CatalogVariant[] {
+  if (offline) return offlineRows;
+  return pageResult?.rows ?? EMPTY_CATALOG_ROWS;
+}
+
 export function filterOfflineCatalog(search: CatalogSearch): CatalogVariant[] {
   const {
     q = '', productType = 'all', availability = 'all', page = 1, pageSize = 24,
@@ -123,14 +138,14 @@ export function useCatalog(search: CatalogSearch, apiBaseUrl?: string, debounceM
   const offline = Boolean(pageQuery.error);
   const productTypes = typesQuery.error
     ? [...new Set(OFFLINE_FIXTURE.map((row) => row.productType))]
-    : typesQuery.data ?? [];
+    : typesQuery.data ?? EMPTY_PRODUCT_TYPES;
 
   // The app-wide provider owns the transport URL. Keep apiBaseUrl in the
   // signature for embedders that still pass it to the REST helper functions.
   void apiBaseUrl;
 
   return {
-    rows: offline ? offlineRows : pageResult?.rows ?? [],
+    rows: resolveCatalogRows(offline, offlineRows, pageResult),
     total: offline ? offlineRows.length : pageResult?.total ?? 0,
     totalIsFloor: offline ? false : pageResult?.totalIsFloor ?? false,
     loading: pageQuery.loading || pageQuery.fetching,
