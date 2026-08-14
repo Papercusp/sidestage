@@ -105,11 +105,6 @@ const MAX_TRANSCRIPT_MOMENTS = 200;
 const MAX_USER_ID_LENGTH = 80;
 const MAX_DISPLAY_NAME_LENGTH = 80;
 const MAX_MESSAGE_LENGTH = 500;
-const STOP_WORDS = new Set([
-  'about', 'after', 'again', 'also', 'been', 'before', 'could', 'does', 'from',
-  'have', 'into', 'just', 'that', 'their', 'there', 'these', 'they', 'this',
-  'what', 'when', 'where', 'which', 'with', 'would', 'your',
-]);
 
 const CONDITION_EVIDENCE_PATTERNS: ReadonlyArray<{ label: string; pattern: RegExp }> = [
   { label: 'Serial or model number', pattern: /\b(serial|model number|sku|identifier)\b/i },
@@ -121,24 +116,8 @@ export function conditionEvidenceLabel(text: string): string | undefined {
   return CONDITION_EVIDENCE_PATTERNS.find(({ pattern }) => pattern.test(text))?.label;
 }
 
-function questionTokens(value: string): string[] {
-  return value
-    .toLocaleLowerCase()
-    .replace(/[^a-z0-9]+/g, ' ')
-    .split(/\s+/)
-    .filter((token) => token.length >= 3 && !STOP_WORDS.has(token));
-}
-
 export function isBuyerQuestion(value: string): boolean {
   return value.includes('?') || /^(what|when|where|who|why|how|is|are|does|do|can|could|will|would)\b/i.test(value.trim());
-}
-
-function citationLabel(startMs?: number): string {
-  if (startMs === undefined) return 'Live transcript';
-  const totalSeconds = Math.max(0, Math.floor(startMs / 1_000));
-  const minutes = Math.floor(totalSeconds / 60);
-  const seconds = String(totalSeconds % 60).padStart(2, '0');
-  return `Stream ${minutes}:${seconds}`;
 }
 
 /**

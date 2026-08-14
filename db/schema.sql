@@ -541,6 +541,51 @@ CREATE TABLE IF NOT EXISTS scout_session (
   CONSTRAINT scout_session_messages_array CHECK (jsonb_typeof(messages) = 'array')
 );
 
+-- Scout long-term memory (P-012). Scope-keyed: `user:<buyerId>` holds one
+-- buyer's own memories, `store` holds shared facts; a recall reads a list of
+-- scopes so a turn can pull both at once.
+--
+-- Recall is LEXICAL, not semantic (D-008): this database has no `vector`
+-- extension and the deployment sets TYPESENSE_EMBEDDING_PROVIDER=none, so
+-- memory rides the same full-text + trigram machinery product_catalog already
+-- uses rather than inventing a retrieval mechanism. `english` (not the
+-- catalog's `simple`) because memories are natural-language sentences where
+-- stemming and stopword removal are what make recall work at all.
+CREATE TABLE IF NOT EXISTS scout_memory (
+  id text PRIMARY KEY,
+  scope text NOT NULL,
+  kind text NOT NULL DEFAULT 'fact',
+  text text NOT NULL,
+  search_tsv tsvector,
+  created_at timestamptz NOT NULL DEFAULT now()
+);
+
+-- Scope is in EVERY recall's WHERE clause, and created_at breaks rank ties.
+CREATE INDEX IF NOT EXISTS scout_memory_scope_idx
+  ON scout_memory (scope, created_at DESC);
+
+CREATE INDEX IF NOT EXISTS scout_memory_search_idx
+  ON scout_memory USING GIN (search_tsv);
+
+-- The fuzzy leg: catches a near-miss the tsquery does not stem into a match.
+CREATE INDEX IF NOT EXISTS scout_memory_trgm_idx
+  ON scout_memory USING GIN (text gin_trgm_ops);
+
+CREATE OR REPLACE FUNCTION sidestage_set_scout_memory_search()
+RETURNS trigger
+LANGUAGE plpgsql
+AS $$
+BEGIN
+  NEW.search_tsv = to_tsvector('english'::regconfig, NEW.text);
+  RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS scout_memory_set_search_tsv ON scout_memory;
+CREATE TRIGGER scout_memory_set_search_tsv
+BEFORE INSERT OR UPDATE OF text ON scout_memory
+FOR EACH ROW EXECUTE FUNCTION sidestage_set_scout_memory_search();
+
 CREATE TABLE IF NOT EXISTS checkout_order (
   id text PRIMARY KEY,
   cart_id text NOT NULL,
