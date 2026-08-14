@@ -175,6 +175,7 @@
 .app-shell--seller > .app-site-column {
   display: flex;
   flex-direction: column;
+  height: 100dvh;
   min-height: 0;
   overflow: hidden;
 }
@@ -194,29 +195,7 @@
   overflow: auto;
 }
 
-/*
- * ChannelGuide's persistent rail wraps the page in app-content-layout and
- * app-page-column. Keep the old direct-child selector as a compatibility path,
- * while making the current wrapper participate in the same bounded flex chain.
- * Without this bridge the wrapper's `align-items:start` collapses the dock host
- * to its border, leaving dockview's overflowing tabs visible but unclickable.
- */
-.content.content-seller > .app-content-layout {
-  flex: 1 1 auto;
-  width: 100%;
-  min-height: 0;
-  align-items: stretch;
-}
-
-.content-seller .app-page-column {
-  display: flex;
-  flex-direction: column;
-  min-width: 0;
-  min-height: 0;
-}
-
-.content-seller > .tab-layout,
-.content-seller .app-page-column > .tab-layout {
+.content-seller > .tab-layout {
   display: flex;
   flex-direction: column;
   flex: 1 1 auto;
@@ -224,8 +203,7 @@
   min-height: 0;
 }
 
-.content-seller > .tab-layout > .tab-header,
-.content-seller .app-page-column > .tab-layout > .tab-header {
+.content-seller > .tab-layout > .tab-header {
   display: none;
 }
 

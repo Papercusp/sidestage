@@ -67,10 +67,7 @@ describe('seller dock fullscreen', () => {
       /\.content-seller \.seller-dock-board:not\(\[style\]\)\s*\{[^}]*flex:\s*1 1 auto;/s,
     );
     expect(css).toMatch(
-      /\.content\.content-seller > \.app-content-layout\s*\{[^}]*flex:\s*1 1 auto;[^}]*align-items:\s*stretch;/s,
-    );
-    expect(css).toMatch(
-      /\.content-seller \.app-page-column\s*\{[^}]*display:\s*flex;[^}]*min-height:\s*0;/s,
+      /\.app-shell--seller > \.app-site-column\s*\{[^}]*display:\s*flex;[^}]*height:\s*100dvh;/s,
     );
     expect(css).toMatch(
       /\.seller-dock-shell:fullscreen \.seller-dock-board\s*\{[^}]*width:\s*100% !important;[^}]*height:\s*auto !important;/s,

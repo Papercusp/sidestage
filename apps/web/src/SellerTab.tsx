@@ -1,8 +1,10 @@
 import { useCallback, useState } from 'react';
+import { useSyncMutate } from '@papercusp/sync';
 import { DemoIdentityControl } from './BuyerIdentityControl';
 import { useDemoIdentity } from './buyer-identity';
+import { requestChatJson } from './chat-api';
 import { TabHeader } from './components/TabHeader';
-import { EventChat } from './EventChat';
+import { EventChat, resolveApiOrigin } from './EventChat';
 import { chatEventId, DEFAULT_EVENT_ID, DEFAULT_EVENT_TITLE, mediaBaseUrl } from './event-identity';
 import { useCopyState, useStreamSession } from './hooks';
 import { studioViewHref, useUrlStudioView, type StudioView } from './app-routing';
@@ -38,6 +40,52 @@ export function studioBoardConfig(view: StudioView) {
       };
 }
 
+export interface TranscriptMomentMutationInput {
+  text: string;
+  startMs?: number;
+  endMs?: number;
+  productId?: string;
+  productTitle?: string;
+}
+
+/** Named transcript write seam; the REST route remains its transport fallback. */
+export function useTranscriptMomentRecorder({
+  eventId,
+  roomEventId,
+  selectedProductId,
+  transcriptProducts,
+  apiBaseUrl,
+}: {
+  eventId: string;
+  roomEventId?: string;
+  selectedProductId: string | null;
+  transcriptProducts: readonly TranscriptProductOption[];
+  apiBaseUrl?: string;
+}) {
+  const transcriptEventId = roomEventId ?? chatEventId(eventId);
+  const transcriptFallback = useCallback((input: TranscriptMomentMutationInput) => (
+    requestChatJson<unknown>(
+      `${resolveApiOrigin(apiBaseUrl)}/chat/events/${encodeURIComponent(transcriptEventId)}/transcript`,
+      { method: 'POST', body: JSON.stringify(input) },
+    )
+  ), [apiBaseUrl, transcriptEventId]);
+  const mutateTranscript = useSyncMutate<TranscriptMomentMutationInput, unknown>(
+    'chat.addTranscriptMoment',
+    transcriptFallback,
+  );
+
+  return useCallback((segment: { text: string; startMs?: number; endMs?: number }) => {
+    const product = transcriptProducts.find((candidate) => candidate.id === selectedProductId);
+    return mutateTranscript({
+      text: segment.text,
+      startMs: segment.startMs,
+      endMs: segment.endMs,
+      productId: product?.id,
+      productTitle: product?.label,
+    }).then(() => undefined).catch(() => undefined);
+  }, [mutateTranscript, selectedProductId, transcriptProducts]);
+}
+
 export function SellerTab({
   selectedProduct,
   selectedProductId,
@@ -55,23 +103,13 @@ export function SellerTab({
   const { copyState, copy } = useCopyState();
   const { userId, impersonate } = useDemoIdentity('seller');
   const [studioView, navigateStudioView] = useUrlStudioView();
-  const recordTranscriptMoment = useCallback((segment: { text: string; startMs?: number; endMs?: number }) => {
-    const transcriptEventId = room?.eventId ?? chatEventId(eventId);
-    const product = transcriptProducts.find((candidate) => candidate.id === selectedProductId);
-    return fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3100'}/chat/events/${encodeURIComponent(transcriptEventId)}/transcript`, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({
-        text: segment.text,
-        startMs: segment.startMs,
-        endMs: segment.endMs,
-        productId: product?.id,
-        productTitle: product?.label,
-      }),
-    }).then((response) => {
-      if (!response.ok) throw new Error(`Transcript grounding failed (${response.status})`);
-    }).catch(() => undefined);
-  }, [eventId, room?.eventId, selectedProductId, transcriptProducts]);
+  const recordTranscriptMoment = useTranscriptMomentRecorder({
+    eventId,
+    roomEventId: room?.eventId,
+    selectedProductId,
+    transcriptProducts,
+    apiBaseUrl: import.meta.env.VITE_API_URL,
+  });
 
   const startEvent = async () => {
     let nextRoom: EventRoom;
