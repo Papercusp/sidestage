@@ -8,7 +8,7 @@
     "start:dev": "npm run build --workspace @papercusp/sse && npm run build --workspace @papercusp/typesense && tsx watch --exclude '../../node_modules/**' src/main.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "pretest": "npm run build --workspace @papercusp/sse && npm run build --workspace @papercusp/typesense",
-    "test": "vitest run src",
+    "test": "vitest run --project sidestage-node",
     "test:file": "vitest run",
     "clean": "rm -rf dist"
   },
