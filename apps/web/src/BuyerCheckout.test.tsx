@@ -29,7 +29,10 @@ const cart: BuyerCart = {
   currency: 'USD',
   subtotalCents: 2500,
   updatedAt: '2026-08-14T06:00:00Z',
-  items: [{ productId: 'mug', title: 'Aurora mug', priceCents: 2500, quantity: 1 }],
+  items: [{
+    productId: 'mug', title: 'Aurora mug', priceCents: 2500, quantity: 1,
+    expiresAt: '2026-08-14T06:02:00Z',
+  }],
 };
 
 const rate: BuyerShippingRate = {
@@ -77,6 +80,7 @@ function props(overrides: Partial<BuyerCheckoutDrawerProps> = {}): BuyerCheckout
     checkout,
     completedOrder: null,
     busy: false,
+    nowMs: Date.parse('2026-08-14T06:00:30Z'),
     onClose: vi.fn(),
     onStep: vi.fn(),
     onDraft: vi.fn(),
@@ -95,10 +99,13 @@ describe('BuyerCheckoutDrawer', () => {
   it('renders cart review inside an accessible buyer-owned drawer', () => {
     const html = renderToStaticMarkup(<BuyerCheckoutDrawer {...props()} />);
     expect(html).toContain('role="dialog"');
-    expect(html).toContain('Buyer checkout');
+    expect(html).toContain('Reserved for 2 minutes');
+    expect(html).toContain('Held items');
     expect(html).toContain('Aurora mug');
     expect(html).toContain('$25.00');
-    expect(html).toContain('Continue to address');
+    expect(html).toContain('1:30');
+    expect(html).toContain('remaining');
+    expect(html).toContain('Checkout');
   });
 
   it('renders live carrier selection and server-derived order total', () => {

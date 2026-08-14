@@ -40,7 +40,7 @@ describe('buyer checkout API adapter', () => {
     const cartStorage = storage({ [key]: 'cart-existing' });
     const cart: BuyerCart = {
       id: 'cart-existing', currency: 'USD', subtotalCents: 2500, updatedAt: '2026-08-14T06:00:00Z',
-      items: [{ productId: 'mug', title: 'Aurora mug', priceCents: 2500, quantity: 1 }],
+      items: [{ productId: 'mug', title: 'Aurora mug', priceCents: 2500, quantity: 1, expiresAt: '2026-08-14T06:02:00Z' }],
     };
     const fetchMock = vi.fn().mockResolvedValue(response(cart));
     vi.stubGlobal('fetch', fetchMock);

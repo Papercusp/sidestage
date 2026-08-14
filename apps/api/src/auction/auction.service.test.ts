@@ -265,4 +265,19 @@ describe('AuctionService', () => {
     await expect(inventory.release('product-1', 4, source)).resolves.toBe(true);
     await expect(inventory.get('product-1')).resolves.toMatchObject({ reservedQty: 0, availableQty: 5 });
   });
+
+  it('expires timed cart holds but never expires committed inventory', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime('2026-08-14T06:00:00Z');
+    const inventory = new InMemoryAuctionInventory();
+    await inventory.seed('product-1', 2);
+    const expiring = { kind: 'cart' as const, id: 'cart-expiring' };
+    const paid = { kind: 'cart' as const, id: 'cart-paid' };
+    await inventory.reserve('product-1', 1, expiring, '2026-08-14T06:02:00Z');
+    await inventory.reserve('product-1', 1, paid, '2026-08-14T06:02:00Z');
+    await inventory.commit('product-1', paid);
+
+    vi.advanceTimersByTime(120_001);
+    await expect(inventory.get('product-1')).resolves.toMatchObject({ reservedQty: 1, availableQty: 1 });
+  });
 });
