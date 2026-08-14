@@ -51,6 +51,7 @@ export const REQUIRED_TABLES: readonly string[] = [
   'checkout_order',
   'event',
   'event_config',
+  'event_run_of_show',
   'inventory_reservation',
   'policy_audit_entry',
   'policy_idempotency',

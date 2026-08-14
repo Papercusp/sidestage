@@ -24,6 +24,19 @@ export function dataBackendMode(raw: string | undefined = process.env.DATA_BACKE
   return 'auto';
 }
 
+/**
+ * Demo records are an explicit development affordance, never a production
+ * recovery path. DATA_BACKEND is authoritative when set; auto mode follows
+ * NODE_ENV so a clean development clone stays useful while production source
+ * loss remains visible and cannot manufacture durable-looking records.
+ */
+export function demoDataEnabled(env: NodeJS.ProcessEnv = process.env): boolean {
+  const mode = dataBackendMode(env.DATA_BACKEND);
+  if (mode === 'memory') return true;
+  if (mode === 'pg') return false;
+  return env.NODE_ENV !== 'production';
+}
+
 export function databaseUrl(env: NodeJS.ProcessEnv = process.env): string {
   return env.DATABASE_URL ?? 'postgresql://sidestage:dev-only-change-me@localhost:5432/sidestage';
 }

@@ -211,6 +211,21 @@ export class InMemoryEventStore implements EventStore {
   }
 }
 
+/** Production no-source state: fail honestly instead of publishing demo events. */
+export class UnavailableEventStore implements EventStore {
+  private unavailable(): never {
+    throw new Error('Event data source unavailable: durable event storage is not connected.');
+  }
+
+  async listBuyerVisible(): Promise<EventRecord[]> {
+    return this.unavailable();
+  }
+
+  async publish(): Promise<void> {
+    return this.unavailable();
+  }
+}
+
 /**
  * Group order for the guide: Live now, then Up next, then Ended.
  * Exported so the ordering is testable without a store or a Nest context.
