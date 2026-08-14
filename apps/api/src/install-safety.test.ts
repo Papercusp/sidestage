@@ -17,9 +17,15 @@ describe('shared-checkout install safety (EI-20412068513394843)', () => {
     );
   });
 
-  it('excludes the hoisted parent node_modules before tsx starts watching the API entrypoint', () => {
+  it('excludes generated dependency trees before tsx starts watching the API entrypoint', () => {
     const command = apiPackage.scripts['start:dev'];
-    expect(command).toContain("tsx watch --exclude '../../node_modules/**' src/main.ts");
-    expect(command.indexOf('--exclude')).toBeLessThan(command.indexOf('src/main.ts'));
+    expect(command).toContain("tsx watch --exclude '../../node_modules/**'");
+    expect(command).toContain("--exclude '../../libs/**/dist/**' src/main.ts");
+    expect(command.indexOf("--exclude '../../node_modules/**'")).toBeLessThan(
+      command.indexOf('src/main.ts'),
+    );
+    expect(command.indexOf("--exclude '../../libs/**/dist/**'")).toBeLessThan(
+      command.indexOf('src/main.ts'),
+    );
   });
 });
