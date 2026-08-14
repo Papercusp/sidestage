@@ -1,66 +1,98 @@
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
 import {
-  CopilotReplyReview,
-  ProductResearchLatency,
-  copilotProductToBuyerProduct,
-  sellerReplyInput,
+  CopilotProposalCard,
+  citedSources,
+  type CopilotProposal,
 } from './CopilotPanel';
 
-describe('seller copilot reply review', () => {
-  it('builds an approved reply for the shared EventChat mutation seam', () => {
-    expect(sellerReplyInput('  Edited reply  ')).toEqual({
-      userId: 'seller-copilot-review',
-      displayName: 'Host',
-      role: 'seller',
-      text: 'Edited reply',
-    });
+function proposal(overrides: Partial<CopilotProposal> = {}): CopilotProposal {
+  return {
+    id: 'proposal-1',
+    eventId: 'event-1',
+    question: {
+      buyerId: 'buyer-1',
+      buyerName: 'Ada',
+      text: 'Is the Aurora mug dishwasher safe?',
+      createdAt: '2026-08-14T12:00:00.000Z',
+    },
+    reply: 'Yes. The verified catalog record says it is dishwasher safe.',
+    citations: ['catalog:mug-1'],
+    context: {
+      sources: [
+        { id: 'catalog:mug-1', kind: 'catalog-product', label: 'Aurora mug catalog' },
+        { id: 'transcript:42', kind: 'transcript', label: 'Live transcript' },
+      ],
+    },
+    status: 'pending',
+    createdAt: '2026-08-14T12:00:01.000Z',
+    ...overrides,
+  };
+}
+
+const handlers = {
+  onDraftChange: () => undefined,
+  onApprove: () => undefined,
+  onSkip: () => undefined,
+  onConfirmAction: () => undefined,
+};
+
+describe('seller copilot proposal review', () => {
+  it('shows only sources cited by the grounded proposal', () => {
+    const current = proposal();
+
+    expect(citedSources(current).map((source) => source.id)).toEqual(['catalog:mug-1']);
   });
 
-  it('maps a verified scout result into the app-wide buyer checkout model', () => {
-    expect(copilotProductToBuyerProduct({
-      productId: 'mug-1',
-      title: 'Aurora mug',
-      description: 'Hand-thrown stoneware',
-      priceCents: 2500,
-      availableQty: 3,
-      imageUrl: '/mug.png',
-      attributes: { material: 'stoneware' },
-    })).toEqual({
-      id: 'mug-1',
-      title: 'Aurora mug',
-      subtitle: 'Hand-thrown stoneware',
-      priceCents: 2500,
-      availableQty: 3,
-      imageUrl: '/mug.png',
-    });
-  });
-
-  it('renders the approve, edit, and skip review actions', () => {
+  it('renders an editable grounded reply with approve and skip controls', () => {
+    const current = proposal();
     const markup = renderToStaticMarkup(
-      <CopilotReplyReview
-        draft="The mug is dishwasher safe."
-        editing={false}
-        status="pending"
-        onDraftChange={() => undefined}
-        onEdit={() => undefined}
-        onApprove={() => undefined}
-        onSkip={() => undefined}
-      />,
+      <CopilotProposalCard proposal={current} draft={current.reply} {...handlers} />,
     );
-    expect(markup).toContain('data-copilot-reply-review="true"');
-    expect(markup).toContain('Approve');
-    expect(markup).toContain('Edit');
+
+    expect(markup).toContain('data-copilot-proposal="proposal-1"');
+    expect(markup).toContain('Reply to Ada');
+    expect(markup).toContain('Aurora mug catalog');
+    expect(markup).not.toContain('Live transcript');
+    expect(markup).toContain('Approve reply');
     expect(markup).toContain('Skip');
   });
 
-  it('shows product-research latency against the sub-2s release budget', () => {
-    const withinBudget = renderToStaticMarkup(<ProductResearchLatency latencyMs={184} />);
-    const overBudget = renderToStaticMarkup(<ProductResearchLatency latencyMs={2_050} />);
+  it('surfaces a blocked grounding result without review controls', () => {
+    const current = proposal({
+      status: 'blocked',
+      citations: [],
+      error: 'The catalog fact changed after this draft was prepared.',
+    });
+    const markup = renderToStaticMarkup(
+      <CopilotProposalCard proposal={current} draft={current.reply} {...handlers} />,
+    );
 
-    expect(withinBudget).toContain('184ms · within the sub-2s budget');
-    expect(withinBudget).toContain('status-success');
-    expect(overBudget).toContain('2050ms · over the sub-2s budget');
-    expect(overBudget).toContain('status-warning');
+    expect(markup).toContain('The catalog fact changed after this draft was prepared.');
+    expect(markup).toContain('No verified citation');
+    expect(markup).not.toContain('Approve reply');
+    expect(markup).not.toContain('Confirm action');
+  });
+
+  it('requires an explicit seller confirmation for a guarded action', () => {
+    const current = proposal({
+      action: {
+        proposal: {
+          kind: 'hold-inventory',
+          productId: 'mug-1',
+          quantity: 1,
+          reason: 'Hold the item while the buyer checks out.',
+        },
+        disposition: 'awaiting-confirmation',
+        guardrail: { allowed: true },
+      },
+    });
+    const markup = renderToStaticMarkup(
+      <CopilotProposalCard proposal={current} draft={current.reply} {...handlers} />,
+    );
+
+    expect(markup).toContain('Guarded action');
+    expect(markup).toContain('hold inventory · 1 unit');
+    expect(markup).toContain('Confirm action');
   });
 });
