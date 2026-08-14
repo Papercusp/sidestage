@@ -117,6 +117,7 @@ export interface StoredSystemTestRun {
   profile: string;
   actor: SystemTestActor;
   requestedSha: string;
+  eventId: string | null;
   deployedSha: string | null;
   state: SystemTestRunState;
   blockedReasons: string[];
@@ -214,6 +215,16 @@ export interface PurgedSystemTestRuns {
   runs: number;
 }
 
+export interface ClaimSystemTestRunOptions {
+  maxConcurrentRuns: number;
+  now?: Date;
+}
+
+export interface ListSystemTestRunsOptions {
+  actor: SystemTestActor;
+  limit?: number;
+}
+
 /**
  * Trusted-worker reporting seam. P-004 can depend on this interface while the
  * PostgreSQL implementation remains the single durable ledger.
@@ -237,6 +248,12 @@ export interface SystemTestRunReporter {
   acknowledgeCancellation(runId: string, at?: Date): Promise<StoredSystemTestRunSnapshot>;
   recordCleanup(runId: string, input: RecordSystemTestCleanupInput): Promise<StoredSystemTestRunSnapshot>;
   getRun(runId: string): Promise<StoredSystemTestRunSnapshot | null>;
+}
+
+/** API and trusted-worker queue operations backed by the same run ledger. */
+export interface SystemTestRunQueueStore extends SystemTestRunReporter {
+  claimNextRun(options: ClaimSystemTestRunOptions): Promise<StoredSystemTestRunSnapshot | null>;
+  listRuns(options: ListSystemTestRunsOptions): Promise<StoredSystemTestRunSnapshot[]>;
 }
 
 interface LockedRunRow {
@@ -426,7 +443,7 @@ async function appendTransition(
   run.state = to;
 }
 
-export class PostgresSystemTestRunStore implements SystemTestRunReporter {
+export class PostgresSystemTestRunStore implements SystemTestRunQueueStore {
   readonly #pool: Pool;
 
   constructor(pool: Pool) {
@@ -466,8 +483,8 @@ export class PostgresSystemTestRunStore implements SystemTestRunReporter {
         const inserted = await client.query<{ id: string }>(
           `INSERT INTO system_test_run
              (id, idempotency_key, request_hash, contract_version, suite_id, suite_version,
-              profile, actor_id, actor_role, requested_sha, state, created_at, updated_at, heartbeat_at)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 'queued', $11, $11, $11)
+              profile, actor_id, actor_role, requested_sha, event_id, state, created_at, updated_at, heartbeat_at)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, 'queued', $12, $12, $12)
            ON CONFLICT (idempotency_key) DO NOTHING
            RETURNING id`,
           [
@@ -481,6 +498,7 @@ export class PostgresSystemTestRunStore implements SystemTestRunReporter {
             input.actor.id,
             input.actor.role,
             request.requestedSha,
+            request.eventId ?? null,
             now,
           ],
         );
@@ -886,6 +904,60 @@ export class PostgresSystemTestRunStore implements SystemTestRunReporter {
     });
   }
 
+  async claimNextRun(options: ClaimSystemTestRunOptions): Promise<StoredSystemTestRunSnapshot | null> {
+    if (!Number.isInteger(options.maxConcurrentRuns) || options.maxConcurrentRuns < 1 || options.maxConcurrentRuns > 16) {
+      throw new SystemTestRunStoreError('maxConcurrentRuns must be an integer between 1 and 16');
+    }
+    const now = options.now ?? new Date();
+    requireDate(now, 'now');
+    const runId = await this.#transaction(async (client) => {
+      // Serialize the count+claim decision across every worker process. Row locks
+      // alone prevent duplicate claims but cannot enforce a global concurrency cap.
+      await client.query("SELECT pg_advisory_xact_lock(hashtext('sidestage-system-test-queue-v1'))");
+      const active = await client.query<{ count: string }>(
+        `SELECT count(*)::text AS count
+           FROM system_test_run
+          WHERE state = ANY($1::text[])`,
+        [['provisioning', 'running', 'collecting', 'cleaning']],
+      );
+      if (Number(active.rows[0]?.count ?? 0) >= options.maxConcurrentRuns) return null;
+
+      const candidate = await client.query<LockedRunRow>(
+        `SELECT id, state
+           FROM system_test_run
+          WHERE state = 'queued'
+          ORDER BY created_at, id
+          FOR UPDATE SKIP LOCKED
+          LIMIT 1`,
+      );
+      const run = candidate.rows[0];
+      if (!run) return null;
+      await appendTransition(client, run, 'provisioning', 'Claimed by the trusted system-test worker.', now);
+      return run.id;
+    });
+    return runId ? this.requireRun(runId) : null;
+  }
+
+  async listRuns(options: ListSystemTestRunsOptions): Promise<StoredSystemTestRunSnapshot[]> {
+    requireText(options.actor.id, 'actor.id', 160);
+    if (options.actor.role !== 'operator' && options.actor.role !== 'release') {
+      throw new SystemTestRunStoreError('actor.role is unknown');
+    }
+    const limit = options.limit ?? 25;
+    if (!Number.isInteger(limit) || limit < 1 || limit > 100) {
+      throw new SystemTestRunStoreError('limit must be an integer between 1 and 100');
+    }
+    const ids = await this.#pool.query<{ id: string }>(
+      `SELECT id
+         FROM system_test_run
+        WHERE actor_role = 'release' OR actor_id = $1
+        ORDER BY created_at DESC, id DESC
+        LIMIT $2`,
+      [options.actor.id, limit],
+    );
+    return Promise.all(ids.rows.map((row) => this.requireRun(row.id)));
+  }
+
   async purgeExpired(now = new Date()): Promise<PurgedSystemTestRuns> {
     requireDate(now, 'now');
     return this.#transaction(async (client) => {
@@ -919,6 +991,7 @@ export class PostgresSystemTestRunStore implements SystemTestRunReporter {
       actor_id: string;
       actor_role: SystemTestActor['role'];
       requested_sha: string;
+      event_id: string | null;
       deployed_sha: string | null;
       state: SystemTestRunState;
       blocked_reasons: unknown;
@@ -1020,6 +1093,7 @@ export class PostgresSystemTestRunStore implements SystemTestRunReporter {
         profile: runRow.profile,
         actor: { id: runRow.actor_id, role: runRow.actor_role },
         requestedSha: runRow.requested_sha,
+        eventId: runRow.event_id,
         deployedSha: runRow.deployed_sha,
         state: runRow.state,
         blockedReasons: asStringArray(runRow.blocked_reasons),
