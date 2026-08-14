@@ -27,8 +27,9 @@ describe('BuildHistoryService', () => {
     expect(popupPlan?.contentHash).toMatch(/^[a-f0-9]{64}$/);
     expect(popupPlan?.markdown).toContain('# SideStage History tab and full Vditor plan popup');
     expect(popupPlan?.items).toEqual(expect.arrayContaining([
-      expect.objectContaining({ id: 'P-002', storedStatus: 'todo', effectiveStatus: 'todo' }),
-      expect.objectContaining({ id: 'P-003', storedStatus: 'todo', effectiveStatus: 'blocked', blockedBy: ['P-001', 'P-002'] }),
+      expect.objectContaining({ id: 'P-002', storedStatus: 'done', effectiveStatus: 'done' }),
+      expect.objectContaining({ id: 'P-003', storedStatus: 'done', effectiveStatus: 'done', blockedBy: ['P-001', 'P-002'] }),
+      expect.objectContaining({ id: 'P-004', storedStatus: 'todo', effectiveStatus: 'todo', blockedBy: ['P-003'] }),
     ]));
     expect(popupPlan?.decisions).toEqual(expect.arrayContaining([
       expect.objectContaining({ id: 'D-002', title: 'History popup is read-only and production-safe', itemRefs: ['P-002', 'P-003'] }),

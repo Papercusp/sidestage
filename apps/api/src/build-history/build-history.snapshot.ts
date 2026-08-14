@@ -6,21 +6,21 @@ export const BUILD_HISTORY_SNAPSHOT = {
     "workspace": "papercusp-workspace",
     "harness": "sidestage",
     "planPrefix": "sidestage-",
-    "generatedAt": "2026-08-14T22:10:57.495Z",
+    "generatedAt": "2026-08-14T22:34:07.838Z",
     "planCount": 12,
     "generator": "scripts/generate-build-history-snapshot.mjs"
   },
   "plans": [
     {
-      "slug": "sidestage-demo-product-imagery-2026-08-14",
-      "title": "Replace SideStage demo product placeholders with owned product photography",
+      "slug": "sidestage-studio-transcript-overlay-2026-08-14",
+      "title": "Consolidate live transcription into the Studio live console",
       "status": "ready",
-      "updatedAt": "2026-08-14T22:08:11.017Z",
-      "contentHash": "22ff76b055699adf19a4ea73a9d5c5cc01c467af1150898878bae5218d52192d",
-      "markdown": "---\ntitle: Replace SideStage demo product placeholders with owned product photography\nslug: sidestage-demo-product-imagery-2026-08-14\nstatus: ready\ncreated: 2026-08-14\nupdated: 2026-08-14\n---\n\n# Replace SideStage demo product placeholders with owned product photography\n\n## Now\n\n**State:** CORRECTIVE PLAN READY FOR OWNER REVIEW. The original eight-image memory-fixture acceptance was retracted. P-005 through P-008 now cover the actual 50-group/200-variant event-demo-200 collection; P-004 is retained as the final Postgres-backed browser gate. Route A (this session) is owner-selected. Proposed image contract: one distinct owned product photo per group, reused across its four variants.\n\n**Next:** Owner approves the corrective plan; then plans:start and P-005 begin. Before reseeding, take backup:snapshot_create(reason=pre_destructive).\n\n## Background\n\n(Why this plan exists; what problem it addresses.)\n\n## Phase 1 — TODO\n\n(Use plans:add-item to populate. Each item is one line:\nsingle id, status token, free text, optional blocked-by.)\n\n\n## Phase — Implementation\n\n- **P-001** `done` Generate and inspect eight coordinated photorealistic product images importance: high — note: ← WI-38935 completed (done)\n- **P-002** `done` Add optimized image assets and update API, web offline, and Postgres catalog mirrors blocked-by: P-001 importance: high — note: ← WI-38944 completed (done)\n- **P-003** `done` Add regression coverage and run focused catalog tests plus the web build blocked-by: P-002 importance: high — note: ← WI-38950 completed (done)\n- **P-004** `todo` Verify the rendered catalog and colorway switching in a browser importance: high blocked-by: P-008\n\n\n\n\n\n## Phase — Live catalog correction\n\n- **P-005** `done` Define and guard the owned-image contract for all 50 event-demo-200 groups: stable filenames and alt text, exactly one real image per group reused across four variants, zero placeholder URLs, file-existence checks, and Postgres-visible acceptance criteria. importance: high — note: ← WI-39017 completed (done)\n- **P-006** `done` Generate, inspect, normalize, and save the complete 50-group product-photo set with the built-in image generator, reusing only exact existing matches and converting final assets to stable WebPs under apps/web/public/demo-products. blocked-by: P-005 importance: high — note: ← WI-39037 completed (done)\n- **P-007** `wip` Wire the live event-demo-200 group and variant seed writers to owned local image paths, take a pre-destructive workspace/database snapshot, rerun the idempotent seed against the standing database, and prove reserved inventory remains unchanged. blocked-by: P-006 importance: high — note: P-006 committed-green at 50/50 images; beginning snapshot, idempotent seed, reserved-inventory preservation, and live Postgres proof.\n- **P-008** `todo` Add recurrence guards and run focused catalog/seed tests, full API and web suites, TypeScript, production build, and exact source/dist asset-count validation on the settled tree. blocked-by: P-007 importance: high\n\n\n\n\n## Decisions\n\n(Use plans:add-decision to append. Each decision is a third-level\nheading with a date line and a body paragraph.)\n",
+      "updatedAt": "2026-08-14T22:30:54.949Z",
+      "contentHash": "5276b108f66315f97fad929d56e8dfb4b6a70dece6433a08ada12f8801bd4dc8",
+      "markdown": "---\ntitle: Consolidate live transcription into the Studio live console\nslug: sidestage-studio-transcript-overlay-2026-08-14\nstatus: ready\ncreated: 2026-08-14\nupdated: 2026-08-14\n---\n\n## Goal\nMake transcription a capability of the live stream rather than a separate Studio workspace: it follows the publisher session, captions appear over the video, product context is inherited from the canonical active item, and full history remains available on demand.\n\n\n## Phase — Implementation\n\n- **P-001** `done` Extract the transcript runtime into a stable controller owned above dock/mobile presentation; preserve provider fallback, final-segment persistence, product mention intent, and add publisher-session-driven start/stop behavior. importance: high — note: ← WI-38955 completed (done)\n- **P-002** `done` Build the accessible Live console caption overlay and expandable history using the existing overlay/status/action-chip language; inherit active product state and keep transcript mention staging without a duplicate picker. blocked-by: P-001 importance: high — note: ← WI-38956 completed (done)\n- **P-003** `done` Remove the Transcript pane from the desktop panel inventory/default and restored layouts, update mobile wiring so the Stage surface owns captions, and delete obsolete adapters/styles while preserving layout compatibility. blocked-by: P-002 importance: high — note: ← WI-38970 completed (done)\n- **P-004** `done` Update focused tests, validate and lint the UI IR design spec, run web type/test/build checks, and browser-verify desktop and mobile interactions, accessibility state, responsive layout, and console cleanliness. blocked-by: P-003 importance: high — note: ← WI-38979 completed (done)\n\n\n\n\n\n## Phase — Shared engagement overlay\n\n- **P-005** `done` Expose event transcript moments through the existing event-scoped sync query registry and invalidate that query whenever a seller persists a new transcript moment; add focused API contract tests. importance: high — note: Added event.chat.transcript to ChatSyncQueries and invalidated it on every transcript write. Verified with npx vitest run --project sidestage-node apps/api/src/chat/chat.service.spec.ts: 9/9 passed.\n- **P-006** `done` Build a shared transcript-and-Event-Chat video overlay, with a remote transcript presentation model for buyers and the existing live transcript controller for sellers; mount the shared component in both BuyerTab and StageStatusPanel. blocked-by: P-005 importance: high — note: ← WI-39010 completed (done)\n- **P-007** `wip` Retire standalone seller Event Chat from default desktop/mobile layouts and migrate persisted active-event layouts, then update focused tests, UI IR, and browser QA for buyer and seller desktop/mobile. blocked-by: P-006 importance: high — note: Reopened after independent 375x812 acceptance found overlay escaping video bounds and clipping Hide chat; fix tracked in EI-20469165872345410.\n\n\n\n## Decisions\n- The App-level `selectedProductId` remains the single source of truth. Transcript UI may display it and transcript mention suggestions may stage a detected product, but there is no general-purpose duplicate picker.\n- Transcription lifecycle belongs above presentation and follows the publisher media stream. Hiding/collapsing captions or changing responsive layout must not tear down ingestion.\n- Reuse the existing Live console video-overlay language and action-chip patterns. Registry search returned no matching primitives, so no new parallel component system will be introduced.\n- Show a compact caption layer by default with an accessible, expandable transcript history and explicit transcription status/error affordances. Compose it with the existing audience-chat overlay instead of stacking opaque panels.\n- Preserve final-segment recording, active-product tagging, product-mention confirmation, replay-chapter input, and Web Speech fallback behavior.\n\n### D-001 — One engagement overlay is the default buyer and seller surface\nDate: 2026-08-14\nThe live video surface owns both transcript context and Event Chat for both roles. Sellers keep the existing live transcript controller (capture, provider state, expandable history); buyers read persisted transcript moments through the event-scoped sync query. Standalone Event Chat remains a compatibility panel type for restored/custom layouts only, but it is removed from default desktop and mobile navigation and migrated out of persisted active-event layouts.\nRelated: P-005, P-006, P-007\n\n## Acceptance\n- Starting a live publisher session starts transcription when audio is available; ending it stops transcription.\n- Desktop and mobile both expose live captions inside the Live console.\n- The separate Transcript dock panel and its Active item dropdown are absent from fresh and restored layouts.\n- An active product selected elsewhere is reflected without a second selector; mention suggestions remain actionable.\n- Transcript history is keyboard-accessible, screen-reader friendly, scrollable, and does not obscure core stream controls.\n- Focused unit/component tests, type/build checks, design-spec validation/lint, and rendered desktop/mobile browser verification pass.\n\n## Out of scope\n- Changing the current backend retention model from the capped in-memory transcript store to durable archival storage. That is a separate data-lifecycle feature; this plan preserves the existing recording contract.\n",
       "frontmatter": {
-        "title": "Replace SideStage demo product placeholders with owned product photography",
-        "slug": "sidestage-demo-product-imagery-2026-08-14",
+        "title": "Consolidate live transcription into the Studio live console",
+        "slug": "sidestage-studio-transcript-overlay-2026-08-14",
         "status": "ready",
         "created": "2026-08-14",
         "updated": "2026-08-14"
@@ -28,7 +28,7 @@ export const BUILD_HISTORY_SNAPSHOT = {
       "items": [
         {
           "id": "P-001",
-          "text": "Generate and inspect eight coordinated photorealistic product images — note: ← WI-38935 completed (done)",
+          "text": "Extract the transcript runtime into a stable controller owned above dock/mobile presentation; preserve provider fallback, final-segment persistence, product mention intent, and add publisher-session-driven start/stop behavior. — note: ← WI-38955 completed (done)",
           "storedStatus": "done",
           "effectiveStatus": "done",
           "importance": "high",
@@ -36,11 +36,11 @@ export const BUILD_HISTORY_SNAPSHOT = {
           "authority": null,
           "blockedBy": [],
           "phase": "Phase — Implementation",
-          "lineNumber": 29
+          "lineNumber": 15
         },
         {
           "id": "P-002",
-          "text": "Add optimized image assets and update API, web offline, and Postgres catalog mirrors — note: ← WI-38944 completed (done)",
+          "text": "Build the accessible Live console caption overlay and expandable history using the existing overlay/status/action-chip language; inherit active product state and keep transcript mention staging without a duplicate picker. — note: ← WI-38956 completed (done)",
           "storedStatus": "done",
           "effectiveStatus": "done",
           "importance": "high",
@@ -50,11 +50,11 @@ export const BUILD_HISTORY_SNAPSHOT = {
             "P-001"
           ],
           "phase": "Phase — Implementation",
-          "lineNumber": 30
+          "lineNumber": 16
         },
         {
           "id": "P-003",
-          "text": "Add regression coverage and run focused catalog tests plus the web build — note: ← WI-38950 completed (done)",
+          "text": "Remove the Transcript pane from the desktop panel inventory/default and restored layouts, update mobile wiring so the Stage surface owns captions, and delete obsolete adapters/styles while preserving layout compatibility. — note: ← WI-38970 completed (done)",
           "storedStatus": "done",
           "effectiveStatus": "done",
           "importance": "high",
@@ -64,37 +64,37 @@ export const BUILD_HISTORY_SNAPSHOT = {
             "P-002"
           ],
           "phase": "Phase — Implementation",
-          "lineNumber": 31
+          "lineNumber": 17
         },
         {
           "id": "P-004",
-          "text": "Verify the rendered catalog and colorway switching in a browser",
-          "storedStatus": "todo",
-          "effectiveStatus": "blocked",
+          "text": "Update focused tests, validate and lint the UI IR design spec, run web type/test/build checks, and browser-verify desktop and mobile interactions, accessibility state, responsive layout, and console cleanliness. — note: ← WI-38979 completed (done)",
+          "storedStatus": "done",
+          "effectiveStatus": "done",
           "importance": "high",
           "riskTier": null,
           "authority": null,
           "blockedBy": [
-            "P-008"
+            "P-003"
           ],
           "phase": "Phase — Implementation",
-          "lineNumber": 32
+          "lineNumber": 18
         },
         {
           "id": "P-005",
-          "text": "Define and guard the owned-image contract for all 50 event-demo-200 groups: stable filenames and alt text, exactly one real image per group reused across four variants, zero placeholder URLs, file-existence checks, and Postgres-visible acceptance criteria. — note: ← WI-39017 completed (done)",
+          "text": "Expose event transcript moments through the existing event-scoped sync query registry and invalidate that query whenever a seller persists a new transcript moment; add focused API contract tests. — note: Added event.chat.transcript to ChatSyncQueries and invalidated it on every transcript write. Verified with npx vitest run --project sidestage-node apps/api/src/chat/chat.service.spec.ts: 9/9 passed.",
           "storedStatus": "done",
           "effectiveStatus": "done",
           "importance": "high",
           "riskTier": null,
           "authority": null,
           "blockedBy": [],
-          "phase": "Phase — Live catalog correction",
-          "lineNumber": 40
+          "phase": "Phase — Shared engagement overlay",
+          "lineNumber": 26
         },
         {
           "id": "P-006",
-          "text": "Generate, inspect, normalize, and save the complete 50-group product-photo set with the built-in image generator, reusing only exact existing matches and converting final assets to stable WebPs under apps/web/public/demo-products. — note: ← WI-39037 completed (done)",
+          "text": "Build a shared transcript-and-Event-Chat video overlay, with a remote transcript presentation model for buyers and the existing live transcript controller for sellers; mount the shared component in both BuyerTab and StageStatusPanel. — note: ← WI-39010 completed (done)",
           "storedStatus": "done",
           "effectiveStatus": "done",
           "importance": "high",
@@ -103,12 +103,12 @@ export const BUILD_HISTORY_SNAPSHOT = {
           "blockedBy": [
             "P-005"
           ],
-          "phase": "Phase — Live catalog correction",
-          "lineNumber": 41
+          "phase": "Phase — Shared engagement overlay",
+          "lineNumber": 27
         },
         {
           "id": "P-007",
-          "text": "Wire the live event-demo-200 group and variant seed writers to owned local image paths, take a pre-destructive workspace/database snapshot, rerun the idempotent seed against the standing database, and prove reserved inventory remains unchanged. — note: P-006 committed-green at 50/50 images; beginning snapshot, idempotent seed, reserved-inventory preservation, and live Postgres proof.",
+          "text": "Retire standalone seller Event Chat from default desktop/mobile layouts and migrate persisted active-event layouts, then update focused tests, UI IR, and browser QA for buyer and seller desktop/mobile. — note: Reopened after independent 375x812 acceptance found overlay escaping video bounds and clipping Hide chat; fix tracked in EI-20469165872345410.",
           "storedStatus": "wip",
           "effectiveStatus": "wip",
           "importance": "high",
@@ -117,108 +117,107 @@ export const BUILD_HISTORY_SNAPSHOT = {
           "blockedBy": [
             "P-006"
           ],
-          "phase": "Phase — Live catalog correction",
-          "lineNumber": 42
-        },
-        {
-          "id": "P-008",
-          "text": "Add recurrence guards and run focused catalog/seed tests, full API and web suites, TypeScript, production build, and exact source/dist asset-count validation on the settled tree.",
-          "storedStatus": "todo",
-          "effectiveStatus": "blocked",
-          "importance": "high",
-          "riskTier": null,
-          "authority": null,
-          "blockedBy": [
-            "P-007"
-          ],
-          "phase": "Phase — Live catalog correction",
-          "lineNumber": 43
+          "phase": "Phase — Shared engagement overlay",
+          "lineNumber": 28
         }
       ],
-      "decisions": [],
+      "decisions": [
+        {
+          "id": "D-001",
+          "title": "One engagement overlay is the default buyer and seller surface",
+          "body": "Date: 2026-08-14\nThe live video surface owns both transcript context and Event Chat for both roles. Sellers keep the existing live transcript controller (capture, provider state, expandable history); buyers read persisted transcript moments through the event-scoped sync query. Standalone Event Chat remains a compatibility panel type for restored/custom layouts only, but it is removed from default desktop and mobile navigation and migrated out of persisted active-event layouts.\nRelated: P-005, P-006, P-007",
+          "date": "2026-08-14",
+          "itemRefs": [
+            "P-005",
+            "P-006",
+            "P-007"
+          ],
+          "lineNumber": 39
+        }
+      ],
       "completedItems": [
         {
-          "id": "WI-38935",
+          "id": "WI-38955",
           "kind": "work-item",
-          "title": "Generate and inspect eight coordinated photorealistic product images",
+          "title": "Extract the transcript runtime into a stable controller owned above dock/mobile presentation; preserve provider fallback, final-segment persistence, product mention intent, and add publisher-session-driven start/stop behavior.",
           "state": "done",
-          "completedAt": "2026-08-14T22:08:11.017Z",
+          "completedAt": "2026-08-14T22:30:54.949Z",
           "completionAuthority": "plan-ledger",
           "completionSummary": "Recorded complete by P-001 in the canonical plan ledger.",
           "completionEvidence": {
             "source": "canonical-plan-completion-marker",
             "planItem": "P-001",
-            "contentHash": "22ff76b055699adf19a4ea73a9d5c5cc01c467af1150898878bae5218d52192d"
+            "contentHash": "5276b108f66315f97fad929d56e8dfb4b6a70dece6433a08ada12f8801bd4dc8"
           }
         },
         {
-          "id": "WI-38944",
+          "id": "WI-38956",
           "kind": "work-item",
-          "title": "Add optimized image assets and update API, web offline, and Postgres catalog mirrors",
+          "title": "Build the accessible Live console caption overlay and expandable history using the existing overlay/status/action-chip language; inherit active product state and keep transcript mention staging without a duplicate picker.",
           "state": "done",
-          "completedAt": "2026-08-14T22:08:11.017Z",
+          "completedAt": "2026-08-14T22:30:54.949Z",
           "completionAuthority": "plan-ledger",
           "completionSummary": "Recorded complete by P-002 in the canonical plan ledger.",
           "completionEvidence": {
             "source": "canonical-plan-completion-marker",
             "planItem": "P-002",
-            "contentHash": "22ff76b055699adf19a4ea73a9d5c5cc01c467af1150898878bae5218d52192d"
+            "contentHash": "5276b108f66315f97fad929d56e8dfb4b6a70dece6433a08ada12f8801bd4dc8"
           }
         },
         {
-          "id": "WI-38950",
+          "id": "WI-38970",
           "kind": "work-item",
-          "title": "Add regression coverage and run focused catalog tests plus the web build",
+          "title": "Remove the Transcript pane from the desktop panel inventory/default and restored layouts, update mobile wiring so the Stage surface owns captions, and delete obsolete adapters/styles while preserving layout compatibility.",
           "state": "done",
-          "completedAt": "2026-08-14T22:08:11.017Z",
+          "completedAt": "2026-08-14T22:30:54.949Z",
           "completionAuthority": "plan-ledger",
           "completionSummary": "Recorded complete by P-003 in the canonical plan ledger.",
           "completionEvidence": {
             "source": "canonical-plan-completion-marker",
             "planItem": "P-003",
-            "contentHash": "22ff76b055699adf19a4ea73a9d5c5cc01c467af1150898878bae5218d52192d"
+            "contentHash": "5276b108f66315f97fad929d56e8dfb4b6a70dece6433a08ada12f8801bd4dc8"
           }
         },
         {
-          "id": "WI-39017",
+          "id": "WI-38979",
           "kind": "work-item",
-          "title": "Define and guard the owned-image contract for all 50 event-demo-200 groups: stable filenames and alt text, exactly one real image per group reused across four variants, zero placeholder URLs, file-existence checks, and Postgres-visible acceptance criteria.",
+          "title": "Update focused tests, validate and lint the UI IR design spec, run web type/test/build checks, and browser-verify desktop and mobile interactions, accessibility state, responsive layout, and console cleanliness.",
           "state": "done",
-          "completedAt": "2026-08-14T22:08:11.017Z",
+          "completedAt": "2026-08-14T22:30:54.949Z",
           "completionAuthority": "plan-ledger",
-          "completionSummary": "Recorded complete by P-005 in the canonical plan ledger.",
+          "completionSummary": "Recorded complete by P-004 in the canonical plan ledger.",
           "completionEvidence": {
             "source": "canonical-plan-completion-marker",
-            "planItem": "P-005",
-            "contentHash": "22ff76b055699adf19a4ea73a9d5c5cc01c467af1150898878bae5218d52192d"
+            "planItem": "P-004",
+            "contentHash": "5276b108f66315f97fad929d56e8dfb4b6a70dece6433a08ada12f8801bd4dc8"
           }
         },
         {
-          "id": "WI-39037",
+          "id": "WI-39010",
           "kind": "work-item",
-          "title": "Generate, inspect, normalize, and save the complete 50-group product-photo set with the built-in image generator, reusing only exact existing matches and converting final assets to stable WebPs under apps/web/public/demo-products.",
+          "title": "Build a shared transcript-and-Event-Chat video overlay, with a remote transcript presentation model for buyers and the existing live transcript controller for sellers; mount the shared component in both BuyerTab and StageStatusPanel.",
           "state": "done",
-          "completedAt": "2026-08-14T22:08:11.017Z",
+          "completedAt": "2026-08-14T22:30:54.949Z",
           "completionAuthority": "plan-ledger",
           "completionSummary": "Recorded complete by P-006 in the canonical plan ledger.",
           "completionEvidence": {
             "source": "canonical-plan-completion-marker",
             "planItem": "P-006",
-            "contentHash": "22ff76b055699adf19a4ea73a9d5c5cc01c467af1150898878bae5218d52192d"
+            "contentHash": "5276b108f66315f97fad929d56e8dfb4b6a70dece6433a08ada12f8801bd4dc8"
           }
         }
       ]
     },
     {
-      "slug": "sidestage-seller-copilot-mission-2026-08-14",
-      "title": "Make SideStage Copilot fulfill the live-selling seller mission",
+      "slug": "sidestage-history-plan-popup-2026-08-14",
+      "title": "SideStage History tab and full Vditor plan popup",
       "status": "ready",
-      "updatedAt": "2026-08-14T22:05:37.517Z",
-      "contentHash": "f2dcc3b15b9a1d0931bee98b63257ff5097d3b11c23a78fc71384ac7f65c671a",
-      "markdown": "---\ntitle: Make SideStage Copilot fulfill the live-selling seller mission\nslug: sidestage-seller-copilot-mission-2026-08-14\nstatus: ready\ncreated: 2026-08-14\nupdated: 2026-08-14\n---\n\n## Now\n\n**State:** Implementation P-001 through P-004 is complete. A new owner-requested virtual-desktop acceptance phase (P-005 through P-009) is drafted and awaiting plan/route confirmation; no E2E mutations or Bytebot task has started yet.\n\n**Next:** After owner confirmation, start the plan, claim P-005, launch the least-loaded isolated Bytebot desktop, and execute the acceptance matrix through P-009.\n\n\n## Goal\nReplace the seller panel's buyer-Scout behavior with a real event-aware copilot loop: buyer question intake, verified grounding, durable seller review, fresh-context approval, guarded action execution, and sync-driven UI state.\n\n## Scope\n- Preserve Scout as the buyer catalog/cart assistant.\n- Reuse ChatService, CatalogSource, EventPolicyResolver, GuardedActionService, Judge, and the shared sync/SSE layer.\n- Add the missing Copilot runtime composition and proposal lifecycle.\n- Rebuild the Seller Copilot panel as a live proposal queue.\n- Verify the loop through backend integration and frontend interaction tests.\n\n\n## Phase — Implementation\n\n- **P-001** `done` Implement the backend Copilot module, grounding adapters, durable proposal lifecycle, and review/action API. importance: urgent — note: ← WI-38939 completed (done)\n- **P-002** `done` Connect buyer-question chat ingestion to Copilot proposal generation and publish proposal invalidations through sync. blocked-by: P-001 importance: urgent — note: ← WI-38940 completed (done)\n- **P-003** `done` Replace the seller Copilot panel with a sync-backed grounded proposal queue and review controls; remove buyer cart semantics. blocked-by: P-001, P-002 importance: urgent — note: ← WI-38941 completed (done)\n- **P-004** `done` Add backend and frontend integration coverage, run project checks, and resolve all regressions. blocked-by: P-001, P-002, P-003 importance: urgent — note: ← WI-38943 completed (done)\n\n\n\n\n\n## Phase — Virtual-desktop acceptance\n\n- **P-005** `todo` Establish one isolated Bytebot desktop and a dedicated SideStage test event; verify the buyer and Studio surfaces share the same event identity and record the clean empty/loading baseline. importance: high\n- **P-006** `todo` Exercise buyer-question ingestion and manual Prepare: question detection, live sync arrival, citations from catalog/listing/transcript/policy, deterministic or remote-model behavior, insufficient-context blocking, and duplicate/idempotent handling. blocked-by: P-005 importance: high\n- **P-007** `todo` Exercise the complete review lifecycle: edit and approve a grounded reply, verify delivery to live event chat, skip a separate proposal, confirm an allowed guarded action, and verify stale/blocked or policy-denied actions fail closed. blocked-by: P-006 importance: high\n- **P-008** `todo` Audit the Studio Copilot in the virtual desktop for responsive layouts, keyboard navigation, accessible labeling/status announcements, visible error/reconnect behavior, console errors, failed network requests, and capture screenshots for each material state. blocked-by: P-005 importance: high\n- **P-009** `todo` Triage every finding, file evidence-backed defects, verify any in-scope fixes through the same Bytebot workflow, and publish a pass/fail report against the acceptance matrix. blocked-by: P-007, P-008 importance: high\n\n\n\n\n\n## Decisions\n- Buyer-facing replies default to seller review; no direct model-to-room send.\n- Approval reloads current event data and policy and fails closed when grounding is stale.\n- Seller Copilot does not own buyer cart or checkout state.\n- A dedicated proposal store owns the generating/pending/approved/skipped/blocked/executed lifecycle because no existing record owns that review state.\n\n## Verification\nAn end-to-end test must prove that a buyer question produces a grounded proposal, appears through sync, can be approved exactly once into event chat, can be skipped without sending, rejects stale facts, and routes confirmed actions through the guarded executor.\n\n",
+      "updatedAt": "2026-08-14T22:30:28.554Z",
+      "contentHash": "857e72a6c63d0adb53d421d6ef0132f16e8b9874df86d4ca3a6e9611d51a780b",
+      "markdown": "---\ntitle: SideStage History tab and full Vditor plan popup\nslug: sidestage-history-plan-popup-2026-08-14\nstatus: ready\ncreated: 2026-08-14\nupdated: 2026-08-14\n---\n\n# SideStage History tab and full Vditor plan popup\n\n## Now\n\n**State:** Draft. Plan body to be filled in.\n\n**Next:** human reviews scope and lists Phase 1 items.\n\n## Background\n\n(Why this plan exists; what problem it addresses.)\n\n## Phase 1 — TODO\n\n(Use plans:add-item to populate. Each item is one line:\nsingle id, status token, free text, optional blocked-by.)\n\n\n## Phase — Build\n\n- **P-001** `done` Extract the Papercusp read-only Vditor plan document viewer into the existing shared @papercusp/ui-primitives surface, preserving frontmatter, outline navigation, plan/decision highlighting, clickable references, jump search, local-runtime assets, and a raw-text fallback. importance: high — note: ← WI-38996 completed (done)\n- **P-002** `done` Extend the SideStage History data projection with complete plan markdown plus plan-item/decision metadata and production-safe committed snapshot/source metadata. importance: high — note: ← WI-39026 completed (done)\n- **P-003** `done` Rename Releases to History and replace Open plan link with an accessible deep-linkable popup using the shared plan viewer. blocked-by: P-001, P-002 importance: high — note: ← WI-39044 completed (done)\n- **P-004** `todo` Add focused shared-renderer, SideStage API/UI, navigation, accessibility, and browser verification; validate and lint the UI spec. blocked-by: P-003 importance: high\n\n\n\n\n## Decisions\n\n(Use plans:add-decision to append. Each decision is a third-level\nheading with a date line and a body paragraph.)\n\n### D-001 — Reuse the shared UI-primitives surface\nDate: 2026-08-14\nExtend the existing @papercusp/ui-primitives markdown surface with a read-only Vditor-backed plan viewer. Do not create a parallel viewer package or copy Papercusp's plan renderer into SideStage. Papercusp and SideStage remain thin adapters around the same viewer.\nRelated: P-001, P-003\n\n### D-002 — History popup is read-only and production-safe\nDate: 2026-08-14\nThe SideStage popup carries the Papercusp read experience—frontmatter, outline, plan/decision decorations, clickable refs, and jump search—but not editing/revisions/sessions. The browser consumes a SideStage-owned projection; a committed snapshot with source/generatedAt metadata prevents the public app from requiring direct Papercusp runtime or PG access.\nRelated: P-002, P-003\n\n### D-003 — Preserve the existing SideStage theme API while unifying ui-primitives\nDate: 2026-08-14\nThe SideStage pin b6ac9f4 carries the existing shared ThemeSwitcher/theme-runtime API on a branch that diverged from canonical ui-primitives/main. Preserve that API by porting its six tracked theme changes onto canonical main, verifying the combined package, and only then advancing SideStage's gitlink to the unified canonical revision. Do not drop the theme contract merely to obtain the new PlanDocumentView, and do not absorb unrelated SideStage working-tree changes.\nRelated: P-001, P-003\n",
       "frontmatter": {
-        "title": "Make SideStage Copilot fulfill the live-selling seller mission",
-        "slug": "sidestage-seller-copilot-mission-2026-08-14",
+        "title": "SideStage History tab and full Vditor plan popup",
+        "slug": "sidestage-history-plan-popup-2026-08-14",
         "status": "ready",
         "created": "2026-08-14",
         "updated": "2026-08-14"
@@ -226,187 +225,134 @@ export const BUILD_HISTORY_SNAPSHOT = {
       "items": [
         {
           "id": "P-001",
-          "text": "Implement the backend Copilot module, grounding adapters, durable proposal lifecycle, and review/action API. — note: ← WI-38939 completed (done)",
+          "text": "Extract the Papercusp read-only Vditor plan document viewer into the existing shared @papercusp/ui-primitives surface, preserving frontmatter, outline navigation, plan/decision highlighting, clickable references, jump search, local-runtime assets, and a raw-text fallback. — note: ← WI-38996 completed (done)",
           "storedStatus": "done",
           "effectiveStatus": "done",
-          "importance": "urgent",
+          "importance": "high",
           "riskTier": null,
           "authority": null,
           "blockedBy": [],
-          "phase": "Phase — Implementation",
+          "phase": "Phase — Build",
           "lineNumber": 29
         },
         {
           "id": "P-002",
-          "text": "Connect buyer-question chat ingestion to Copilot proposal generation and publish proposal invalidations through sync. — note: ← WI-38940 completed (done)",
+          "text": "Extend the SideStage History data projection with complete plan markdown plus plan-item/decision metadata and production-safe committed snapshot/source metadata. — note: ← WI-39026 completed (done)",
           "storedStatus": "done",
           "effectiveStatus": "done",
-          "importance": "urgent",
+          "importance": "high",
           "riskTier": null,
           "authority": null,
-          "blockedBy": [
-            "P-001"
-          ],
-          "phase": "Phase — Implementation",
+          "blockedBy": [],
+          "phase": "Phase — Build",
           "lineNumber": 30
         },
         {
           "id": "P-003",
-          "text": "Replace the seller Copilot panel with a sync-backed grounded proposal queue and review controls; remove buyer cart semantics. — note: ← WI-38941 completed (done)",
+          "text": "Rename Releases to History and replace Open plan link with an accessible deep-linkable popup using the shared plan viewer. — note: ← WI-39044 completed (done)",
           "storedStatus": "done",
           "effectiveStatus": "done",
-          "importance": "urgent",
+          "importance": "high",
           "riskTier": null,
           "authority": null,
           "blockedBy": [
             "P-001",
             "P-002"
           ],
-          "phase": "Phase — Implementation",
+          "phase": "Phase — Build",
           "lineNumber": 31
         },
         {
           "id": "P-004",
-          "text": "Add backend and frontend integration coverage, run project checks, and resolve all regressions. — note: ← WI-38943 completed (done)",
-          "storedStatus": "done",
-          "effectiveStatus": "done",
-          "importance": "urgent",
-          "riskTier": null,
-          "authority": null,
-          "blockedBy": [
-            "P-001",
-            "P-002",
-            "P-003"
-          ],
-          "phase": "Phase — Implementation",
-          "lineNumber": 32
-        },
-        {
-          "id": "P-005",
-          "text": "Establish one isolated Bytebot desktop and a dedicated SideStage test event; verify the buyer and Studio surfaces share the same event identity and record the clean empty/loading baseline.",
+          "text": "Add focused shared-renderer, SideStage API/UI, navigation, accessibility, and browser verification; validate and lint the UI spec.",
           "storedStatus": "todo",
           "effectiveStatus": "todo",
           "importance": "high",
           "riskTier": null,
           "authority": null,
-          "blockedBy": [],
-          "phase": "Phase — Virtual-desktop acceptance",
-          "lineNumber": 40
-        },
-        {
-          "id": "P-006",
-          "text": "Exercise buyer-question ingestion and manual Prepare: question detection, live sync arrival, citations from catalog/listing/transcript/policy, deterministic or remote-model behavior, insufficient-context blocking, and duplicate/idempotent handling.",
-          "storedStatus": "todo",
-          "effectiveStatus": "blocked",
-          "importance": "high",
-          "riskTier": null,
-          "authority": null,
           "blockedBy": [
-            "P-005"
+            "P-003"
           ],
-          "phase": "Phase — Virtual-desktop acceptance",
-          "lineNumber": 41
-        },
+          "phase": "Phase — Build",
+          "lineNumber": 32
+        }
+      ],
+      "decisions": [
         {
-          "id": "P-007",
-          "text": "Exercise the complete review lifecycle: edit and approve a grounded reply, verify delivery to live event chat, skip a separate proposal, confirm an allowed guarded action, and verify stale/blocked or policy-denied actions fail closed.",
-          "storedStatus": "todo",
-          "effectiveStatus": "blocked",
-          "importance": "high",
-          "riskTier": null,
-          "authority": null,
-          "blockedBy": [
-            "P-006"
+          "id": "D-001",
+          "title": "Reuse the shared UI-primitives surface",
+          "body": "Date: 2026-08-14\nExtend the existing @papercusp/ui-primitives markdown surface with a read-only Vditor-backed plan viewer. Do not create a parallel viewer package or copy Papercusp's plan renderer into SideStage. Papercusp and SideStage remain thin adapters around the same viewer.\nRelated: P-001, P-003",
+          "date": "2026-08-14",
+          "itemRefs": [
+            "P-001",
+            "P-003"
           ],
-          "phase": "Phase — Virtual-desktop acceptance",
           "lineNumber": 42
         },
         {
-          "id": "P-008",
-          "text": "Audit the Studio Copilot in the virtual desktop for responsive layouts, keyboard navigation, accessible labeling/status announcements, visible error/reconnect behavior, console errors, failed network requests, and capture screenshots for each material state.",
-          "storedStatus": "todo",
-          "effectiveStatus": "blocked",
-          "importance": "high",
-          "riskTier": null,
-          "authority": null,
-          "blockedBy": [
-            "P-005"
+          "id": "D-002",
+          "title": "History popup is read-only and production-safe",
+          "body": "Date: 2026-08-14\nThe SideStage popup carries the Papercusp read experience—frontmatter, outline, plan/decision decorations, clickable refs, and jump search—but not editing/revisions/sessions. The browser consumes a SideStage-owned projection; a committed snapshot with source/generatedAt metadata prevents the public app from requiring direct Papercusp runtime or PG access.\nRelated: P-002, P-003",
+          "date": "2026-08-14",
+          "itemRefs": [
+            "P-002",
+            "P-003"
           ],
-          "phase": "Phase — Virtual-desktop acceptance",
-          "lineNumber": 43
+          "lineNumber": 47
         },
         {
-          "id": "P-009",
-          "text": "Triage every finding, file evidence-backed defects, verify any in-scope fixes through the same Bytebot workflow, and publish a pass/fail report against the acceptance matrix.",
-          "storedStatus": "todo",
-          "effectiveStatus": "blocked",
-          "importance": "high",
-          "riskTier": null,
-          "authority": null,
-          "blockedBy": [
-            "P-007",
-            "P-008"
+          "id": "D-003",
+          "title": "Preserve the existing SideStage theme API while unifying ui-primitives",
+          "body": "Date: 2026-08-14\nThe SideStage pin b6ac9f4 carries the existing shared ThemeSwitcher/theme-runtime API on a branch that diverged from canonical ui-primitives/main. Preserve that API by porting its six tracked theme changes onto canonical main, verifying the combined package, and only then advancing SideStage's gitlink to the unified canonical revision. Do not drop the theme contract merely to obtain the new PlanDocumentView, and do not absorb unrelated SideStage working-tree changes.\nRelated: P-001, P-003",
+          "date": "2026-08-14",
+          "itemRefs": [
+            "P-001",
+            "P-003"
           ],
-          "phase": "Phase — Virtual-desktop acceptance",
-          "lineNumber": 44
+          "lineNumber": 52
         }
       ],
-      "decisions": [],
       "completedItems": [
         {
-          "id": "WI-38939",
+          "id": "WI-38996",
           "kind": "work-item",
-          "title": "Implement the backend Copilot module, grounding adapters, durable proposal lifecycle, and review/action API.",
+          "title": "Extract the Papercusp read-only Vditor plan document viewer into the existing shared @papercusp/ui-primitives surface, preserving frontmatter, outline navigation, plan/decision highlighting, clickable references, jump search, local-runtime assets, and a raw-text fallback.",
           "state": "done",
-          "completedAt": "2026-08-14T22:05:37.517Z",
+          "completedAt": "2026-08-14T22:30:28.554Z",
           "completionAuthority": "plan-ledger",
           "completionSummary": "Recorded complete by P-001 in the canonical plan ledger.",
           "completionEvidence": {
             "source": "canonical-plan-completion-marker",
             "planItem": "P-001",
-            "contentHash": "f2dcc3b15b9a1d0931bee98b63257ff5097d3b11c23a78fc71384ac7f65c671a"
+            "contentHash": "857e72a6c63d0adb53d421d6ef0132f16e8b9874df86d4ca3a6e9611d51a780b"
           }
         },
         {
-          "id": "WI-38940",
+          "id": "WI-39026",
           "kind": "work-item",
-          "title": "Connect buyer-question chat ingestion to Copilot proposal generation and publish proposal invalidations through sync.",
+          "title": "Extend the SideStage History data projection with complete plan markdown plus plan-item/decision metadata and production-safe committed snapshot/source metadata.",
           "state": "done",
-          "completedAt": "2026-08-14T22:05:37.517Z",
+          "completedAt": "2026-08-14T22:30:28.554Z",
           "completionAuthority": "plan-ledger",
           "completionSummary": "Recorded complete by P-002 in the canonical plan ledger.",
           "completionEvidence": {
             "source": "canonical-plan-completion-marker",
             "planItem": "P-002",
-            "contentHash": "f2dcc3b15b9a1d0931bee98b63257ff5097d3b11c23a78fc71384ac7f65c671a"
+            "contentHash": "857e72a6c63d0adb53d421d6ef0132f16e8b9874df86d4ca3a6e9611d51a780b"
           }
         },
         {
-          "id": "WI-38941",
+          "id": "WI-39044",
           "kind": "work-item",
-          "title": "Replace the seller Copilot panel with a sync-backed grounded proposal queue and review controls; remove buyer cart semantics.",
+          "title": "Rename Releases to History and replace Open plan link with an accessible deep-linkable popup using the shared plan viewer.",
           "state": "done",
-          "completedAt": "2026-08-14T22:05:37.517Z",
+          "completedAt": "2026-08-14T22:30:28.554Z",
           "completionAuthority": "plan-ledger",
           "completionSummary": "Recorded complete by P-003 in the canonical plan ledger.",
           "completionEvidence": {
             "source": "canonical-plan-completion-marker",
             "planItem": "P-003",
-            "contentHash": "f2dcc3b15b9a1d0931bee98b63257ff5097d3b11c23a78fc71384ac7f65c671a"
-          }
-        },
-        {
-          "id": "WI-38943",
-          "kind": "work-item",
-          "title": "Add backend and frontend integration coverage, run project checks, and resolve all regressions.",
-          "state": "done",
-          "completedAt": "2026-08-14T22:05:37.517Z",
-          "completionAuthority": "plan-ledger",
-          "completionSummary": "Recorded complete by P-004 in the canonical plan ledger.",
-          "completionEvidence": {
-            "source": "canonical-plan-completion-marker",
-            "planItem": "P-004",
-            "contentHash": "f2dcc3b15b9a1d0931bee98b63257ff5097d3b11c23a78fc71384ac7f65c671a"
+            "contentHash": "857e72a6c63d0adb53d421d6ef0132f16e8b9874df86d4ca3a6e9611d51a780b"
           }
         }
       ]
@@ -415,9 +361,9 @@ export const BUILD_HISTORY_SNAPSHOT = {
       "slug": "sidestage-demo-user-isolation-2026-08-14",
       "title": "Make every SideStage surface follow the selected demo user",
       "status": "ready",
-      "updatedAt": "2026-08-14T21:59:43.792Z",
-      "contentHash": "c4b108a0ee266089968e9235edb231c7fd86d65b68c71d1fac9fa94cb0b06cce",
-      "markdown": "---\ntitle: Make every SideStage surface follow the selected demo user\nslug: sidestage-demo-user-isolation-2026-08-14\nstatus: ready\ncreated: 2026-08-14\nupdated: 2026-08-14\n---\n\n## Now\nState: proposed for Avi review; no implementation has started.\nNext: review the identity contract, phase boundaries, and acceptance matrix; then start the plan only after approval.\n\n## Background\nSideStage exposes one selected demo identity, but the current application changes only browser-facing identity strings. The app-wide SyncProvider is mounted without userId; SSE/polling batch requests and TanStack query keys omit identity; the server SyncController and SyncQueryRegistry receive no request principal. Seller-owned event records are partly scoped by seller_id, while config, run of show, actions, Copilot, auctions, inventory, and several browser stores are keyed only by event, product, board, or session. Scout uses a separate browser cookie and shared module/session caches. The result is stale or cross-user data after impersonation and direct-id access to another seller's resources.\n\nThis plan extends the existing SyncProvider/userId, x-seller-id policy, EventService/PgEventStore, current persistence tables, and the shipped Event Manager design. It does not create a parallel identity provider, event system, cache, or Studio navigation. It depends on the live plan sidestage-event-manager-event-list-2026-08-14 retaining My Events and the Lineup → Settings → Rehearse detail flow; its current P-006 browser QA remains independent.\n\n## Audit matrix\nTransport/query: events.mine, event.config, event.runOfShow, event.actions.items, event.copilot.proposals, event.auction.active, and their invalidations share identity-free query keys and a principal-free batch/SSE transport. REST/API: GET/PUT event config; GET/PUT run of show; actions register/items/audit/execute/rollback; Copilot list/turn/review/action; auction seller access/start/close; inventory snapshot/hold/release/restock; and seller event publish paths either omit an owner guard or use a fixed default seller. Persistence: event_config, event_run_of_show, copilot_proposal, auction_state, action in-memory state, storefront_product, and inventory_reservation are not independently owner-scoped; PgEventStore conflict update can replace seller_id. Browser: Event Manager URL selection/search/drafts, SellerTab event/room/stream state, selected product, seller dock layout, auction token, and sync cache survive identity changes. Scout: transport/conversation cache, sessionStorage session id, unsigned continuity cookie, and transcript reads are not keyed and authorized as one selected buyer. Buyer cart and orders already key by buyerId and are the reference behavior; public event guide/catalog browsing remain shared projections.\n\n## Global acceptance\nTwo demo sellers and two demo buyers can alternate in one tab without reload and never observe or mutate the other identity's private events, settings, run of show, actions, Copilot queue, seller inventory, auction credentials, Scout conversation, or transcript. A forged direct event/proposal/audit/auction/session id returns the same not-found result as an absent id. Public Channel Guide, public live-event/auction reads, and buyer catalog browsing remain intentionally shared. Identity switching cannot render cached rows from the previous principal while the new fetch is in flight. Existing Event Manager navigation, Active Event live Run of show, buyer cart/orders isolation, and all current focused suites remain green.\n\n## Phase 1 — Identity contract and transport\n\n- **P-001** `todo` Thread the selected demo identity through the existing SyncProvider.userId seam into polling, prefetch, batch, and SSE transports and into a typed server request context consumed by SyncController and SyncQueryRegistry. Include the principal in TanStack query keys, batcher instance keys, and SSE update/invalidation targeting; use one canonical demo-principal header/query convention for sync and REST rather than creating a second provider. Acceptance: two identities mounting the same query name/args receive distinct cache and network entries; an identity change never renders the previous principal's placeholder data; batch and prefetch carry the same principal; SSE only changes the current principal's entries; focused transport tests cover switch-without-reload, reconnect, and public-query compatibility. importance: urgent\n\n## Phase 2 — Persistent ownership model\n\n- **P-002** `todo` Extend the existing persistence model with enforceable seller/buyer ownership wherever event or session anchoring is insufficient. Backfill legacy seller-owned rows to the documented demo seller, bind Scout sessions to buyer identity, and add the minimum composite keys, foreign keys, and indexes needed for event_config, event_run_of_show, copilot_proposal, auction_state, storefront_product, inventory_reservation, and dependent records. Prefer owner-checked joins through the existing event table for event-anchored data; do not clone those tables. Acceptance: migration is repeatable on an existing snapshot and a clean database; no row is orphaned; schema guards cover the new columns/constraints; an existing resource's owner cannot be changed by an upsert; rollback/compatibility behavior is documented and tested. blocked-by: P-001 importance: urgent\n\n## Phase 3 — Server ownership enforcement\n\n- **P-003** `todo` Make EventService/PgEventStore the authoritative seller-ownership oracle and repair the event directory/config/policy lifecycle. Resolve GET /events/mine and events.mine from the request principal; require ownership for config GET/PUT and event.config; pass the seller into publishFromConfig; prevent PgEventStore conflict updates from replacing seller_id; resolve effective policy from the same seller instead of DEFAULT_SELLER_ID. Acceptance: seller A cannot list, read, update, publish, unpublish, or apply policy to seller B's event; a foreign id and an absent id have the same response; seller A's update preserves ownership; invalidations target the correct seller cache; explicit legacy fixtures may opt into demo-seller but runtime flows do not silently default. blocked-by: P-001, P-002 importance: urgent\n- **P-004** `todo` Apply the shared event-owner guard to every seller-owned event surface: run-of-show REST/sync, action register/items/audit/execute/rollback, Copilot list/turn/review/confirm and sync, seller auction start/close and credential mapping, plus rehearsal/chat/stats routes or queries classified as seller-private. Resolve proposal, audit, and auction ids back to their event before acting, and derive actor identity from the principal rather than trusting body.actorId. Maintain an explicit registry test that classifies every event-scoped controller route and event.* sync query as public-viewer or seller-owned so no new surface is unreviewed. Acceptance: cross-seller direct ids cannot read or mutate data; public guide/live auction/viewer chat behavior remains available by policy; all owner failures are non-enumerating; in-memory fallbacks enforce the same boundary as Postgres stores. blocked-by: P-003 importance: high\n- **P-005** `todo` Owner-scope seller inventory while preserving the buyer-facing catalog as an intentional shared projection. Extend storefront_product and inventory_reservation access paths with seller identity; require the selected seller for restock and seller event hold/release; validate that event reservation sources belong to that seller; keep buyer cart/auction reservations tied to their existing buyer/public contracts. Acceptance: seller A cannot view seller-private stock details, restock, reserve, or release seller B's inventory; equal catalog identifiers cannot cross-update owners; public active products remain discoverable; quantity/reservation invariants and expiry continue to hold under concurrent owners. blocked-by: P-002, P-003 importance: high\n- **P-006** `todo` Unify Scout continuity with the selected demo buyer. Key the existing HTTP transport, conversation cache, sessionStorage session id, continuity cookie, server session rows, turn resume, memory, and transcript reads by buyer principal; remove the independently generated browser identity or make it a deterministic projection of the selected buyer. Acceptance: switching buyer A → B → A restores only the matching conversation; B cannot resume A's turn or fetch A's transcript even with its id; foreign and missing sessions are indistinguishable; client body identity remains ignored; anonymous/public fallback is explicit and tested. blocked-by: P-001, P-002 importance: high\n\n\n\n\n## Phase 4 — Browser identity boundary\n\n- **P-007** `todo` Treat a demo-identity change as an atomic browser boundary. Re-key seller dock layouts and seller auction credentials by seller; validate the Event Manager URL event against the new events.mine result and replace/clear foreign selection; reset search, picker, messages, settings/run-of-show drafts, SellerTab event/room/stream/run log, and selected seller product; terminate any live media session owned by the previous seller. Preserve intentionally public browsing state (Channel Guide selection and public catalog) and retain the already-correct buyer cart/orders buyerId behavior. Acceptance: identity switching during fetch, save, active stream, auction unlock, and deep-linked event never flashes or submits prior-user state; switching back restores only state intentionally persisted for that identity; back/forward URLs remain valid under the existing Event Manager design. blocked-by: P-001, P-003, P-004, P-005, P-006 importance: high\n\n## Phase 5 — Cross-user verification and rollout\n\n- **P-008** `todo` Ship a two-seller/two-buyer regression matrix across unit, integration, browser, and migration tests. Cover every audited REST endpoint, every registered seller/private sync query, principal-aware cache and invalidation behavior, foreign direct ids, identity switches with requests in flight, DB and in-memory parity, and Scout transcript/resume isolation. Re-run current API/web/sync suites plus typecheck/build and rendered desktop/mobile QA. Verify the existing plan sidestage-event-manager-event-list-2026-08-14 still provides My Events and Lineup → Settings → Rehearse, Active Event retains its live Run of show timeline, and public guide/catalog/auction views remain shared. Acceptance: all matrix cells are green with evidence attached; no endpoint/query is unclassified; no default-seller path is reachable unintentionally; release migration and rollback probes pass before the plan is marked shipped. blocked-by: P-003, P-004, P-005, P-006, P-007 importance: urgent\n\n## Decisions\n\n### D-001 — Use one selected demo principal through existing identity seams\nDate: 2026-08-14\nThe app's selected demo identity is the canonical base principal. Pass it through SyncProvider.userId and one request-principal convention; derive seller-* and buyer-* role identities at explicit boundaries. Partition caches, batchers, SSE targeting, and persisted browser keys by that principal. Do not create a second identity provider, a second query cache, or independent per-feature impersonation state. The demo principal is an isolation contract, not production authentication; server authorization remains explicit at each route/query classification.\nRelated: P-001, P-006, P-007\n\n### D-002 — Anchor seller ownership in the existing event and inventory records\nDate: 2026-08-14\nEventService/PgEventStore and event.seller_id are the owner oracle for event-anchored resources. Repository and service methods accept the seller principal and owner-check in the same operation as the read/write; conflict updates never replace seller_id. Event-anchored tables reuse event_id plus owner-checked joins instead of duplicating ownership columns unless a database constraint requires one. Inventory records that are not event-anchored gain direct seller ownership in the existing tables. In-memory fallbacks implement the same contract.\nRelated: P-002, P-003, P-004, P-005\n\n### D-003 — Classify every event surface as public or seller-owned and fail closed\nDate: 2026-08-14\nEvery event-scoped REST route and registered sync query must be enumerated in a tested access matrix. Public viewer surfaces are limited to intentionally published projections such as Channel Guide, buyer-visible catalog, public live-event chat/stats, and live auction reads. Config, run of show, actions, Copilot review, seller inventory, drafts, and seller mutations are owner-only. Owner-only lookups return the same not-found response for absent and foreign ids, including secondary proposal/audit/auction identifiers, so callers cannot enumerate another seller's resources.\nRelated: P-003, P-004, P-005, P-008\n\n### D-004 — Preserve public browser context but isolate identity-owned state\nDate: 2026-08-14\nA demo identity switch is an atomic boundary for private data and pending writes. Re-key identity-owned preferences where restoration is useful (seller dock layout, Scout session), clear credentials and transient drafts, terminate prior seller media state, and validate deep-linked event ids against the new seller's events.mine result before rendering detail queries. Preserve only explicitly public browsing context such as the selected Channel Guide event and public catalog. Never use keepPreviousData across principal keys.\nRelated: P-001, P-007, P-008\n\n### D-005 — Scout follows the selected buyer instead of a parallel continuity identity\nDate: 2026-08-14\nThe selected demo buyer owns Scout transport, conversation cache, session key, server session, memory, turn resume, and transcript. The ss_buyer_id cookie may carry that selected buyer for the demo boundary, but it must not independently generate a different long-lived identity. Session and transcript access owner-check on the server; client-supplied identity fields remain ignored. This extends Scout's existing trust-boundary code and stores rather than adding another session system.\nRelated: P-002, P-006, P-008\n\n### D-006 — Extend the approved Event Manager design; do not reopen it\nDate: 2026-08-14\nThis remediation consumes the current Event Manager architecture from sidestage-event-manager-event-list-2026-08-14: My Events owns seller selection, selected-event detail stays Lineup → Settings → Rehearse, and Active Event keeps its separate live Run of show timeline. Identity work may validate or replace a selected event and re-key layout state, but it must not create a parallel event picker, restore retired standalone panes, or change that plan's navigation decisions. Its live P-006 browser QA is independent and may finish before this draft is started.\nRelated: P-007, P-008\n",
+      "updatedAt": "2026-08-14T22:29:53.945Z",
+      "contentHash": "2b81d626465a3dfff32200cfafec8348709416849aca1776690746dd0e29aa76",
+      "markdown": "---\ntitle: Make every SideStage surface follow the selected demo user\nslug: sidestage-demo-user-isolation-2026-08-14\nstatus: ready\ncreated: 2026-08-14\nupdated: 2026-08-14\n---\n\n## Now\nState: proposed for Avi review; no implementation has started.\nNext: review the identity contract, phase boundaries, and acceptance matrix; then start the plan only after approval.\n\n## Background\nSideStage exposes one selected demo identity, but the current application changes only browser-facing identity strings. The app-wide SyncProvider is mounted without userId; SSE/polling batch requests and TanStack query keys omit identity; the server SyncController and SyncQueryRegistry receive no request principal. Seller-owned event records are partly scoped by seller_id, while config, run of show, actions, Copilot, auctions, inventory, and several browser stores are keyed only by event, product, board, or session. Scout uses a separate browser cookie and shared module/session caches. The result is stale or cross-user data after impersonation and direct-id access to another seller's resources.\n\nThis plan extends the existing SyncProvider/userId, x-seller-id policy, EventService/PgEventStore, current persistence tables, and the shipped Event Manager design. It does not create a parallel identity provider, event system, cache, or Studio navigation. It depends on the live plan sidestage-event-manager-event-list-2026-08-14 retaining My Events and the Lineup → Settings → Rehearse detail flow; its current P-006 browser QA remains independent.\n\n## Audit matrix\nTransport/query: events.mine, event.config, event.runOfShow, event.actions.items, event.copilot.proposals, event.auction.active, and their invalidations share identity-free query keys and a principal-free batch/SSE transport. REST/API: GET/PUT event config; GET/PUT run of show; actions register/items/audit/execute/rollback; Copilot list/turn/review/action; auction seller access/start/close; inventory snapshot/hold/release/restock; and seller event publish paths either omit an owner guard or use a fixed default seller. Persistence: event_config, event_run_of_show, copilot_proposal, auction_state, action in-memory state, storefront_product, and inventory_reservation are not independently owner-scoped; PgEventStore conflict update can replace seller_id. Browser: Event Manager URL selection/search/drafts, SellerTab event/room/stream state, selected product, seller dock layout, auction token, and sync cache survive identity changes. Scout: transport/conversation cache, sessionStorage session id, unsigned continuity cookie, and transcript reads are not keyed and authorized as one selected buyer. Buyer cart and orders already key by buyerId and are the reference behavior; public event guide/catalog browsing remain shared projections.\n\n## Global acceptance\nTwo demo sellers and two demo buyers can alternate in one tab without reload and never observe or mutate the other identity's private events, settings, run of show, actions, Copilot queue, seller inventory, auction credentials, Scout conversation, or transcript. A forged direct event/proposal/audit/auction/session id returns the same not-found result as an absent id. Public Channel Guide, public live-event/auction reads, and buyer catalog browsing remain intentionally shared. Identity switching cannot render cached rows from the previous principal while the new fetch is in flight. Existing Event Manager navigation, Active Event live Run of show, buyer cart/orders isolation, and all current focused suites remain green.\n\n## Phase 1 — Identity contract and transport\n\n- **P-001** `done` Thread the selected demo identity through the existing SyncProvider.userId seam into polling, prefetch, batch, and SSE transports and into a typed server request context consumed by SyncController and SyncQueryRegistry. Include the principal in TanStack query keys, batcher instance keys, and SSE update/invalidation targeting; use one canonical demo-principal header/query convention for sync and REST rather than creating a second provider. Acceptance: two identities mounting the same query name/args receive distinct cache and network entries; an identity change never renders the previous principal's placeholder data; batch and prefetch carry the same principal; SSE only changes the current principal's entries; focused transport tests cover switch-without-reload, reconnect, and public-query compatibility. importance: urgent — note: ← WI-39030 completed (done)\n\n## Phase 2 — Persistent ownership model\n\n- **P-002** `todo` Extend the existing persistence model with enforceable seller/buyer ownership wherever event or session anchoring is insufficient. Backfill legacy seller-owned rows to the documented demo seller, bind Scout sessions to buyer identity, and add the minimum composite keys, foreign keys, and indexes needed for event_config, event_run_of_show, copilot_proposal, auction_state, storefront_product, inventory_reservation, and dependent records. Prefer owner-checked joins through the existing event table for event-anchored data; do not clone those tables. Acceptance: migration is repeatable on an existing snapshot and a clean database; no row is orphaned; schema guards cover the new columns/constraints; an existing resource's owner cannot be changed by an upsert; rollback/compatibility behavior is documented and tested. blocked-by: P-001 importance: urgent\n\n## Phase 3 — Server ownership enforcement\n\n- **P-003** `todo` Make EventService/PgEventStore the authoritative seller-ownership oracle and repair the event directory/config/policy lifecycle. Resolve GET /events/mine and events.mine from the request principal; require ownership for config GET/PUT and event.config; pass the seller into publishFromConfig; prevent PgEventStore conflict updates from replacing seller_id; resolve effective policy from the same seller instead of DEFAULT_SELLER_ID. Acceptance: seller A cannot list, read, update, publish, unpublish, or apply policy to seller B's event; a foreign id and an absent id have the same response; seller A's update preserves ownership; invalidations target the correct seller cache; explicit legacy fixtures may opt into demo-seller but runtime flows do not silently default. blocked-by: P-001, P-002 importance: urgent\n- **P-004** `todo` Apply the shared event-owner guard to every seller-owned event surface: run-of-show REST/sync, action register/items/audit/execute/rollback, Copilot list/turn/review/confirm and sync, seller auction start/close and credential mapping, plus rehearsal/chat/stats routes or queries classified as seller-private. Resolve proposal, audit, and auction ids back to their event before acting, and derive actor identity from the principal rather than trusting body.actorId. Maintain an explicit registry test that classifies every event-scoped controller route and event.* sync query as public-viewer or seller-owned so no new surface is unreviewed. Acceptance: cross-seller direct ids cannot read or mutate data; public guide/live auction/viewer chat behavior remains available by policy; all owner failures are non-enumerating; in-memory fallbacks enforce the same boundary as Postgres stores. blocked-by: P-003 importance: high\n- **P-005** `todo` Owner-scope seller inventory while preserving the buyer-facing catalog as an intentional shared projection. Extend storefront_product and inventory_reservation access paths with seller identity; require the selected seller for restock and seller event hold/release; validate that event reservation sources belong to that seller; keep buyer cart/auction reservations tied to their existing buyer/public contracts. Acceptance: seller A cannot view seller-private stock details, restock, reserve, or release seller B's inventory; equal catalog identifiers cannot cross-update owners; public active products remain discoverable; quantity/reservation invariants and expiry continue to hold under concurrent owners. blocked-by: P-002, P-003 importance: high\n- **P-006** `todo` Unify Scout continuity with the selected demo buyer. Key the existing HTTP transport, conversation cache, sessionStorage session id, continuity cookie, server session rows, turn resume, memory, and transcript reads by buyer principal; remove the independently generated browser identity or make it a deterministic projection of the selected buyer. Acceptance: switching buyer A → B → A restores only the matching conversation; B cannot resume A's turn or fetch A's transcript even with its id; foreign and missing sessions are indistinguishable; client body identity remains ignored; anonymous/public fallback is explicit and tested. blocked-by: P-001, P-002 importance: high\n\n\n\n\n## Phase 4 — Browser identity boundary\n\n- **P-007** `todo` Treat a demo-identity change as an atomic browser boundary. Re-key seller dock layouts and seller auction credentials by seller; validate the Event Manager URL event against the new events.mine result and replace/clear foreign selection; reset search, picker, messages, settings/run-of-show drafts, SellerTab event/room/stream/run log, and selected seller product; terminate any live media session owned by the previous seller. Preserve intentionally public browsing state (Channel Guide selection and public catalog) and retain the already-correct buyer cart/orders buyerId behavior. Acceptance: identity switching during fetch, save, active stream, auction unlock, and deep-linked event never flashes or submits prior-user state; switching back restores only state intentionally persisted for that identity; back/forward URLs remain valid under the existing Event Manager design. blocked-by: P-001, P-003, P-004, P-005, P-006 importance: high\n\n## Phase 5 — Cross-user verification and rollout\n\n- **P-008** `todo` Ship a two-seller/two-buyer regression matrix across unit, integration, browser, and migration tests. Cover every audited REST endpoint, every registered seller/private sync query, principal-aware cache and invalidation behavior, foreign direct ids, identity switches with requests in flight, DB and in-memory parity, and Scout transcript/resume isolation. Re-run current API/web/sync suites plus typecheck/build and rendered desktop/mobile QA. Verify the existing plan sidestage-event-manager-event-list-2026-08-14 still provides My Events and Lineup → Settings → Rehearse, Active Event retains its live Run of show timeline, and public guide/catalog/auction views remain shared. Acceptance: all matrix cells are green with evidence attached; no endpoint/query is unclassified; no default-seller path is reachable unintentionally; release migration and rollback probes pass before the plan is marked shipped. blocked-by: P-003, P-004, P-005, P-006, P-007 importance: urgent\n\n## Decisions\n\n### D-001 — Use one selected demo principal through existing identity seams\nDate: 2026-08-14\nThe app's selected demo identity is the canonical base principal. Pass it through SyncProvider.userId and one request-principal convention; derive seller-* and buyer-* role identities at explicit boundaries. Partition caches, batchers, SSE targeting, and persisted browser keys by that principal. Do not create a second identity provider, a second query cache, or independent per-feature impersonation state. The demo principal is an isolation contract, not production authentication; server authorization remains explicit at each route/query classification.\nRelated: P-001, P-006, P-007\n\n### D-002 — Anchor seller ownership in the existing event and inventory records\nDate: 2026-08-14\nEventService/PgEventStore and event.seller_id are the owner oracle for event-anchored resources. Repository and service methods accept the seller principal and owner-check in the same operation as the read/write; conflict updates never replace seller_id. Event-anchored tables reuse event_id plus owner-checked joins instead of duplicating ownership columns unless a database constraint requires one. Inventory records that are not event-anchored gain direct seller ownership in the existing tables. In-memory fallbacks implement the same contract.\nRelated: P-002, P-003, P-004, P-005\n\n### D-003 — Classify every event surface as public or seller-owned and fail closed\nDate: 2026-08-14\nEvery event-scoped REST route and registered sync query must be enumerated in a tested access matrix. Public viewer surfaces are limited to intentionally published projections such as Channel Guide, buyer-visible catalog, public live-event chat/stats, and live auction reads. Config, run of show, actions, Copilot review, seller inventory, drafts, and seller mutations are owner-only. Owner-only lookups return the same not-found response for absent and foreign ids, including secondary proposal/audit/auction identifiers, so callers cannot enumerate another seller's resources.\nRelated: P-003, P-004, P-005, P-008\n\n### D-004 — Preserve public browser context but isolate identity-owned state\nDate: 2026-08-14\nA demo identity switch is an atomic boundary for private data and pending writes. Re-key identity-owned preferences where restoration is useful (seller dock layout, Scout session), clear credentials and transient drafts, terminate prior seller media state, and validate deep-linked event ids against the new seller's events.mine result before rendering detail queries. Preserve only explicitly public browsing context such as the selected Channel Guide event and public catalog. Never use keepPreviousData across principal keys.\nRelated: P-001, P-007, P-008\n\n### D-005 — Scout follows the selected buyer instead of a parallel continuity identity\nDate: 2026-08-14\nThe selected demo buyer owns Scout transport, conversation cache, session key, server session, memory, turn resume, and transcript. The ss_buyer_id cookie may carry that selected buyer for the demo boundary, but it must not independently generate a different long-lived identity. Session and transcript access owner-check on the server; client-supplied identity fields remain ignored. This extends Scout's existing trust-boundary code and stores rather than adding another session system.\nRelated: P-002, P-006, P-008\n\n### D-006 — Extend the approved Event Manager design; do not reopen it\nDate: 2026-08-14\nThis remediation consumes the current Event Manager architecture from sidestage-event-manager-event-list-2026-08-14: My Events owns seller selection, selected-event detail stays Lineup → Settings → Rehearse, and Active Event keeps its separate live Run of show timeline. Identity work may validate or replace a selected event and re-key layout state, but it must not create a parallel event picker, restore retired standalone panes, or change that plan's navigation decisions. Its live P-006 browser QA is independent and may finish before this draft is started.\nRelated: P-007, P-008\n",
       "frontmatter": {
         "title": "Make every SideStage surface follow the selected demo user",
         "slug": "sidestage-demo-user-isolation-2026-08-14",
@@ -428,9 +374,9 @@ export const BUILD_HISTORY_SNAPSHOT = {
       "items": [
         {
           "id": "P-001",
-          "text": "Thread the selected demo identity through the existing SyncProvider.userId seam into polling, prefetch, batch, and SSE transports and into a typed server request context consumed by SyncController and SyncQueryRegistry. Include the principal in TanStack query keys, batcher instance keys, and SSE update/invalidation targeting; use one canonical demo-principal header/query convention for sync and REST rather than creating a second provider. Acceptance: two identities mounting the same query name/args receive distinct cache and network entries; an identity change never renders the previous principal's placeholder data; batch and prefetch carry the same principal; SSE only changes the current principal's entries; focused transport tests cover switch-without-reload, reconnect, and public-query compatibility.",
-          "storedStatus": "todo",
-          "effectiveStatus": "todo",
+          "text": "Thread the selected demo identity through the existing SyncProvider.userId seam into polling, prefetch, batch, and SSE transports and into a typed server request context consumed by SyncController and SyncQueryRegistry. Include the principal in TanStack query keys, batcher instance keys, and SSE update/invalidation targeting; use one canonical demo-principal header/query convention for sync and REST rather than creating a second provider. Acceptance: two identities mounting the same query name/args receive distinct cache and network entries; an identity change never renders the previous principal's placeholder data; batch and prefetch carry the same principal; SSE only changes the current principal's entries; focused transport tests cover switch-without-reload, reconnect, and public-query compatibility. — note: ← WI-39030 completed (done)",
+          "storedStatus": "done",
+          "effectiveStatus": "done",
           "importance": "urgent",
           "riskTier": null,
           "authority": null,
@@ -442,7 +388,7 @@ export const BUILD_HISTORY_SNAPSHOT = {
           "id": "P-002",
           "text": "Extend the existing persistence model with enforceable seller/buyer ownership wherever event or session anchoring is insufficient. Backfill legacy seller-owned rows to the documented demo seller, bind Scout sessions to buyer identity, and add the minimum composite keys, foreign keys, and indexes needed for event_config, event_run_of_show, copilot_proposal, auction_state, storefront_product, inventory_reservation, and dependent records. Prefer owner-checked joins through the existing event table for event-anchored data; do not clone those tables. Acceptance: migration is repeatable on an existing snapshot and a clean database; no row is orphaned; schema guards cover the new columns/constraints; an existing resource's owner cannot be changed by an upsert; rollback/compatibility behavior is documented and tested.",
           "storedStatus": "todo",
-          "effectiveStatus": "blocked",
+          "effectiveStatus": "todo",
           "importance": "urgent",
           "riskTier": null,
           "authority": null,
@@ -623,18 +569,33 @@ export const BUILD_HISTORY_SNAPSHOT = {
           "lineNumber": 77
         }
       ],
-      "completedItems": []
+      "completedItems": [
+        {
+          "id": "WI-39030",
+          "kind": "work-item",
+          "title": "Thread the selected demo identity through the existing SyncProvider.userId seam into polling, prefetch, batch, and SSE transports and into a typed server request context consumed by SyncController and SyncQueryRegistry. Include the principal in TanStack query keys, batcher instance keys, and SSE update/invalidation targeting; use one canonical demo-principal header/query convention for sync and REST rather than creating a second provider. Acceptance: two identities mounting the same query name/args receive distinct cache and network entries; an identity change never renders the previous principal's placeholder data; batch and prefetch carry the same principal; SSE only changes the current principal's entries; focused transport tests cover switch-without-reload, reconnect, and public-query compatibility.",
+          "state": "done",
+          "completedAt": "2026-08-14T22:29:53.945Z",
+          "completionAuthority": "plan-ledger",
+          "completionSummary": "Recorded complete by P-001 in the canonical plan ledger.",
+          "completionEvidence": {
+            "source": "canonical-plan-completion-marker",
+            "planItem": "P-001",
+            "contentHash": "2b81d626465a3dfff32200cfafec8348709416849aca1776690746dd0e29aa76"
+          }
+        }
+      ]
     },
     {
-      "slug": "sidestage-event-manager-event-list-2026-08-14",
-      "title": "Ship the approved SideStage Event Manager event-list design",
+      "slug": "sidestage-demo-product-imagery-2026-08-14",
+      "title": "Replace SideStage demo product placeholders with owned product photography",
       "status": "ready",
-      "updatedAt": "2026-08-14T21:51:26.484Z",
-      "contentHash": "df1b861d1e713205630e8cad9e8de8a2d37427a4443fb4201e923677e81dbfa6",
-      "markdown": "---\ntitle: Ship the approved SideStage Event Manager event-list design\nslug: sidestage-event-manager-event-list-2026-08-14\nstatus: ready\ncreated: 2026-08-14\nupdated: 2026-08-14\n---\n\n# Ship the approved SideStage Event Manager event-list design\n\n## Now\n\n**State:** Draft. Plan body to be filled in.\n\n**Next:** human reviews scope and lists Phase 1 items.\n\n## Background\n\n(Why this plan exists; what problem it addresses.)\n\n## Phase 1 — TODO\n\n(Use plans:add-item to populate. Each item is one line:\nsingle id, status token, free text, optional blocked-by.)\n\n\n## Phase — Implementation\n\n- **P-001** `done` Extend the existing event directory with a seller-scoped events.mine read, including drafts, plus store and API coverage. importance: high — note: ← WI-38987 completed (done)\n- **P-002** `done` Implement the Event Manager My events / Create event switch, searchable seller event rail, selection-driven detail, and URL-addressable manager view. blocked-by: P-001 importance: high — note: ← WI-38988 completed (done)\n- **P-003** `done` Run focused API/web tests, typecheck/build, and Verdict desktop/mobile interaction QA; close with evidence. blocked-by: P-001, P-002 importance: high — note: ← WI-39004 completed (done)\n\n\n\n\n## Phase — Rehearse integration\n\n- **P-004** `done` Extend the selected-event My Events detail navigation to Lineup → Settings → Rehearse and embed the existing RunOfShowPlannerPanel in the Rehearse tab. importance: high — note: ← WI-39016 completed (done)\n- **P-005** `done` Retire the standalone Event Settings and Run-of-show planner dock panes, and migrate persisted manager layouts to the single Event Manager pane. blocked-by: P-004 importance: high — note: ← WI-39019 completed (done)\n- **P-006** `done` Add tab-order, planner-embedding, and manager-layout migration tests; run focused web tests, typecheck/build verification, and browser QA while preserving Active Event's live Run of show timeline. blocked-by: P-004, P-005 importance: high — note: ← WI-39022 completed (done)\n\n\n\n## Decisions\n\n(Use plans:add-decision to append. Each decision is a third-level\nheading with a date line and a body paragraph.)\n\n### D-001 — Implement concept 03 by extending existing seams\nDate: 2026-08-14\nKeep the shipped Inventory · Event Manager · Active Event navigation. Inside Event Manager, add My events and Create event views. Reuse the existing event directory/store for seller-owned listing (including drafts), the existing EventManager detail/guardrail surface, and EventCreationPanel; do not create a parallel event system. Manager view and selected event must be URL-addressable for reload/back-forward behavior.\nRelated: P-001, P-002, P-003\n\n### D-002 — Nest event settings under the selected event\nDate: 2026-08-14\nEvent Manager owns two workspace modes: My events and Create event. Selecting an event opens event-scoped detail modes Lineup and Settings. Settings must be URL-addressable with the selected event, render the existing EventSettingsPanel in that detail context, and replace the current duplicate long-page embedding. Keep the standalone dock panel registered only for persisted-layout compatibility; do not seed it into the new default manager flow.\nRelated: P-002, P-003\n\n### D-003 — Unify event authoring under My Events\nDate: 2026-08-14\nSelected-event authoring follows Lineup → Settings → Rehearse. Rehearse reuses the existing RunOfShowPlannerPanel. Event Settings and Run-of-show planner are no longer standalone dock panes; persisted manager layouts converge to the single Event Manager pane. Active Event retains the separate live Run of show timeline.\nRelated: P-004, P-005, P-006\n",
+      "updatedAt": "2026-08-14T22:27:39.554Z",
+      "contentHash": "a9d7d72eeff3e1b826759b1b340e5b7646b058d04340648f9e460e1cce21aa63",
+      "markdown": "---\ntitle: Replace SideStage demo product placeholders with owned product photography\nslug: sidestage-demo-product-imagery-2026-08-14\nstatus: ready\ncreated: 2026-08-14\nupdated: 2026-08-14\n---\n\n# Replace SideStage demo product placeholders with owned product photography\n\n## Now\n\n**State:** CORRECTIVE PLAN READY FOR OWNER REVIEW. The original eight-image memory-fixture acceptance was retracted. P-005 through P-008 now cover the actual 50-group/200-variant event-demo-200 collection; P-004 is retained as the final Postgres-backed browser gate. Route A (this session) is owner-selected. Proposed image contract: one distinct owned product photo per group, reused across its four variants.\n\n**Next:** Owner approves the corrective plan; then plans:start and P-005 begin. Before reseeding, take backup:snapshot_create(reason=pre_destructive).\n\n## Background\n\n(Why this plan exists; what problem it addresses.)\n\n## Phase 1 — TODO\n\n(Use plans:add-item to populate. Each item is one line:\nsingle id, status token, free text, optional blocked-by.)\n\n\n## Phase — Implementation\n\n- **P-001** `done` Generate and inspect eight coordinated photorealistic product images importance: high — note: ← WI-38935 completed (done)\n- **P-002** `done` Add optimized image assets and update API, web offline, and Postgres catalog mirrors blocked-by: P-001 importance: high — note: ← WI-38944 completed (done)\n- **P-003** `done` Add regression coverage and run focused catalog tests plus the web build blocked-by: P-002 importance: high — note: ← WI-38950 completed (done)\n- **P-004** `todo` Verify the rendered catalog and colorway switching in a browser importance: high blocked-by: P-008\n\n\n\n\n\n## Phase — Live catalog correction\n\n- **P-005** `done` Define and guard the owned-image contract for all 50 event-demo-200 groups: stable filenames and alt text, exactly one real image per group reused across four variants, zero placeholder URLs, file-existence checks, and Postgres-visible acceptance criteria. importance: high — note: ← WI-39017 completed (done)\n- **P-006** `done` Generate, inspect, normalize, and save the complete 50-group product-photo set with the built-in image generator, reusing only exact existing matches and converting final assets to stable WebPs under apps/web/public/demo-products. blocked-by: P-005 importance: high — note: ← WI-39037 completed (done)\n- **P-007** `done` Wire the live event-demo-200 group and variant seed writers to owned local image paths, take a pre-destructive workspace/database snapshot, rerun the idempotent seed against the standing database, and prove reserved inventory remains unchanged. blocked-by: P-006 importance: high — note: ← WI-39040 completed (done)\n- **P-008** `todo` Add recurrence guards and run focused catalog/seed tests, full API and web suites, TypeScript, production build, and exact source/dist asset-count validation on the settled tree. blocked-by: P-007 importance: high\n\n\n\n\n## Decisions\n\n(Use plans:add-decision to append. Each decision is a third-level\nheading with a date line and a body paragraph.)\n",
       "frontmatter": {
-        "title": "Ship the approved SideStage Event Manager event-list design",
-        "slug": "sidestage-event-manager-event-list-2026-08-14",
+        "title": "Replace SideStage demo product placeholders with owned product photography",
+        "slug": "sidestage-demo-product-imagery-2026-08-14",
         "status": "ready",
         "created": "2026-08-14",
         "updated": "2026-08-14"
@@ -642,7 +603,7 @@ export const BUILD_HISTORY_SNAPSHOT = {
       "items": [
         {
           "id": "P-001",
-          "text": "Extend the existing event directory with a seller-scoped events.mine read, including drafts, plus store and API coverage. — note: ← WI-38987 completed (done)",
+          "text": "Generate and inspect eight coordinated photorealistic product images — note: ← WI-38935 completed (done)",
           "storedStatus": "done",
           "effectiveStatus": "done",
           "importance": "high",
@@ -654,7 +615,7 @@ export const BUILD_HISTORY_SNAPSHOT = {
         },
         {
           "id": "P-002",
-          "text": "Implement the Event Manager My events / Create event switch, searchable seller event rail, selection-driven detail, and URL-addressable manager view. — note: ← WI-38988 completed (done)",
+          "text": "Add optimized image assets and update API, web offline, and Postgres catalog mirrors — note: ← WI-38944 completed (done)",
           "storedStatus": "done",
           "effectiveStatus": "done",
           "importance": "high",
@@ -668,14 +629,13 @@ export const BUILD_HISTORY_SNAPSHOT = {
         },
         {
           "id": "P-003",
-          "text": "Run focused API/web tests, typecheck/build, and Verdict desktop/mobile interaction QA; close with evidence. — note: ← WI-39004 completed (done)",
+          "text": "Add regression coverage and run focused catalog tests plus the web build — note: ← WI-38950 completed (done)",
           "storedStatus": "done",
           "effectiveStatus": "done",
           "importance": "high",
           "riskTier": null,
           "authority": null,
           "blockedBy": [
-            "P-001",
             "P-002"
           ],
           "phase": "Phase — Implementation",
@@ -683,254 +643,33 @@ export const BUILD_HISTORY_SNAPSHOT = {
         },
         {
           "id": "P-004",
-          "text": "Extend the selected-event My Events detail navigation to Lineup → Settings → Rehearse and embed the existing RunOfShowPlannerPanel in the Rehearse tab. — note: ← WI-39016 completed (done)",
+          "text": "Verify the rendered catalog and colorway switching in a browser",
+          "storedStatus": "todo",
+          "effectiveStatus": "blocked",
+          "importance": "high",
+          "riskTier": null,
+          "authority": null,
+          "blockedBy": [
+            "P-008"
+          ],
+          "phase": "Phase — Implementation",
+          "lineNumber": 32
+        },
+        {
+          "id": "P-005",
+          "text": "Define and guard the owned-image contract for all 50 event-demo-200 groups: stable filenames and alt text, exactly one real image per group reused across four variants, zero placeholder URLs, file-existence checks, and Postgres-visible acceptance criteria. — note: ← WI-39017 completed (done)",
           "storedStatus": "done",
           "effectiveStatus": "done",
           "importance": "high",
           "riskTier": null,
           "authority": null,
           "blockedBy": [],
-          "phase": "Phase — Rehearse integration",
-          "lineNumber": 38
-        },
-        {
-          "id": "P-005",
-          "text": "Retire the standalone Event Settings and Run-of-show planner dock panes, and migrate persisted manager layouts to the single Event Manager pane. — note: ← WI-39019 completed (done)",
-          "storedStatus": "done",
-          "effectiveStatus": "done",
-          "importance": "high",
-          "riskTier": null,
-          "authority": null,
-          "blockedBy": [
-            "P-004"
-          ],
-          "phase": "Phase — Rehearse integration",
-          "lineNumber": 39
-        },
-        {
-          "id": "P-006",
-          "text": "Add tab-order, planner-embedding, and manager-layout migration tests; run focused web tests, typecheck/build verification, and browser QA while preserving Active Event's live Run of show timeline. — note: ← WI-39022 completed (done)",
-          "storedStatus": "done",
-          "effectiveStatus": "done",
-          "importance": "high",
-          "riskTier": null,
-          "authority": null,
-          "blockedBy": [
-            "P-004",
-            "P-005"
-          ],
-          "phase": "Phase — Rehearse integration",
+          "phase": "Phase — Live catalog correction",
           "lineNumber": 40
-        }
-      ],
-      "decisions": [
-        {
-          "id": "D-001",
-          "title": "Implement concept 03 by extending existing seams",
-          "body": "Date: 2026-08-14\nKeep the shipped Inventory · Event Manager · Active Event navigation. Inside Event Manager, add My events and Create event views. Reuse the existing event directory/store for seller-owned listing (including drafts), the existing EventManager detail/guardrail surface, and EventCreationPanel; do not create a parallel event system. Manager view and selected event must be URL-addressable for reload/back-forward behavior.\nRelated: P-001, P-002, P-003",
-          "date": "2026-08-14",
-          "itemRefs": [
-            "P-001",
-            "P-002",
-            "P-003"
-          ],
-          "lineNumber": 49
-        },
-        {
-          "id": "D-002",
-          "title": "Nest event settings under the selected event",
-          "body": "Date: 2026-08-14\nEvent Manager owns two workspace modes: My events and Create event. Selecting an event opens event-scoped detail modes Lineup and Settings. Settings must be URL-addressable with the selected event, render the existing EventSettingsPanel in that detail context, and replace the current duplicate long-page embedding. Keep the standalone dock panel registered only for persisted-layout compatibility; do not seed it into the new default manager flow.\nRelated: P-002, P-003",
-          "date": "2026-08-14",
-          "itemRefs": [
-            "P-002",
-            "P-003"
-          ],
-          "lineNumber": 54
-        },
-        {
-          "id": "D-003",
-          "title": "Unify event authoring under My Events",
-          "body": "Date: 2026-08-14\nSelected-event authoring follows Lineup → Settings → Rehearse. Rehearse reuses the existing RunOfShowPlannerPanel. Event Settings and Run-of-show planner are no longer standalone dock panes; persisted manager layouts converge to the single Event Manager pane. Active Event retains the separate live Run of show timeline.\nRelated: P-004, P-005, P-006",
-          "date": "2026-08-14",
-          "itemRefs": [
-            "P-004",
-            "P-005",
-            "P-006"
-          ],
-          "lineNumber": 59
-        }
-      ],
-      "completedItems": [
-        {
-          "id": "WI-38987",
-          "kind": "work-item",
-          "title": "Extend the existing event directory with a seller-scoped events.mine read, including drafts, plus store and API coverage.",
-          "state": "done",
-          "completedAt": "2026-08-14T21:51:26.484Z",
-          "completionAuthority": "plan-ledger",
-          "completionSummary": "Recorded complete by P-001 in the canonical plan ledger.",
-          "completionEvidence": {
-            "source": "canonical-plan-completion-marker",
-            "planItem": "P-001",
-            "contentHash": "df1b861d1e713205630e8cad9e8de8a2d37427a4443fb4201e923677e81dbfa6"
-          }
-        },
-        {
-          "id": "WI-38988",
-          "kind": "work-item",
-          "title": "Implement the Event Manager My events / Create event switch, searchable seller event rail, selection-driven detail, and URL-addressable manager view.",
-          "state": "done",
-          "completedAt": "2026-08-14T21:51:26.484Z",
-          "completionAuthority": "plan-ledger",
-          "completionSummary": "Recorded complete by P-002 in the canonical plan ledger.",
-          "completionEvidence": {
-            "source": "canonical-plan-completion-marker",
-            "planItem": "P-002",
-            "contentHash": "df1b861d1e713205630e8cad9e8de8a2d37427a4443fb4201e923677e81dbfa6"
-          }
-        },
-        {
-          "id": "WI-39004",
-          "kind": "work-item",
-          "title": "Run focused API/web tests, typecheck/build, and Verdict desktop/mobile interaction QA; close with evidence.",
-          "state": "done",
-          "completedAt": "2026-08-14T21:51:26.484Z",
-          "completionAuthority": "plan-ledger",
-          "completionSummary": "Recorded complete by P-003 in the canonical plan ledger.",
-          "completionEvidence": {
-            "source": "canonical-plan-completion-marker",
-            "planItem": "P-003",
-            "contentHash": "df1b861d1e713205630e8cad9e8de8a2d37427a4443fb4201e923677e81dbfa6"
-          }
-        },
-        {
-          "id": "WI-39016",
-          "kind": "work-item",
-          "title": "Extend the selected-event My Events detail navigation to Lineup → Settings → Rehearse and embed the existing RunOfShowPlannerPanel in the Rehearse tab.",
-          "state": "done",
-          "completedAt": "2026-08-14T21:51:26.484Z",
-          "completionAuthority": "plan-ledger",
-          "completionSummary": "Recorded complete by P-004 in the canonical plan ledger.",
-          "completionEvidence": {
-            "source": "canonical-plan-completion-marker",
-            "planItem": "P-004",
-            "contentHash": "df1b861d1e713205630e8cad9e8de8a2d37427a4443fb4201e923677e81dbfa6"
-          }
-        },
-        {
-          "id": "WI-39019",
-          "kind": "work-item",
-          "title": "Retire the standalone Event Settings and Run-of-show planner dock panes, and migrate persisted manager layouts to the single Event Manager pane.",
-          "state": "done",
-          "completedAt": "2026-08-14T21:51:26.484Z",
-          "completionAuthority": "plan-ledger",
-          "completionSummary": "Recorded complete by P-005 in the canonical plan ledger.",
-          "completionEvidence": {
-            "source": "canonical-plan-completion-marker",
-            "planItem": "P-005",
-            "contentHash": "df1b861d1e713205630e8cad9e8de8a2d37427a4443fb4201e923677e81dbfa6"
-          }
-        },
-        {
-          "id": "WI-39022",
-          "kind": "work-item",
-          "title": "Add tab-order, planner-embedding, and manager-layout migration tests; run focused web tests, typecheck/build verification, and browser QA while preserving Active Event's live Run of show timeline.",
-          "state": "done",
-          "completedAt": "2026-08-14T21:51:26.484Z",
-          "completionAuthority": "plan-ledger",
-          "completionSummary": "Recorded complete by P-006 in the canonical plan ledger.",
-          "completionEvidence": {
-            "source": "canonical-plan-completion-marker",
-            "planItem": "P-006",
-            "contentHash": "df1b861d1e713205630e8cad9e8de8a2d37427a4443fb4201e923677e81dbfa6"
-          }
-        }
-      ]
-    },
-    {
-      "slug": "sidestage-studio-transcript-overlay-2026-08-14",
-      "title": "Consolidate live transcription into the Studio live console",
-      "status": "ready",
-      "updatedAt": "2026-08-14T21:35:49.585Z",
-      "contentHash": "48b3eff5a2e2ec356d9b71c76c6cc3c7b87d88e186e5eb2a24960140569018f7",
-      "markdown": "---\ntitle: Consolidate live transcription into the Studio live console\nslug: sidestage-studio-transcript-overlay-2026-08-14\nstatus: ready\ncreated: 2026-08-14\nupdated: 2026-08-14\n---\n\n## Goal\nMake transcription a capability of the live stream rather than a separate Studio workspace: it follows the publisher session, captions appear over the video, product context is inherited from the canonical active item, and full history remains available on demand.\n\n\n## Phase — Implementation\n\n- **P-001** `done` Extract the transcript runtime into a stable controller owned above dock/mobile presentation; preserve provider fallback, final-segment persistence, product mention intent, and add publisher-session-driven start/stop behavior. importance: high — note: ← WI-38955 completed (done)\n- **P-002** `done` Build the accessible Live console caption overlay and expandable history using the existing overlay/status/action-chip language; inherit active product state and keep transcript mention staging without a duplicate picker. blocked-by: P-001 importance: high — note: ← WI-38956 completed (done)\n- **P-003** `done` Remove the Transcript pane from the desktop panel inventory/default and restored layouts, update mobile wiring so the Stage surface owns captions, and delete obsolete adapters/styles while preserving layout compatibility. blocked-by: P-002 importance: high — note: ← WI-38970 completed (done)\n- **P-004** `done` Update focused tests, validate and lint the UI IR design spec, run web type/test/build checks, and browser-verify desktop and mobile interactions, accessibility state, responsive layout, and console cleanliness. blocked-by: P-003 importance: high — note: ← WI-38979 completed (done)\n\n\n\n\n\n## Phase — Shared engagement overlay\n\n- **P-005** `done` Expose event transcript moments through the existing event-scoped sync query registry and invalidate that query whenever a seller persists a new transcript moment; add focused API contract tests. importance: high — note: Added event.chat.transcript to ChatSyncQueries and invalidated it on every transcript write. Verified with npx vitest run --project sidestage-node apps/api/src/chat/chat.service.spec.ts: 9/9 passed.\n- **P-006** `done` Build a shared transcript-and-Event-Chat video overlay, with a remote transcript presentation model for buyers and the existing live transcript controller for sellers; mount the shared component in both BuyerTab and StageStatusPanel. blocked-by: P-005 importance: high — note: ← WI-39010 completed (done)\n- **P-007** `wip` Retire standalone seller Event Chat from default desktop/mobile layouts and migrate persisted active-event layouts, then update focused tests, UI IR, and browser QA for buyer and seller desktop/mobile. blocked-by: P-006 importance: high — note: Starting standalone seller Event Chat retirement across default/mobile/persisted layouts and final verification.\n\n\n\n## Decisions\n- The App-level `selectedProductId` remains the single source of truth. Transcript UI may display it and transcript mention suggestions may stage a detected product, but there is no general-purpose duplicate picker.\n- Transcription lifecycle belongs above presentation and follows the publisher media stream. Hiding/collapsing captions or changing responsive layout must not tear down ingestion.\n- Reuse the existing Live console video-overlay language and action-chip patterns. Registry search returned no matching primitives, so no new parallel component system will be introduced.\n- Show a compact caption layer by default with an accessible, expandable transcript history and explicit transcription status/error affordances. Compose it with the existing audience-chat overlay instead of stacking opaque panels.\n- Preserve final-segment recording, active-product tagging, product-mention confirmation, replay-chapter input, and Web Speech fallback behavior.\n\n### D-001 — One engagement overlay is the default buyer and seller surface\nDate: 2026-08-14\nThe live video surface owns both transcript context and Event Chat for both roles. Sellers keep the existing live transcript controller (capture, provider state, expandable history); buyers read persisted transcript moments through the event-scoped sync query. Standalone Event Chat remains a compatibility panel type for restored/custom layouts only, but it is removed from default desktop and mobile navigation and migrated out of persisted active-event layouts.\nRelated: P-005, P-006, P-007\n\n## Acceptance\n- Starting a live publisher session starts transcription when audio is available; ending it stops transcription.\n- Desktop and mobile both expose live captions inside the Live console.\n- The separate Transcript dock panel and its Active item dropdown are absent from fresh and restored layouts.\n- An active product selected elsewhere is reflected without a second selector; mention suggestions remain actionable.\n- Transcript history is keyboard-accessible, screen-reader friendly, scrollable, and does not obscure core stream controls.\n- Focused unit/component tests, type/build checks, design-spec validation/lint, and rendered desktop/mobile browser verification pass.\n\n## Out of scope\n- Changing the current backend retention model from the capped in-memory transcript store to durable archival storage. That is a separate data-lifecycle feature; this plan preserves the existing recording contract.\n",
-      "frontmatter": {
-        "title": "Consolidate live transcription into the Studio live console",
-        "slug": "sidestage-studio-transcript-overlay-2026-08-14",
-        "status": "ready",
-        "created": "2026-08-14",
-        "updated": "2026-08-14"
-      },
-      "items": [
-        {
-          "id": "P-001",
-          "text": "Extract the transcript runtime into a stable controller owned above dock/mobile presentation; preserve provider fallback, final-segment persistence, product mention intent, and add publisher-session-driven start/stop behavior. — note: ← WI-38955 completed (done)",
-          "storedStatus": "done",
-          "effectiveStatus": "done",
-          "importance": "high",
-          "riskTier": null,
-          "authority": null,
-          "blockedBy": [],
-          "phase": "Phase — Implementation",
-          "lineNumber": 15
-        },
-        {
-          "id": "P-002",
-          "text": "Build the accessible Live console caption overlay and expandable history using the existing overlay/status/action-chip language; inherit active product state and keep transcript mention staging without a duplicate picker. — note: ← WI-38956 completed (done)",
-          "storedStatus": "done",
-          "effectiveStatus": "done",
-          "importance": "high",
-          "riskTier": null,
-          "authority": null,
-          "blockedBy": [
-            "P-001"
-          ],
-          "phase": "Phase — Implementation",
-          "lineNumber": 16
-        },
-        {
-          "id": "P-003",
-          "text": "Remove the Transcript pane from the desktop panel inventory/default and restored layouts, update mobile wiring so the Stage surface owns captions, and delete obsolete adapters/styles while preserving layout compatibility. — note: ← WI-38970 completed (done)",
-          "storedStatus": "done",
-          "effectiveStatus": "done",
-          "importance": "high",
-          "riskTier": null,
-          "authority": null,
-          "blockedBy": [
-            "P-002"
-          ],
-          "phase": "Phase — Implementation",
-          "lineNumber": 17
-        },
-        {
-          "id": "P-004",
-          "text": "Update focused tests, validate and lint the UI IR design spec, run web type/test/build checks, and browser-verify desktop and mobile interactions, accessibility state, responsive layout, and console cleanliness. — note: ← WI-38979 completed (done)",
-          "storedStatus": "done",
-          "effectiveStatus": "done",
-          "importance": "high",
-          "riskTier": null,
-          "authority": null,
-          "blockedBy": [
-            "P-003"
-          ],
-          "phase": "Phase — Implementation",
-          "lineNumber": 18
-        },
-        {
-          "id": "P-005",
-          "text": "Expose event transcript moments through the existing event-scoped sync query registry and invalidate that query whenever a seller persists a new transcript moment; add focused API contract tests. — note: Added event.chat.transcript to ChatSyncQueries and invalidated it on every transcript write. Verified with npx vitest run --project sidestage-node apps/api/src/chat/chat.service.spec.ts: 9/9 passed.",
-          "storedStatus": "done",
-          "effectiveStatus": "done",
-          "importance": "high",
-          "riskTier": null,
-          "authority": null,
-          "blockedBy": [],
-          "phase": "Phase — Shared engagement overlay",
-          "lineNumber": 26
         },
         {
           "id": "P-006",
-          "text": "Build a shared transcript-and-Event-Chat video overlay, with a remote transcript presentation model for buyers and the existing live transcript controller for sellers; mount the shared component in both BuyerTab and StageStatusPanel. — note: ← WI-39010 completed (done)",
+          "text": "Generate, inspect, normalize, and save the complete 50-group product-photo set with the built-in image generator, reusing only exact existing matches and converting final assets to stable WebPs under apps/web/public/demo-products. — note: ← WI-39037 completed (done)",
           "storedStatus": "done",
           "effectiveStatus": "done",
           "importance": "high",
@@ -939,228 +678,122 @@ export const BUILD_HISTORY_SNAPSHOT = {
           "blockedBy": [
             "P-005"
           ],
-          "phase": "Phase — Shared engagement overlay",
-          "lineNumber": 27
+          "phase": "Phase — Live catalog correction",
+          "lineNumber": 41
         },
         {
           "id": "P-007",
-          "text": "Retire standalone seller Event Chat from default desktop/mobile layouts and migrate persisted active-event layouts, then update focused tests, UI IR, and browser QA for buyer and seller desktop/mobile. — note: Starting standalone seller Event Chat retirement across default/mobile/persisted layouts and final verification.",
-          "storedStatus": "wip",
-          "effectiveStatus": "wip",
+          "text": "Wire the live event-demo-200 group and variant seed writers to owned local image paths, take a pre-destructive workspace/database snapshot, rerun the idempotent seed against the standing database, and prove reserved inventory remains unchanged. — note: ← WI-39040 completed (done)",
+          "storedStatus": "done",
+          "effectiveStatus": "done",
           "importance": "high",
           "riskTier": null,
           "authority": null,
           "blockedBy": [
             "P-006"
           ],
-          "phase": "Phase — Shared engagement overlay",
-          "lineNumber": 28
-        }
-      ],
-      "decisions": [
-        {
-          "id": "D-001",
-          "title": "One engagement overlay is the default buyer and seller surface",
-          "body": "Date: 2026-08-14\nThe live video surface owns both transcript context and Event Chat for both roles. Sellers keep the existing live transcript controller (capture, provider state, expandable history); buyers read persisted transcript moments through the event-scoped sync query. Standalone Event Chat remains a compatibility panel type for restored/custom layouts only, but it is removed from default desktop and mobile navigation and migrated out of persisted active-event layouts.\nRelated: P-005, P-006, P-007",
-          "date": "2026-08-14",
-          "itemRefs": [
-            "P-005",
-            "P-006",
-            "P-007"
-          ],
-          "lineNumber": 39
-        }
-      ],
-      "completedItems": [
-        {
-          "id": "WI-38955",
-          "kind": "work-item",
-          "title": "Extract the transcript runtime into a stable controller owned above dock/mobile presentation; preserve provider fallback, final-segment persistence, product mention intent, and add publisher-session-driven start/stop behavior.",
-          "state": "done",
-          "completedAt": "2026-08-14T21:35:49.585Z",
-          "completionAuthority": "plan-ledger",
-          "completionSummary": "Recorded complete by P-001 in the canonical plan ledger.",
-          "completionEvidence": {
-            "source": "canonical-plan-completion-marker",
-            "planItem": "P-001",
-            "contentHash": "48b3eff5a2e2ec356d9b71c76c6cc3c7b87d88e186e5eb2a24960140569018f7"
-          }
+          "phase": "Phase — Live catalog correction",
+          "lineNumber": 42
         },
         {
-          "id": "WI-38956",
-          "kind": "work-item",
-          "title": "Build the accessible Live console caption overlay and expandable history using the existing overlay/status/action-chip language; inherit active product state and keep transcript mention staging without a duplicate picker.",
-          "state": "done",
-          "completedAt": "2026-08-14T21:35:49.585Z",
-          "completionAuthority": "plan-ledger",
-          "completionSummary": "Recorded complete by P-002 in the canonical plan ledger.",
-          "completionEvidence": {
-            "source": "canonical-plan-completion-marker",
-            "planItem": "P-002",
-            "contentHash": "48b3eff5a2e2ec356d9b71c76c6cc3c7b87d88e186e5eb2a24960140569018f7"
-          }
-        },
-        {
-          "id": "WI-38970",
-          "kind": "work-item",
-          "title": "Remove the Transcript pane from the desktop panel inventory/default and restored layouts, update mobile wiring so the Stage surface owns captions, and delete obsolete adapters/styles while preserving layout compatibility.",
-          "state": "done",
-          "completedAt": "2026-08-14T21:35:49.585Z",
-          "completionAuthority": "plan-ledger",
-          "completionSummary": "Recorded complete by P-003 in the canonical plan ledger.",
-          "completionEvidence": {
-            "source": "canonical-plan-completion-marker",
-            "planItem": "P-003",
-            "contentHash": "48b3eff5a2e2ec356d9b71c76c6cc3c7b87d88e186e5eb2a24960140569018f7"
-          }
-        },
-        {
-          "id": "WI-38979",
-          "kind": "work-item",
-          "title": "Update focused tests, validate and lint the UI IR design spec, run web type/test/build checks, and browser-verify desktop and mobile interactions, accessibility state, responsive layout, and console cleanliness.",
-          "state": "done",
-          "completedAt": "2026-08-14T21:35:49.585Z",
-          "completionAuthority": "plan-ledger",
-          "completionSummary": "Recorded complete by P-004 in the canonical plan ledger.",
-          "completionEvidence": {
-            "source": "canonical-plan-completion-marker",
-            "planItem": "P-004",
-            "contentHash": "48b3eff5a2e2ec356d9b71c76c6cc3c7b87d88e186e5eb2a24960140569018f7"
-          }
-        },
-        {
-          "id": "WI-39010",
-          "kind": "work-item",
-          "title": "Build a shared transcript-and-Event-Chat video overlay, with a remote transcript presentation model for buyers and the existing live transcript controller for sellers; mount the shared component in both BuyerTab and StageStatusPanel.",
-          "state": "done",
-          "completedAt": "2026-08-14T21:35:49.585Z",
-          "completionAuthority": "plan-ledger",
-          "completionSummary": "Recorded complete by P-006 in the canonical plan ledger.",
-          "completionEvidence": {
-            "source": "canonical-plan-completion-marker",
-            "planItem": "P-006",
-            "contentHash": "48b3eff5a2e2ec356d9b71c76c6cc3c7b87d88e186e5eb2a24960140569018f7"
-          }
-        }
-      ]
-    },
-    {
-      "slug": "sidestage-history-plan-popup-2026-08-14",
-      "title": "SideStage History tab and full Vditor plan popup",
-      "status": "ready",
-      "updatedAt": "2026-08-14T21:29:24.184Z",
-      "contentHash": "be2563759a29d4ee7da07cfe5014d6283af0aae5c9abf5e892e1ea28adc4b312",
-      "markdown": "---\ntitle: SideStage History tab and full Vditor plan popup\nslug: sidestage-history-plan-popup-2026-08-14\nstatus: ready\ncreated: 2026-08-14\nupdated: 2026-08-14\n---\n\n# SideStage History tab and full Vditor plan popup\n\n## Now\n\n**State:** Draft. Plan body to be filled in.\n\n**Next:** human reviews scope and lists Phase 1 items.\n\n## Background\n\n(Why this plan exists; what problem it addresses.)\n\n## Phase 1 — TODO\n\n(Use plans:add-item to populate. Each item is one line:\nsingle id, status token, free text, optional blocked-by.)\n\n\n## Phase — Build\n\n- **P-001** `done` Extract the Papercusp read-only Vditor plan document viewer into the existing shared @papercusp/ui-primitives surface, preserving frontmatter, outline navigation, plan/decision highlighting, clickable references, jump search, local-runtime assets, and a raw-text fallback. importance: high — note: ← WI-38996 completed (done)\n- **P-002** `todo` Extend the SideStage History data projection with complete plan markdown plus plan-item/decision metadata and production-safe committed snapshot/source metadata. importance: high\n- **P-003** `todo` Rename Releases to History and replace Open plan link with an accessible deep-linkable popup using the shared plan viewer. blocked-by: P-001, P-002 importance: high\n- **P-004** `todo` Add focused shared-renderer, SideStage API/UI, navigation, accessibility, and browser verification; validate and lint the UI spec. blocked-by: P-003 importance: high\n\n\n\n\n## Decisions\n\n(Use plans:add-decision to append. Each decision is a third-level\nheading with a date line and a body paragraph.)\n\n### D-001 — Reuse the shared UI-primitives surface\nDate: 2026-08-14\nExtend the existing @papercusp/ui-primitives markdown surface with a read-only Vditor-backed plan viewer. Do not create a parallel viewer package or copy Papercusp's plan renderer into SideStage. Papercusp and SideStage remain thin adapters around the same viewer.\nRelated: P-001, P-003\n\n### D-002 — History popup is read-only and production-safe\nDate: 2026-08-14\nThe SideStage popup carries the Papercusp read experience—frontmatter, outline, plan/decision decorations, clickable refs, and jump search—but not editing/revisions/sessions. The browser consumes a SideStage-owned projection; a committed snapshot with source/generatedAt metadata prevents the public app from requiring direct Papercusp runtime or PG access.\nRelated: P-002, P-003\n\n### D-003 — Preserve the existing SideStage theme API while unifying ui-primitives\nDate: 2026-08-14\nThe SideStage pin b6ac9f4 carries the existing shared ThemeSwitcher/theme-runtime API on a branch that diverged from canonical ui-primitives/main. Preserve that API by porting its six tracked theme changes onto canonical main, verifying the combined package, and only then advancing SideStage's gitlink to the unified canonical revision. Do not drop the theme contract merely to obtain the new PlanDocumentView, and do not absorb unrelated SideStage working-tree changes.\nRelated: P-001, P-003\n",
-      "frontmatter": {
-        "title": "SideStage History tab and full Vditor plan popup",
-        "slug": "sidestage-history-plan-popup-2026-08-14",
-        "status": "ready",
-        "created": "2026-08-14",
-        "updated": "2026-08-14"
-      },
-      "items": [
-        {
-          "id": "P-001",
-          "text": "Extract the Papercusp read-only Vditor plan document viewer into the existing shared @papercusp/ui-primitives surface, preserving frontmatter, outline navigation, plan/decision highlighting, clickable references, jump search, local-runtime assets, and a raw-text fallback. — note: ← WI-38996 completed (done)",
-          "storedStatus": "done",
-          "effectiveStatus": "done",
-          "importance": "high",
-          "riskTier": null,
-          "authority": null,
-          "blockedBy": [],
-          "phase": "Phase — Build",
-          "lineNumber": 29
-        },
-        {
-          "id": "P-002",
-          "text": "Extend the SideStage History data projection with complete plan markdown plus plan-item/decision metadata and production-safe committed snapshot/source metadata.",
+          "id": "P-008",
+          "text": "Add recurrence guards and run focused catalog/seed tests, full API and web suites, TypeScript, production build, and exact source/dist asset-count validation on the settled tree.",
           "storedStatus": "todo",
           "effectiveStatus": "todo",
           "importance": "high",
           "riskTier": null,
           "authority": null,
-          "blockedBy": [],
-          "phase": "Phase — Build",
-          "lineNumber": 30
-        },
-        {
-          "id": "P-003",
-          "text": "Rename Releases to History and replace Open plan link with an accessible deep-linkable popup using the shared plan viewer.",
-          "storedStatus": "todo",
-          "effectiveStatus": "blocked",
-          "importance": "high",
-          "riskTier": null,
-          "authority": null,
           "blockedBy": [
-            "P-001",
-            "P-002"
+            "P-007"
           ],
-          "phase": "Phase — Build",
-          "lineNumber": 31
-        },
-        {
-          "id": "P-004",
-          "text": "Add focused shared-renderer, SideStage API/UI, navigation, accessibility, and browser verification; validate and lint the UI spec.",
-          "storedStatus": "todo",
-          "effectiveStatus": "blocked",
-          "importance": "high",
-          "riskTier": null,
-          "authority": null,
-          "blockedBy": [
-            "P-003"
-          ],
-          "phase": "Phase — Build",
-          "lineNumber": 32
+          "phase": "Phase — Live catalog correction",
+          "lineNumber": 43
         }
       ],
-      "decisions": [
-        {
-          "id": "D-001",
-          "title": "Reuse the shared UI-primitives surface",
-          "body": "Date: 2026-08-14\nExtend the existing @papercusp/ui-primitives markdown surface with a read-only Vditor-backed plan viewer. Do not create a parallel viewer package or copy Papercusp's plan renderer into SideStage. Papercusp and SideStage remain thin adapters around the same viewer.\nRelated: P-001, P-003",
-          "date": "2026-08-14",
-          "itemRefs": [
-            "P-001",
-            "P-003"
-          ],
-          "lineNumber": 42
-        },
-        {
-          "id": "D-002",
-          "title": "History popup is read-only and production-safe",
-          "body": "Date: 2026-08-14\nThe SideStage popup carries the Papercusp read experience—frontmatter, outline, plan/decision decorations, clickable refs, and jump search—but not editing/revisions/sessions. The browser consumes a SideStage-owned projection; a committed snapshot with source/generatedAt metadata prevents the public app from requiring direct Papercusp runtime or PG access.\nRelated: P-002, P-003",
-          "date": "2026-08-14",
-          "itemRefs": [
-            "P-002",
-            "P-003"
-          ],
-          "lineNumber": 47
-        },
-        {
-          "id": "D-003",
-          "title": "Preserve the existing SideStage theme API while unifying ui-primitives",
-          "body": "Date: 2026-08-14\nThe SideStage pin b6ac9f4 carries the existing shared ThemeSwitcher/theme-runtime API on a branch that diverged from canonical ui-primitives/main. Preserve that API by porting its six tracked theme changes onto canonical main, verifying the combined package, and only then advancing SideStage's gitlink to the unified canonical revision. Do not drop the theme contract merely to obtain the new PlanDocumentView, and do not absorb unrelated SideStage working-tree changes.\nRelated: P-001, P-003",
-          "date": "2026-08-14",
-          "itemRefs": [
-            "P-001",
-            "P-003"
-          ],
-          "lineNumber": 52
-        }
-      ],
+      "decisions": [],
       "completedItems": [
         {
-          "id": "WI-38996",
+          "id": "WI-38935",
           "kind": "work-item",
-          "title": "Extract the Papercusp read-only Vditor plan document viewer into the existing shared @papercusp/ui-primitives surface, preserving frontmatter, outline navigation, plan/decision highlighting, clickable references, jump search, local-runtime assets, and a raw-text fallback.",
+          "title": "Generate and inspect eight coordinated photorealistic product images",
           "state": "done",
-          "completedAt": "2026-08-14T21:29:24.184Z",
+          "completedAt": "2026-08-14T22:27:39.554Z",
           "completionAuthority": "plan-ledger",
           "completionSummary": "Recorded complete by P-001 in the canonical plan ledger.",
           "completionEvidence": {
             "source": "canonical-plan-completion-marker",
             "planItem": "P-001",
-            "contentHash": "be2563759a29d4ee7da07cfe5014d6283af0aae5c9abf5e892e1ea28adc4b312"
+            "contentHash": "a9d7d72eeff3e1b826759b1b340e5b7646b058d04340648f9e460e1cce21aa63"
+          }
+        },
+        {
+          "id": "WI-38944",
+          "kind": "work-item",
+          "title": "Add optimized image assets and update API, web offline, and Postgres catalog mirrors",
+          "state": "done",
+          "completedAt": "2026-08-14T22:27:39.554Z",
+          "completionAuthority": "plan-ledger",
+          "completionSummary": "Recorded complete by P-002 in the canonical plan ledger.",
+          "completionEvidence": {
+            "source": "canonical-plan-completion-marker",
+            "planItem": "P-002",
+            "contentHash": "a9d7d72eeff3e1b826759b1b340e5b7646b058d04340648f9e460e1cce21aa63"
+          }
+        },
+        {
+          "id": "WI-38950",
+          "kind": "work-item",
+          "title": "Add regression coverage and run focused catalog tests plus the web build",
+          "state": "done",
+          "completedAt": "2026-08-14T22:27:39.554Z",
+          "completionAuthority": "plan-ledger",
+          "completionSummary": "Recorded complete by P-003 in the canonical plan ledger.",
+          "completionEvidence": {
+            "source": "canonical-plan-completion-marker",
+            "planItem": "P-003",
+            "contentHash": "a9d7d72eeff3e1b826759b1b340e5b7646b058d04340648f9e460e1cce21aa63"
+          }
+        },
+        {
+          "id": "WI-39017",
+          "kind": "work-item",
+          "title": "Define and guard the owned-image contract for all 50 event-demo-200 groups: stable filenames and alt text, exactly one real image per group reused across four variants, zero placeholder URLs, file-existence checks, and Postgres-visible acceptance criteria.",
+          "state": "done",
+          "completedAt": "2026-08-14T22:27:39.554Z",
+          "completionAuthority": "plan-ledger",
+          "completionSummary": "Recorded complete by P-005 in the canonical plan ledger.",
+          "completionEvidence": {
+            "source": "canonical-plan-completion-marker",
+            "planItem": "P-005",
+            "contentHash": "a9d7d72eeff3e1b826759b1b340e5b7646b058d04340648f9e460e1cce21aa63"
+          }
+        },
+        {
+          "id": "WI-39037",
+          "kind": "work-item",
+          "title": "Generate, inspect, normalize, and save the complete 50-group product-photo set with the built-in image generator, reusing only exact existing matches and converting final assets to stable WebPs under apps/web/public/demo-products.",
+          "state": "done",
+          "completedAt": "2026-08-14T22:27:39.554Z",
+          "completionAuthority": "plan-ledger",
+          "completionSummary": "Recorded complete by P-006 in the canonical plan ledger.",
+          "completionEvidence": {
+            "source": "canonical-plan-completion-marker",
+            "planItem": "P-006",
+            "contentHash": "a9d7d72eeff3e1b826759b1b340e5b7646b058d04340648f9e460e1cce21aa63"
+          }
+        },
+        {
+          "id": "WI-39040",
+          "kind": "work-item",
+          "title": "Wire the live event-demo-200 group and variant seed writers to owned local image paths, take a pre-destructive workspace/database snapshot, rerun the idempotent seed against the standing database, and prove reserved inventory remains unchanged.",
+          "state": "done",
+          "completedAt": "2026-08-14T22:27:39.554Z",
+          "completionAuthority": "plan-ledger",
+          "completionSummary": "Recorded complete by P-007 in the canonical plan ledger.",
+          "completionEvidence": {
+            "source": "canonical-plan-completion-marker",
+            "planItem": "P-007",
+            "contentHash": "a9d7d72eeff3e1b826759b1b340e5b7646b058d04340648f9e460e1cce21aa63"
           }
         }
       ]
@@ -1169,9 +802,9 @@ export const BUILD_HISTORY_SNAPSHOT = {
       "slug": "sidestage-auction-chat-public-release-2026-08-14",
       "title": "SideStage seller auction and public chat release",
       "status": "ready",
-      "updatedAt": "2026-08-14T21:15:35.926Z",
-      "contentHash": "796e055bc96e0c32e641a7c3d3d75e98ff225bcd0cf211e1ecd4d0c7fcbd7ad3",
-      "markdown": "---\ntitle: SideStage seller auction and public chat release\nslug: sidestage-auction-chat-public-release-2026-08-14\nstatus: ready\ncreated: 2026-08-14\nupdated: 2026-08-14\n---\n\n# SideStage seller auction and public chat release\n\n## Now\n\n**State:** Draft. Plan body to be filled in.\n\n**Next:** human reviews scope and lists Phase 1 items.\n\n## Background\n\n(Why this plan exists; what problem it addresses.)\n\n## Phase 1 — TODO\n\n(Use plans:add-item to populate. Each item is one line:\nsingle id, status token, free text, optional blocked-by.)\n\n\n## Phase — Implementation\n\n- **P-001** `done` Repair the Event Manager dock seed/recovery and ship an explicit, discoverable seller Start auction workflow with focused regression tests. importance: urgent — note: ← WI-38878 completed (done)\n- **P-002** `todo` Enable first-class seller chat composing/replying while preserving triage, optimistic delivery, accessibility, and error feedback. importance: urgent\n- **P-003** `todo` Replace process-memory chat history with the existing Postgres data-layer pattern and add public-boundary protections: authoritative seller capability, idempotent sends, pagination, rate limiting, moderation actions, and metrics. importance: urgent\n\n\n\n\n## Phase — Verification\n\n- **P-004** `todo` Run focused and full tests, seller-to-buyer browser QA across desktop/mobile, public-release checks, and verify the automated pipeline reaches a green deployed build. blocked-by: P-001, P-002, P-003 importance: urgent\n\n\n## Phase — Auction public-release hardening\n\n- **P-005** `done` Persist auction aggregates, bids, lifecycle transitions, and winner orders in Postgres using the existing DatabaseModule/store pattern; make start, bid, automatic/manual close, inventory reservation ownership, and restart recovery transactional; add migration and focused restart/concurrency tests. importance: urgent — note: ← WI-38937 completed (done)\n- **P-006** `done` Establish the public auction write boundary: authenticate seller start/close, derive or verify buyer identity server-side, add bid idempotency, rate limits, payload/amount ceilings, and auditable rejection paths without breaking the intentional guest buyer experience. importance: urgent blocked-by: P-005 — note: ← WI-38966 completed (done)\n- **P-007** `done` Harden auction realtime and client recovery: authenticated mutations, reconnect/resume from authoritative snapshots, outbid/conflict feedback, closed/winner recovery after refresh, accessible disabled/error states, and no stale-live UI after the clock expires. importance: urgent blocked-by: P-005, P-006 — note: ← WI-38985 completed (done)\n- **P-008** `done` Run auction acceptance coverage against the current tree: focused and full API/web tests, restart and concurrent-bid rehearsals, seller-to-two-buyers browser flow on desktop/mobile, and public-boundary abuse probes with evidence. importance: urgent blocked-by: P-005, P-006, P-007 — note: ← WI-39001 completed (done)\n- **P-009** `todo` Promote the verified auction build through the release pipeline, repair any red checkpoint, trigger a fresh verdict, deploy the green pin, and verify the public SideStage auction surface and health without destructive production test data. importance: urgent blocked-by: P-008\n\n\n\n\n\n## Decisions\n\n(Use plans:add-decision to append. Each decision is a third-level\nheading with a date line and a body paragraph.)\n\n### D-001 — Public release means an internet-facing boundary\nDate: 2026-08-14\nTreat SideStage chat as an internet-facing product surface, not an auth-free demo: preserve the existing buyer guest experience, but never trust a client-authored seller role; persist history durably; bound abuse; expose moderation and observability; verify through the real browser flow.\n\n### D-002 — Auction public-release floor is durable server authority plus authenticated writes\nDate: 2026-08-14\nDate: 2026-08-14\nAn auction is not public-release ready merely because the seller/buyer UI and happy-path tests pass. Release requires the auction aggregate, bid ordering, lifecycle transitions, inventory reservation ownership, and winner order to survive process restart under a transactional server authority. Seller start/close must be authenticated and authorized; buyer identity must be server-derived or cryptographically verified rather than trusted from a client-authored bidderId; mutations need idempotency, bounded amounts, and rate/abuse controls. Client state is a projection that must recover from authoritative snapshots after reconnect or refresh. Verification must include restart, concurrent bids, abuse probes, browser seller-to-two-buyers flow, and deployed green-build evidence.\nRelated: P-005, P-006, P-007, P-008, P-009\n\n### D-003 — Auction writes use a single-seller bearer boundary and server-signed guest identity\nDate: 2026-08-14\nSideStage has no verified auth provider to extend, and multi-seller onboarding is explicitly outside this build. P-006 therefore protects start/close with a constant-time-verified, server-configured seller bearer credential (never bundled into the web app), while the seller UI accepts it into session-only storage. Buyer bidding preserves zero-sign-up guest access: the API mints a random guest principal into an HMAC-signed HttpOnly cookie and ignores any client-authored bidderId. Bid idempotency keys are scoped to that verified guest principal and persisted inside the existing auction JSONB aggregate under the same row lock. Auction write accepts/rejects emit structured audit events with request/action/reason metadata and no credentials. P-007/P-008 must use this contract for recovery and abuse/browser verification.\nRelated: P-006, P-007, P-008\n",
+      "updatedAt": "2026-08-14T22:24:20.568Z",
+      "contentHash": "9b79f21e67462cff1d6afff585c95ca1e679d3b59300f9d63a7c3874ff3bdb14",
+      "markdown": "---\ntitle: SideStage seller auction and public chat release\nslug: sidestage-auction-chat-public-release-2026-08-14\nstatus: ready\ncreated: 2026-08-14\nupdated: 2026-08-14\n---\n\n# SideStage seller auction and public chat release\n\n## Now\n\n**State:** Proposal extended from WI-39046 after live transport and restart-path investigation. Existing open items P-002, P-003, P-004, and P-009 remain in place. P-010 through P-015 append the measured WebSocket/Zero migration path, reuse P-003 for durable Postgres authority, and feed transport-specific acceptance into P-004. D-004 records WebSocket as the target primary transport with SSE and bounded polling as resilience paths. No implementation or plan execution has started under this extension.\n\n**Next:** Avi reviews the proposed transport architecture and dependency order. After approval, choose the execution route and explicitly start/claim the plan; until then, do not implement or cut over the chat transport.\n\n## Background\n\n(Why this plan exists; what problem it addresses.)\n\n## Phase 1 — TODO\n\n(Use plans:add-item to populate. Each item is one line:\nsingle id, status token, free text, optional blocked-by.)\n\n\n## Phase — Implementation\n\n- **P-001** `done` Repair the Event Manager dock seed/recovery and ship an explicit, discoverable seller Start auction workflow with focused regression tests. importance: urgent — note: ← WI-38878 completed (done)\n- **P-002** `todo` Enable first-class seller chat composing/replying while preserving triage, optimistic delivery, accessibility, and error feedback. importance: urgent\n- **P-003** `todo` Replace process-memory chat history with the existing Postgres data-layer pattern and add public-boundary protections: authoritative seller capability, idempotent sends, pagination, rate limiting, moderation actions, and metrics. importance: urgent\n\n\n\n\n## Phase — Verification\n\n- **P-004** `todo` Run focused and full tests, seller-to-buyer browser QA across desktop/mobile, public-release checks, and verify the automated pipeline reaches a green deployed build. importance: urgent blocked-by: P-001, P-002, P-003, P-015\n\n\n## Phase — Auction public-release hardening\n\n- **P-005** `done` Persist auction aggregates, bids, lifecycle transitions, and winner orders in Postgres using the existing DatabaseModule/store pattern; make start, bid, automatic/manual close, inventory reservation ownership, and restart recovery transactional; add migration and focused restart/concurrency tests. importance: urgent — note: ← WI-38937 completed (done)\n- **P-006** `done` Establish the public auction write boundary: authenticate seller start/close, derive or verify buyer identity server-side, add bid idempotency, rate limits, payload/amount ceilings, and auditable rejection paths without breaking the intentional guest buyer experience. importance: urgent blocked-by: P-005 — note: ← WI-38966 completed (done)\n- **P-007** `done` Harden auction realtime and client recovery: authenticated mutations, reconnect/resume from authoritative snapshots, outbid/conflict feedback, closed/winner recovery after refresh, accessible disabled/error states, and no stale-live UI after the clock expires. importance: urgent blocked-by: P-005, P-006 — note: ← WI-38985 completed (done)\n- **P-008** `done` Run auction acceptance coverage against the current tree: focused and full API/web tests, restart and concurrent-bid rehearsals, seller-to-two-buyers browser flow on desktop/mobile, and public-boundary abuse probes with evidence. importance: urgent blocked-by: P-005, P-006, P-007 — note: ← WI-39001 completed (done)\n- **P-009** `todo` Promote the verified auction build through the release pipeline, repair any red checkpoint, trigger a fresh verdict, deploy the green pin, and verify the public SideStage auction surface and health without destructive production test data. importance: urgent blocked-by: P-008\n\n\n\n\n\n\n## Phase — WebSocket chat migration\n\n- **P-010** `todo` Define and instrument the chat transport latency and reliability baseline before cutover: client send → authoritative persistence → peer render timestamps, reconnect/fallback counters, p50/p95/p99 and error-budget dashboards, explicit public-release SLO thresholds, and a reproducible two-client benchmark. importance: urgent\n- **P-011** `todo` Extend P-003's durable Postgres chat authority into an explicitly publishable sync boundary: stable message/presence schema, ordering and cursor semantics, authorization filters, retention/deletion behavior, and a publication contract suitable for Zero without exposing seller-only or moderation data. importance: urgent blocked-by: P-003\n- **P-012** `todo` Implement SideStage's Rocicorp Zero application contract against the publishable chat boundary: client schema, named ZQL query registry, cache hydration, and idempotent custom send/presence/moderation mutators that preserve P-003's server-side authority. importance: urgent blocked-by: P-003, P-011\n- **P-013** `todo` Provision zero-cache for local, staging, and production with Postgres upstream access, least-privilege secrets, health and transport observability, resource limits, and TLS WebSocket reverse-proxy routing; document rollback and verify connectivity without broadening the public data boundary. importance: urgent blocked-by: P-011, P-012\n- **P-014** `todo` Cut SideStage web chat over through @papercusp/sync's WEBSOCKETS/Zero path, keeping SSE as the immediate resilience fallback and bounded polling as the last-resort repair path; prevent duplicate delivery across transitions and surface transport/degraded-state telemetry. importance: urgent blocked-by: P-002, P-003, P-010, P-012, P-013\n- **P-015** `todo` Run transport-specific acceptance with independent seller and buyer clients: ordered and duplicate-free delivery, restart durability, reconnect/resume, offline-to-online recovery, WebSocket-blocked fallback drills, latency SLO evidence, and authorization/moderation boundary checks; feed the evidence into P-004's final public-release verification. importance: urgent blocked-by: P-002, P-003, P-010, P-014\n\n\n\n\n\n\n## Decisions\n\n(Use plans:add-decision to append. Each decision is a third-level\nheading with a date line and a body paragraph.)\n\n### D-001 — Public release means an internet-facing boundary\nDate: 2026-08-14\nTreat SideStage chat as an internet-facing product surface, not an auth-free demo: preserve the existing buyer guest experience, but never trust a client-authored seller role; persist history durably; bound abuse; expose moderation and observability; verify through the real browser flow.\n\n### D-002 — Auction public-release floor is durable server authority plus authenticated writes\nDate: 2026-08-14\nDate: 2026-08-14\nAn auction is not public-release ready merely because the seller/buyer UI and happy-path tests pass. Release requires the auction aggregate, bid ordering, lifecycle transitions, inventory reservation ownership, and winner order to survive process restart under a transactional server authority. Seller start/close must be authenticated and authorized; buyer identity must be server-derived or cryptographically verified rather than trusted from a client-authored bidderId; mutations need idempotency, bounded amounts, and rate/abuse controls. Client state is a projection that must recover from authoritative snapshots after reconnect or refresh. Verification must include restart, concurrent bids, abuse probes, browser seller-to-two-buyers flow, and deployed green-build evidence.\nRelated: P-005, P-006, P-007, P-008, P-009\n\n### D-003 — Auction writes use a single-seller bearer boundary and server-signed guest identity\nDate: 2026-08-14\nSideStage has no verified auth provider to extend, and multi-seller onboarding is explicitly outside this build. P-006 therefore protects start/close with a constant-time-verified, server-configured seller bearer credential (never bundled into the web app), while the seller UI accepts it into session-only storage. Buyer bidding preserves zero-sign-up guest access: the API mints a random guest principal into an HMAC-signed HttpOnly cookie and ignores any client-authored bidderId. Bid idempotency keys are scoped to that verified guest principal and persisted inside the existing auction JSONB aggregate under the same row lock. Auction write accepts/rejects emit structured audit events with request/action/reason metadata and no credentials. P-007/P-008 must use this contract for recovery and abuse/browser verification.\nRelated: P-006, P-007, P-008\n\n### D-004 — WebSocket is the target primary live-chat transport; SSE and polling are ordered resilience paths\nDate: 2026-08-14\nUse @papercusp/sync's WEBSOCKETS mode backed by Rocicorp Zero as SideStage's primary live-chat transport once P-010 through P-015 satisfy their acceptance gates. Postgres remains the authoritative chat store; Zero is the publication/cache/mutation path, not a second source of truth. Preserve the fallback order WebSocket → SSE → bounded polling. Transitions must be automatic and observable, preserve ordering and idempotency, avoid duplicate delivery, and never widen the authorization or publication boundary. Until the migration acceptance evidence exists, the currently deployed SSE path remains primary; this decision defines the reviewed target architecture and does not authorize implementation or cutover by itself.\nRelated: P-003, P-004, P-010, P-011, P-012, P-013, P-014, P-015\n",
       "frontmatter": {
         "title": "SideStage seller auction and public chat release",
         "slug": "sidestage-auction-chat-public-release-2026-08-14",
@@ -1227,7 +860,8 @@ export const BUILD_HISTORY_SNAPSHOT = {
           "blockedBy": [
             "P-001",
             "P-002",
-            "P-003"
+            "P-003",
+            "P-015"
           ],
           "phase": "Phase — Verification",
           "lineNumber": 38
@@ -1302,6 +936,97 @@ export const BUILD_HISTORY_SNAPSHOT = {
           ],
           "phase": "Phase — Auction public-release hardening",
           "lineNumber": 47
+        },
+        {
+          "id": "P-010",
+          "text": "Define and instrument the chat transport latency and reliability baseline before cutover: client send → authoritative persistence → peer render timestamps, reconnect/fallback counters, p50/p95/p99 and error-budget dashboards, explicit public-release SLO thresholds, and a reproducible two-client benchmark.",
+          "storedStatus": "todo",
+          "effectiveStatus": "todo",
+          "importance": "urgent",
+          "riskTier": null,
+          "authority": null,
+          "blockedBy": [],
+          "phase": "Phase — WebSocket chat migration",
+          "lineNumber": 56
+        },
+        {
+          "id": "P-011",
+          "text": "Extend P-003's durable Postgres chat authority into an explicitly publishable sync boundary: stable message/presence schema, ordering and cursor semantics, authorization filters, retention/deletion behavior, and a publication contract suitable for Zero without exposing seller-only or moderation data.",
+          "storedStatus": "todo",
+          "effectiveStatus": "blocked",
+          "importance": "urgent",
+          "riskTier": null,
+          "authority": null,
+          "blockedBy": [
+            "P-003"
+          ],
+          "phase": "Phase — WebSocket chat migration",
+          "lineNumber": 57
+        },
+        {
+          "id": "P-012",
+          "text": "Implement SideStage's Rocicorp Zero application contract against the publishable chat boundary: client schema, named ZQL query registry, cache hydration, and idempotent custom send/presence/moderation mutators that preserve P-003's server-side authority.",
+          "storedStatus": "todo",
+          "effectiveStatus": "blocked",
+          "importance": "urgent",
+          "riskTier": null,
+          "authority": null,
+          "blockedBy": [
+            "P-003",
+            "P-011"
+          ],
+          "phase": "Phase — WebSocket chat migration",
+          "lineNumber": 58
+        },
+        {
+          "id": "P-013",
+          "text": "Provision zero-cache for local, staging, and production with Postgres upstream access, least-privilege secrets, health and transport observability, resource limits, and TLS WebSocket reverse-proxy routing; document rollback and verify connectivity without broadening the public data boundary.",
+          "storedStatus": "todo",
+          "effectiveStatus": "blocked",
+          "importance": "urgent",
+          "riskTier": null,
+          "authority": null,
+          "blockedBy": [
+            "P-011",
+            "P-012"
+          ],
+          "phase": "Phase — WebSocket chat migration",
+          "lineNumber": 59
+        },
+        {
+          "id": "P-014",
+          "text": "Cut SideStage web chat over through @papercusp/sync's WEBSOCKETS/Zero path, keeping SSE as the immediate resilience fallback and bounded polling as the last-resort repair path; prevent duplicate delivery across transitions and surface transport/degraded-state telemetry.",
+          "storedStatus": "todo",
+          "effectiveStatus": "blocked",
+          "importance": "urgent",
+          "riskTier": null,
+          "authority": null,
+          "blockedBy": [
+            "P-002",
+            "P-003",
+            "P-010",
+            "P-012",
+            "P-013"
+          ],
+          "phase": "Phase — WebSocket chat migration",
+          "lineNumber": 60
+        },
+        {
+          "id": "P-015",
+          "text": "Run transport-specific acceptance with independent seller and buyer clients: ordered and duplicate-free delivery, restart durability, reconnect/resume, offline-to-online recovery, WebSocket-blocked fallback drills, latency SLO evidence, and authorization/moderation boundary checks; feed the evidence into P-004's final public-release verification.",
+          "storedStatus": "todo",
+          "effectiveStatus": "blocked",
+          "importance": "urgent",
+          "riskTier": null,
+          "authority": null,
+          "blockedBy": [
+            "P-002",
+            "P-003",
+            "P-010",
+            "P-014"
+          ],
+          "phase": "Phase — WebSocket chat migration",
+          "lineNumber": 61
         }
       ],
       "decisions": [
@@ -1311,7 +1036,7 @@ export const BUILD_HISTORY_SNAPSHOT = {
           "body": "Date: 2026-08-14\nTreat SideStage chat as an internet-facing product surface, not an auth-free demo: preserve the existing buyer guest experience, but never trust a client-authored seller role; persist history durably; bound abuse; expose moderation and observability; verify through the real browser flow.",
           "date": "2026-08-14",
           "itemRefs": [],
-          "lineNumber": 58
+          "lineNumber": 73
         },
         {
           "id": "D-002",
@@ -1325,7 +1050,7 @@ export const BUILD_HISTORY_SNAPSHOT = {
             "P-008",
             "P-009"
           ],
-          "lineNumber": 62
+          "lineNumber": 77
         },
         {
           "id": "D-003",
@@ -1337,7 +1062,24 @@ export const BUILD_HISTORY_SNAPSHOT = {
             "P-007",
             "P-008"
           ],
-          "lineNumber": 68
+          "lineNumber": 83
+        },
+        {
+          "id": "D-004",
+          "title": "WebSocket is the target primary live-chat transport; SSE and polling are ordered resilience paths",
+          "body": "Date: 2026-08-14\nUse @papercusp/sync's WEBSOCKETS mode backed by Rocicorp Zero as SideStage's primary live-chat transport once P-010 through P-015 satisfy their acceptance gates. Postgres remains the authoritative chat store; Zero is the publication/cache/mutation path, not a second source of truth. Preserve the fallback order WebSocket → SSE → bounded polling. Transitions must be automatic and observable, preserve ordering and idempotency, avoid duplicate delivery, and never widen the authorization or publication boundary. Until the migration acceptance evidence exists, the currently deployed SSE path remains primary; this decision defines the reviewed target architecture and does not authorize implementation or cutover by itself.\nRelated: P-003, P-004, P-010, P-011, P-012, P-013, P-014, P-015",
+          "date": "2026-08-14",
+          "itemRefs": [
+            "P-003",
+            "P-004",
+            "P-010",
+            "P-011",
+            "P-012",
+            "P-013",
+            "P-014",
+            "P-015"
+          ],
+          "lineNumber": 88
         }
       ],
       "completedItems": [
@@ -1346,13 +1088,13 @@ export const BUILD_HISTORY_SNAPSHOT = {
           "kind": "work-item",
           "title": "Repair the Event Manager dock seed/recovery and ship an explicit, discoverable seller Start auction workflow with focused regression tests.",
           "state": "done",
-          "completedAt": "2026-08-14T21:15:35.926Z",
+          "completedAt": "2026-08-14T22:24:20.568Z",
           "completionAuthority": "plan-ledger",
           "completionSummary": "Recorded complete by P-001 in the canonical plan ledger.",
           "completionEvidence": {
             "source": "canonical-plan-completion-marker",
             "planItem": "P-001",
-            "contentHash": "796e055bc96e0c32e641a7c3d3d75e98ff225bcd0cf211e1ecd4d0c7fcbd7ad3"
+            "contentHash": "9b79f21e67462cff1d6afff585c95ca1e679d3b59300f9d63a7c3874ff3bdb14"
           }
         },
         {
@@ -1360,13 +1102,13 @@ export const BUILD_HISTORY_SNAPSHOT = {
           "kind": "work-item",
           "title": "Persist auction aggregates, bids, lifecycle transitions, and winner orders in Postgres using the existing DatabaseModule/store pattern; make start, bid, automatic/manual close, inventory reservation ownership, and restart recovery transactional; add migration and focused restart/concurrency tests.",
           "state": "done",
-          "completedAt": "2026-08-14T21:15:35.926Z",
+          "completedAt": "2026-08-14T22:24:20.568Z",
           "completionAuthority": "plan-ledger",
           "completionSummary": "Recorded complete by P-005 in the canonical plan ledger.",
           "completionEvidence": {
             "source": "canonical-plan-completion-marker",
             "planItem": "P-005",
-            "contentHash": "796e055bc96e0c32e641a7c3d3d75e98ff225bcd0cf211e1ecd4d0c7fcbd7ad3"
+            "contentHash": "9b79f21e67462cff1d6afff585c95ca1e679d3b59300f9d63a7c3874ff3bdb14"
           }
         },
         {
@@ -1374,13 +1116,13 @@ export const BUILD_HISTORY_SNAPSHOT = {
           "kind": "work-item",
           "title": "Establish the public auction write boundary: authenticate seller start/close, derive or verify buyer identity server-side, add bid idempotency, rate limits, payload/amount ceilings, and auditable rejection paths without breaking the intentional guest buyer experience.",
           "state": "done",
-          "completedAt": "2026-08-14T21:15:35.926Z",
+          "completedAt": "2026-08-14T22:24:20.568Z",
           "completionAuthority": "plan-ledger",
           "completionSummary": "Recorded complete by P-006 in the canonical plan ledger.",
           "completionEvidence": {
             "source": "canonical-plan-completion-marker",
             "planItem": "P-006",
-            "contentHash": "796e055bc96e0c32e641a7c3d3d75e98ff225bcd0cf211e1ecd4d0c7fcbd7ad3"
+            "contentHash": "9b79f21e67462cff1d6afff585c95ca1e679d3b59300f9d63a7c3874ff3bdb14"
           }
         },
         {
@@ -1388,13 +1130,13 @@ export const BUILD_HISTORY_SNAPSHOT = {
           "kind": "work-item",
           "title": "Harden auction realtime and client recovery: authenticated mutations, reconnect/resume from authoritative snapshots, outbid/conflict feedback, closed/winner recovery after refresh, accessible disabled/error states, and no stale-live UI after the clock expires.",
           "state": "done",
-          "completedAt": "2026-08-14T21:15:35.926Z",
+          "completedAt": "2026-08-14T22:24:20.568Z",
           "completionAuthority": "plan-ledger",
           "completionSummary": "Recorded complete by P-007 in the canonical plan ledger.",
           "completionEvidence": {
             "source": "canonical-plan-completion-marker",
             "planItem": "P-007",
-            "contentHash": "796e055bc96e0c32e641a7c3d3d75e98ff225bcd0cf211e1ecd4d0c7fcbd7ad3"
+            "contentHash": "9b79f21e67462cff1d6afff585c95ca1e679d3b59300f9d63a7c3874ff3bdb14"
           }
         },
         {
@@ -1402,13 +1144,452 @@ export const BUILD_HISTORY_SNAPSHOT = {
           "kind": "work-item",
           "title": "Run auction acceptance coverage against the current tree: focused and full API/web tests, restart and concurrent-bid rehearsals, seller-to-two-buyers browser flow on desktop/mobile, and public-boundary abuse probes with evidence.",
           "state": "done",
-          "completedAt": "2026-08-14T21:15:35.926Z",
+          "completedAt": "2026-08-14T22:24:20.568Z",
           "completionAuthority": "plan-ledger",
           "completionSummary": "Recorded complete by P-008 in the canonical plan ledger.",
           "completionEvidence": {
             "source": "canonical-plan-completion-marker",
             "planItem": "P-008",
-            "contentHash": "796e055bc96e0c32e641a7c3d3d75e98ff225bcd0cf211e1ecd4d0c7fcbd7ad3"
+            "contentHash": "9b79f21e67462cff1d6afff585c95ca1e679d3b59300f9d63a7c3874ff3bdb14"
+          }
+        }
+      ]
+    },
+    {
+      "slug": "sidestage-event-manager-event-list-2026-08-14",
+      "title": "Ship the approved SideStage Event Manager event-list design",
+      "status": "shipped",
+      "updatedAt": "2026-08-14T22:17:48.698Z",
+      "contentHash": "d58feea544169ac65b9b4d56db9f085daf06c4cfcabf49796d5a90de88e2d90d",
+      "markdown": "---\ntitle: Ship the approved SideStage Event Manager event-list design\nslug: sidestage-event-manager-event-list-2026-08-14\nstatus: shipped\ncreated: 2026-08-14\nupdated: 2026-08-14\n---\n\n# Ship the approved SideStage Event Manager event-list design\n\n## Now\n\n**State:** ⛔ PLAN CLOSED — SHIPPED 2026-08-14. Nothing in this plan is actionable. Anything below this line is the last pre-shipped snapshot, kept for history: it described work that is finished or abandoned, so do not start from it. Read frontmatter `status`, not this prose, to learn whether a plan is live (stamped by plans:set-plan-status).\n\nDraft. Plan body to be filled in.\n\n**Next:** none — the plan is shipped. (Pre-shipped next, no longer actionable: human reviews scope and lists Phase 1 items.)\n\n## Background\n\n(Why this plan exists; what problem it addresses.)\n\n## Phase 1 — TODO\n\n(Use plans:add-item to populate. Each item is one line:\nsingle id, status token, free text, optional blocked-by.)\n\n\n## Phase — Implementation\n\n- **P-001** `done` Extend the existing event directory with a seller-scoped events.mine read, including drafts, plus store and API coverage. importance: high — note: ← WI-38987 completed (done)\n- **P-002** `done` Implement the Event Manager My events / Create event switch, searchable seller event rail, selection-driven detail, and URL-addressable manager view. blocked-by: P-001 importance: high — note: ← WI-38988 completed (done)\n- **P-003** `done` Run focused API/web tests, typecheck/build, and Verdict desktop/mobile interaction QA; close with evidence. blocked-by: P-001, P-002 importance: high — note: ← WI-39004 completed (done)\n\n\n\n\n## Phase — Rehearse integration\n\n- **P-004** `done` Extend the selected-event My Events detail navigation to Lineup → Settings → Rehearse and embed the existing RunOfShowPlannerPanel in the Rehearse tab. importance: high — note: ← WI-39016 completed (done)\n- **P-005** `done` Retire the standalone Event Settings and Run-of-show planner dock panes, and migrate persisted manager layouts to the single Event Manager pane. blocked-by: P-004 importance: high — note: ← WI-39019 completed (done)\n- **P-006** `done` Add tab-order, planner-embedding, and manager-layout migration tests; run focused web tests, typecheck/build verification, and browser QA while preserving Active Event's live Run of show timeline. blocked-by: P-004, P-005 importance: high — note: ← WI-39022 completed (done)\n\n\n\n## Decisions\n\n(Use plans:add-decision to append. Each decision is a third-level\nheading with a date line and a body paragraph.)\n\n### D-001 — Implement concept 03 by extending existing seams\nDate: 2026-08-14\nKeep the shipped Inventory · Event Manager · Active Event navigation. Inside Event Manager, add My events and Create event views. Reuse the existing event directory/store for seller-owned listing (including drafts), the existing EventManager detail/guardrail surface, and EventCreationPanel; do not create a parallel event system. Manager view and selected event must be URL-addressable for reload/back-forward behavior.\nRelated: P-001, P-002, P-003\n\n### D-002 — Nest event settings under the selected event\nDate: 2026-08-14\nEvent Manager owns two workspace modes: My events and Create event. Selecting an event opens event-scoped detail modes Lineup and Settings. Settings must be URL-addressable with the selected event, render the existing EventSettingsPanel in that detail context, and replace the current duplicate long-page embedding. Keep the standalone dock panel registered only for persisted-layout compatibility; do not seed it into the new default manager flow.\nRelated: P-002, P-003\n\n### D-003 — Unify event authoring under My Events\nDate: 2026-08-14\nSelected-event authoring follows Lineup → Settings → Rehearse. Rehearse reuses the existing RunOfShowPlannerPanel. Event Settings and Run-of-show planner are no longer standalone dock panes; persisted manager layouts converge to the single Event Manager pane. Active Event retains the separate live Run of show timeline.\nRelated: P-004, P-005, P-006\n",
+      "frontmatter": {
+        "title": "Ship the approved SideStage Event Manager event-list design",
+        "slug": "sidestage-event-manager-event-list-2026-08-14",
+        "status": "shipped",
+        "created": "2026-08-14",
+        "updated": "2026-08-14"
+      },
+      "items": [
+        {
+          "id": "P-001",
+          "text": "Extend the existing event directory with a seller-scoped events.mine read, including drafts, plus store and API coverage. — note: ← WI-38987 completed (done)",
+          "storedStatus": "done",
+          "effectiveStatus": "done",
+          "importance": "high",
+          "riskTier": null,
+          "authority": null,
+          "blockedBy": [],
+          "phase": "Phase — Implementation",
+          "lineNumber": 31
+        },
+        {
+          "id": "P-002",
+          "text": "Implement the Event Manager My events / Create event switch, searchable seller event rail, selection-driven detail, and URL-addressable manager view. — note: ← WI-38988 completed (done)",
+          "storedStatus": "done",
+          "effectiveStatus": "done",
+          "importance": "high",
+          "riskTier": null,
+          "authority": null,
+          "blockedBy": [
+            "P-001"
+          ],
+          "phase": "Phase — Implementation",
+          "lineNumber": 32
+        },
+        {
+          "id": "P-003",
+          "text": "Run focused API/web tests, typecheck/build, and Verdict desktop/mobile interaction QA; close with evidence. — note: ← WI-39004 completed (done)",
+          "storedStatus": "done",
+          "effectiveStatus": "done",
+          "importance": "high",
+          "riskTier": null,
+          "authority": null,
+          "blockedBy": [
+            "P-001",
+            "P-002"
+          ],
+          "phase": "Phase — Implementation",
+          "lineNumber": 33
+        },
+        {
+          "id": "P-004",
+          "text": "Extend the selected-event My Events detail navigation to Lineup → Settings → Rehearse and embed the existing RunOfShowPlannerPanel in the Rehearse tab. — note: ← WI-39016 completed (done)",
+          "storedStatus": "done",
+          "effectiveStatus": "done",
+          "importance": "high",
+          "riskTier": null,
+          "authority": null,
+          "blockedBy": [],
+          "phase": "Phase — Rehearse integration",
+          "lineNumber": 40
+        },
+        {
+          "id": "P-005",
+          "text": "Retire the standalone Event Settings and Run-of-show planner dock panes, and migrate persisted manager layouts to the single Event Manager pane. — note: ← WI-39019 completed (done)",
+          "storedStatus": "done",
+          "effectiveStatus": "done",
+          "importance": "high",
+          "riskTier": null,
+          "authority": null,
+          "blockedBy": [
+            "P-004"
+          ],
+          "phase": "Phase — Rehearse integration",
+          "lineNumber": 41
+        },
+        {
+          "id": "P-006",
+          "text": "Add tab-order, planner-embedding, and manager-layout migration tests; run focused web tests, typecheck/build verification, and browser QA while preserving Active Event's live Run of show timeline. — note: ← WI-39022 completed (done)",
+          "storedStatus": "done",
+          "effectiveStatus": "done",
+          "importance": "high",
+          "riskTier": null,
+          "authority": null,
+          "blockedBy": [
+            "P-004",
+            "P-005"
+          ],
+          "phase": "Phase — Rehearse integration",
+          "lineNumber": 42
+        }
+      ],
+      "decisions": [
+        {
+          "id": "D-001",
+          "title": "Implement concept 03 by extending existing seams",
+          "body": "Date: 2026-08-14\nKeep the shipped Inventory · Event Manager · Active Event navigation. Inside Event Manager, add My events and Create event views. Reuse the existing event directory/store for seller-owned listing (including drafts), the existing EventManager detail/guardrail surface, and EventCreationPanel; do not create a parallel event system. Manager view and selected event must be URL-addressable for reload/back-forward behavior.\nRelated: P-001, P-002, P-003",
+          "date": "2026-08-14",
+          "itemRefs": [
+            "P-001",
+            "P-002",
+            "P-003"
+          ],
+          "lineNumber": 51
+        },
+        {
+          "id": "D-002",
+          "title": "Nest event settings under the selected event",
+          "body": "Date: 2026-08-14\nEvent Manager owns two workspace modes: My events and Create event. Selecting an event opens event-scoped detail modes Lineup and Settings. Settings must be URL-addressable with the selected event, render the existing EventSettingsPanel in that detail context, and replace the current duplicate long-page embedding. Keep the standalone dock panel registered only for persisted-layout compatibility; do not seed it into the new default manager flow.\nRelated: P-002, P-003",
+          "date": "2026-08-14",
+          "itemRefs": [
+            "P-002",
+            "P-003"
+          ],
+          "lineNumber": 56
+        },
+        {
+          "id": "D-003",
+          "title": "Unify event authoring under My Events",
+          "body": "Date: 2026-08-14\nSelected-event authoring follows Lineup → Settings → Rehearse. Rehearse reuses the existing RunOfShowPlannerPanel. Event Settings and Run-of-show planner are no longer standalone dock panes; persisted manager layouts converge to the single Event Manager pane. Active Event retains the separate live Run of show timeline.\nRelated: P-004, P-005, P-006",
+          "date": "2026-08-14",
+          "itemRefs": [
+            "P-004",
+            "P-005",
+            "P-006"
+          ],
+          "lineNumber": 61
+        }
+      ],
+      "completedItems": [
+        {
+          "id": "WI-38987",
+          "kind": "work-item",
+          "title": "Extend the existing event directory with a seller-scoped events.mine read, including drafts, plus store and API coverage.",
+          "state": "done",
+          "completedAt": "2026-08-14T22:17:48.698Z",
+          "completionAuthority": "plan-ledger",
+          "completionSummary": "Recorded complete by P-001 in the canonical plan ledger.",
+          "completionEvidence": {
+            "source": "canonical-plan-completion-marker",
+            "planItem": "P-001",
+            "contentHash": "d58feea544169ac65b9b4d56db9f085daf06c4cfcabf49796d5a90de88e2d90d"
+          }
+        },
+        {
+          "id": "WI-38988",
+          "kind": "work-item",
+          "title": "Implement the Event Manager My events / Create event switch, searchable seller event rail, selection-driven detail, and URL-addressable manager view.",
+          "state": "done",
+          "completedAt": "2026-08-14T22:17:48.698Z",
+          "completionAuthority": "plan-ledger",
+          "completionSummary": "Recorded complete by P-002 in the canonical plan ledger.",
+          "completionEvidence": {
+            "source": "canonical-plan-completion-marker",
+            "planItem": "P-002",
+            "contentHash": "d58feea544169ac65b9b4d56db9f085daf06c4cfcabf49796d5a90de88e2d90d"
+          }
+        },
+        {
+          "id": "WI-39004",
+          "kind": "work-item",
+          "title": "Run focused API/web tests, typecheck/build, and Verdict desktop/mobile interaction QA; close with evidence.",
+          "state": "done",
+          "completedAt": "2026-08-14T22:17:48.698Z",
+          "completionAuthority": "plan-ledger",
+          "completionSummary": "Recorded complete by P-003 in the canonical plan ledger.",
+          "completionEvidence": {
+            "source": "canonical-plan-completion-marker",
+            "planItem": "P-003",
+            "contentHash": "d58feea544169ac65b9b4d56db9f085daf06c4cfcabf49796d5a90de88e2d90d"
+          }
+        },
+        {
+          "id": "WI-39016",
+          "kind": "work-item",
+          "title": "Extend the selected-event My Events detail navigation to Lineup → Settings → Rehearse and embed the existing RunOfShowPlannerPanel in the Rehearse tab.",
+          "state": "done",
+          "completedAt": "2026-08-14T22:17:48.698Z",
+          "completionAuthority": "plan-ledger",
+          "completionSummary": "Recorded complete by P-004 in the canonical plan ledger.",
+          "completionEvidence": {
+            "source": "canonical-plan-completion-marker",
+            "planItem": "P-004",
+            "contentHash": "d58feea544169ac65b9b4d56db9f085daf06c4cfcabf49796d5a90de88e2d90d"
+          }
+        },
+        {
+          "id": "WI-39019",
+          "kind": "work-item",
+          "title": "Retire the standalone Event Settings and Run-of-show planner dock panes, and migrate persisted manager layouts to the single Event Manager pane.",
+          "state": "done",
+          "completedAt": "2026-08-14T22:17:48.698Z",
+          "completionAuthority": "plan-ledger",
+          "completionSummary": "Recorded complete by P-005 in the canonical plan ledger.",
+          "completionEvidence": {
+            "source": "canonical-plan-completion-marker",
+            "planItem": "P-005",
+            "contentHash": "d58feea544169ac65b9b4d56db9f085daf06c4cfcabf49796d5a90de88e2d90d"
+          }
+        },
+        {
+          "id": "WI-39022",
+          "kind": "work-item",
+          "title": "Add tab-order, planner-embedding, and manager-layout migration tests; run focused web tests, typecheck/build verification, and browser QA while preserving Active Event's live Run of show timeline.",
+          "state": "done",
+          "completedAt": "2026-08-14T22:17:48.698Z",
+          "completionAuthority": "plan-ledger",
+          "completionSummary": "Recorded complete by P-006 in the canonical plan ledger.",
+          "completionEvidence": {
+            "source": "canonical-plan-completion-marker",
+            "planItem": "P-006",
+            "contentHash": "d58feea544169ac65b9b4d56db9f085daf06c4cfcabf49796d5a90de88e2d90d"
+          }
+        }
+      ]
+    },
+    {
+      "slug": "sidestage-seller-copilot-mission-2026-08-14",
+      "title": "Make SideStage Copilot fulfill the live-selling seller mission",
+      "status": "ready",
+      "updatedAt": "2026-08-14T22:12:37.557Z",
+      "contentHash": "8c776107b608faca488c91debe9b6357ba5c95a2653294d51dd1842d1f4c3461",
+      "markdown": "---\ntitle: Make SideStage Copilot fulfill the live-selling seller mission\nslug: sidestage-seller-copilot-mission-2026-08-14\nstatus: ready\ncreated: 2026-08-14\nupdated: 2026-08-14\n---\n\n## Now\n\n**State:** Implementation P-001 through P-004 is complete. The owner approved virtual-desktop acceptance P-005 through P-009 and directed reuse of su-73a52's established isolated Xvfb/Openbox plus dual-Firefox/geckodriver procedure; Bytebot is explicitly excluded.\n\n**Next:** Start the plan, claim P-005, allocate a fresh peer-safe display and loopback geckodriver ports, launch isolated seller/buyer Firefox profiles, and execute the acceptance matrix through P-009.\n\n\n## Goal\nReplace the seller panel's buyer-Scout behavior with a real event-aware copilot loop: buyer question intake, verified grounding, durable seller review, fresh-context approval, guarded action execution, and sync-driven UI state.\n\n## Scope\n- Preserve Scout as the buyer catalog/cart assistant.\n- Reuse ChatService, CatalogSource, EventPolicyResolver, GuardedActionService, Judge, and the shared sync/SSE layer.\n- Add the missing Copilot runtime composition and proposal lifecycle.\n- Rebuild the Seller Copilot panel as a live proposal queue.\n- Verify the loop through backend integration and frontend interaction tests.\n\n\n## Phase — Implementation\n\n- **P-001** `done` Implement the backend Copilot module, grounding adapters, durable proposal lifecycle, and review/action API. importance: urgent — note: ← WI-38939 completed (done)\n- **P-002** `done` Connect buyer-question chat ingestion to Copilot proposal generation and publish proposal invalidations through sync. blocked-by: P-001 importance: urgent — note: ← WI-38940 completed (done)\n- **P-003** `done` Replace the seller Copilot panel with a sync-backed grounded proposal queue and review controls; remove buyer cart semantics. blocked-by: P-001, P-002 importance: urgent — note: ← WI-38941 completed (done)\n- **P-004** `done` Add backend and frontend integration coverage, run project checks, and resolve all regressions. blocked-by: P-001, P-002, P-003 importance: urgent — note: ← WI-38943 completed (done)\n\n\n\n\n\n## Phase — Virtual-desktop acceptance\n\n- **P-005** `wip` Establish an isolated Xvfb/Openbox virtual desktop with two independent real Firefox instances, separate Snap-safe profiles, and loopback-only geckodrivers on newly allocated display/ports; create a dedicated SideStage test event, verify buyer and Studio share its identity, and record the clean empty/loading baseline. importance: high — note: → WI-39043\n- **P-006** `todo` Exercise buyer-question ingestion and manual Prepare: question detection, live sync arrival, citations from catalog/listing/transcript/policy, deterministic or remote-model behavior, insufficient-context blocking, and duplicate/idempotent handling. blocked-by: P-005 importance: high\n- **P-007** `todo` Exercise the complete review lifecycle: edit and approve a grounded reply, verify delivery to live event chat, skip a separate proposal, confirm an allowed guarded action, and verify stale/blocked or policy-denied actions fail closed. blocked-by: P-006 importance: high\n- **P-008** `todo` Audit the Studio Copilot in the virtual desktop for responsive layouts, keyboard navigation, accessible labeling/status announcements, visible error/reconnect behavior, console errors, failed network requests, and capture screenshots for each material state. blocked-by: P-005 importance: high\n- **P-009** `todo` Triage every finding, file evidence-backed defects, verify any in-scope fixes through the same isolated dual-Firefox virtual-desktop workflow, and publish a pass/fail report against the acceptance matrix. blocked-by: P-007, P-008 importance: high\n\n\n\n\n\n## Decisions\n- Buyer-facing replies default to seller review; no direct model-to-room send.\n- Approval reloads current event data and policy and fails closed when grounding is stale.\n- Seller Copilot does not own buyer cart or checkout state.\n- A dedicated proposal store owns the generating/pending/approved/skipped/blocked/executed lifecycle because no existing record owns that review state.\n\n### D-001 — Use the established isolated dual-Firefox virtual-desktop rig; Bytebot is excluded\nDate: 2026-08-14\nOwner-directed method: mirror su-73a52's real-browser E2E procedure with a newly allocated Xvfb display, Openbox, two independent Firefox instances, separate profiles under the Snap-confined ~/snap/firefox/common tree, and two loopback-only geckodriver endpoints. Do not use Bytebot. Do not address DISPLAY=:0, su-73a52's DISPLAY=:110, ports 4444/4445, or any peer-owned process. Resolve fresh display/ports before launch, track exact owned PIDs and WebDriver session ids, capture visual/browser evidence, and tear down only resources launched by this work item.\nRelated: P-005, P-006, P-007, P-008, P-009\n\n## Verification\nAn end-to-end test must prove that a buyer question produces a grounded proposal, appears through sync, can be approved exactly once into event chat, can be skipped without sending, rejects stale facts, and routes confirmed actions through the guarded executor.\n\n",
+      "frontmatter": {
+        "title": "Make SideStage Copilot fulfill the live-selling seller mission",
+        "slug": "sidestage-seller-copilot-mission-2026-08-14",
+        "status": "ready",
+        "created": "2026-08-14",
+        "updated": "2026-08-14"
+      },
+      "items": [
+        {
+          "id": "P-001",
+          "text": "Implement the backend Copilot module, grounding adapters, durable proposal lifecycle, and review/action API. — note: ← WI-38939 completed (done)",
+          "storedStatus": "done",
+          "effectiveStatus": "done",
+          "importance": "urgent",
+          "riskTier": null,
+          "authority": null,
+          "blockedBy": [],
+          "phase": "Phase — Implementation",
+          "lineNumber": 29
+        },
+        {
+          "id": "P-002",
+          "text": "Connect buyer-question chat ingestion to Copilot proposal generation and publish proposal invalidations through sync. — note: ← WI-38940 completed (done)",
+          "storedStatus": "done",
+          "effectiveStatus": "done",
+          "importance": "urgent",
+          "riskTier": null,
+          "authority": null,
+          "blockedBy": [
+            "P-001"
+          ],
+          "phase": "Phase — Implementation",
+          "lineNumber": 30
+        },
+        {
+          "id": "P-003",
+          "text": "Replace the seller Copilot panel with a sync-backed grounded proposal queue and review controls; remove buyer cart semantics. — note: ← WI-38941 completed (done)",
+          "storedStatus": "done",
+          "effectiveStatus": "done",
+          "importance": "urgent",
+          "riskTier": null,
+          "authority": null,
+          "blockedBy": [
+            "P-001",
+            "P-002"
+          ],
+          "phase": "Phase — Implementation",
+          "lineNumber": 31
+        },
+        {
+          "id": "P-004",
+          "text": "Add backend and frontend integration coverage, run project checks, and resolve all regressions. — note: ← WI-38943 completed (done)",
+          "storedStatus": "done",
+          "effectiveStatus": "done",
+          "importance": "urgent",
+          "riskTier": null,
+          "authority": null,
+          "blockedBy": [
+            "P-001",
+            "P-002",
+            "P-003"
+          ],
+          "phase": "Phase — Implementation",
+          "lineNumber": 32
+        },
+        {
+          "id": "P-005",
+          "text": "Establish an isolated Xvfb/Openbox virtual desktop with two independent real Firefox instances, separate Snap-safe profiles, and loopback-only geckodrivers on newly allocated display/ports; create a dedicated SideStage test event, verify buyer and Studio share its identity, and record the clean empty/loading baseline. — note: → WI-39043",
+          "storedStatus": "wip",
+          "effectiveStatus": "wip",
+          "importance": "high",
+          "riskTier": null,
+          "authority": null,
+          "blockedBy": [],
+          "phase": "Phase — Virtual-desktop acceptance",
+          "lineNumber": 40
+        },
+        {
+          "id": "P-006",
+          "text": "Exercise buyer-question ingestion and manual Prepare: question detection, live sync arrival, citations from catalog/listing/transcript/policy, deterministic or remote-model behavior, insufficient-context blocking, and duplicate/idempotent handling.",
+          "storedStatus": "todo",
+          "effectiveStatus": "blocked",
+          "importance": "high",
+          "riskTier": null,
+          "authority": null,
+          "blockedBy": [
+            "P-005"
+          ],
+          "phase": "Phase — Virtual-desktop acceptance",
+          "lineNumber": 41
+        },
+        {
+          "id": "P-007",
+          "text": "Exercise the complete review lifecycle: edit and approve a grounded reply, verify delivery to live event chat, skip a separate proposal, confirm an allowed guarded action, and verify stale/blocked or policy-denied actions fail closed.",
+          "storedStatus": "todo",
+          "effectiveStatus": "blocked",
+          "importance": "high",
+          "riskTier": null,
+          "authority": null,
+          "blockedBy": [
+            "P-006"
+          ],
+          "phase": "Phase — Virtual-desktop acceptance",
+          "lineNumber": 42
+        },
+        {
+          "id": "P-008",
+          "text": "Audit the Studio Copilot in the virtual desktop for responsive layouts, keyboard navigation, accessible labeling/status announcements, visible error/reconnect behavior, console errors, failed network requests, and capture screenshots for each material state.",
+          "storedStatus": "todo",
+          "effectiveStatus": "blocked",
+          "importance": "high",
+          "riskTier": null,
+          "authority": null,
+          "blockedBy": [
+            "P-005"
+          ],
+          "phase": "Phase — Virtual-desktop acceptance",
+          "lineNumber": 43
+        },
+        {
+          "id": "P-009",
+          "text": "Triage every finding, file evidence-backed defects, verify any in-scope fixes through the same isolated dual-Firefox virtual-desktop workflow, and publish a pass/fail report against the acceptance matrix.",
+          "storedStatus": "todo",
+          "effectiveStatus": "blocked",
+          "importance": "high",
+          "riskTier": null,
+          "authority": null,
+          "blockedBy": [
+            "P-007",
+            "P-008"
+          ],
+          "phase": "Phase — Virtual-desktop acceptance",
+          "lineNumber": 44
+        }
+      ],
+      "decisions": [
+        {
+          "id": "D-001",
+          "title": "Use the established isolated dual-Firefox virtual-desktop rig; Bytebot is excluded",
+          "body": "Date: 2026-08-14\nOwner-directed method: mirror su-73a52's real-browser E2E procedure with a newly allocated Xvfb display, Openbox, two independent Firefox instances, separate profiles under the Snap-confined ~/snap/firefox/common tree, and two loopback-only geckodriver endpoints. Do not use Bytebot. Do not address DISPLAY=:0, su-73a52's DISPLAY=:110, ports 4444/4445, or any peer-owned process. Resolve fresh display/ports before launch, track exact owned PIDs and WebDriver session ids, capture visual/browser evidence, and tear down only resources launched by this work item.\nRelated: P-005, P-006, P-007, P-008, P-009",
+          "date": "2026-08-14",
+          "itemRefs": [
+            "P-005",
+            "P-006",
+            "P-007",
+            "P-008",
+            "P-009"
+          ],
+          "lineNumber": 56
+        }
+      ],
+      "completedItems": [
+        {
+          "id": "WI-38939",
+          "kind": "work-item",
+          "title": "Implement the backend Copilot module, grounding adapters, durable proposal lifecycle, and review/action API.",
+          "state": "done",
+          "completedAt": "2026-08-14T22:12:37.557Z",
+          "completionAuthority": "plan-ledger",
+          "completionSummary": "Recorded complete by P-001 in the canonical plan ledger.",
+          "completionEvidence": {
+            "source": "canonical-plan-completion-marker",
+            "planItem": "P-001",
+            "contentHash": "8c776107b608faca488c91debe9b6357ba5c95a2653294d51dd1842d1f4c3461"
+          }
+        },
+        {
+          "id": "WI-38940",
+          "kind": "work-item",
+          "title": "Connect buyer-question chat ingestion to Copilot proposal generation and publish proposal invalidations through sync.",
+          "state": "done",
+          "completedAt": "2026-08-14T22:12:37.557Z",
+          "completionAuthority": "plan-ledger",
+          "completionSummary": "Recorded complete by P-002 in the canonical plan ledger.",
+          "completionEvidence": {
+            "source": "canonical-plan-completion-marker",
+            "planItem": "P-002",
+            "contentHash": "8c776107b608faca488c91debe9b6357ba5c95a2653294d51dd1842d1f4c3461"
+          }
+        },
+        {
+          "id": "WI-38941",
+          "kind": "work-item",
+          "title": "Replace the seller Copilot panel with a sync-backed grounded proposal queue and review controls; remove buyer cart semantics.",
+          "state": "done",
+          "completedAt": "2026-08-14T22:12:37.557Z",
+          "completionAuthority": "plan-ledger",
+          "completionSummary": "Recorded complete by P-003 in the canonical plan ledger.",
+          "completionEvidence": {
+            "source": "canonical-plan-completion-marker",
+            "planItem": "P-003",
+            "contentHash": "8c776107b608faca488c91debe9b6357ba5c95a2653294d51dd1842d1f4c3461"
+          }
+        },
+        {
+          "id": "WI-38943",
+          "kind": "work-item",
+          "title": "Add backend and frontend integration coverage, run project checks, and resolve all regressions.",
+          "state": "done",
+          "completedAt": "2026-08-14T22:12:37.557Z",
+          "completionAuthority": "plan-ledger",
+          "completionSummary": "Recorded complete by P-004 in the canonical plan ledger.",
+          "completionEvidence": {
+            "source": "canonical-plan-completion-marker",
+            "planItem": "P-004",
+            "contentHash": "8c776107b608faca488c91debe9b6357ba5c95a2653294d51dd1842d1f4c3461"
           }
         }
       ]
