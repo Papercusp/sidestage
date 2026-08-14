@@ -4,7 +4,9 @@ import { SyncContext } from '@papercusp/sync';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { activeAuctionFromSyncRows, auctionPhase, AuctionPanel } from './AuctionPanel';
 import {
+  AuctionRequestError,
   activeAuctionUrl,
+  auctionBidErrorMessage,
   auctionStreamUrl,
   parseAuctionEvent,
   parseBidDollars,
@@ -68,6 +70,52 @@ describe('buyer auction model', () => {
       body: JSON.stringify({ displayName: 'Ava', amountCents: 2_500 }),
     }));
     expect(fetchMock.mock.calls[1]?.[1]?.body).not.toContain('guest_forged');
+  });
+
+  it('renews an expired guest session once and replays the same idempotency key', async () => {
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ bidderId: 'guest_expired', expiresAt: '2026-08-14T00:00:00.000Z' }),
+      })
+      .mockResolvedValueOnce({
+        ok: false,
+        status: 401,
+        text: async () => JSON.stringify({ message: 'Guest session is invalid' }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ bidderId: 'guest_renewed', expiresAt: '2099-01-01T00:00:00.000Z' }),
+      })
+      .mockResolvedValueOnce({ ok: true, json: async () => ACTIVE_AUCTION });
+    vi.stubGlobal('fetch', fetchMock);
+
+    await placeAuctionBid('auction-reauth', {
+      displayName: 'Ava',
+      amountCents: 2_600,
+      idempotencyKey: 'bid:req-stable',
+    }, 'https://reauth.sidestage.example/');
+
+    expect(fetchMock).toHaveBeenCalledTimes(4);
+    expect(fetchMock.mock.calls[0]?.[0]).toBe('https://reauth.sidestage.example/auctions/access/guest');
+    expect(fetchMock.mock.calls[2]?.[0]).toBe('https://reauth.sidestage.example/auctions/access/guest');
+    expect(fetchMock.mock.calls[1]?.[1]).toEqual(expect.objectContaining({
+      headers: expect.objectContaining({ 'idempotency-key': 'bid:req-stable' }),
+    }));
+    expect(fetchMock.mock.calls[3]?.[1]).toEqual(expect.objectContaining({
+      headers: expect.objectContaining({ 'idempotency-key': 'bid:req-stable' }),
+    }));
+  });
+
+  it('maps conflict, rate-limit, and session failures to actionable buyer feedback', () => {
+    expect(auctionBidErrorMessage(new AuctionRequestError(409, 'Auction is closed')))
+      .toBe('Bidding has closed. Confirming the result from the server.');
+    expect(auctionBidErrorMessage(new AuctionRequestError(409, 'Bid must be greater than the current price')))
+      .toContain('current price is refreshing');
+    expect(auctionBidErrorMessage(new AuctionRequestError(429, 'Too many bids')))
+      .toContain('Wait a moment');
+    expect(auctionBidErrorMessage(new AuctionRequestError(403, 'Forbidden')))
+      .toContain('buyer session could not be restored');
   });
 });
 

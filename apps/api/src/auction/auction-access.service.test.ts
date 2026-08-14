@@ -1,7 +1,10 @@
 import { HttpException } from '@nestjs/common';
+import { Test } from '@nestjs/testing';
 import { describe, expect, it, vi } from 'vitest';
+import { PG_POOL } from '../db/database.module';
 import { AuctionAccessService, type AuctionAuditRecord } from './auction-access.service';
 import { AuctionController } from './auction.controller';
+import { AuctionModule } from './auction.module';
 
 const SELLER_TOKEN = 'seller-token-with-enough-entropy-for-tests';
 const SIGNING_SECRET = 'auction-signing-secret-with-at-least-thirty-two-bytes';
@@ -25,6 +28,17 @@ function statusOf(run: () => unknown): number {
 }
 
 describe('AuctionAccessService', () => {
+  it('boots through AuctionModule without treating its test seams as injectable dependencies', async () => {
+    const moduleRef = await Test.createTestingModule({ imports: [AuctionModule] })
+      .overrideProvider(PG_POOL)
+      .useValue(null)
+      .compile();
+
+    expect(moduleRef.select(AuctionModule).get(AuctionAccessService, { strict: true }))
+      .toBeInstanceOf(AuctionAccessService);
+    await moduleRef.close();
+  });
+
   it('fails closed in production and accepts only the configured seller bearer', () => {
     const production = new AuctionAccessService({ NODE_ENV: 'production' } as NodeJS.ProcessEnv);
     expect(statusOf(() => production.requireSeller(`Bearer ${SELLER_TOKEN}`))).toBe(503);
