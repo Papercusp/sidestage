@@ -70,6 +70,9 @@ describe('CheckoutService', () => {
     expect(first.order.totalCents).toBe(3000);
     expect(first.order).toMatchObject({
       buyerId: 'buyer-1',
+      sourceKind: 'cart',
+      sourceId: 'cart-1',
+      paymentState: 'payment_required',
       eventId: 'event-1',
       email: 'buyer@example.test',
       shippingCents: 500,
@@ -80,22 +83,19 @@ describe('CheckoutService', () => {
     expect(retry.session.orderId).toBe(first.order.id);
   });
 
-  it('scopes pending-order idempotency and listing to the current buyer', async () => {
+  it('rejects a second buyer trying to fork the same payable source', async () => {
     const carts = new CartService(new InMemoryCartStore());
     const cart = await carts.addItem({ cartId: 'cart-shared', productId: 'p-1', title: 'Mug', priceCents: 1250 });
     const orders = new InMemoryOrderStore();
     const checkout = new CheckoutService(provider(), orders, carts, shipping());
 
     const buyerOne = await checkout.createSession(input(cart.id));
-    const buyerTwo = await checkout.createSession(input(cart.id, { buyerId: 'buyer-2' }));
-
-    expect(buyerTwo.order.id).not.toBe(buyerOne.order.id);
+    await expect(checkout.createSession(input(cart.id, { buyerId: 'buyer-2' })))
+      .rejects.toThrow('Cart is already associated with another buyer order');
     await expect(orders.listByBuyer('buyer-1')).resolves.toEqual([
       expect.objectContaining({ id: buyerOne.order.id, buyerId: 'buyer-1' }),
     ]);
-    await expect(orders.listByBuyer('buyer-2')).resolves.toEqual([
-      expect.objectContaining({ id: buyerTwo.order.id, buyerId: 'buyer-2' }),
-    ]);
+    await expect(orders.listByBuyer('buyer-2')).resolves.toEqual([]);
   });
 
   it('moves an order to paid only after the provider confirms it', async () => {
@@ -106,6 +106,7 @@ describe('CheckoutService', () => {
     const confirmation = await checkout.confirmPayment({ orderId: session.order.id, sourceId: 'cnon:card-nonce-ok' });
     expect(confirmation.payment.status).toBe('paid');
     expect(confirmation.order.status).toBe('paid');
+    expect(confirmation.order.paymentState).toBe('paid');
   });
 
   it('invalidates buyer orders, event stats, and product history after payment status changes', async () => {

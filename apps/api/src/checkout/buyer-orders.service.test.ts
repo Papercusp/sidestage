@@ -23,15 +23,35 @@ const checkoutOrder: CheckoutOrder = {
   id: 'checkout-1',
   cartId: 'cart-1',
   buyerId: 'buyer-1',
+  sourceKind: 'cart',
+  sourceId: 'cart-1',
   eventId: 'event-1',
   subtotalCents: 2500,
   shippingCents: 0,
   totalCents: 2500,
   currency: 'USD',
   status: 'paid',
+  paymentState: 'paid',
   createdAt: '2026-08-14T01:00:00.000Z',
   items: [{ productId: 'cup', title: 'Aurora cup', priceCents: 1250, quantity: 2, imageUrl: '/cup.png' }],
   paymentSession,
+};
+
+const canonicalAuctionOrder: CheckoutOrder = {
+  id: 'auction-order-1',
+  buyerId: 'buyer-1',
+  sourceKind: 'auction',
+  sourceId: 'auction-1',
+  eventId: 'event-1',
+  subtotalCents: 1900,
+  shippingCents: 0,
+  totalCents: 1900,
+  currency: 'USD',
+  status: 'pending',
+  paymentState: 'payment_required',
+  createdAt: '2026-08-14T02:00:00.000Z',
+  items: [{ productId: 'plate', title: 'Aurora plate', priceCents: 1900, quantity: 1 }],
+  sourceSnapshot: { auctionId: 'auction-1', unitPriceCents: 1900 },
 };
 
 const auctionOrder: AuctionWinnerOrder = {
@@ -151,6 +171,25 @@ describe('BuyerOrdersService', () => {
       startMs: 12_000,
       evidenceKind: 'condition',
       evidenceLabel: 'Condition or flaw',
+    });
+  });
+
+  it('prefers the canonical payable order over the legacy auction aggregate copy', async () => {
+    const service = new BuyerOrdersService(
+      { listByBuyer: vi.fn().mockResolvedValue([canonicalAuctionOrder]) } as unknown as OrderStore,
+      { listWinnerOrdersForBuyer: vi.fn().mockResolvedValue([auctionOrder]) } as never,
+      { listOffersForBuyer: vi.fn().mockReturnValue([]) } as never,
+      { getReplayChapters: vi.fn().mockReturnValue(chapters) } as never,
+      { listForGuide: vi.fn().mockResolvedValue([event]) } as never,
+    );
+
+    const result = await service.listForBuyer('buyer-1');
+    expect(result).toHaveLength(1);
+    expect(result[0]).toMatchObject({
+      id: 'auction-order-1',
+      source: 'auction',
+      status: 'pending',
+      items: [{ productId: 'plate', unitPriceCents: 1900 }],
     });
   });
 
