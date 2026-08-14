@@ -2,6 +2,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
 import {
   CopilotProposalCard,
+  ProductResearchLatency,
   citedSources,
   type CopilotProposal,
 } from './CopilotPanel';
@@ -56,6 +57,18 @@ describe('seller copilot proposal review', () => {
     expect(markup).not.toContain('Live transcript');
     expect(markup).toContain('Approve reply');
     expect(markup).toContain('Skip');
+  });
+
+  it('shows measured product-research latency against the sub-2s budget', () => {
+    const withinBudget = renderToStaticMarkup(<ProductResearchLatency latencyMs={184} />);
+    const overBudget = renderToStaticMarkup(<ProductResearchLatency latencyMs={2_050} />);
+    const legacy = renderToStaticMarkup(<ProductResearchLatency />);
+
+    expect(withinBudget).toContain('184ms · within the sub-2s budget');
+    expect(withinBudget).toContain('status-success');
+    expect(overBudget).toContain('2050ms · over the sub-2s budget');
+    expect(overBudget).toContain('status-warning');
+    expect(legacy).toBe('');
   });
 
   it('surfaces a blocked grounding result without review controls', () => {

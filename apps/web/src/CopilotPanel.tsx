@@ -38,6 +38,8 @@ export interface CopilotProposal {
   citations: string[];
   context: { sources: CopilotSource[] };
   action?: CopilotAction;
+  /** Absent on proposals stored before latency tracking reached the review queue. */
+  latencyMs?: number;
   status: CopilotProposalStatus;
   error?: string;
   decision?: { sentMessageId?: string; auditId?: string };
@@ -76,6 +78,22 @@ async function mutateProposal<T>(apiOrigin: string, path: string, body: object):
 export function citedSources(proposal: CopilotProposal): CopilotSource[] {
   const cited = new Set(proposal.citations);
   return proposal.context.sources.filter((source) => cited.has(source.id));
+}
+
+export const PRODUCT_RESEARCH_LATENCY_BUDGET_MS = 2_000;
+
+export function ProductResearchLatency({ latencyMs }: { latencyMs?: number }) {
+  if (typeof latencyMs !== 'number' || !Number.isFinite(latencyMs)) return null;
+  const roundedLatencyMs = Math.max(0, Math.round(latencyMs));
+  const withinBudget = roundedLatencyMs < PRODUCT_RESEARCH_LATENCY_BUDGET_MS;
+  return (
+    <p className="copilot-research-latency" role="status">
+      <span>Product research</span>
+      <strong className={withinBudget ? 'status-success' : 'status-warning'}>
+        {roundedLatencyMs}ms · {withinBudget ? 'within' : 'over'} the sub-2s budget
+      </strong>
+    </p>
+  );
 }
 
 function actionLabel(action: CopilotAction['proposal']): string {
@@ -128,6 +146,8 @@ export function CopilotProposalCard({
         </div>
         <span className="copilot-review-status">{proposal.status}</span>
       </header>
+
+      <ProductResearchLatency latencyMs={proposal.latencyMs} />
 
       {proposal.status === 'blocked' ? (
         <p className="copilot-blocked" role="alert">{proposal.error ?? 'This draft is blocked until verified facts are available.'}</p>
