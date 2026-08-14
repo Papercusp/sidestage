@@ -4,7 +4,9 @@ import { CopilotPanel } from './CopilotPanel';
 import { EventChat } from './EventChat';
 import EventManager from './events/EventManager';
 import { chatEventId, DEFAULT_EVENT_ID, DEFAULT_EVENT_TITLE, mediaBaseUrl } from './event-identity';
-import { streamLabel, useCopyState, useStreamSession } from './hooks';
+import { useCopyState, useStreamSession } from './hooks';
+import { OnDeckPanel } from './seller/OnDeckPanel';
+import { StageStatusPanel } from './seller/StageStatusPanel';
 import type { CatalogProduct } from './seller-products';
 import { TranscriptPane, type TranscriptProductOption } from './TranscriptPane';
 import { connectPublisher, createEventRoom, type EventRoom, type PublisherSession } from './streaming';
@@ -66,40 +68,21 @@ export function SellerTab({
         copy="Your live context stays one glance away: what is on deck, what buyers are asking, and what the copilot can safely suggest."
       />
       <div className="seller-grid">
-        <section className="stage-panel stage-primary" aria-labelledby="stage-status-title">
-          <div className="panel-kicker"><span className="live-dot" /> Live console <span className="panel-status">{streamLabel(stream.streamState)}</span></div>
-          <h2 id="stage-status-title">{DEFAULT_EVENT_TITLE}</h2>
-          <p>Start the event when your camera and catalog are ready. SideStage publishes one room path that buyers can join with a share link.</p>
-          <div className="seller-stream-preview">
-            <video ref={stream.videoRef} className="stream-video" autoPlay muted playsInline aria-label="Seller camera preview" />
-            <div className="stream-video-overlay">
-              <span className="live-badge">{room?.eventId ?? 'room not started'}</span>
-              <p>{stream.streamError ?? (stream.streamState === 'live' ? 'Your camera and microphone are live.' : 'Camera preview appears here after you start the event.')}</p>
-            </div>
-          </div>
-          <label className="field-label" htmlFor="seller-event-id">Event room id</label>
-          <input
-            id="seller-event-id"
-            className="text-input"
-            value={eventId}
-            onChange={(event) => setEventId(event.target.value)}
-            disabled={stream.streamState === 'connecting' || stream.streamState === 'live'}
-            aria-describedby="seller-event-help"
-          />
-          <p className="field-help" id="seller-event-help">Lowercase letters, numbers, and hyphens become the buyer share-link slug.</p>
-          <div className="stage-actions">
-            {stream.session ? (
-              <button className="button secondary" type="button" onClick={stream.stop}>End event</button>
-            ) : (
-              <button className="button primary" type="button" onClick={() => void startEvent()} disabled={stream.streamState === 'connecting'}>
-                {stream.streamState === 'connecting' ? 'Starting…' : 'Start event'}
-              </button>
-            )}
-            <button className="button secondary" type="button" onClick={() => room && void copy(room.shareUrl)} disabled={!room}>
-              {copyState === 'copied' ? 'Link copied' : copyState === 'failed' ? 'Copy failed' : 'Share room'}
-            </button>
-          </div>
-        </section>
+        <StageStatusPanel
+          eventTitle={DEFAULT_EVENT_TITLE}
+          eventId={eventId}
+          onEventIdChange={setEventId}
+          roomEventId={room?.eventId ?? null}
+          streamState={stream.streamState}
+          streamError={stream.streamError}
+          videoRef={stream.videoRef}
+          isSessionActive={Boolean(stream.session)}
+          onStartEvent={() => void startEvent()}
+          onEndEvent={stream.stop}
+          onShareRoom={() => room && void copy(room.shareUrl)}
+          shareDisabled={!room}
+          copyState={copyState}
+        />
         <TranscriptPane
           className="seller-transcript"
           mediaStream={stream.session?.localStream}
@@ -109,17 +92,7 @@ export function SellerTab({
           onActiveProductChange={onActiveProductChange}
           onFinalSegment={recordTranscriptMoment}
         />
-        <section className="stage-panel" aria-labelledby="on-deck-title">
-          <div className="panel-kicker">On deck <span className="panel-status">1 slot</span></div>
-          {selectedProduct ? (
-            <div className="on-deck-product">
-              <div className={`mini-product-mark tone-${selectedProduct.tone}`}>{selectedProduct.glyph}</div>
-              <div><h3 id="on-deck-title">{selectedProduct.name}</h3><p>{selectedProduct.price} · {selectedProduct.stockLabel}</p></div>
-            </div>
-          ) : (
-            <div className="empty-state"><span className="empty-state-icon">＋</span><h3 id="on-deck-title">Choose a product</h3><p>Use the Buyer tab to place the first item on stage.</p></div>
-          )}
-        </section>
+        <OnDeckPanel selectedProduct={selectedProduct} />
         <CopilotPanel apiBaseUrl={import.meta.env.VITE_API_URL} />
         <EventChat
           eventId={room?.eventId ?? chatEventId(eventId)}
