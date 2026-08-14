@@ -59,6 +59,7 @@ export class EventConfigController {
     // cached events.guide subscriber; event-scoped args would not match its
     // empty query key and would leave titles/thumbnails stale.
     this.invalidations.invalidate('events.guide');
+    this.invalidations.invalidate('events.mine');
     return { ...config, policy: policyFromConfig(config) };
   }
 }

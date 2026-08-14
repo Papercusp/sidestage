@@ -368,6 +368,20 @@ export async function startSellerAuction(
   });
 }
 
+export async function closeSellerAuction(
+  auctionId: string,
+  apiBaseUrl?: string,
+  sellerAccessToken = readSellerAuctionToken(),
+): Promise<SellerAuction> {
+  return requestJson<SellerAuction>(
+    eventUrl(`/auctions/${encodeURIComponent(auctionId)}/close`, apiBaseUrl),
+    {
+      method: 'POST',
+      headers: sellerAccessToken ? { authorization: `Bearer ${sellerAccessToken}` } : undefined,
+    },
+  );
+}
+
 /**
  * Run-of-show client (plan sidestage-run-of-show-planner-2026-08-14).
  *

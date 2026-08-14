@@ -4,6 +4,7 @@ import { SyncQueryRegistry } from '../sync/sync-query.registry';
 import { EventSyncQueries, eventStoreForPool } from './event.module';
 import {
   compareForGuide,
+  compareForSeller,
   demoEventRecords,
   EventService,
   InMemoryEventStore,
@@ -36,6 +37,9 @@ class StubStore implements EventStore {
   async listBuyerVisible(): Promise<EventRecord[]> {
     return this.records.filter((entry) => entry.status !== 'draft');
   }
+  async listBySeller(sellerId: string): Promise<EventRecord[]> {
+    return this.records.filter((entry) => entry.sellerId === sellerId);
+  }
   async publish(): Promise<void> {
     throw new Error('StubStore.publish is not under test here — use InMemoryEventStore');
   }
@@ -55,6 +59,24 @@ describe('event directory (P-118 / D-019)', () => {
 
     await expect(queries.resolve('events.guide', {})).resolves.toEqual([
       expect.objectContaining({ eventId: 'live-room', viewers: 0 }),
+    ]);
+  });
+
+  it('registers a seller-scoped events.mine query that includes drafts', async () => {
+    const service = new EventService(
+      new StubStore([
+        record({ eventId: 'owned-draft', sellerId: 'demo-seller', status: 'draft' }),
+        record({ eventId: 'owned-live', sellerId: 'demo-seller', status: 'live' }),
+        record({ eventId: 'other-live', sellerId: 'seller-other', status: 'live' }),
+      ]),
+      new ChatService(),
+    );
+    const queries = new SyncQueryRegistry();
+    new EventSyncQueries(service, queries).onModuleInit();
+
+    await expect(queries.resolve('events.mine', {})).resolves.toEqual([
+      expect.objectContaining({ eventId: 'owned-live', status: 'live' }),
+      expect.objectContaining({ eventId: 'owned-draft', status: 'draft' }),
     ]);
   });
 
@@ -149,6 +171,21 @@ describe('event directory (P-118 / D-019)', () => {
     expect([b, a].sort(compareForGuide).map((e) => e.eventId)).toEqual(['a', 'b']);
   });
 
+  it('orders a seller workspace by live, scheduled, draft, then ended', () => {
+    const events = [
+      record({ eventId: 'ended', status: 'ended' }),
+      record({ eventId: 'draft', status: 'draft' }),
+      record({ eventId: 'scheduled', status: 'scheduled' }),
+      record({ eventId: 'live', status: 'live' }),
+    ];
+    expect(events.sort(compareForSeller).map((event) => event.eventId)).toEqual([
+      'live',
+      'scheduled',
+      'draft',
+      'ended',
+    ]);
+  });
+
   it('serves a populated guide with no database behind it', async () => {
     const service = new EventService(new InMemoryEventStore(), new ChatService());
     const events = await service.listForGuide();
@@ -182,6 +219,7 @@ describe('event source selection', () => {
 
     expect(store).toBeInstanceOf(UnavailableEventStore);
     await expect(store.listBuyerVisible()).rejects.toThrow('durable event storage is not connected');
+    await expect(store.listBySeller('demo-seller')).rejects.toThrow('durable event storage is not connected');
     await expect(store.publish({
       eventId: 'synthetic-event',
       title: 'Synthetic event',
