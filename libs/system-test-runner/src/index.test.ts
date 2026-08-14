@@ -85,6 +85,7 @@ function configObject(): Record<string, unknown> {
       networks: { default: null },
     }]),
   );
+  services.typesense.tmpfs = ['/data'];
   services.api.environment = {
     NODE_ENV: 'test',
     DATABASE_URL: 'postgresql://acceptance:secret@postgres:5432/acceptance_run_1',
@@ -156,6 +157,12 @@ describe('acceptance Compose isolation', () => {
     const namedVolume = configObject();
     namedVolume.volumes = { postgres: { name: 'sidestage-postgres' } };
     expect(() => validateAcceptanceComposeConfig(JSON.stringify(namedVolume), PROJECT_NAME)).toThrow(/named volumes/);
+
+    const missingTypesenseData = configObject();
+    delete (missingTypesenseData.services as Record<string, Record<string, unknown>>).typesense.tmpfs;
+    expect(() => validateAcceptanceComposeConfig(JSON.stringify(missingTypesenseData), PROJECT_NAME)).toThrow(
+      /ephemeral tmpfs at \/data/,
+    );
 
     const production = configObject();
     const productionApi = (production.services as Record<string, Record<string, unknown>>).api;

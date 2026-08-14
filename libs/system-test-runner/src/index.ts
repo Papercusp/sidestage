@@ -257,6 +257,15 @@ export function validateAcceptanceComposeConfig(output: string, projectName: str
       throw new Error(`service ${serviceName} attaches a non-isolated network`);
     }
   }
+  const typesense = record(services.typesense, 'service typesense');
+  const typesenseTmpfs = Array.isArray(typesense.tmpfs) ? typesense.tmpfs : [];
+  const hasEphemeralDataDir = typesenseTmpfs.some((mount) => {
+    if (typeof mount === 'string') return mount.split(':', 1)[0] === '/data';
+    return record(mount, 'service typesense tmpfs mount').target === '/data';
+  });
+  if (!hasEphemeralDataDir) {
+    throw new Error('service typesense must mount an ephemeral tmpfs at /data');
+  }
   const apiEnvironment = record(
     record(services.api, 'service api').environment,
     'service api environment',
