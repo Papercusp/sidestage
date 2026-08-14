@@ -1,9 +1,11 @@
 import { HttpException } from '@nestjs/common';
 import { describe, expect, it, vi } from 'vitest';
 import { AuctionAccessService } from '../auction/auction-access.service';
+import { DEMO_PRINCIPAL_HEADER } from '../sync/sync-request-context';
 import { TranscriptionController } from './transcription.controller';
 
 const SELLER_TOKEN = 'seller-token-with-enough-entropy-for-tests';
+const SELLER_PRINCIPAL = 'sidestage-seller';
 
 function productionAccess(): AuctionAccessService {
   return new AuctionAccessService({
@@ -34,11 +36,17 @@ describe('TranscriptionController Deepgram boundary', () => {
     const controller = new TranscriptionController(deepgram as never, access as never);
 
     await expect(controller.mintDeepgramToken(
-      { authorization: `Bearer ${SELLER_TOKEN}` },
+      {
+        authorization: `Bearer ${SELLER_TOKEN}`,
+        [DEMO_PRINCIPAL_HEADER]: SELLER_PRINCIPAL,
+      },
       '203.0.113.9',
     )).resolves.toEqual({ accessToken: 'temporary-jwt', expiresIn: 30 });
 
-    expect(access.requireSeller).toHaveBeenCalledWith(`Bearer ${SELLER_TOKEN}`);
+    expect(access.requireSeller).toHaveBeenCalledWith(
+      `Bearer ${SELLER_TOKEN}`,
+      SELLER_PRINCIPAL,
+    );
     expect(access.consumeRateLimit.mock.calls).toEqual([
       ['deepgram-token-ip', '203.0.113.9', 30, 60_000],
       ['deepgram-token-seller', 'sidestage-seller', 10, 60_000],
@@ -66,12 +74,18 @@ describe('TranscriptionController Deepgram boundary', () => {
 
     for (let attempt = 0; attempt < 10; attempt += 1) {
       void controller.mintDeepgramToken(
-        { authorization: `Bearer ${SELLER_TOKEN}` },
+        {
+          authorization: `Bearer ${SELLER_TOKEN}`,
+          [DEMO_PRINCIPAL_HEADER]: SELLER_PRINCIPAL,
+        },
         `203.0.113.${attempt + 20}`,
       );
     }
     expect(statusOf(() => controller.mintDeepgramToken(
-      { authorization: `Bearer ${SELLER_TOKEN}` },
+      {
+        authorization: `Bearer ${SELLER_TOKEN}`,
+        [DEMO_PRINCIPAL_HEADER]: SELLER_PRINCIPAL,
+      },
       '203.0.113.99',
     ))).toBe(429);
     expect(deepgram.mint).toHaveBeenCalledTimes(10);
