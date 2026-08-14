@@ -26,6 +26,7 @@ export interface CatalogVariant {
   condition: string | null;
   handlingDays: number | null;
   priceCents: number;
+  reservedQty: number;
   availableQty: number;
   imageUrl?: string;
   description?: string;
@@ -192,6 +193,7 @@ export function variantToCatalogRow(variant: CatalogVariant): CatalogRow {
     condition: variant.condition ?? 'NEW',
     handlingDays: variant.handlingDays,
     priceCents: variant.priceCents,
+    reservedQty: variant.reservedQty,
     availableQty: variant.availableQty,
     imageUrl: variant.imageUrl,
   };
@@ -215,12 +217,12 @@ export function variantToBuyerProduct(variant: CatalogVariant): BuyerProduct {
 
 /** The eight demo.sql products, for explicit development rendering and tests. */
 export const OFFLINE_FIXTURE: readonly CatalogVariant[] = [
-  { id: 'demo-espresso-matte-black', groupId: 'demo-espresso-machine', title: 'Barista Pro Espresso Machine', brand: 'BrewHaus', productType: 'KITCHEN_APPLIANCE', sku: 'BH-ESP-200-BLK', color: 'Matte Black', condition: 'NEW', handlingDays: 2, priceCents: 49999, availableQty: 12, imageUrl: '/demo-products/barista-pro-matte-black.webp' },
-  { id: 'demo-espresso-cream', groupId: 'demo-espresso-machine', title: 'Barista Pro Espresso Machine', brand: 'BrewHaus', productType: 'KITCHEN_APPLIANCE', sku: 'BH-ESP-200-CRM', color: 'Cream', condition: 'NEW', handlingDays: 2, priceCents: 49999, availableQty: 5, imageUrl: '/demo-products/barista-pro-cream.webp' },
-  { id: 'demo-headphones-midnight', groupId: 'demo-wireless-headphones', title: 'Cloud ANC Wireless Headphones', brand: 'Northstar Audio', productType: 'AUDIO', sku: 'NSA-CLOUD-MID', color: 'Midnight', condition: 'NEW', handlingDays: 2, priceCents: 19999, availableQty: 24, imageUrl: '/demo-products/cloud-anc-midnight.webp' },
-  { id: 'demo-headphones-sand', groupId: 'demo-wireless-headphones', title: 'Cloud ANC Wireless Headphones', brand: 'Northstar Audio', productType: 'AUDIO', sku: 'NSA-CLOUD-SND', color: 'Sand', condition: 'NEW', handlingDays: 2, priceCents: 19999, availableQty: 8, imageUrl: '/demo-products/cloud-anc-sand.webp' },
-  { id: 'demo-camera-black', groupId: 'demo-creator-camera', title: 'Creator 4K Mirrorless Camera', brand: 'FrameForge', productType: 'CAMERA', sku: 'FF-C4K-BLK', color: 'Black', condition: 'NEW', handlingDays: 3, priceCents: 89999, availableQty: 6, imageUrl: '/demo-products/creator-4k-black.webp' },
-  { id: 'demo-camera-silver', groupId: 'demo-creator-camera', title: 'Creator 4K Mirrorless Camera', brand: 'FrameForge', productType: 'CAMERA', sku: 'FF-C4K-SLV', color: 'Silver', condition: 'NEW', handlingDays: 3, priceCents: 89999, availableQty: 3, imageUrl: '/demo-products/creator-4k-silver.webp' },
-  { id: 'demo-desk-natural-oak', groupId: 'demo-standing-desk', title: 'Lift Electric Standing Desk', brand: 'Field Office', productType: 'OFFICE_FURNITURE', sku: 'FO-LIFT-OAK', color: 'Natural Oak', condition: 'NEW', handlingDays: 7, priceCents: 54999, availableQty: 10, imageUrl: '/demo-products/lift-desk-natural-oak.webp' },
-  { id: 'demo-desk-walnut', groupId: 'demo-standing-desk', title: 'Lift Electric Standing Desk', brand: 'Field Office', productType: 'OFFICE_FURNITURE', sku: 'FO-LIFT-WAL', color: 'Walnut', condition: 'NEW', handlingDays: 7, priceCents: 54999, availableQty: 2, imageUrl: '/demo-products/lift-desk-walnut.webp' },
+  { id: 'demo-espresso-matte-black', groupId: 'demo-espresso-machine', title: 'Barista Pro Espresso Machine', brand: 'BrewHaus', productType: 'KITCHEN_APPLIANCE', sku: 'BH-ESP-200-BLK', color: 'Matte Black', condition: 'NEW', handlingDays: 2, priceCents: 49999, reservedQty: 0, availableQty: 12, imageUrl: '/demo-products/barista-pro-matte-black.webp' },
+  { id: 'demo-espresso-cream', groupId: 'demo-espresso-machine', title: 'Barista Pro Espresso Machine', brand: 'BrewHaus', productType: 'KITCHEN_APPLIANCE', sku: 'BH-ESP-200-CRM', color: 'Cream', condition: 'NEW', handlingDays: 2, priceCents: 49999, reservedQty: 0, availableQty: 5, imageUrl: '/demo-products/barista-pro-cream.webp' },
+  { id: 'demo-headphones-midnight', groupId: 'demo-wireless-headphones', title: 'Cloud ANC Wireless Headphones', brand: 'Northstar Audio', productType: 'AUDIO', sku: 'NSA-CLOUD-MID', color: 'Midnight', condition: 'NEW', handlingDays: 2, priceCents: 19999, reservedQty: 0, availableQty: 24, imageUrl: '/demo-products/cloud-anc-midnight.webp' },
+  { id: 'demo-headphones-sand', groupId: 'demo-wireless-headphones', title: 'Cloud ANC Wireless Headphones', brand: 'Northstar Audio', productType: 'AUDIO', sku: 'NSA-CLOUD-SND', color: 'Sand', condition: 'NEW', handlingDays: 2, priceCents: 19999, reservedQty: 0, availableQty: 8, imageUrl: '/demo-products/cloud-anc-sand.webp' },
+  { id: 'demo-camera-black', groupId: 'demo-creator-camera', title: 'Creator 4K Mirrorless Camera', brand: 'FrameForge', productType: 'CAMERA', sku: 'FF-C4K-BLK', color: 'Black', condition: 'NEW', handlingDays: 3, priceCents: 89999, reservedQty: 0, availableQty: 6, imageUrl: '/demo-products/creator-4k-black.webp' },
+  { id: 'demo-camera-silver', groupId: 'demo-creator-camera', title: 'Creator 4K Mirrorless Camera', brand: 'FrameForge', productType: 'CAMERA', sku: 'FF-C4K-SLV', color: 'Silver', condition: 'NEW', handlingDays: 3, priceCents: 89999, reservedQty: 0, availableQty: 3, imageUrl: '/demo-products/creator-4k-silver.webp' },
+  { id: 'demo-desk-natural-oak', groupId: 'demo-standing-desk', title: 'Lift Electric Standing Desk', brand: 'Field Office', productType: 'OFFICE_FURNITURE', sku: 'FO-LIFT-OAK', color: 'Natural Oak', condition: 'NEW', handlingDays: 7, priceCents: 54999, reservedQty: 0, availableQty: 10, imageUrl: '/demo-products/lift-desk-natural-oak.webp' },
+  { id: 'demo-desk-walnut', groupId: 'demo-standing-desk', title: 'Lift Electric Standing Desk', brand: 'Field Office', productType: 'OFFICE_FURNITURE', sku: 'FO-LIFT-WAL', color: 'Walnut', condition: 'NEW', handlingDays: 7, priceCents: 54999, reservedQty: 0, availableQty: 2, imageUrl: '/demo-products/lift-desk-walnut.webp' },
 ];

@@ -71,7 +71,7 @@ function collectionPredicate(
  */
 const VARIANT_COLUMNS = `v.id, v.group_id AS "groupId", c.title, c.brand, c.product_type AS "productType",
               v.sku, v.condition, v.handling AS "handlingDays", v.price_cents AS "priceCents",
-              v."availableQty",
+              v.reserved_qty AS "reservedQty", v."availableQty",
               -- A colour variant that ships its own photo must show THAT photo:
               -- falling straight through to the group image rendered both
               -- colorways of a product identically, and left every seeded
@@ -109,6 +109,7 @@ interface VariantRow {
   condition: string | null;
   handlingDays: number | null;
   priceCents: number;
+  reservedQty: number;
   availableQty: number;
   imageUrl: string | null;
   description: string | null;
@@ -129,6 +130,7 @@ function rowToVariant(row: VariantRow): CatalogVariant {
     condition: row.condition,
     handlingDays: row.handlingDays,
     priceCents: row.priceCents,
+    reservedQty: row.reservedQty,
     availableQty: row.availableQty,
     imageUrl: row.imageUrl ?? undefined,
     description: row.description ?? undefined,
@@ -148,6 +150,10 @@ export class PgCatalogSource implements CatalogSource {
   ) {}
 
   async search(query: CatalogQuery): Promise<CatalogPage> {
+    // Catalog inventory is the seller's live stock view. Sweep expired buyer
+    // holds before projecting reservedQty/availableQty so an abandoned cart
+    // cannot remain visibly reserved just because that buyer stopped polling.
+    await this.pool.query('SELECT expire_inventory_reservations()', []);
     const { q, productType, availability, page, pageSize } = normalizeQuery(query);
     // The SAME search the Restart wholesale grid uses (@papercusp/typesense):
     // typo-tolerant, one hit per product group, true corpus match count — with

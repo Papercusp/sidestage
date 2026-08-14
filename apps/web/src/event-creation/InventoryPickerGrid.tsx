@@ -144,6 +144,22 @@ export function InventoryPickerGrid({
           );
         },
       },
+      ...(purpose === "inventory" ? [{
+        key: "reserved",
+        header: "Reserved",
+        headerText: "Reserved",
+        width: "minmax(92px, .65fr)",
+        align: "right" as const,
+        toCopyText: (row: CatalogRow) => String(row.reservedQty ?? 0),
+        render: ({ row }: { row: CatalogRow }) => (
+          <span
+            className="inventory-reserved-qty"
+            aria-label={`${row.reservedQty ?? 0} reserved`}
+          >
+            {row.reservedQty ?? 0}
+          </span>
+        ),
+      }] : []),
       {
         key: "availability",
         header: "Stock",

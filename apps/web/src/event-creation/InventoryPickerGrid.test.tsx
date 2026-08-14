@@ -16,6 +16,7 @@ const ROWS: CatalogRow[] = [
     condition: "NEW",
     handlingDays: 2,
     priceCents: 49_999,
+    reservedQty: 4,
     availableQty: 12,
   },
   // Deliberately carries NO colour: a Restart-imported row has no colour axis,
@@ -102,9 +103,38 @@ describe("InventoryPickerGrid", () => {
 
     expect(markup).toContain("Unit price");
     expect(markup).toContain("Add qty");
+    expect(markup).toContain("Reserved");
+    expect(markup).toContain('aria-label="4 reserved"');
     expect(markup).toContain("0 on hand");
     expect(markup).toContain('value="1"');
     expect(markup).not.toContain("catalog-row-unavailable");
+  });
+
+  it("keeps the Reserved column read-only and Inventory-only", () => {
+    const inventoryMarkup = renderToStaticMarkup(
+      <InventoryPickerGrid
+        rows={ROWS}
+        selectedRowIds={new Set()}
+        drafts={{}}
+        onSelectedRowIdsChange={() => undefined}
+        onDraftChange={() => undefined}
+        purpose="inventory"
+      />,
+    );
+    const eventMarkup = renderToStaticMarkup(
+      <InventoryPickerGrid
+        rows={ROWS}
+        selectedRowIds={new Set()}
+        drafts={{}}
+        onSelectedRowIdsChange={() => undefined}
+        onDraftChange={() => undefined}
+      />,
+    );
+
+    expect(inventoryMarkup).toContain('<span class="inventory-reserved-qty" aria-label="4 reserved">4</span>');
+    expect(inventoryMarkup).not.toMatch(/<input[^>]+aria-label="[^"]*Reserved/);
+    expect(eventMarkup).not.toContain('aria-label="4 reserved"');
+    expect(eventMarkup).not.toContain('>Reserved<');
   });
 });
 

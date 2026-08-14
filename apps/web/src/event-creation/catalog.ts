@@ -15,6 +15,8 @@ export interface CatalogRow {
   condition: string;
   handlingDays: number | null;
   priceCents: number;
+  /** Optional only for test/embed rows created outside the live catalog API. */
+  reservedQty?: number;
   availableQty: number;
   imageUrl?: string;
 }

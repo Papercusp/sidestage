@@ -54,6 +54,13 @@ describe('CartService', () => {
       { productId: 'p-1' },
       { productId: 'p-1' },
     ]);
+    expect(published.filter(({ name }) => name === 'catalog.page').map(({ args }) => args)).toEqual([
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+    ]);
   });
   it('merges repeated products and calculates a cents subtotal', async () => {
     const carts = new CartService(new InMemoryCartStore());

@@ -38,6 +38,8 @@ export interface CatalogVariant {
   condition: string | null;
   handlingDays: number | null;
   priceCents: number;
+  /** Quantity currently consumed by active holds and committed reservations. */
+  reservedQty: number;
   availableQty: number;
   imageUrl?: string;
   description?: string;

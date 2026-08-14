@@ -39,7 +39,8 @@ describe('PgCatalogSource', () => {
       page: 1,
       includeFields: ['id', 'groupId'],
     });
-    const [query, params] = poolQuery.mock.calls[0] as [string, unknown[]];
+    expect(poolQuery.mock.calls[0]).toEqual(['SELECT expire_inventory_reservations()', []]);
+    const [query, params] = poolQuery.mock.calls[1] as [string, unknown[]];
     expect(query).toContain('v.group_id = ANY($1)');
     expect(query).toContain('v.group_id IS NULL AND v.id = ANY($1)');
     expect(query).not.toContain('COALESCE(v.group_id, v.id) = ANY($1)');
@@ -49,6 +50,7 @@ describe('PgCatalogSource', () => {
   it('scopes default reads to the curated collection and projects both option axes', async () => {
     const observedParams: unknown[][] = [];
     const responses = [
+      { rows: [] },
       { rows: [{ n: '200' }] },
       { rows: [{
         id: 'event-demo-36-v2',
@@ -62,6 +64,7 @@ describe('PgCatalogSource', () => {
         condition: 'NEW',
         handlingDays: 2,
         priceCents: 15_000,
+        reservedQty: 4,
         availableQty: 9,
         imageUrl: null,
         description: null,
@@ -82,17 +85,20 @@ describe('PgCatalogSource', () => {
     const page = await source.search({ page: 1, pageSize: 50 });
 
     expect(page.total).toBe(200);
-    expect(page.rows[0]).toMatchObject({ color: 'Midnight', size: 'Medium' });
-    const [countSql] = poolQuery.mock.calls[0] as [string, unknown[]];
-    const [rowsSql] = poolQuery.mock.calls[1] as [string, unknown[]];
+    expect(page.rows[0]).toMatchObject({ color: 'Midnight', size: 'Medium', reservedQty: 4 });
+    expect(poolQuery.mock.calls[0]).toEqual(['SELECT expire_inventory_reservations()', []]);
+    const [countSql] = poolQuery.mock.calls[1] as [string, unknown[]];
+    const [rowsSql] = poolQuery.mock.calls[2] as [string, unknown[]];
     expect(countSql).toContain(
       "c.properties @> jsonb_build_object('sidestageCollection', $1::text)",
     );
     expect(countSql).not.toContain("properties->>'sidestageCollection'");
-    expect(observedParams[0]).toEqual([EVENT_DEMO_COLLECTION, 10_001]);
+    expect(observedParams[0]).toEqual([]);
+    expect(observedParams[1]).toEqual([EVENT_DEMO_COLLECTION, 10_001]);
     expect(rowsSql).toContain("axis.slug = 'color'");
     expect(rowsSql).toContain("axis.slug = 'size'");
-    expect(observedParams[1]).toEqual([EVENT_DEMO_COLLECTION, 50, 0]);
+    expect(rowsSql).toContain('v.reserved_qty AS "reservedQty"');
+    expect(observedParams[2]).toEqual([EVENT_DEMO_COLLECTION, 50, 0]);
   });
 
   it('uses the GIN-compatible collection predicate for every curated read', async () => {
@@ -128,11 +134,12 @@ describe('PgCatalogSource', () => {
     await source.variant('any-variant');
 
     const calls = poolQuery.mock.calls as [string, unknown[]][];
-    expect(calls).toHaveLength(4);
+    expect(calls).toHaveLength(5);
     for (const [sql] of calls) {
       expect(sql).not.toContain('sidestageCollection');
     }
     expect(observedParams).toEqual([
+      [],
       [10_001],
       [50, 0],
       [40],
@@ -146,6 +153,7 @@ describe('FixtureCatalogSource', () => {
     const fixture = [{
       id: 'mug', groupId: 'cups', title: 'Mug', brand: 'Kiln', productType: 'HOME', sku: 'MUG',
       condition: 'NEW', handlingDays: 1, priceCents: 1_200, availableQty: 2,
+      reservedQty: 0,
     }];
     const source = new FixtureCatalogSource(fixture);
 

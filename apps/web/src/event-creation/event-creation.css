@@ -283,6 +283,13 @@
   width: 34px;
 }
 
+.inventory-reserved-qty {
+  color: var(--text);
+  font-size: .8rem;
+  font-variant-numeric: tabular-nums;
+  font-weight: 650;
+}
+
 .stock-badge {
   display: inline-flex;
   align-items: center;

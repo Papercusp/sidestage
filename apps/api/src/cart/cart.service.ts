@@ -208,7 +208,14 @@ export class CartService {
   }
 
   private invalidateInventory(productIds: readonly string[]): void {
-    for (const productId of new Set(productIds)) {
+    const uniqueProductIds = new Set(productIds);
+    if (uniqueProductIds.size === 0) return;
+    // The seller Inventory tab reads reservation totals from catalog.page.
+    // Invalidate the unscoped query once per mutation so every active search
+    // refreshes when any buyer adds, changes, removes, commits, or expires a
+    // hold; the per-product snapshot invalidations remain scoped below.
+    this.syncInvalidations?.invalidate('catalog.page');
+    for (const productId of uniqueProductIds) {
       this.syncInvalidations?.invalidate('inventory.snapshot', { productId });
     }
   }
