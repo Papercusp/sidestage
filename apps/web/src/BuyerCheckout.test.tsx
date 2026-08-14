@@ -72,7 +72,7 @@ const asyncNoop = async () => undefined;
 function props(overrides: Partial<BuyerCheckoutDrawerProps> = {}): BuyerCheckoutDrawerProps {
   return {
     open: true,
-    step: 'cart',
+    step: 'address',
     cart,
     draft,
     rates: [rate],
@@ -80,7 +80,6 @@ function props(overrides: Partial<BuyerCheckoutDrawerProps> = {}): BuyerCheckout
     checkout,
     completedOrder: null,
     busy: false,
-    nowMs: Date.parse('2026-08-14T06:00:30Z'),
     onClose: vi.fn(),
     onStep: vi.fn(),
     onDraft: vi.fn(),
@@ -88,24 +87,27 @@ function props(overrides: Partial<BuyerCheckoutDrawerProps> = {}): BuyerCheckout
     onSelectRate: vi.fn(),
     onStartCheckout: asyncNoop,
     onConfirm: asyncNoop,
-    onQuantity: asyncNoop,
-    onRemove: asyncNoop,
+    onBackToCart: vi.fn(),
     onError: vi.fn(),
     ...overrides,
   };
 }
 
 describe('BuyerCheckoutDrawer', () => {
-  it('renders cart review inside an accessible buyer-owned drawer', () => {
+  it('opens on address inside an accessible buyer-owned drawer', () => {
+    // Held-items review is no longer a step of this flow — it is the shared cart
+    // drawer (BuyerCartDrawer.test.tsx carries those criteria), which hands off
+    // here. This flow therefore starts where the handoff lands.
     const html = renderToStaticMarkup(<BuyerCheckoutDrawer {...props()} />);
     expect(html).toContain('role="dialog"');
-    expect(html).toContain('Reserved for 2 minutes');
-    expect(html).toContain('Held items');
-    expect(html).toContain('Aurora mug');
-    expect(html).toContain('$25.00');
-    expect(html).toContain('1:30');
-    expect(html).toContain('remaining');
-    expect(html).toContain('Checkout');
+    expect(html).toContain('Buyer checkout');
+    expect(html).toContain('Where should it go?');
+    expect(html).toContain('Find shipping rates');
+  });
+
+  it('offers a way back to the held items it was handed off from', () => {
+    const html = renderToStaticMarkup(<BuyerCheckoutDrawer {...props()} />);
+    expect(html).toContain('Back to held items');
   });
 
   it('renders live carrier selection and server-derived order total', () => {

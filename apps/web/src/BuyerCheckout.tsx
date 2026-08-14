@@ -29,9 +29,17 @@ import {
   type BuyerShippingRate,
 } from './buyer-checkout-api';
 import { useBuyerIdentity } from './buyer-identity';
+import { BuyerCartDrawer } from './BuyerCartDrawer';
+import { holdRemainingMs, type BuyerCartAdapter } from './buyer-cart-adapter';
 import './buyer-checkout.css';
 
-export type BuyerCheckoutStep = 'cart' | 'address' | 'shipping' | 'payment' | 'success';
+/**
+ * The held-items review is no longer a step here — it is the shared cart drawer
+ * (`BuyerCartDrawer`, on `@papercusp/cart-drawer`), which hands off to this flow
+ * at `address`. Keeping a dead 'cart' step would leave two surfaces claiming the
+ * same job.
+ */
+export type BuyerCheckoutStep = 'address' | 'shipping' | 'payment' | 'success';
 
 export interface CheckoutDraft extends BuyerShippingAddress {
   email: string;
@@ -63,20 +71,6 @@ const BuyerCheckoutContext = createContext<BuyerCheckoutActions | null>(null);
 /** Optional by design: BuyerProductRail is also rendered in isolated tests and embeds. */
 export function useBuyerCheckout(): BuyerCheckoutActions | null {
   return useContext(BuyerCheckoutContext);
-}
-
-export function holdRemainingMs(expiresAt: string | undefined, nowMs: number): number | null {
-  if (!expiresAt) return null;
-  const deadline = Date.parse(expiresAt);
-  if (!Number.isFinite(deadline)) return 0;
-  return Math.max(0, deadline - nowMs);
-}
-
-export function formatHoldCountdown(remainingMs: number | null): string {
-  if (remainingMs === null) return 'Reserved';
-  const totalSeconds = Math.max(0, Math.ceil(remainingMs / 1000));
-  const minutes = Math.floor(totalSeconds / 60);
-  return `${minutes}:${String(totalSeconds % 60).padStart(2, '0')}`;
 }
 
 interface SquareTokenResult {
@@ -201,7 +195,6 @@ export interface BuyerCheckoutDrawerProps {
   checkout: BuyerCheckoutSessionResponse | null;
   completedOrder: BuyerCheckoutOrder | null;
   busy: boolean;
-  nowMs: number;
   error?: string;
   onClose: () => void;
   onStep: (step: BuyerCheckoutStep) => void;
@@ -210,24 +203,23 @@ export interface BuyerCheckoutDrawerProps {
   onSelectRate: (id: string) => void;
   onStartCheckout: () => Promise<void>;
   onConfirm: (sourceId: string) => Promise<void>;
-  onQuantity: (productId: string, quantity: number) => Promise<void>;
-  onRemove: (productId: string) => Promise<void>;
+  /** Back out of the flow to the held-items drawer it was handed off from. */
+  onBackToCart: () => void;
   onError: (message: string) => void;
 }
 
 function stepTitle(step: BuyerCheckoutStep): string {
-  if (step === 'address') return 'Where should it go?';
   if (step === 'shipping') return 'Choose shipping';
   if (step === 'payment') return 'Square sandbox';
   if (step === 'success') return 'Order confirmed';
-  return 'Held items';
+  return 'Where should it go?';
 }
 
 export function BuyerCheckoutDrawer(props: BuyerCheckoutDrawerProps) {
   const {
-    open, step, cart, draft, rates, selectedRateId, checkout, completedOrder, busy, nowMs, error,
+    open, step, cart, draft, rates, selectedRateId, checkout, completedOrder, busy, error,
     onClose, onStep, onDraft, onLoadRates, onSelectRate, onStartCheckout, onConfirm,
-    onQuantity, onRemove, onError,
+    onBackToCart, onError,
   } = props;
   if (!open) return null;
 
@@ -245,61 +237,19 @@ export function BuyerCheckoutDrawer(props: BuyerCheckoutDrawerProps) {
       <section className="buyer-checkout-drawer" role="dialog" aria-modal="true" aria-labelledby="buyer-checkout-title">
         <header className="buyer-checkout-header">
           <div>
-            <p className="eyebrow">{step === 'cart' ? 'Reserved for 2 minutes' : 'Buyer checkout'}</p>
+            <p className="eyebrow">Buyer checkout</p>
             <h2 id="buyer-checkout-title">{stepTitle(step)}</h2>
           </div>
           <button className="button secondary" type="button" onClick={onClose}>Close</button>
         </header>
 
         <ol className="buyer-checkout-progress" aria-label="Checkout progress">
-          {['cart', 'address', 'shipping', 'payment'].map((name, index) => (
+          {['address', 'shipping', 'payment'].map((name, index) => (
             <li className={step === name ? 'active' : undefined} key={name}>{index + 1}<span>{name}</span></li>
           ))}
         </ol>
 
         {error ? <div className="buyer-checkout-error" role="alert">{error}</div> : null}
-
-        {step === 'cart' ? (
-          <div className="buyer-checkout-body">
-            {!cart?.items.length ? <p>No held items yet. Hold an item from the live rail to reserve it for two minutes.</p> : (
-              <ul className="buyer-checkout-cart" aria-label="Held items">
-                {cart.items.map((item) => {
-                  const remaining = holdRemainingMs(item.expiresAt, nowMs);
-                  return (
-                  <li key={item.productId}>
-                    <span className="buyer-held-item-image" aria-hidden="true">
-                      {item.imageUrl ? <img src={item.imageUrl} alt="" width="56" height="56" /> : item.title.slice(0, 1)}
-                    </span>
-                    <div>
-                      <strong>{item.title}</strong>
-                      <span>{formatBuyerPrice(item.priceCents)} each</span>
-                      <span className="buyer-hold-countdown" role="timer" aria-label={`${item.title} hold time remaining`}>
-                        <strong>{formatHoldCountdown(remaining)}</strong> remaining
-                      </span>
-                    </div>
-                    <label>
-                      <span>Quantity</span>
-                      <input
-                        type="number"
-                        min="1"
-                        max="99"
-                        value={item.quantity}
-                        disabled={busy}
-                        onChange={(event) => void onQuantity(item.productId, Number(event.currentTarget.value))}
-                      />
-                    </label>
-                    <button type="button" onClick={() => void onRemove(item.productId)} disabled={busy}>Remove</button>
-                  </li>
-                  );
-                })}
-              </ul>
-            )}
-            <div className="buyer-checkout-total"><span>Subtotal</span><strong>{formatBuyerPrice(cart?.subtotalCents ?? 0)}</strong></div>
-            <button className="button primary" type="button" disabled={!cart?.items.length || busy} onClick={() => onStep('address')}>
-              Checkout
-            </button>
-          </div>
-        ) : null}
 
         {step === 'address' ? (
           <form className="buyer-checkout-body buyer-checkout-form" onSubmit={submitAddress}>
@@ -312,7 +262,7 @@ export function BuyerCheckoutDrawer(props: BuyerCheckoutDrawerProps) {
             <label>ZIP code<input required value={draft.postalCode} onChange={(event) => updateDraft('postalCode', event.currentTarget.value)} /></label>
             <label>Country<input required value={draft.country} onChange={(event) => updateDraft('country', event.currentTarget.value)} /></label>
             <div className="buyer-checkout-actions wide">
-              <button className="button secondary" type="button" onClick={() => onStep('cart')}>Back</button>
+              <button className="button secondary" type="button" onClick={onBackToCart}>Back to held items</button>
               <button className="button primary" type="submit" disabled={busy}>{busy ? 'Finding rates…' : 'Find shipping rates'}</button>
             </div>
           </form>
@@ -381,7 +331,9 @@ export function BuyerCheckoutProvider({
 }: PropsWithChildren<{ eventId: string; apiBaseUrl?: string }>) {
   const { buyerId } = useBuyerIdentity();
   const [open, setOpen] = useState(false);
-  const [step, setStep] = useState<BuyerCheckoutStep>('cart');
+  const [cartOpen, setCartOpen] = useState(false);
+  const [cartError, setCartError] = useState<string>();
+  const [step, setStep] = useState<BuyerCheckoutStep>('address');
   const [cartId, setCartId] = useState(() => readBuyerCartId(buyerId));
   const [draft, setDraft] = useState<CheckoutDraft>(EMPTY_DRAFT);
   const [rates, setRates] = useState<BuyerShippingRate[]>([]);
@@ -479,23 +431,24 @@ export function BuyerCheckoutProvider({
     setCartId(normalized);
   }, [buyerId]);
 
+  // A hold opens the CART drawer, not the checkout flow: the buyer has reserved
+  // something, not started paying for it.
   const addHeldProduct = useCallback(async (product: BuyerProduct): Promise<BuyerCart> => {
-    setOpen(true);
-    setStep('cart');
+    setCartOpen(true);
     setBusy(true);
-    setError(undefined);
+    setCartError(undefined);
     try {
       const heldCart = await mutateHoldProduct({ product });
       adoptCartId(heldCart.id);
       setNowMs(Date.now());
       return heldCart;
     } catch (caught) {
-      fail(caught);
+      setCartError(caught instanceof Error ? caught.message : 'That item could not be held.');
       throw caught;
     } finally {
       setBusy(false);
     }
-  }, [adoptCartId, fail, mutateHoldProduct]);
+  }, [adoptCartId, mutateHoldProduct]);
 
   const activeDeadlines = useMemo(() => cart?.items
     .map((item) => item.expiresAt ? Date.parse(item.expiresAt) : Number.NaN)
@@ -511,13 +464,17 @@ export function BuyerCheckoutProvider({
     if (!cart || expiryRefreshInFlight.current === cart.updatedAt) return;
     const hasExpiredItem = cart.items.some((item) => holdRemainingMs(item.expiresAt, nowMs) === 0);
     if (!hasExpiredItem) return;
+    // An expiry invalidates any quote derived from the cart, so the flow is
+    // wound back to the held-items drawer rather than left on a stale step.
     expiryRefreshInFlight.current = cart.updatedAt;
     cartQuery.invalidate();
     setRates([]);
     setSelectedRateId('');
     setCheckout(null);
-    setStep('cart');
-    setError('A two-minute hold expired. The item is available to other buyers again.');
+    setStep('address');
+    setOpen(false);
+    setCartOpen(true);
+    setCartError('A two-minute hold expired. The item is available to other buyers again.');
   }, [cart, cartQuery, nowMs]);
 
   const address: BuyerShippingAddress = useMemo(() => ({
@@ -591,42 +548,80 @@ export function BuyerCheckoutProvider({
     }
   };
 
-  const changeQuantity = async (productId: string, quantity: number) => {
-    if (!cart || !Number.isInteger(quantity) || quantity < 1 || quantity > 99) return;
-    setBusy(true);
-    try {
-      await mutateQuantity({ cartId: cart.id, productId, quantity });
-    } catch (caught) {
-      fail(caught);
-    } finally {
-      setBusy(false);
-    }
-  };
+  /**
+   * The holds/expiry seam the shared cart drawer is driven through. Writes
+   * REJECT rather than swallowing into the drawer-wide error: the drawer turns a
+   * rejection into that line's own alert, which is the only place a "this
+   * specific hold could not move" message means anything.
+   */
+  const cartAdapter = useMemo<BuyerCartAdapter>(() => ({
+    hold: addHeldProduct,
+    setQuantity: async (productId, quantity) => {
+      if (!cart) throw new Error('There is no cart to update yet.');
+      setBusy(true);
+      try {
+        return await mutateQuantity({ cartId: cart.id, productId, quantity });
+      } finally {
+        setBusy(false);
+      }
+    },
+    remove: async (productId) => {
+      if (!cart) throw new Error('There is no cart to update yet.');
+      setBusy(true);
+      try {
+        return await mutateRemove({ cartId: cart.id, productId });
+      } finally {
+        setBusy(false);
+      }
+    },
+    // GET /cart/:id prunes expired holds on read, so this is also the recovery
+    // path from an expiry the client noticed first.
+    refresh: () => cartQuery.invalidate(),
+  }), [addHeldProduct, cart, cartQuery, mutateQuantity, mutateRemove]);
 
-  const remove = async (productId: string) => {
-    if (!cart) return;
-    setBusy(true);
-    try {
-      await mutateRemove({ cartId: cart.id, productId });
-    } catch (caught) {
-      fail(caught);
-    } finally {
-      setBusy(false);
-    }
-  };
+  const openHeldItems = useCallback(() => {
+    setCartError(undefined);
+    setCartOpen(true);
+  }, []);
+
+  // The handoff, in both directions: the cart drawer owns held items, this flow
+  // owns address→payment, and exactly one of them is open at a time.
+  const beginCheckout = useCallback(() => {
+    setCartOpen(false);
+    setStep('address');
+    setError(undefined);
+    setOpen(true);
+  }, []);
+
+  const backToCart = useCallback(() => {
+    setOpen(false);
+    openHeldItems();
+  }, [openHeldItems]);
 
   const contextValue = useMemo<BuyerCheckoutActions>(() => ({
     holdProduct: addHeldProduct,
-    openHeldItems: () => { setStep('cart'); setOpen(true); setError(undefined); },
+    openHeldItems,
     adoptCartId,
     cartId,
     heldItemCount: cart?.items.reduce((sum, item) => sum + item.quantity, 0) ?? 0,
     heldProductIds: cart?.items.map((item) => item.productId) ?? [],
-  }), [addHeldProduct, adoptCartId, cart, cartId]);
+  }), [addHeldProduct, adoptCartId, cart, cartId, openHeldItems]);
 
   return (
     <BuyerCheckoutContext.Provider value={contextValue}>
       {children}
+      <BuyerCartDrawer
+        open={cartOpen}
+        onOpenChange={setCartOpen}
+        heldItemCount={contextValue.heldItemCount}
+        cart={cart}
+        nowMs={nowMs}
+        busy={busy}
+        error={cartError}
+        adapter={cartAdapter}
+        onCheckout={beginCheckout}
+        onClose={() => setCartOpen(false)}
+      />
       <BuyerCheckoutDrawer
         open={open}
         step={step}
@@ -637,7 +632,6 @@ export function BuyerCheckoutProvider({
         checkout={checkout}
         completedOrder={completedOrder}
         busy={busy}
-        nowMs={nowMs}
         error={error}
         onClose={() => setOpen(false)}
         onStep={setStep}
@@ -646,8 +640,7 @@ export function BuyerCheckoutProvider({
         onSelectRate={setSelectedRateId}
         onStartCheckout={startCheckout}
         onConfirm={confirm}
-        onQuantity={changeQuantity}
-        onRemove={remove}
+        onBackToCart={backToCart}
         onError={setError}
       />
     </BuyerCheckoutContext.Provider>

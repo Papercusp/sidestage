@@ -3,7 +3,7 @@
 .buyer-checkout-drawer { position: relative; width: min(100%, 34rem); height: 100%; overflow-y: auto; background: var(--surface); border-left: 1px solid var(--line); box-shadow: -1.5rem 0 4rem color-mix(in srgb, var(--ink) 18%, transparent); }
 .buyer-checkout-header { position: sticky; top: 0; z-index: 2; display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding: 1.25rem 1.4rem; background: color-mix(in srgb, var(--surface) 94%, transparent); border-bottom: 1px solid var(--line); backdrop-filter: blur(16px); }
 .buyer-checkout-header h2 { margin: .15rem 0 0; }
-.buyer-checkout-progress { display: grid; grid-template-columns: repeat(4, 1fr); gap: .4rem; margin: 0; padding: 1rem 1.4rem; list-style: none; border-bottom: 1px solid var(--line); }
+.buyer-checkout-progress { display: grid; grid-template-columns: repeat(3, 1fr); gap: .4rem; margin: 0; padding: 1rem 1.4rem; list-style: none; border-bottom: 1px solid var(--line); }
 .buyer-checkout-progress li { display: flex; align-items: center; gap: .35rem; color: var(--muted); font-size: .68rem; text-transform: capitalize; }
 .buyer-checkout-progress li::first-letter { display: grid; place-items: center; }
 .buyer-checkout-progress li.active { color: var(--brand-red); font-weight: 700; }
