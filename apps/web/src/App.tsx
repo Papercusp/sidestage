@@ -120,32 +120,32 @@ export function App() {
         />
 
         <BuyerCheckoutProvider eventId={activeEventId}>
-        {tab === 'buyer' ? (
+          {tab === 'buyer' ? (
             <BuyerTab
               eventId={activeEventId}
               eventTitle={DEFAULT_EVENT_TITLE}
               mediaBaseUrl={mediaBaseUrl()}
               guideEvents={guideEvents}
             />
-        ) : null}
-        {tab === 'orders' ? <OrdersTab /> : null}
-        {tab === 'seller' ? (
-          <SellerTab
-            selectedProduct={selectedProduct}
-            selectedProductId={selectedProductId}
-            transcriptProducts={transcriptProducts}
-            onActiveProductChange={setSelectedProductId}
-          />
-        ) : null}
-        {tab === 'history' ? <BuildHistoryTab /> : null}
-        {tab === 'test' ? <SystemTestsTab /> : null}
-        {layout.showFooter ? (
-          <footer className="footer">
-            <span>SideStage preview</span>
-            <AppDownloadButtons />
-            <span>Built for the live-selling floor</span>
-          </footer>
-        ) : null}
+          ) : null}
+          {tab === 'orders' ? <OrdersTab /> : null}
+          {tab === 'seller' ? (
+            <SellerTab
+              selectedProduct={selectedProduct}
+              selectedProductId={selectedProductId}
+              transcriptProducts={transcriptProducts}
+              onActiveProductChange={setSelectedProductId}
+            />
+          ) : null}
+          {tab === 'history' ? <BuildHistoryTab /> : null}
+          {tab === 'test' ? <SystemTestsTab /> : null}
+          {layout.showFooter ? (
+            <footer className="footer">
+              <span>SideStage preview</span>
+              <AppDownloadButtons />
+              <span>Built for the live-selling floor</span>
+            </footer>
+          ) : null}
         </BuyerCheckoutProvider>
       </main>
     </div>
