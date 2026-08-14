@@ -13,8 +13,10 @@ import {
 import {
   SELLER_ACTIVE_DOCK_LAYOUT_NAME,
   SELLER_DOCK_LAYOUT_NAME,
+  SELLER_MANAGER_DOCK_LAYOUT_NAME,
   sellerActiveEventDockDefaultLayout,
   sellerDockDefaultLayout,
+  sellerEventManagerDockDefaultLayout,
 } from './seller-dock-layout';
 
 /**
@@ -222,6 +224,25 @@ export function migrateSellerActiveEventLayout(layout: LayoutDoc): LayoutDoc {
 }
 
 /**
+ * Converge every saved Event Manager board on its one remaining dock pane.
+ *
+ * Event Settings and Run-of-show authoring now live inside Event Manager as
+ * selected-event tabs. A layout saved by an older build can therefore name
+ * panel types this build intentionally no longer registers. A canonical
+ * single-panel layout keeps its geometry; every other shape is reseeded to the
+ * single Event Manager pane before Dockview sees it.
+ */
+export function migrateSellerEventManagerLayout(layout: LayoutDoc): LayoutDoc {
+  const canonicalRoot = layout.root.kind === 'tabs'
+    && layout.root.panels.length === 1
+    && layout.root.panels[0]?.id === 'event-manager'
+    && layout.root.panels[0]?.type === 'event-manager'
+    && layout.root.activePanelId === 'event-manager';
+  const hasFloatingPanels = (layout.floating?.some((group) => group.panels.length > 0)) ?? false;
+  return canonicalRoot && !hasFloatingPanels ? layout : sellerEventManagerDockDefaultLayout();
+}
+
+/**
  * Return a copy of `layout` with `panelId` selected in its containing strip.
  * `null` means the panel was removed from the saved layout.
  *
@@ -294,9 +315,13 @@ export function createSellerDockStore(opts: SellerDockStoreOptions = {}): DockLa
   };
 
   const migrate = async (name: string, row: DockLayoutRow): Promise<DockLayoutRow> => {
-    if (name !== SELLER_ACTIVE_DOCK_LAYOUT_NAME || row.schemaVersion !== 1) return row;
+    if (row.schemaVersion !== 1) return row;
     const current = row.layoutJson as LayoutDoc;
-    const migrated = migrateSellerActiveEventLayout(current);
+    const migrated = name === SELLER_ACTIVE_DOCK_LAYOUT_NAME
+      ? migrateSellerActiveEventLayout(current)
+      : name === SELLER_MANAGER_DOCK_LAYOUT_NAME
+        ? migrateSellerEventManagerLayout(current)
+        : current;
     if (migrated === current) return row;
     return inner.save(name, migrated, { expectedUpdatedTs: row.updatedTs });
   };

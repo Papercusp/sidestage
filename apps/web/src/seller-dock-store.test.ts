@@ -15,6 +15,7 @@ import {
   createSellerDockStore,
   foregroundSellerDockPanel,
   migrateSellerActiveEventLayout,
+  migrateSellerEventManagerLayout,
   requestSellerDockLayoutReset,
   sellerDockStorageKey,
 } from './seller-dock-store';
@@ -165,10 +166,9 @@ describe('createSellerDockStore — round trip', () => {
     expect(JSON.parse(store.get(KEY)!).layoutJson).toEqual(migratedLayout);
   });
 
-  it('foregrounds the route panel while preserving the saved manager geometry', async () => {
+  it('preserves a canonical single-pane manager layout and its saved geometry', async () => {
     const saved = sellerEventManagerDockDefaultLayout();
     const root = saved.root as { activePanelId: string; size?: number };
-    root.activePanelId = 'run-of-show-planner';
     root.size = 731;
     await createSellerDockStore({ seed: sellerEventManagerDockDefaultLayout }).save(
       SELLER_MANAGER_DOCK_LAYOUT_NAME,
@@ -188,11 +188,68 @@ describe('createSellerDockStore — round trip', () => {
     );
   });
 
+  it('migrates screenshot-era manager layouts to one Event Manager pane', async () => {
+    const legacy: LayoutDoc = {
+      schemaVersion: 1,
+      root: {
+        kind: 'group',
+        id: 'legacy-manager-root',
+        direction: 'row',
+        children: [
+          {
+            kind: 'tabs',
+            id: 'event-manager-group',
+            activePanelId: 'event-manager',
+            panels: [{ id: 'event-manager', type: 'event-manager', title: 'Event manager' }],
+            size: 500,
+          },
+          {
+            kind: 'tabs',
+            id: 'event-settings-group',
+            activePanelId: 'event-settings',
+            panels: [{ id: 'event-settings', type: 'event-settings', title: 'Event settings' }],
+            size: 250,
+          },
+          {
+            kind: 'tabs',
+            id: 'run-of-show-planner-group',
+            activePanelId: 'run-of-show-planner',
+            panels: [{ id: 'run-of-show-planner', type: 'run-of-show-planner', title: 'Run of show' }],
+            size: 250,
+          },
+        ],
+      },
+    };
+
+    expect(migrateSellerEventManagerLayout(legacy)).toEqual(sellerEventManagerDockDefaultLayout());
+    const canonical = sellerEventManagerDockDefaultLayout();
+    expect(migrateSellerEventManagerLayout(canonical)).toBe(canonical);
+
+    await createSellerDockStore({ seed: sellerEventManagerDockDefaultLayout }).save(
+      SELLER_MANAGER_DOCK_LAYOUT_NAME,
+      legacy,
+    );
+    const row = await createSellerDockStore({
+      seed: sellerEventManagerDockDefaultLayout,
+      foregroundPanelId: 'event-manager',
+    }).load(SELLER_MANAGER_DOCK_LAYOUT_NAME);
+
+    expect(row.layoutJson).toEqual(sellerEventManagerDockDefaultLayout());
+    expect(JSON.parse(store.get(sellerDockStorageKey(SELLER_MANAGER_DOCK_LAYOUT_NAME))!).layoutJson)
+      .toEqual(sellerEventManagerDockDefaultLayout());
+  });
+
   it('reseeds a manager layout that no longer contains its route panel', async () => {
-    const incomplete = sellerEventManagerDockDefaultLayout();
-    const root = incomplete.root as { activePanelId: string; panels: Array<{ id: string }> };
-    root.panels = root.panels.filter((panel) => panel.id !== 'event-manager');
-    root.activePanelId = 'run-of-show-planner';
+    const incomplete: LayoutDoc = {
+      schemaVersion: 1,
+      root: {
+        kind: 'tabs',
+        id: 'run-of-show-planner-group',
+        activePanelId: 'run-of-show-planner',
+        panels: [{ id: 'run-of-show-planner', type: 'run-of-show-planner', title: 'Run of show' }],
+        size: 1000,
+      },
+    };
     await createSellerDockStore({ seed: sellerEventManagerDockDefaultLayout }).save(
       SELLER_MANAGER_DOCK_LAYOUT_NAME,
       incomplete,
