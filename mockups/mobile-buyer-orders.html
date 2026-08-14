@@ -1,0 +1,866 @@
+<title>SideStage Mobile Spec</title>
+<style>
+  /* ─── SPEC-SHEET CHROME: cool, theme-aware. Deliberately NOT the product palette,
+         so the reader can always tell my annotation from the app itself. ─── */
+  :root {
+    --chrome-bg:      #F1F3F6;
+    --chrome-surface: #FFFFFF;
+    --chrome-sunken:  #E7EAEF;
+    --chrome-ink:     #171B20;
+    --chrome-ink-2:   #3C444E;
+    --chrome-muted:   #626B77;
+    --chrome-rule:    #D9DEE5;
+    --chrome-key:     #B3200F;
+    --chrome-ok:      #17693F;
+    --chrome-warn:    #8A5A00;
+    --chrome-shadow:  0 1px 2px rgba(16,22,30,.05), 0 10px 30px rgba(16,22,30,.07);
+    --frame-metal:    linear-gradient(160deg,#2C3238,#171B20 55%,#2C3238);
+
+    /* ─── APP CANVAS: the product's OWN tokens, read off the running app.
+           These NEVER invert — a device screen shows the app's light theme
+           regardless of what theme this spec sheet is being read in. ─── */
+    --app-bg:      #FFF8EF;
+    --app-wash:    linear-gradient(180deg,#FFF3E2 0%,#FFF8EF 38%,#FFFAF3 100%);
+    --app-surface: #FFFDF8;
+    --app-ink:     #2A1F1A;
+    --app-accent:  #D62B1F;
+    --app-border:  #EBDFCC;
+    --app-muted:   #77685A;
+    --app-green:   #1B7A4B;
+    --app-greenbg: #E7F3EA;
+    --app-stage:   #231C18;
+
+    --mono: ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas, monospace;
+    --sans: system-ui, -apple-system, "Segoe UI", Helvetica, Arial, sans-serif;
+    --ios:  -apple-system, "SF Pro Text", "SF Pro Display", "Helvetica Neue", Helvetica, Arial, sans-serif;
+    --droid: Roboto, "Noto Sans", "Droid Sans", system-ui, Arial, sans-serif;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --chrome-bg:      #101316;
+      --chrome-surface: #191D22;
+      --chrome-sunken:  #0B0E10;
+      --chrome-ink:     #E9ECF0;
+      --chrome-ink-2:   #C2C9D2;
+      --chrome-muted:   #8B95A1;
+      --chrome-rule:    #272D34;
+      --chrome-key:     #FF7A66;
+      --chrome-ok:      #5FD39B;
+      --chrome-warn:    #E0B15C;
+      --chrome-shadow:  0 1px 2px rgba(0,0,0,.4), 0 10px 30px rgba(0,0,0,.45);
+    }
+  }
+  :root[data-theme="dark"] {
+    --chrome-bg:      #101316;
+    --chrome-surface: #191D22;
+    --chrome-sunken:  #0B0E10;
+    --chrome-ink:     #E9ECF0;
+    --chrome-ink-2:   #C2C9D2;
+    --chrome-muted:   #8B95A1;
+    --chrome-rule:    #272D34;
+    --chrome-key:     #FF7A66;
+    --chrome-ok:      #5FD39B;
+    --chrome-warn:    #E0B15C;
+    --chrome-shadow:  0 1px 2px rgba(0,0,0,.4), 0 10px 30px rgba(0,0,0,.45);
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--chrome-bg);
+    color: var(--chrome-ink);
+    font-family: var(--sans);
+    line-height: 1.55;
+    -webkit-font-smoothing: antialiased;
+  }
+  .wrap { max-width: 1180px; margin: 0 auto; padding: 40px 24px 96px; }
+
+  .eyebrow {
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: .14em;
+    text-transform: uppercase;
+    color: var(--chrome-key);
+    margin: 0 0 14px;
+  }
+  h1 {
+    font-size: clamp(34px, 6vw, 54px);
+    line-height: 1.02;
+    letter-spacing: -.03em;
+    font-weight: 800;
+    margin: 0 0 16px;
+    text-wrap: balance;
+  }
+  .lede { font-size: 18px; color: var(--chrome-ink-2); max-width: 62ch; margin: 0 0 28px; }
+
+  .meta {
+    display: flex; flex-wrap: wrap; gap: 10px;
+    padding: 0 0 32px; margin: 0 0 36px;
+    border-bottom: 1px solid var(--chrome-rule);
+  }
+  .tag {
+    font-family: var(--mono); font-size: 11.5px; letter-spacing: .04em;
+    padding: 6px 11px; border-radius: 999px;
+    border: 1px solid var(--chrome-rule); background: var(--chrome-surface);
+    color: var(--chrome-ink-2); white-space: nowrap;
+  }
+  .tag.key { border-color: var(--chrome-key); color: var(--chrome-key); }
+
+  .callout {
+    background: var(--chrome-surface);
+    border: 1px solid var(--chrome-rule);
+    border-left: 3px solid var(--chrome-key);
+    border-radius: 6px;
+    padding: 20px 22px;
+    margin: 0 0 44px;
+    box-shadow: var(--chrome-shadow);
+  }
+  .callout h2 { font-size: 15px; margin: 0 0 10px; letter-spacing: -.01em; }
+  .callout ul { margin: 0; padding-left: 20px; color: var(--chrome-ink-2); font-size: 14.5px; }
+  .callout li { margin-bottom: 6px; }
+  .callout li:last-child { margin-bottom: 0; }
+
+  h2.section {
+    font-size: 13px; font-family: var(--mono); letter-spacing: .1em;
+    text-transform: uppercase; color: var(--chrome-muted);
+    margin: 0 0 6px; font-weight: 600;
+  }
+  h3.screen-title {
+    font-size: 27px; letter-spacing: -.02em; margin: 0 0 8px; font-weight: 750;
+  }
+  .screen-note { color: var(--chrome-ink-2); max-width: 68ch; margin: 0 0 26px; font-size: 15px; }
+
+  .band {
+    background: var(--chrome-sunken);
+    border: 1px solid var(--chrome-rule);
+    border-radius: 10px;
+    padding: 34px 28px;
+    margin: 0 0 20px;
+    display: flex; flex-wrap: wrap; gap: 40px; justify-content: center;
+  }
+  section.screen { margin: 0 0 64px; }
+
+  /* ─── DEVICE FRAMES ─── */
+  .device { display: flex; flex-direction: column; align-items: center; gap: 12px; }
+  .device-cap {
+    font-family: var(--mono); font-size: 11px; letter-spacing: .06em;
+    color: var(--chrome-muted); text-align: center;
+  }
+  .device-cap b { color: var(--chrome-ink); font-weight: 600; letter-spacing: .02em; }
+  .frame { padding: 11px; background: var(--frame-metal); box-shadow: 0 18px 40px rgba(10,14,20,.28); }
+  .frame.ios     { border-radius: 46px; }
+  .frame.android { border-radius: 30px; padding: 9px; }
+  .screen {
+    position: relative; width: 320px; height: 668px; overflow: hidden;
+    background: var(--app-bg); background-image: var(--app-wash);
+    color: var(--app-ink); display: flex; flex-direction: column;
+  }
+  .frame.ios .screen     { border-radius: 36px; font-family: var(--ios); }
+  .frame.android .screen { border-radius: 22px; font-family: var(--droid); }
+
+  /* status bars */
+  .sb { display: flex; align-items: center; justify-content: space-between;
+        padding: 0 20px; font-size: 12.5px; font-weight: 600; color: var(--app-ink); flex: none; }
+  .frame.ios .sb     { height: 50px; padding-top: 12px; }
+  .frame.android .sb { height: 30px; font-size: 12px; font-weight: 500; }
+  .sb-icons { display: flex; align-items: center; gap: 5px; }
+  .island {
+    position: absolute; top: 11px; left: 50%; transform: translateX(-50%);
+    width: 106px; height: 30px; border-radius: 999px; background: #000; z-index: 5;
+  }
+  .punch {
+    position: absolute; top: 8px; left: 50%; transform: translateX(-50%);
+    width: 11px; height: 11px; border-radius: 50%; background: #000; z-index: 5;
+  }
+
+  /* app bar */
+  .appbar {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 6px 16px 10px; flex: none;
+  }
+  .brand { display: flex; align-items: center; gap: 8px; font-weight: 700; font-size: 15.5px; letter-spacing: -.01em; }
+  .mark {
+    width: 22px; height: 22px; border-radius: 50%; border: 1.5px solid var(--app-accent);
+    display: grid; place-items: center; flex: none;
+  }
+  .status-pill { display: flex; align-items: center; gap: 5px; font-size: 10.5px; color: var(--app-muted); }
+  .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--app-green); flex: none; }
+
+  /* scroll body */
+  .body { flex: 1; overflow: hidden; padding: 0 16px; }
+  .app-eyebrow {
+    font-size: 9.5px; font-weight: 700; letter-spacing: .13em; text-transform: uppercase;
+    color: var(--app-accent); margin: 6px 0 5px;
+  }
+  .app-h1 { font-size: 21px; font-weight: 800; letter-spacing: -.025em; margin: 0 0 4px; line-height: 1.1; }
+  .app-h1.big { font-size: 40px; letter-spacing: -.04em; line-height: .96; margin: 2px 0 8px; }
+  .app-sub { font-size: 11.5px; color: var(--app-muted); margin: 0 0 12px; line-height: 1.4; }
+
+  .stage {
+    background: var(--app-stage); border-radius: 10px; height: 116px;
+    display: flex; flex-direction: column; justify-content: flex-end; padding: 9px;
+    margin-bottom: 10px;
+  }
+  .stage-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+  .stage-label { font-size: 10px; color: #EFE4D6; font-weight: 600; }
+  .stage-hint { font-size: 8.5px; color: #A2968A; margin-top: 2px; }
+  .btn-accent {
+    background: var(--app-accent); color: #fff; font-size: 10px; font-weight: 700;
+    border: none; border-radius: 7px; padding: 7px 10px; white-space: nowrap;
+  }
+
+  .stats { display: grid; grid-template-columns: repeat(3,1fr); gap: 7px; margin-bottom: 10px; }
+  .stat {
+    background: var(--app-surface); border: 1px solid var(--app-border);
+    border-radius: 8px; padding: 7px 9px;
+  }
+  .stat b { display: block; font-size: 14px; font-weight: 750; letter-spacing: -.02em; }
+  .stat span { font-size: 8.5px; color: var(--app-muted); }
+
+  .roombar {
+    display: flex; align-items: center; justify-content: space-between;
+    background: var(--app-surface); border: 1px solid var(--app-border);
+    border-radius: 8px; padding: 8px 10px; margin-bottom: 10px;
+  }
+  .roombar-l { display: flex; align-items: center; gap: 6px; font-size: 9.5px; font-weight: 700;
+               letter-spacing: .08em; text-transform: uppercase; color: var(--app-muted); }
+  .chat-btn {
+    font-size: 10px; font-weight: 700; color: var(--app-accent);
+    border: 1px solid var(--app-accent); border-radius: 999px; padding: 4px 10px; background: transparent;
+  }
+
+  .card {
+    background: var(--app-surface); border: 1px solid var(--app-border);
+    border-radius: 10px; padding: 11px; margin-bottom: 12px;
+  }
+  .card-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; }
+  .pill-poll {
+    display: flex; align-items: center; gap: 4px; font-size: 8.5px; font-weight: 700;
+    border: 1px solid var(--app-border); border-radius: 999px; padding: 3px 8px; white-space: nowrap;
+  }
+  .empty-inner {
+    border: 1px dashed var(--app-border); border-radius: 8px; padding: 10px; margin-top: 9px;
+  }
+  .empty-inner b { font-size: 11.5px; }
+  .empty-inner p { font-size: 9.5px; color: var(--app-muted); margin: 3px 0 0; }
+
+  .rowhead { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 7px; }
+  .rowhead b { font-size: 17px; font-weight: 800; letter-spacing: -.025em; }
+  .rowhead span { font-size: 9.5px; color: var(--app-muted); }
+
+  .prod {
+    display: flex; align-items: center; gap: 9px; padding: 8px 0;
+    border-top: 1px solid var(--app-border);
+  }
+  .thumb {
+    width: 32px; height: 32px; border-radius: 7px; flex: none;
+    background: #F4E4D2; color: var(--app-accent);
+    display: grid; place-items: center; font-size: 12px; font-weight: 800;
+  }
+  .prod-main { flex: 1; min-width: 0; }
+  .prod-title {
+    font-size: 10.5px; font-weight: 600; line-height: 1.25;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .prod-meta { font-size: 8.5px; color: var(--app-muted); margin-top: 1px; }
+  .prod-right { text-align: right; flex: none; }
+  .prod-price { font-size: 11px; font-weight: 750; font-variant-numeric: tabular-nums; }
+  .ready {
+    display: inline-block; margin-top: 2px; font-size: 8px; font-weight: 600;
+    background: var(--app-greenbg); color: var(--app-green);
+    border-radius: 999px; padding: 1px 6px;
+  }
+  .hold-btn {
+    font-size: 9px; font-weight: 700; border: 1px solid var(--app-border);
+    background: var(--app-surface); border-radius: 6px; padding: 5px 8px; flex: none;
+  }
+
+  .orders-card {
+    background: var(--app-surface); border: 1px solid var(--app-border);
+    border-radius: 10px; padding: 11px; margin-bottom: 14px;
+  }
+  .orders-card .lbl {
+    font-size: 8.5px; font-weight: 700; letter-spacing: .1em;
+    text-transform: uppercase; color: var(--app-muted);
+  }
+  .orders-card .who { font-size: 13px; font-weight: 750; margin: 3px 0 9px; }
+  .refresh {
+    font-size: 10.5px; font-weight: 700; border: 1px solid var(--app-border);
+    background: var(--app-bg); border-radius: 7px; padding: 7px 13px;
+  }
+  .empty-big {
+    border: 1px dashed var(--app-border); border-radius: 10px;
+    padding: 30px 16px; text-align: center;
+  }
+  .empty-big b { display: block; font-size: 13.5px; margin: 10px 0 5px; letter-spacing: -.01em; }
+  .empty-big p { font-size: 10px; color: var(--app-muted); margin: 0; line-height: 1.45; }
+
+  /* tab bars */
+  .tabbar { flex: none; display: flex; }
+  .frame.ios .tabbar {
+    border-top: 1px solid var(--app-border);
+    background: rgba(255,253,248,.92);
+    padding: 7px 0 22px;
+  }
+  .frame.android .tabbar {
+    border-top: 1px solid var(--app-border);
+    background: var(--app-surface);
+    padding: 6px 0 14px;
+  }
+  .tab { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 3px; }
+  .tab span { font-size: 9.5px; color: var(--app-muted); font-weight: 500; }
+  .tab.on span { color: var(--app-accent); font-weight: 600; }
+  .frame.android .tab.on span { color: var(--app-ink); font-weight: 600; }
+  .tab-ico { color: var(--app-muted); display: block; }
+  .tab.on .tab-ico { color: var(--app-accent); }
+  /* Material 3 active indicator pill — Android only */
+  .frame.android .tab.on .ind {
+    background: #F6DCD8; border-radius: 999px; padding: 3px 17px; display: block;
+  }
+  .frame.android .tab.on .tab-ico { color: var(--app-accent); }
+  .home-ind {
+    position: absolute; bottom: 8px; left: 50%; transform: translateX(-50%);
+    width: 118px; height: 4px; border-radius: 999px; background: #2A1F1A; opacity: .32;
+  }
+  .gesture-pill {
+    position: absolute; bottom: 6px; left: 50%; transform: translateX(-50%);
+    width: 92px; height: 3px; border-radius: 999px; background: #2A1F1A; opacity: .28;
+  }
+
+  /* ─── ANNOTATION COLUMN ─── */
+  .notes { flex: 1 1 250px; min-width: 240px; max-width: 330px; align-self: flex-start; }
+  .notes h4 {
+    font-family: var(--mono); font-size: 10.5px; letter-spacing: .1em; text-transform: uppercase;
+    color: var(--chrome-muted); margin: 4px 0 14px; font-weight: 600;
+  }
+  .note { display: flex; gap: 10px; margin-bottom: 15px; }
+  .note-key {
+    font-family: var(--mono); font-size: 10px; font-weight: 700;
+    color: var(--chrome-key); border: 1px solid currentColor; border-radius: 4px;
+    padding: 1px 5px; height: fit-content; flex: none; letter-spacing: .02em;
+  }
+  .note-body { font-size: 13.5px; color: var(--chrome-ink-2); line-height: 1.5; }
+  .note-body b { color: var(--chrome-ink); font-weight: 650; }
+
+  /* ─── DELTA TABLE ─── */
+  .table-scroll { overflow-x: auto; border: 1px solid var(--chrome-rule); border-radius: 8px; background: var(--chrome-surface); }
+  table { border-collapse: collapse; width: 100%; min-width: 720px; font-size: 14px; }
+  th, td { text-align: left; padding: 13px 16px; border-bottom: 1px solid var(--chrome-rule); vertical-align: top; }
+  th {
+    font-family: var(--mono); font-size: 10.5px; letter-spacing: .08em; text-transform: uppercase;
+    color: var(--chrome-muted); font-weight: 600; background: var(--chrome-bg);
+  }
+  tr:last-child td { border-bottom: none; }
+  td.k { font-family: var(--mono); font-size: 11.5px; color: var(--chrome-key); font-weight: 700; white-space: nowrap; }
+  td.ios-c, td.and-c { color: var(--chrome-ink-2); }
+
+  .qs { counter-reset: q; margin: 0; padding: 0; list-style: none; }
+  .qs li {
+    background: var(--chrome-surface); border: 1px solid var(--chrome-rule);
+    border-radius: 8px; padding: 18px 20px; margin-bottom: 12px;
+  }
+  .qs li b { display: block; margin-bottom: 5px; font-size: 15px; letter-spacing: -.01em; }
+  .qs li p { margin: 0; color: var(--chrome-ink-2); font-size: 14px; }
+  .qs li p.mine { margin-top: 7px; color: var(--chrome-muted); font-size: 13.5px; }
+  .qs li p.mine em { color: var(--chrome-ok); font-style: normal; font-weight: 600; }
+
+  footer {
+    margin-top: 60px; padding-top: 22px; border-top: 1px solid var(--chrome-rule);
+    font-family: var(--mono); font-size: 11.5px; color: var(--chrome-muted); line-height: 1.7;
+  }
+  @media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
+  @media (max-width: 720px) { .wrap { padding: 28px 16px 64px; } .band { padding: 24px 12px; gap: 28px; } }
+</style>
+
+<div class="wrap">
+
+  <p class="eyebrow">Approval required · gate D-009</p>
+  <h1>SideStage Mobile</h1>
+  <p class="lede">
+    The Buyer and Orders screens for the iPhone and Android apps, drawn from the shipping web
+    app's real content and design tokens. Nothing about the mobile layout gets built until you
+    approve this — and once you do, this becomes the spec the two mobile fleets build from.
+  </p>
+
+  <div class="meta">
+    <span class="tag key">Awaiting your approval</span>
+    <span class="tag">iOS 17+ · SwiftUI</span>
+    <span class="tag">Android 13+ · Compose M3</span>
+    <span class="tag">Scope: Buyer + Orders only</span>
+    <span class="tag">2 screens × 2 platforms</span>
+  </div>
+
+  <div class="callout">
+    <h2>What approving this does</h2>
+    <ul>
+      <li><b>Opens the hold.</b> Six agents across the iPhone and Android fleets are parked on
+        screen layout, navigation and visual structure. Approval releases them.</li>
+      <li><b>Becomes the spec, not a reference.</b> The fleets build to these screens; deviations
+        come back to you rather than getting decided lane-by-lane.</li>
+      <li><b>Settles the platform deltas below.</b> The eight keyed differences stop being per-agent
+        judgement calls.</li>
+    </ul>
+  </div>
+
+  <!-- ══════════ SCREEN 1 — BUYER ══════════ -->
+  <section class="screen">
+    <h2 class="section">Screen 01</h2>
+    <h3 class="screen-title">Buyer — the live room</h3>
+    <p class="screen-note">
+      The web page stacks a stage, room stats, the auction panel and the product table in one
+      column, with chat in a right rail. A phone has no room for that rail, so it collapses to a
+      bar that opens chat as a sheet — the one structural change from web, and the first thing
+      worth your eye.
+    </p>
+
+    <div class="band">
+      <!-- ─── iOS ─── -->
+      <div class="device">
+        <div class="frame ios">
+          <div class="screen">
+            <div class="island"></div>
+            <div class="sb">
+              <span>9:41</span>
+              <span class="sb-icons">
+                <svg width="17" height="11" viewBox="0 0 17 11" aria-hidden="true"><rect x="0" y="7" width="3" height="4" rx="1" fill="currentColor"/><rect x="4.5" y="5" width="3" height="6" rx="1" fill="currentColor"/><rect x="9" y="2.5" width="3" height="8.5" rx="1" fill="currentColor"/><rect x="13.5" y="0" width="3" height="11" rx="1" fill="currentColor"/></svg>
+                <svg width="22" height="11" viewBox="0 0 22 11" aria-hidden="true"><rect x="0.5" y="0.5" width="18" height="10" rx="3" fill="none" stroke="currentColor" opacity=".45"/><rect x="2" y="2" width="13" height="7" rx="1.5" fill="currentColor"/><path d="M20.5 4v3a2 2 0 0 0 0-3z" fill="currentColor" opacity=".5"/></svg>
+              </span>
+            </div>
+            <div class="appbar">
+              <span class="brand">
+                <span class="mark"><svg width="10" height="10" viewBox="0 0 10 10" aria-hidden="true"><path d="M5 0l1.3 3.7L10 5 6.3 6.3 5 10 3.7 6.3 0 5l3.7-1.3z" fill="#D62B1F"/></svg></span>
+                SideStage
+              </span>
+              <span class="status-pill"><span class="dot"></span>Ready</span>
+            </div>
+            <div class="body">
+              <p class="app-eyebrow">Join the room</p>
+              <h1 class="app-h1">Sunday vintage drop</h1>
+              <p class="app-sub">Watch together, ask questions, and keep the good finds moving.</p>
+
+              <div class="stage">
+                <div class="stage-row">
+                  <div>
+                    <div class="stage-label">sunday-drop</div>
+                    <div class="stage-hint">The seller stream appears here when the room is live.</div>
+                  </div>
+                  <button class="btn-accent" type="button">Connect</button>
+                </div>
+              </div>
+
+              <div class="stats">
+                <div class="stat"><b>3</b><span>watching</span></div>
+                <div class="stat"><b>0</b><span>items sold</span></div>
+                <div class="stat"><b>$0.00</b><span>raised</span></div>
+              </div>
+
+              <div class="roombar">
+                <span class="roombar-l"><span class="dot"></span>In the room · 3 active</span>
+                <button class="chat-btn" type="button">Live chat</button>
+              </div>
+
+              <div class="card">
+                <div class="card-head">
+                  <div>
+                    <p class="app-eyebrow" style="margin-top:0">Live auction</p>
+                    <b style="font-size:13px;letter-spacing:-.02em">Bid from the room</b>
+                  </div>
+                  <span class="pill-poll"><span class="dot"></span>Polling</span>
+                </div>
+                <div class="empty-inner">
+                  <b>No auction is live yet.</b>
+                  <p>Stay here—the panel updates as soon as the seller starts one.</p>
+                </div>
+              </div>
+
+              <p class="app-eyebrow">On stage now</p>
+              <div class="rowhead"><b>Shop the drop</b><span>6 available</span></div>
+
+              <div class="prod">
+                <span class="thumb">N</span>
+                <span class="prod-main">
+                  <span class="prod-title">Nortel Passport 8630GBR</span>
+                  <span class="prod-meta">Nortel · NEW</span>
+                </span>
+                <span class="prod-right">
+                  <span class="prod-price">$49.99</span><br><span class="ready">97 ready</span>
+                </span>
+                <button class="hold-btn" type="button">Hold</button>
+              </div>
+              <div class="prod">
+                <span class="thumb">C</span>
+                <span class="prod-main">
+                  <span class="prod-title">Conbraco 25-505-00 Bronze</span>
+                  <span class="prod-meta">Conbraco · NEW</span>
+                </span>
+                <span class="prod-right">
+                  <span class="prod-price">$6,230.57</span><br><span class="ready">36 ready</span>
+                </span>
+                <button class="hold-btn" type="button">Hold</button>
+              </div>
+            </div>
+            <div class="tabbar">
+              <span class="tab on">
+                <svg class="tab-ico" width="21" height="21" viewBox="0 0 24 24" fill="none" aria-hidden="true"><rect x="3" y="5" width="18" height="13" rx="2.5" stroke="currentColor" stroke-width="1.9"/><path d="M10.5 9.5l4 2.5-4 2.5z" fill="currentColor"/></svg>
+                <span>Buyer</span>
+              </span>
+              <span class="tab">
+                <svg class="tab-ico" width="21" height="21" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M6 3h12v18l-3-2-3 2-3-2-3 2z" stroke="currentColor" stroke-width="1.9" stroke-linejoin="round"/><path d="M9.5 8.5h5M9.5 12.5h5" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/></svg>
+                <span>Orders</span>
+              </span>
+            </div>
+            <div class="home-ind"></div>
+          </div>
+        </div>
+        <p class="device-cap"><b>iPhone 15 Pro</b><br>393 × 852 pt · SF Pro</p>
+      </div>
+
+      <!-- ─── Android ─── -->
+      <div class="device">
+        <div class="frame android">
+          <div class="screen">
+            <div class="punch"></div>
+            <div class="sb">
+              <span>9:41</span>
+              <span class="sb-icons">
+                <svg width="13" height="10" viewBox="0 0 13 10" aria-hidden="true"><path d="M6.5 9.5L0 3a9.2 9.2 0 0 1 13 0z" fill="currentColor"/></svg>
+                <svg width="14" height="10" viewBox="0 0 14 10" aria-hidden="true"><rect x="0" y="6" width="2.5" height="4" fill="currentColor"/><rect x="3.7" y="4" width="2.5" height="6" fill="currentColor"/><rect x="7.4" y="2" width="2.5" height="8" fill="currentColor"/><rect x="11.1" y="0" width="2.5" height="10" fill="currentColor"/></svg>
+                <svg width="18" height="10" viewBox="0 0 18 10" aria-hidden="true"><rect x="0.5" y="0.5" width="15" height="9" rx="2" fill="none" stroke="currentColor" opacity=".5"/><rect x="2" y="2" width="10" height="6" rx="1" fill="currentColor"/><rect x="16.5" y="3.5" width="1.5" height="3" rx=".7" fill="currentColor" opacity=".5"/></svg>
+              </span>
+            </div>
+            <div class="appbar">
+              <span class="brand">
+                <span class="mark"><svg width="10" height="10" viewBox="0 0 10 10" aria-hidden="true"><path d="M5 0l1.3 3.7L10 5 6.3 6.3 5 10 3.7 6.3 0 5l3.7-1.3z" fill="#D62B1F"/></svg></span>
+                SideStage
+              </span>
+              <span class="status-pill"><span class="dot"></span>Ready</span>
+            </div>
+            <div class="body">
+              <p class="app-eyebrow">Join the room</p>
+              <h1 class="app-h1">Sunday vintage drop</h1>
+              <p class="app-sub">Watch together, ask questions, and keep the good finds moving.</p>
+
+              <div class="stage">
+                <div class="stage-row">
+                  <div>
+                    <div class="stage-label">sunday-drop</div>
+                    <div class="stage-hint">The seller stream appears here when the room is live.</div>
+                  </div>
+                  <button class="btn-accent" type="button">Connect</button>
+                </div>
+              </div>
+
+              <div class="stats">
+                <div class="stat"><b>3</b><span>watching</span></div>
+                <div class="stat"><b>0</b><span>items sold</span></div>
+                <div class="stat"><b>$0.00</b><span>raised</span></div>
+              </div>
+
+              <div class="roombar">
+                <span class="roombar-l"><span class="dot"></span>In the room · 3 active</span>
+                <button class="chat-btn" type="button">Live chat</button>
+              </div>
+
+              <div class="card">
+                <div class="card-head">
+                  <div>
+                    <p class="app-eyebrow" style="margin-top:0">Live auction</p>
+                    <b style="font-size:13px;letter-spacing:-.02em">Bid from the room</b>
+                  </div>
+                  <span class="pill-poll"><span class="dot"></span>Polling</span>
+                </div>
+                <div class="empty-inner">
+                  <b>No auction is live yet.</b>
+                  <p>Stay here—the panel updates as soon as the seller starts one.</p>
+                </div>
+              </div>
+
+              <p class="app-eyebrow">On stage now</p>
+              <div class="rowhead"><b>Shop the drop</b><span>6 available</span></div>
+
+              <div class="prod">
+                <span class="thumb">N</span>
+                <span class="prod-main">
+                  <span class="prod-title">Nortel Passport 8630GBR</span>
+                  <span class="prod-meta">Nortel · NEW</span>
+                </span>
+                <span class="prod-right">
+                  <span class="prod-price">$49.99</span><br><span class="ready">97 ready</span>
+                </span>
+                <button class="hold-btn" type="button">Hold</button>
+              </div>
+              <div class="prod">
+                <span class="thumb">C</span>
+                <span class="prod-main">
+                  <span class="prod-title">Conbraco 25-505-00 Bronze</span>
+                  <span class="prod-meta">Conbraco · NEW</span>
+                </span>
+                <span class="prod-right">
+                  <span class="prod-price">$6,230.57</span><br><span class="ready">36 ready</span>
+                </span>
+                <button class="hold-btn" type="button">Hold</button>
+              </div>
+            </div>
+            <div class="tabbar">
+              <span class="tab on">
+                <span class="ind"><svg class="tab-ico" width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true"><rect x="3" y="5" width="18" height="13" rx="2.5" stroke="currentColor" stroke-width="1.9"/><path d="M10.5 9.5l4 2.5-4 2.5z" fill="currentColor"/></svg></span>
+                <span>Buyer</span>
+              </span>
+              <span class="tab">
+                <span class="ind"><svg class="tab-ico" width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M6 3h12v18l-3-2-3 2-3-2-3 2z" stroke="currentColor" stroke-width="1.9" stroke-linejoin="round"/><path d="M9.5 8.5h5M9.5 12.5h5" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/></svg></span>
+                <span>Orders</span>
+              </span>
+            </div>
+            <div class="gesture-pill"></div>
+          </div>
+        </div>
+        <p class="device-cap"><b>Pixel 8</b><br>412 × 915 dp · Roboto</p>
+      </div>
+
+      <!-- ─── notes ─── -->
+      <div class="notes">
+        <h4>On this screen</h4>
+        <div class="note">
+          <span class="note-key">D6</span>
+          <span class="note-body"><b>The right rail becomes a sheet.</b> Web shows "In the room",
+            live chat and participants beside the stage. On a phone that becomes a one-line bar with
+            the live count, opening chat as a bottom sheet. This is the only structural departure
+            from web.</span>
+        </div>
+        <div class="note">
+          <span class="note-key">D2</span>
+          <span class="note-body"><b>Two tabs, not six.</b> Web has Buyer, Orders, Seller, Build
+            history, Config and Test. Mobile ships Buyer + Orders only, so the bar carries exactly
+            two items.</span>
+        </div>
+        <div class="note">
+          <span class="note-key">—</span>
+          <span class="note-body"><b>The product table stacks.</b> Four web columns
+            (product / price / availability / hold) become a row: thumbnail, title and brand, then
+            price with its ready-count, and Hold on the end.</span>
+        </div>
+        <div class="note">
+          <span class="note-key">—</span>
+          <span class="note-body"><b>Every empty state is kept verbatim.</b> "No auction is live
+            yet." and its follow-on line are the shipping copy, not rewritten.</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ══════════ SCREEN 2 — ORDERS ══════════ -->
+  <section class="screen">
+    <h2 class="section">Screen 02</h2>
+    <h3 class="screen-title">Orders — buyer history</h3>
+    <p class="screen-note">
+      Shown in its empty state, because that is what a new buyer actually meets first. The oversized
+      "My orders" is the web app's own display treatment carried across intact — it is the strongest
+      piece of type in the product and it survives the move to a phone.
+    </p>
+
+    <div class="band">
+      <!-- ─── iOS ─── -->
+      <div class="device">
+        <div class="frame ios">
+          <div class="screen">
+            <div class="island"></div>
+            <div class="sb">
+              <span>9:41</span>
+              <span class="sb-icons">
+                <svg width="17" height="11" viewBox="0 0 17 11" aria-hidden="true"><rect x="0" y="7" width="3" height="4" rx="1" fill="currentColor"/><rect x="4.5" y="5" width="3" height="6" rx="1" fill="currentColor"/><rect x="9" y="2.5" width="3" height="8.5" rx="1" fill="currentColor"/><rect x="13.5" y="0" width="3" height="11" rx="1" fill="currentColor"/></svg>
+                <svg width="22" height="11" viewBox="0 0 22 11" aria-hidden="true"><rect x="0.5" y="0.5" width="18" height="10" rx="3" fill="none" stroke="currentColor" opacity=".45"/><rect x="2" y="2" width="13" height="7" rx="1.5" fill="currentColor"/><path d="M20.5 4v3a2 2 0 0 0 0-3z" fill="currentColor" opacity=".5"/></svg>
+              </span>
+            </div>
+            <div class="appbar">
+              <span class="brand">
+                <span class="mark"><svg width="10" height="10" viewBox="0 0 10 10" aria-hidden="true"><path d="M5 0l1.3 3.7L10 5 6.3 6.3 5 10 3.7 6.3 0 5l3.7-1.3z" fill="#D62B1F"/></svg></span>
+                SideStage
+              </span>
+              <span class="status-pill"><span class="dot"></span>Ready</span>
+            </div>
+            <div class="body">
+              <p class="app-eyebrow">Buyer history</p>
+              <h1 class="app-h1 big">My orders</h1>
+              <p class="app-sub">Every checkout, auction win, and private offer for this demo
+                identity—plus the live moments behind each purchase.</p>
+
+              <div class="orders-card">
+                <div class="lbl">Showing orders for</div>
+                <div class="who">buyer-ff39f82b</div>
+                <button class="refresh" type="button">Refresh</button>
+              </div>
+
+              <div class="empty-big">
+                <svg width="26" height="26" viewBox="0 0 26 26" fill="none" aria-hidden="true">
+                  <circle cx="13" cy="13" r="11" stroke="#B98B3E" stroke-width="1.7"/>
+                  <circle cx="13" cy="13" r="4" fill="#B98B3E"/>
+                </svg>
+                <b>No orders for buyer-ff39f82b</b>
+                <p>Buy from a live, win an auction, or accept a private offer and it will show up here.</p>
+              </div>
+            </div>
+            <div class="tabbar">
+              <span class="tab">
+                <svg class="tab-ico" width="21" height="21" viewBox="0 0 24 24" fill="none" aria-hidden="true"><rect x="3" y="5" width="18" height="13" rx="2.5" stroke="currentColor" stroke-width="1.9"/><path d="M10.5 9.5l4 2.5-4 2.5z" fill="currentColor"/></svg>
+                <span>Buyer</span>
+              </span>
+              <span class="tab on">
+                <svg class="tab-ico" width="21" height="21" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M6 3h12v18l-3-2-3 2-3-2-3 2z" stroke="currentColor" stroke-width="1.9" stroke-linejoin="round"/><path d="M9.5 8.5h5M9.5 12.5h5" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/></svg>
+                <span>Orders</span>
+              </span>
+            </div>
+            <div class="home-ind"></div>
+          </div>
+        </div>
+        <p class="device-cap"><b>iPhone 15 Pro</b><br>pull-to-refresh · SF Pro</p>
+      </div>
+
+      <!-- ─── Android ─── -->
+      <div class="device">
+        <div class="frame android">
+          <div class="screen">
+            <div class="punch"></div>
+            <div class="sb">
+              <span>9:41</span>
+              <span class="sb-icons">
+                <svg width="13" height="10" viewBox="0 0 13 10" aria-hidden="true"><path d="M6.5 9.5L0 3a9.2 9.2 0 0 1 13 0z" fill="currentColor"/></svg>
+                <svg width="14" height="10" viewBox="0 0 14 10" aria-hidden="true"><rect x="0" y="6" width="2.5" height="4" fill="currentColor"/><rect x="3.7" y="4" width="2.5" height="6" fill="currentColor"/><rect x="7.4" y="2" width="2.5" height="8" fill="currentColor"/><rect x="11.1" y="0" width="2.5" height="10" fill="currentColor"/></svg>
+                <svg width="18" height="10" viewBox="0 0 18 10" aria-hidden="true"><rect x="0.5" y="0.5" width="15" height="9" rx="2" fill="none" stroke="currentColor" opacity=".5"/><rect x="2" y="2" width="10" height="6" rx="1" fill="currentColor"/><rect x="16.5" y="3.5" width="1.5" height="3" rx=".7" fill="currentColor" opacity=".5"/></svg>
+              </span>
+            </div>
+            <div class="appbar">
+              <span class="brand">
+                <span class="mark"><svg width="10" height="10" viewBox="0 0 10 10" aria-hidden="true"><path d="M5 0l1.3 3.7L10 5 6.3 6.3 5 10 3.7 6.3 0 5l3.7-1.3z" fill="#D62B1F"/></svg></span>
+                SideStage
+              </span>
+              <span class="status-pill"><span class="dot"></span>Ready</span>
+            </div>
+            <div class="body">
+              <p class="app-eyebrow">Buyer history</p>
+              <h1 class="app-h1 big">My orders</h1>
+              <p class="app-sub">Every checkout, auction win, and private offer for this demo
+                identity—plus the live moments behind each purchase.</p>
+
+              <div class="orders-card">
+                <div class="lbl">Showing orders for</div>
+                <div class="who">buyer-ff39f82b</div>
+                <button class="refresh" type="button">Refresh</button>
+              </div>
+
+              <div class="empty-big">
+                <svg width="26" height="26" viewBox="0 0 26 26" fill="none" aria-hidden="true">
+                  <circle cx="13" cy="13" r="11" stroke="#B98B3E" stroke-width="1.7"/>
+                  <circle cx="13" cy="13" r="4" fill="#B98B3E"/>
+                </svg>
+                <b>No orders for buyer-ff39f82b</b>
+                <p>Buy from a live, win an auction, or accept a private offer and it will show up here.</p>
+              </div>
+            </div>
+            <div class="tabbar">
+              <span class="tab">
+                <span class="ind"><svg class="tab-ico" width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true"><rect x="3" y="5" width="18" height="13" rx="2.5" stroke="currentColor" stroke-width="1.9"/><path d="M10.5 9.5l4 2.5-4 2.5z" fill="currentColor"/></svg></span>
+                <span>Buyer</span>
+              </span>
+              <span class="tab on">
+                <span class="ind"><svg class="tab-ico" width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M6 3h12v18l-3-2-3 2-3-2-3 2z" stroke="currentColor" stroke-width="1.9" stroke-linejoin="round"/><path d="M9.5 8.5h5M9.5 12.5h5" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/></svg></span>
+                <span>Orders</span>
+              </span>
+            </div>
+            <div class="gesture-pill"></div>
+          </div>
+        </div>
+        <p class="device-cap"><b>Pixel 8</b><br>M3 swipe-refresh · Roboto</p>
+      </div>
+
+      <div class="notes">
+        <h4>On this screen</h4>
+        <div class="note">
+          <span class="note-key">D3</span>
+          <span class="note-body"><b>"My orders" is the anchor.</b> Web sets it very large and very
+            tight. Roboto runs slightly wider than SF Pro at the same size, so Android drops one
+            step to hold it on a single line.</span>
+        </div>
+        <div class="note">
+          <span class="note-key">D8</span>
+          <span class="note-body"><b>Refresh exists twice.</b> The explicit button is kept because
+            web has it, and each platform adds its native pull gesture on top.</span>
+        </div>
+        <div class="note">
+          <span class="note-key">—</span>
+          <span class="note-body"><b>The buyer id stays visible.</b> It is how you tell which demo
+            identity you are looking at, so it keeps its own card rather than moving into a
+            header.</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ══════════ DELTAS ══════════ -->
+  <section class="screen">
+    <h2 class="section">Reference</h2>
+    <h3 class="screen-title">The eight platform deltas</h3>
+    <p class="screen-note">
+      Everywhere the two builds must legitimately differ. These are keyed so a lane can cite
+      "D4" instead of re-deciding it; anything not listed here should look identical on both.
+    </p>
+    <div class="table-scroll">
+      <table>
+        <thead>
+          <tr><th>Key</th><th>Concern</th><th>iOS</th><th>Android</th></tr>
+        </thead>
+        <tbody>
+          <tr><td class="k">D1</td><td>Top inset</td><td class="ios-c">Dynamic Island; 59pt safe area</td><td class="and-c">Punch-hole; 24dp status bar</td></tr>
+          <tr><td class="k">D2</td><td>Navigation</td><td class="ios-c">Bottom tab bar, label under icon, translucent material</td><td class="and-c">M3 navigation bar, pill indicator behind the active icon</td></tr>
+          <tr><td class="k">D3</td><td>Type</td><td class="ios-c">SF Pro Text / Display, Dynamic Type</td><td class="and-c">Roboto; +1 step line-height on dense rows</td></tr>
+          <tr><td class="k">D4</td><td>Back</td><td class="ios-c">Edge-swipe back must stay interactive</td><td class="and-c">System back (gesture or button) handled explicitly</td></tr>
+          <tr><td class="k">D5</td><td>Primary button</td><td class="ios-c">Filled, 10pt radius</td><td class="and-c">M3 filled, 20dp radius, full-width</td></tr>
+          <tr><td class="k">D6</td><td>Chat + participants</td><td class="ios-c">Sheet with detents, drag to dismiss</td><td class="and-c">M3 modal bottom sheet, scrim, back dismisses</td></tr>
+          <tr><td class="k">D7</td><td>Bottom inset</td><td class="ios-c">Home indicator; 34pt reserved</td><td class="and-c">Gesture pill; 16dp reserved</td></tr>
+          <tr><td class="k">D8</td><td>Refresh</td><td class="ios-c">Pull-to-refresh</td><td class="and-c">M3 swipe-refresh, circular indicator</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- ══════════ QUESTIONS ══════════ -->
+  <section class="screen">
+    <h2 class="section">Before the fleets build</h2>
+    <h3 class="screen-title">Three calls I made that are yours to confirm</h3>
+    <p class="screen-note">
+      Each of these is a real fork where the web design does not dictate the phone answer. I picked
+      one so you have something concrete to react to — say the word on any of them and I will change
+      it before the hold lifts.
+    </p>
+    <ol class="qs">
+      <li>
+        <b>Chat: a sheet, or a third tab?</b>
+        <p>Web keeps chat permanently beside the stage. A phone cannot, so it becomes a bar that
+          opens a sheet.</p>
+        <p class="mine"><em>My call:</em> the sheet — a third tab would break the Buyer + Orders
+          scope, and chat only matters while a room is open.</p>
+      </li>
+      <li>
+        <b>Hold: inline, or inside a product sheet?</b>
+        <p>Inline keeps buying one tap away but leaves the row tight; moving it into a tapped detail
+          sheet gives the product room to breathe.</p>
+        <p class="mine"><em>My call:</em> inline — on a live floor, speed of holding an item beats
+          detail.</p>
+      </li>
+      <li>
+        <b>The stage: inline, or full-bleed?</b>
+        <p>Full-bleed video looks better; inline keeps the watching / sold / raised stats visible
+          without scrolling.</p>
+        <p class="mine"><em>My call:</em> inline with gutters — the stats are the reason a seller
+          watches this screen.</p>
+      </li>
+    </ol>
+  </section>
+
+  <footer>
+    Content and tokens read from the running SideStage web app (Buyer and Orders tabs), not invented:
+    ivory #FFF8EF · ink #2A1F1A · vermilion #D62B1F · border #EBDFCC · muted #77685A.<br>
+    Gate D-009 · plans sidestage-iphone-app-2026-08-13 and sidestage-android-app-2026-08-13 · scope
+    Buyer + Orders per D-007 / D-008.
+  </footer>
+
+</div>

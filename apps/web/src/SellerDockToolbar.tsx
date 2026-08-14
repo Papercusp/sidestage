@@ -2,7 +2,8 @@ import { useEffect, useState, type RefObject } from 'react';
 import { requestSellerDockLayoutReset } from './seller-dock-store';
 
 /**
- * Seller dock toolbar (P-010) — currently just the reset-layout control.
+ * Seller dock toolbar (P-010 + WI-38724) — layout reset and whole-board
+ * fullscreen controls.
  *
  * P-010 requires a control that returns the dock to the default seller-grid
  * arrangement. `DockWorkspace` already implements the reset itself; what was
@@ -120,7 +121,11 @@ export function SellerDockToolbar({
           className="seller-dock-fullscreen"
           onClick={() => void toggleFullscreen()}
           aria-pressed={isFullscreen}
-          title={isFullscreen ? 'Return the seller board to the page' : 'Show the entire seller board in fullscreen'}
+          title={
+            isFullscreen
+              ? 'Return the seller board to the page'
+              : 'Show the entire seller board in fullscreen'
+          }
         >
           {isFullscreen ? 'Exit fullscreen' : 'Enter fullscreen'}
         </button>
