@@ -62,10 +62,9 @@ export function buyerProductsFromSyncRows(
 
 export async function openOrHoldBuyerProduct(
   product: BuyerProduct,
-  selectedProductId: string | null,
   checkout: BuyerCheckoutActions,
 ): Promise<'opened' | 'held'> {
-  if (selectedProductId === product.id) {
+  if (checkout.heldProductIds.includes(product.id)) {
     checkout.openHeldItems();
     return 'opened';
   }
@@ -173,7 +172,6 @@ export function BuyerTab({
   const thumbnailUrl = thumbnailUrlProp ?? fetchedThumbnailUrl;
   const room = useMemo(() => createEventRoom(eventId, origin), [eventId, origin]);
   const shareUrl = useMemo(() => buildBuyerShareUrl(eventId, origin), [eventId, origin]);
-  const [selectedProductId, setSelectedProductId] = useState<string | null>(null);
   const [holdNotice, setHoldNotice] = useState<string | null>(null);
   const [holdOverrides, setHoldOverrides] = useState<Record<string, number>>({});
   const [showAllProducts, setShowAllProducts] = useState(false);
@@ -186,6 +184,8 @@ export function BuyerTab({
   // hook rather than inventing a second notion of "current user".
   const { userId, impersonate } = useDemoIdentity();
   const buyerCheckout = useBuyerCheckout();
+  const heldProductIds = buyerCheckout?.heldProductIds ?? [];
+  const heldProductIdSet = useMemo(() => new Set(heldProductIds), [heldProductIds]);
 
   useEffect(() => {
     return () => stream.stop();
@@ -223,12 +223,11 @@ export function BuyerTab({
 
   /** A real reservation (P-103): the hold hits inventory and decrements availableQty. */
   const reserveProduct = async (product: BuyerProduct) => {
-    if (product.availableQty <= 0 && selectedProductId !== product.id) return;
+    if (product.availableQty <= 0 && !heldProductIdSet.has(product.id)) return;
     try {
       if (!buyerCheckout) throw new Error('Buyer checkout is unavailable');
-      const outcome = await openOrHoldBuyerProduct(product, selectedProductId, buyerCheckout);
+      const outcome = await openOrHoldBuyerProduct(product, buyerCheckout);
       if (outcome === 'opened') return;
-      setSelectedProductId(product.id);
       setHoldNotice(`${product.title} is held for you.`);
       setHoldOverrides((current) => ({
         ...current,
@@ -248,9 +247,9 @@ export function BuyerTab({
 
   const liveLabel = streamLabel(streamState);
   const productsWithLiveQuantity = useMemo(() => products.map((product) => {
-    const liveQty = holdOverrides[product.id];
+    const liveQty = heldProductIdSet.has(product.id) ? holdOverrides[product.id] : undefined;
     return liveQty === undefined ? product : { ...product, availableQty: liveQty };
-  }), [holdOverrides, products]);
+  }), [heldProductIdSet, holdOverrides, products]);
   const visibleProducts = availableBuyerProducts(productsWithLiveQuantity);
   const currentProduct = visibleProducts[0] ?? productsWithLiveQuantity[0] ?? null;
   const upcomingProducts = currentProduct
@@ -375,10 +374,10 @@ export function BuyerTab({
               <button
                 className="button primary buyer-current-offer-action"
                 type="button"
-                disabled={currentProduct.availableQty <= 0 && selectedProductId !== currentProduct.id}
+                disabled={currentProduct.availableQty <= 0 && !heldProductIdSet.has(currentProduct.id)}
                 onClick={() => void reserveProduct(currentProduct)}
               >
-                {selectedProductId === currentProduct.id
+                {heldProductIdSet.has(currentProduct.id)
                   ? 'Held for you'
                   : currentProduct.availableQty <= 0
                     ? 'Sold out'
@@ -433,11 +432,11 @@ export function BuyerTab({
               ) : null}
             </div>
           </div>
-          {holdNotice ? <p className="buyer-hold-notice" role="status">{holdNotice}</p> : null}
+          {holdNotice && heldProductIds.length > 0 ? <p className="buyer-hold-notice" role="status">{holdNotice}</p> : null}
           <div id="buyer-event-products" className="buyer-products-shell" aria-label="Event products">
             <BuyerProductRail
               products={displayedProducts}
-              selectedProductId={selectedProductId}
+              heldProductIds={heldProductIds}
               onHold={reserveProduct}
             />
           </div>
@@ -462,10 +461,10 @@ export function BuyerTab({
           <button
             className="button primary"
             type="button"
-            disabled={currentProduct.availableQty <= 0 && selectedProductId !== currentProduct.id}
+            disabled={currentProduct.availableQty <= 0 && !heldProductIdSet.has(currentProduct.id)}
             onClick={() => void reserveProduct(currentProduct)}
           >
-            {selectedProductId === currentProduct.id ? 'Held for you' : 'Hold item'}
+            {heldProductIdSet.has(currentProduct.id) ? 'Held for you' : 'Hold item'}
           </button>
         </div>
       ) : null}
