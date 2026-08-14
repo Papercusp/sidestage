@@ -179,7 +179,7 @@ export function SellerTab({
       onShareRoom: () => room && void copy(room.shareUrl),
       shareDisabled: !room,
       copyState,
-      chat: <EventChat {...eventChatProps} />,
+      chat: <EventChat {...eventChatProps} surface="audience-overlay" />,
     },
     transcript: {
       className: 'seller-transcript',
