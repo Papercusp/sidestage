@@ -77,7 +77,6 @@ describe('Studio board selection', () => {
     expect(manager.resetEventName).toContain('event-manager');
     expect(panelIds(manager.layoutSeed)).toEqual([
       'event-manager',
-      'event-settings',
       'run-of-show-planner',
     ]);
     expect(manager.layoutName).not.toBe(active.layoutName);
