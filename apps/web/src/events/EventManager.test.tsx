@@ -70,7 +70,7 @@ describe('EventManager', () => {
     }));
     expect(useDataImpl).toHaveBeenCalledWith(expect.objectContaining({
       queryName: 'events.mine',
-      args: {},
+      args: { sellerId: 'seller-27' },
     }));
     expect(markup).toContain('Live renamed drop');
     expect(markup).toContain('My events');

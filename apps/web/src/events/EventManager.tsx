@@ -31,6 +31,7 @@ import './event-manager.css';
 export interface EventManagerProps {
   eventId: string;
   actorId: string;
+  sellerName?: string;
   eventName?: string;
   apiBaseUrl?: string;
   initialItems?: readonly SellerEventItem[];
@@ -118,6 +119,7 @@ const EVENT_DETAIL_SECTIONS: ReadonlyArray<{
 export function EventManager({
   eventId,
   actorId,
+  sellerName,
   eventName = 'Seller event',
   apiBaseUrl,
   initialItems,
@@ -132,10 +134,11 @@ export function EventManager({
   const [sellerAuctionToken, setSellerAuctionToken] = useState(() => readSellerAuctionToken() ?? '');
   const [sellerAccessDraft, setSellerAccessDraft] = useState('');
   const [sellerAccessBusy, setSellerAccessBusy] = useState(false);
+  const sellerDisplayName = sellerName?.trim() || actorId;
 
   const directoryQuery = useSyncQuery<SellerOwnedEvent>({
     queryName: 'events.mine',
-    args: {},
+    args: { sellerId: actorId },
     enabled: initialEvents === undefined,
     pollIntervalMs: 15_000,
   });
@@ -180,8 +183,12 @@ export function EventManager({
   const readError = initialItems === undefined ? configQuery.error ?? itemsQuery.error : null;
 
   const setupFallback = useCallback(
-    async (payload: EventCreationPayload) => setupSellerEvent(payload, apiBaseUrl),
-    [apiBaseUrl],
+    async (payload: EventCreationPayload) => setupSellerEvent(
+      payload,
+      { sellerId: actorId, sellerName: sellerDisplayName },
+      apiBaseUrl,
+    ),
+    [actorId, apiBaseUrl, sellerDisplayName],
   );
   const mutateSetup = useSyncMutate<EventCreationPayload, SellerEventSetup>('event.setup', setupFallback);
 

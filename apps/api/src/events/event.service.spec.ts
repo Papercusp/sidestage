@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { ChatService } from '../chat/chat.service';
 import { SyncQueryRegistry } from '../sync/sync-query.registry';
@@ -74,9 +76,12 @@ describe('event directory (P-118 / D-019)', () => {
     const queries = new SyncQueryRegistry();
     new EventSyncQueries(service, queries).onModuleInit();
 
-    await expect(queries.resolve('events.mine', {})).resolves.toEqual([
+    await expect(queries.resolve('events.mine', { sellerId: 'demo-seller' })).resolves.toEqual([
       expect.objectContaining({ eventId: 'owned-live', status: 'live' }),
       expect.objectContaining({ eventId: 'owned-draft', status: 'draft' }),
+    ]);
+    await expect(queries.resolve('events.mine', { sellerId: 'seller-other' })).resolves.toEqual([
+      expect.objectContaining({ eventId: 'other-live', sellerId: 'seller-other' }),
     ]);
   });
 
@@ -237,7 +242,7 @@ describe('seller-created events reach the guide (EI-20426845001666103 / P-014)',
       eventId: 'acceptance-dock-thumbnail',
       name: 'Acceptance dock thumbnail',
       thumbnailUrl: 'data:image/png;base64,AAAA',
-    });
+    }, { sellerId: 'seller-acceptance', sellerName: 'Acceptance Studio' });
 
     const events = await service.listForGuide();
     expect(events).toHaveLength(1);
@@ -245,6 +250,8 @@ describe('seller-created events reach the guide (EI-20426845001666103 / P-014)',
       eventId: 'acceptance-dock-thumbnail',
       title: 'Acceptance dock thumbnail',
       status: 'scheduled',
+      sellerId: 'seller-acceptance',
+      sellerName: 'Acceptance Studio',
       thumbnailUrl: 'data:image/png;base64,AAAA',
     });
   });
@@ -252,7 +259,10 @@ describe('seller-created events reach the guide (EI-20426845001666103 / P-014)',
   it('publishes without a thumbnail as a row with no thumbnailUrl key', async () => {
     const service = new EventService(new InMemoryEventStore([]), new ChatService());
 
-    await service.publishFromConfig({ eventId: 'bare-event', name: 'Bare event' });
+    await service.publishFromConfig(
+      { eventId: 'bare-event', name: 'Bare event' },
+      { sellerId: 'seller-bare', sellerName: 'Bare Studio' },
+    );
 
     const [event] = await service.listForGuide();
     expect(event.eventId).toBe('bare-event');
@@ -274,7 +284,7 @@ describe('seller-created events reach the guide (EI-20426845001666103 / P-014)',
       eventId: 'live-show',
       name: 'New title',
       thumbnailUrl: 'https://example.com/t.png',
-    });
+    }, { sellerId: 'seller-x', sellerName: 'Seller X' });
 
     const [event] = await service.listForGuide();
     expect(event.title).toBe('New title');
@@ -306,5 +316,28 @@ describe('seller-created events reach the guide (EI-20426845001666103 / P-014)',
       title: 'Re-published probe',
       status: 'scheduled',
     });
+  });
+});
+
+describe('durable event seed isolation (P-003)', () => {
+  const demoSql = readFileSync(join(__dirname, '../../../../db/seed/demo.sql'), 'utf8');
+  const eventSection = demoSql.slice(demoSql.indexOf('-- ── Event directory'));
+
+  it('keeps showcase events in explicit memory mode but never inserts them into durable storage', () => {
+    const fixtures = demoEventRecords(new Date('2026-08-14T12:00:00.000Z'));
+    expect(fixtures).toHaveLength(8);
+    expect(eventSection).not.toMatch(/INSERT\s+INTO\s+event\s*\(/i);
+    for (const fixture of fixtures) {
+      expect(eventSection).toContain(`'${fixture.eventId}'`);
+    }
+  });
+
+  it('removes only legacy rows whose authored fixture identity and content still match', () => {
+    expect(eventSection).toContain('DELETE FROM event AS stored');
+    expect(eventSection).toContain('stored.seller_id = fixture.seller_id');
+    expect(eventSection).toContain('stored.seller_name = fixture.seller_name');
+    expect(eventSection).toContain('stored.title = fixture.title');
+    expect(eventSection).toContain('stored.thumbnail_url IS NOT DISTINCT FROM fixture.thumbnail_url');
+    expect(eventSection).not.toContain("'spring-preview-draft'");
   });
 });

@@ -36,10 +36,15 @@ describe('create → GET /events (EI-20426845001666103 / P-014)', () => {
   it('one config PUT makes the event appear in the buyer guide with its thumbnail', async () => {
     const { events, controller, invalidated } = build();
 
-    await controller.put('acceptance-dock-thumbnail-2026-08-14', {
-      name: 'Acceptance dock thumbnail',
-      thumbnailUrl: 'data:image/png;base64,AAAA',
-    });
+    await controller.put(
+      'acceptance-dock-thumbnail-2026-08-14',
+      {
+        name: 'Acceptance dock thumbnail',
+        thumbnailUrl: 'data:image/png;base64,AAAA',
+      },
+      'seller-acceptance',
+      'Acceptance Studio',
+    );
 
     const guide = await new EventController(events, {
       invalidate: () => undefined,
@@ -48,6 +53,8 @@ describe('create → GET /events (EI-20426845001666103 / P-014)', () => {
     expect(guide.events[0]).toMatchObject({
       eventId: 'acceptance-dock-thumbnail-2026-08-14',
       title: 'Acceptance dock thumbnail',
+      sellerId: 'seller-acceptance',
+      sellerName: 'Acceptance Studio',
       status: 'scheduled',
       thumbnailUrl: 'data:image/png;base64,AAAA',
     });
@@ -57,13 +64,42 @@ describe('create → GET /events (EI-20426845001666103 / P-014)', () => {
   it('a follow-up rename PUT updates the guide row without duplicating it', async () => {
     const { events, controller } = build();
 
-    await controller.put('my-drop', { name: 'My drop' });
-    await controller.put('my-drop', { name: 'My renamed drop' });
+    await controller.put('my-drop', { name: 'My drop' }, 'seller-renamer', 'Rename Studio');
+    await controller.put('my-drop', { name: 'My renamed drop' }, 'seller-renamer', 'Rename Studio');
 
     const guide = await new EventController(events, {
       invalidate: () => undefined,
     } as unknown as SyncInvalidationService).list();
     expect(guide.events).toHaveLength(1);
     expect(guide.events[0]?.title).toBe('My renamed drop');
+  });
+
+  it('publishes independently identified sellers together with their own display identities', async () => {
+    const { events, controller } = build();
+
+    await controller.put('alpha-drop', { name: 'Alpha drop' }, 'seller-alpha', 'Alpha Atelier');
+    await controller.put('beta-drop', { name: 'Beta drop' }, 'seller-beta', 'Beta Bazaar');
+
+    const guide = await new EventController(events, {
+      invalidate: () => undefined,
+    } as unknown as SyncInvalidationService).list();
+    expect(guide.events).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        eventId: 'alpha-drop',
+        sellerId: 'seller-alpha',
+        sellerName: 'Alpha Atelier',
+      }),
+      expect.objectContaining({
+        eventId: 'beta-drop',
+        sellerId: 'seller-beta',
+        sellerName: 'Beta Bazaar',
+      }),
+    ]));
+    await expect(events.listForSeller('seller-alpha')).resolves.toEqual([
+      expect.objectContaining({ eventId: 'alpha-drop', sellerName: 'Alpha Atelier' }),
+    ]);
+    await expect(events.listForSeller('seller-beta')).resolves.toEqual([
+      expect.objectContaining({ eventId: 'beta-drop', sellerName: 'Beta Bazaar' }),
+    ]);
   });
 });

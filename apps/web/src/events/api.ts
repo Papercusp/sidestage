@@ -33,6 +33,11 @@ export interface SellerEventSetup {
   items: SellerEventItem[];
 }
 
+export interface SellerIdentity {
+  sellerId: string;
+  sellerName: string;
+}
+
 export interface SellerActionResult {
   auditId: string;
   status: 'executed';
@@ -314,6 +319,7 @@ async function reserveAndRegister(
 
 export async function setupSellerEvent(
   payload: EventCreationPayload,
+  seller: SellerIdentity,
   apiBaseUrl?: string,
 ): Promise<SellerEventSetup> {
   const eventId = sellerEventId(payload.name);
@@ -321,6 +327,10 @@ export async function setupSellerEvent(
     eventUrl(`/events/${encodeURIComponent(eventId)}/config`, apiBaseUrl),
     {
       method: 'PUT',
+      headers: {
+        'x-seller-id': seller.sellerId,
+        'x-seller-name': seller.sellerName,
+      },
       // `thumbnailUrl` is tri-state server-side (absent keeps, null/'' clears,
       // a string replaces). JSON.stringify DROPS an undefined value, so an
       // event created without a thumbnail sends `{name}` exactly as before —

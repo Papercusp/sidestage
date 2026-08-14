@@ -222,6 +222,7 @@ export function SellerTab({
     'event-manager': {
       eventId,
       actorId: userId,
+      sellerName: userId,
       eventName: DEFAULT_EVENT_TITLE,
       apiBaseUrl: import.meta.env.VITE_API_URL,
       onEventReady: (nextEventId: string) => setEventId(nextEventId),

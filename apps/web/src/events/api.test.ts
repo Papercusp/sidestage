@@ -8,6 +8,8 @@ import {
   type SellerEventItem,
 } from './api';
 
+const SELLER = { sellerId: 'seller-27', sellerName: 'Studio 27' };
+
 function json(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {
     status,
@@ -57,10 +59,13 @@ describe('seller event API orchestration', () => {
     const result = await setupSellerEvent({
       name: 'Sunday drop',
       items: [{ catalogId: 'mug', groupId: 'mugs', eventPriceCents: 1_500, quantityLimit: 3 }],
-    });
+    }, SELLER);
 
     expect(result.items[0]).toMatchObject({ productId: 'mug', priceCents: 1_500, quantity: 3 });
     expect(calls.some((call) => call.url.endsWith('/inventory/mug/hold'))).toBe(true);
+    const configPut = calls.find((call) => call.url.endsWith('/events/sunday-drop/config') && call.init?.method === 'PUT');
+    expect(new Headers(configPut?.init?.headers).get('x-seller-id')).toBe('seller-27');
+    expect(new Headers(configPut?.init?.headers).get('x-seller-name')).toBe('Studio 27');
   });
 
   it('sends the thumbnail on the config PUT, and omits the key when there is none', async () => {
@@ -104,12 +109,12 @@ describe('seller event API orchestration', () => {
     const thumbnailUrl = 'data:image/png;base64,iVBORw0KGgo=';
 
     stub();
-    await setupSellerEvent({ name: 'Sunday drop', thumbnailUrl, items });
+    await setupSellerEvent({ name: 'Sunday drop', thumbnailUrl, items }, SELLER);
     expect(JSON.parse(configBodies[0])).toEqual({ name: 'Sunday drop', thumbnailUrl });
 
     vi.unstubAllGlobals();
     stub();
-    await setupSellerEvent({ name: 'Sunday drop', items });
+    await setupSellerEvent({ name: 'Sunday drop', items }, SELLER);
     // The KEY must be absent, not null: the API reads absent as "keep" and null
     // as "clear", so a null here would wipe a thumbnail on any later re-setup.
     const withoutThumbnail = JSON.parse(configBodies[1]) as Record<string, unknown>;

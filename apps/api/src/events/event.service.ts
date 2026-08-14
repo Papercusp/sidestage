@@ -352,13 +352,13 @@ export function compareForSeller(a: EventRecord, b: EventRecord): number {
   return a.title.localeCompare(b.title);
 }
 
-/**
- * Display identity for the demo seller until real seller identity lands
- * (P-119 / WI-38669 builds it on sidestage-standout-features): every event the
- * UI creates today is authored by the single demo seller, and the guide needs
- * a human-readable name, not a slug.
- */
+/** Display identity used only when an older caller omits seller headers. */
 export const DEFAULT_SELLER_NAME = 'SideStage Seller';
+
+export interface EventSellerIdentity {
+  sellerId: string;
+  sellerName: string;
+}
 
 @Injectable()
 export class EventService {
@@ -374,12 +374,15 @@ export class EventService {
    * create transaction yields a buyer-visible Channel Guide row with the
    * uploaded thumbnail.
    */
-  async publishFromConfig(config: { eventId: string; name: string; thumbnailUrl?: string }): Promise<void> {
+  async publishFromConfig(
+    config: { eventId: string; name: string; thumbnailUrl?: string },
+    seller: EventSellerIdentity,
+  ): Promise<void> {
     await this.store.publish({
       eventId: config.eventId,
       title: config.name,
-      sellerId: DEFAULT_SELLER_ID,
-      sellerName: DEFAULT_SELLER_NAME,
+      sellerId: seller.sellerId,
+      sellerName: seller.sellerName,
       ...(config.thumbnailUrl ? { thumbnailUrl: config.thumbnailUrl } : {}),
     });
   }
