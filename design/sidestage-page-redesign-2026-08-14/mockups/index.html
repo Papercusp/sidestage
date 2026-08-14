@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>SideStage page redesign — mockup review</title>
+  <link rel="stylesheet" href="shared.css">
+  <style>
+    .review-hero { display:grid; grid-template-columns:minmax(0,1fr) auto; align-items:end; gap:24px; margin-bottom:22px; }
+    .review-hero h1 { max-width:760px; margin:0; font-size:clamp(36px,6vw,72px); letter-spacing:-.065em; line-height:.92; }
+    .review-hero p { max-width:62ch; margin:14px 0 0; color:var(--muted); line-height:1.55; }
+    .review-callout { max-width:280px; padding:16px; }
+    .gallery { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:18px; }
+    .mock-card { overflow:hidden; }
+    .mock-preview { position:relative; display:block; aspect-ratio:16/10; overflow:hidden; border-bottom:1px solid var(--line); background:var(--sunken); }
+    .mock-preview img { width:100%; height:100%; object-fit:cover; object-position:top; transition:transform 220ms ease; }
+    .mock-preview:hover img { transform:scale(1.015); }
+    .mock-number { position:absolute; top:12px; left:12px; display:grid; width:32px; height:32px; place-items:center; border:1px solid rgba(214,43,31,.25); border-radius:10px; background:rgba(255,255,255,.92); color:var(--red-dark); font:800 11px ui-monospace,monospace; box-shadow:var(--shadow-sm); }
+    .mock-body { display:grid; grid-template-columns:minmax(0,1fr) auto; align-items:center; gap:14px; padding:15px; }
+    .mock-body h2 { margin:0; font-size:17px; }
+    .mock-body p { margin:5px 0 0; color:var(--muted); font-size:11px; line-height:1.45; }
+    .review-toolbar { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:12px; margin:18px 0; padding:10px 12px; }
+    .review-toolbar p { margin:0; color:var(--muted); font-size:11px; }
+    @media (max-width:760px) { .review-hero { grid-template-columns:1fr; } .review-callout { max-width:none; } .gallery { grid-template-columns:1fr; } .mock-body { grid-template-columns:1fr; } .mock-body .button { width:100%; } }
+  </style>
+</head>
+<body>
+  <a class="skip-link" href="#gallery">Skip to mockups</a>
+  <header class="app-header"><div class="app-header-inner">
+    <a class="brand" href="index.html"><span class="brand-mark">S</span><span class="brand-copy"><strong>SideStage</strong><small>Design review</small></span></a>
+    <nav class="primary-nav" aria-label="Mockup pages"><span class="nav-cluster"><a class="nav-link" href="buyer.html">Buyer</a><a class="nav-link" href="orders.html">Orders</a><a class="nav-link" href="seller.html">Seller</a></span><span class="nav-cluster"><a class="nav-link" href="build-history.html">Build history</a><a class="nav-link" href="config.html">Config</a><a class="nav-link" href="test.html">Test</a></span></nav>
+    <span class="badge red">6 concepts</span>
+  </div></header>
+
+  <main class="shell">
+    <section class="review-hero"><div><span class="page-kicker">Standalone review artifact · 2026-08-14</span><h1>Six sharper ways through SideStage.</h1><p>Open any concept at full size. Each page keeps the shipped R3 Ticket palette, groups buyer and operator work, surfaces one dominant next action, and collapses to one focused panel below 760px.</p></div><aside class="card review-callout"><span class="status pass">Specs validated</span><h2 style="margin:12px 0 5px;font-size:15px">Ready for review</h2><p style="margin:0;color:var(--muted);font-size:11px;line-height:1.45">Six UI IR specs pass schema validation and lint with zero issues. Desktop and mobile captures are included.</p></aside></section>
+
+    <div class="card review-toolbar"><p><strong style="color:var(--ink)">Review tip:</strong> resize the full mockups to see their one-panel mobile behavior.</p><div class="button-row"><a class="button small" href="../qa/screenshots/test-mobile.png">Mobile example</a><a class="button primary small" href="test.html">Open corrected Test page</a></div></div>
+
+    <section class="gallery" id="gallery" aria-label="Page mockups">
+      <article class="card mock-card"><a class="mock-preview" href="buyer.html"><span class="mock-number">01</span><img src="../qa/screenshots/buyer-desktop.png" alt="Buyer live room mockup preview"></a><div class="mock-body"><div><h2>Buyer</h2><p>Video, current offer, catalog, and chat in one decision surface.</p></div><a class="button" href="buyer.html">Open mockup →</a></div></article>
+      <article class="card mock-card"><a class="mock-preview" href="orders.html"><span class="mock-number">02</span><img src="../qa/screenshots/orders-desktop.png" alt="Orders timeline mockup preview"></a><div class="mock-body"><div><h2>Orders</h2><p>A reassuring purchase timeline with status and next action visible.</p></div><a class="button" href="orders.html">Open mockup →</a></div></article>
+      <article class="card mock-card"><a class="mock-preview" href="seller.html"><span class="mock-number">03</span><img src="../qa/screenshots/seller-desktop.png" alt="Seller live control room mockup preview"></a><div class="mock-body"><div><h2>Seller</h2><p>An opinionated live control room, not a compressed window manager.</p></div><a class="button" href="seller.html">Open mockup →</a></div></article>
+      <article class="card mock-card"><a class="mock-preview" href="build-history.html"><span class="mock-number">04</span><img src="../qa/screenshots/build-history-desktop.png" alt="Build history digest mockup preview"></a><div class="mock-body"><div><h2>Build History</h2><p>A release digest first, progressively disclosed evidence second.</p></div><a class="button" href="build-history.html">Open mockup →</a></div></article>
+      <article class="card mock-card"><a class="mock-preview" href="config.html"><span class="mock-number">05</span><img src="../qa/screenshots/config-desktop.png" alt="Event settings mockup preview"></a><div class="mock-body"><div><h2>Config</h2><p>Consequence-aware settings tied directly to readiness.</p></div><a class="button" href="config.html">Open mockup →</a></div></article>
+      <article class="card mock-card"><a class="mock-preview" href="test.html"><span class="mock-number">06</span><img src="../qa/screenshots/test-desktop.png" alt="Compact test workbench mockup preview"></a><div class="mock-body"><div><h2>Test</h2><p>A compact Papercusp-inspired suite rail and focused run pane.</p></div><a class="button primary" href="test.html">Open mockup →</a></div></article>
+    </section>
+  </main>
+</body>
+</html>
