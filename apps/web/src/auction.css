@@ -16,7 +16,7 @@
 .auction-ring-arc { fill: none; stroke: var(--success); stroke-width: 6; stroke-linecap: round; transition: stroke-dashoffset .25s linear, stroke .4s linear; }
 .auction-stage-soon .auction-ring-arc { stroke: var(--brand-yellow); }
 .auction-stage-critical .auction-ring-arc { stroke: var(--brand-red); }
-.auction-stage.is-closed .auction-ring-arc { stroke: var(--muted); }
+.auction-stage.is-closed .auction-ring-arc,.auction-stage.is-settling .auction-ring-arc { stroke: var(--muted); }
 .auction-clock-face { position: absolute; inset: 0; display: grid; place-content: center; justify-items: center; gap: .1rem; }
 .auction-clock-face strong { color: var(--text); font-size: 1.3rem; font-weight: 750; line-height: 1; letter-spacing: -.04em; font-variant-numeric: tabular-nums; }
 .auction-clock-face small { color: var(--muted); font-size: .56rem; font-weight: 700; letter-spacing: .14em; text-transform: uppercase; }
@@ -27,6 +27,9 @@
 .auction-call { min-height: 1.1em; color: var(--muted); font-size: .66rem; font-weight: 700; letter-spacing: .16em; text-transform: uppercase; }
 .auction-call.is-once,.auction-call.is-twice { color: var(--red-text); }
 .auction-call.is-sold { color: var(--success); }
+/* Settling is in-progress, not a verdict: yellow reads as pending, and it
+   deliberately does not inherit is-twice's urgency pulse. */
+.auction-call.is-settling { color: var(--yellow-text); }
 @media (prefers-reduced-motion: no-preference) { .auction-call.is-twice { animation: auction-call-pulse .85s ease-in-out infinite; } }
 @keyframes auction-call-pulse { 0%,100% { opacity: .5; } 50% { opacity: 1; } }
 
@@ -51,6 +54,15 @@
 .auction-bid-row > span { margin-right: -.25rem; color: var(--muted); }
 .auction-bid-row input { min-width: 0; flex: 1; padding: .7rem .8rem; border: 1px solid color-mix(in srgb, var(--brand-red) 24%, transparent); border-radius: .72rem; background: var(--surface); color: var(--text); font: inherit; }
 .auction-empty { display: grid; gap: .25rem; margin: 0; padding: 1rem; border: 1px dashed var(--border); border-radius: .9rem; color: var(--text); }
+/* P-109b: promote the auction block ONLY when an auction is active (design
+   report, Buyer §"Recommended design" 3). With no live auction the panel still
+   renders a full card, holding prime space above the products for a "nothing
+   here yet" message; collapse it to a quiet inline note instead. Keyed off the
+   empty/loading state the panel already renders, so AuctionPanel internals are
+   untouched (they are another lane's). */
+.auction-card:has(.auction-empty) { gap: .5rem; padding: .6rem .85rem; border-color: var(--border); background: none; box-shadow: none; }
+.auction-card:has(.auction-empty) .auction-empty { padding: 0; border: 0; color: var(--muted); }
+.auction-card:has(.auction-empty) .auction-empty strong { color: var(--text); font-weight: 600; }
 .auction-error { margin: 0; color: var(--danger); font-size: .82rem; }
 @media (max-width:560px) { .auction-card-heading,.auction-bid-row { align-items: stretch; flex-direction: column; } .auction-sync { align-self: flex-start; } .auction-stage { grid-template-columns: auto minmax(0,1fr); } .auction-feed { grid-column: 1 / -1; } }
 @media (max-width:380px) { .auction-stage { grid-template-columns: 1fr; justify-items: center; } .auction-headline { justify-items: center; text-align: center; } .auction-feed { justify-self: stretch; } }
