@@ -42,7 +42,6 @@ const legacyAccessBudget = {
   'events/api.ts': { fetch: 1 },
   'judge.ts': { fetch: 1 },
   'rehearsals.ts': { fetch: 2, 'event-stream': 1 },
-  'seller/PricingHistoryPanel.tsx': { fetch: 1 },
 } satisfies Record<string, Partial<Record<AccessKind, number>>>;
 
 function listProductionSources(directory: string): string[] {
@@ -114,5 +113,12 @@ describe('SideStage web sync contract', () => {
     expect(provider).toBeGreaterThan(-1);
     expect(provider).toBeLessThan(app.indexOf("{tab === 'buyer'"));
     expect(provider).toBeLessThan(app.indexOf("{tab === 'seller'"));
+  });
+
+  it('keeps seller pricing history on the event/product-scoped live query', () => {
+    const pricingHistory = readFileSync(path.join(sourceRoot, 'seller/PricingHistoryPanel.tsx'), 'utf8');
+    expect(pricingHistory).toContain("queryName: 'event.pricingHistory'");
+    expect(pricingHistory).toContain('args: { eventId, productId }');
+    expect(pricingHistory).not.toMatch(/\bfetch\s*\(/);
   });
 });

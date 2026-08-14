@@ -28,3 +28,12 @@
 [submodule "libs/cart-drawer"]
 	path = libs/cart-drawer
 	url = https://github.com/Papercusp/cart-drawer.git
+[submodule "libs/data-fetch"]
+	path = libs/data-fetch
+	url = https://github.com/Papercusp/data-fetch.git
+[submodule "libs/chat-protocol"]
+	path = libs/chat-protocol
+	url = https://github.com/Papercusp/chat-protocol.git
+[submodule "libs/scout-chat"]
+	path = libs/scout-chat
+	url = https://github.com/Papercusp/scout-chat.git
