@@ -26,6 +26,9 @@ describe('Studio URL routing', () => {
     expect(getEventManagerRouteFromUrl(
       '/?tab=seller&studio=event-manager&manager=events&event=drop-7&section=settings',
     )).toEqual({ view: 'events', eventId: 'drop-7', section: 'settings' });
+    expect(getEventManagerRouteFromUrl(
+      '/?tab=seller&studio=event-manager&manager=events&event=drop-7&section=rehearse',
+    )).toEqual({ view: 'events', eventId: 'drop-7', section: 'rehearse' });
     expect(getEventManagerRouteFromUrl('/?manager=create&event=stale&section=settings')).toEqual({
       view: 'create',
       eventId: 'stale',
@@ -35,6 +38,10 @@ describe('Studio URL routing', () => {
       { view: 'events', eventId: 'drop-7', section: 'settings' },
       '/?tab=buyer#stage',
     )).toBe('/?tab=seller&studio=event-manager&manager=events&event=drop-7&section=settings#stage');
+    expect(eventManagerHref(
+      { view: 'events', eventId: 'drop-7', section: 'rehearse' },
+      '/?tab=buyer#stage',
+    )).toBe('/?tab=seller&studio=event-manager&manager=events&event=drop-7&section=rehearse#stage');
     expect(eventManagerHref(
       { view: 'create', section: 'lineup' },
       '/?tab=seller&studio=event-manager&event=drop-7&section=settings',
