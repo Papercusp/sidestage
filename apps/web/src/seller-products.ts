@@ -39,7 +39,7 @@ export function variantToTranscriptOption(variant: CatalogVariant): TranscriptPr
     words.slice(-2).join(' '),
     variant.brand.toLowerCase(),
   ].filter((alias, index, all) => alias && all.indexOf(alias) === index);
-  return { id: variant.id, label: variant.title, aliases };
+  return { id: variant.id, label: variant.title, price: `$${(variant.priceCents / 100).toFixed(2)}`, aliases };
 }
 
 /** The seller shell's on-stage products — the ONE catalog source (P-102). */
