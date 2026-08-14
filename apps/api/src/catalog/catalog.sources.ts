@@ -38,6 +38,39 @@ export function normalizeQuery(query: CatalogQuery): Required<CatalogQuery> {
   };
 }
 
+/**
+ * The one variant projection, shared by all three reads so a column added here
+ * cannot reach two of them and silently skip the third.
+ *
+ * `color` is the SideStage variant axis. It is read from the normalized option
+ * model (product_option_axes.slug = 'color') rather than parsed back out of
+ * storefront_product.option_signature, because the option tables carry the
+ * display label and the signature is only their denormalized cache. The
+ * correlated scalar subquery cannot fan the result out the way a join to
+ * storefront_product_option would for a multi-axis product (a hoodie has both
+ * a colour and a size row), and UNIQUE (variant_id, axis_id) makes it at most
+ * one row per variant.
+ */
+const VARIANT_COLUMNS = `v.id, v.group_id AS "groupId", c.title, c.brand, c.product_type AS "productType",
+              v.sku, v.condition, v.handling AS "handlingDays", v.price_cents AS "priceCents",
+              v."availableQty",
+              -- A colour variant that ships its own photo must show THAT photo:
+              -- falling straight through to the group image rendered both
+              -- colorways of a product identically, and left every seeded
+              -- variant_images row unread (WI-38716). Empty '[]' yields NULL,
+              -- so an imported variant with no photo still gets the group's.
+              COALESCE(v.variant_images->0->>'url', c.images->0->>'url') AS "imageUrl",
+              c.description,
+              c.weight, c.dimensions,
+              (SELECT value.label
+                 FROM storefront_product_option selected
+                 JOIN product_option_axes axis
+                   ON axis.id = selected.axis_id AND axis.slug = 'color'
+                 JOIN product_option_values value
+                   ON value.id = selected.value_id AND value.axis_id = axis.id
+                WHERE selected.variant_id = v.id
+                LIMIT 1) AS "color"`;
+
 interface VariantRow {
   id: string;
   groupId: string | null;
@@ -45,6 +78,7 @@ interface VariantRow {
   brand: string | null;
   productType: string | null;
   sku: string;
+  color: string | null;
   condition: string | null;
   handlingDays: number | null;
   priceCents: number;
@@ -63,6 +97,7 @@ function rowToVariant(row: VariantRow): CatalogVariant {
     brand: row.brand ?? '',
     productType: row.productType ?? 'OTHER',
     sku: row.sku,
+    color: row.color ?? undefined,
     condition: row.condition,
     handlingDays: row.handlingDays,
     priceCents: row.priceCents,
@@ -100,10 +135,7 @@ export class PgCatalogSource implements CatalogSource {
         if (hits.length > 0) {
           const groupKeys = hits.map((hit) => (hit as { groupId?: string }).groupId ?? hit.id);
           const rows = await this.pool.query<VariantRow>(
-            `SELECT v.id, v.group_id AS "groupId", c.title, c.brand, c.product_type AS "productType",
-                    v.sku, v.condition, v.handling AS "handlingDays", v.price_cents AS "priceCents",
-                    v."availableQty", c.images->0->>'url' AS "imageUrl", c.description,
-                    c.weight, c.dimensions
+            `SELECT ${VARIANT_COLUMNS}
              FROM storefront_product v
              LEFT JOIN product_catalog c ON c.group_id = v.group_id AND c.region = v.region
              WHERE v.active AND COALESCE(v.group_id, v.id) = ANY($1)
@@ -164,10 +196,7 @@ export class PgCatalogSource implements CatalogSource {
 
     params.push(pageSize, (page - 1) * pageSize);
     const rows = await this.pool.query<VariantRow>(
-      `SELECT v.id, v.group_id AS "groupId", c.title, c.brand, c.product_type AS "productType",
-              v.sku, v.condition, v.handling AS "handlingDays", v.price_cents AS "priceCents",
-              v."availableQty", c.images->0->>'url' AS "imageUrl", c.description,
-              c.weight, c.dimensions
+      `SELECT ${VARIANT_COLUMNS}
        ${fromSql}
        WHERE ${whereSql}
        ORDER BY v."availableQty" > 0 DESC, v.id
@@ -189,10 +218,7 @@ export class PgCatalogSource implements CatalogSource {
 
   async variant(id: string): Promise<CatalogVariant | undefined> {
     const result = await this.pool.query<VariantRow>(
-      `SELECT v.id, v.group_id AS "groupId", c.title, c.brand, c.product_type AS "productType",
-              v.sku, v.condition, v.handling AS "handlingDays", v.price_cents AS "priceCents",
-              v."availableQty", c.images->0->>'url' AS "imageUrl", c.description,
-              c.weight, c.dimensions
+      `SELECT ${VARIANT_COLUMNS}
        FROM storefront_product v
        LEFT JOIN product_catalog c ON c.group_id = v.group_id AND c.region = v.region
        WHERE v.id = $1`,
@@ -215,7 +241,7 @@ export class FixtureCatalogSource implements CatalogSource {
       if (productType && variant.productType !== productType) return false;
       if (availability === 'in-stock' && variant.availableQty < 1) return false;
       if (!needle) return true;
-      return [variant.title, variant.brand, variant.sku, variant.productType, variant.description ?? '']
+      return [variant.title, variant.brand, variant.sku, variant.productType, variant.color ?? '', variant.description ?? '']
         .some((field) => field.toLowerCase().includes(needle));
     });
     const start = (page - 1) * pageSize;

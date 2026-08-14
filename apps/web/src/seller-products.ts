@@ -24,7 +24,7 @@ export function variantToSellerProduct(variant: CatalogVariant, index: number): 
     id: variant.id,
     name: variant.title,
     price: `$${(variant.priceCents / 100).toFixed(2)}`,
-    description: variant.description ?? [variant.brand, variant.condition].filter(Boolean).join(' · '),
+    description: variant.description ?? [variant.brand, variant.color ?? variant.condition].filter(Boolean).join(' · '),
     badge: index === 0 ? 'Featured' : undefined,
     stockLabel: `${variant.availableQty} available`,
     tone: PRODUCT_TONES[index % PRODUCT_TONES.length],

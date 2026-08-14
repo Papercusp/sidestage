@@ -21,6 +21,18 @@ export interface CatalogVariant {
   brand: string;
   productType: string;
   sku: string;
+  /**
+   * The variant axis SideStage sells on. Sourced from the `color` option axis
+   * (product_option_axes.slug = 'color'), which is what separates one demo
+   * variant from its siblings — NOT condition/handling. Undefined for an
+   * imported row that carries no color axis.
+   */
+  color?: string;
+  /**
+   * Restart import compatibility, not a SideStage variant axis: these describe
+   * a resale grade and a fulfilment lead time, so they are carried through the
+   * read model but never used to tell two variants of one product apart.
+   */
   condition: string | null;
   handlingDays: number | null;
   priceCents: number;

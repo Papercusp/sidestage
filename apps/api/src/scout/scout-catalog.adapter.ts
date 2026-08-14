@@ -4,6 +4,9 @@ import type { ProductCard, ScoutCatalog } from './scout.types';
 export function variantToProductCard(variant: CatalogVariant): ProductCard {
   const attributes: Record<string, string | number | boolean> = { sku: variant.sku };
   if (variant.brand) attributes.brand = variant.brand;
+  // The variant axis: without it two colorways of one product are identical
+  // cards, and Scout cannot answer "do you have it in walnut?" (WI-38716).
+  if (variant.color) attributes.color = variant.color;
   if (variant.condition) attributes.condition = variant.condition;
   if (variant.handlingDays !== null && variant.handlingDays !== undefined) {
     attributes.handlingDays = variant.handlingDays;
