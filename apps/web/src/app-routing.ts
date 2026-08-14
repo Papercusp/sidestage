@@ -2,6 +2,14 @@ import { useEffect, useState } from 'react';
 
 export type TabId = 'buyer' | 'orders' | 'seller' | 'history' | 'config' | 'test';
 export type StudioView = 'active-event' | 'event-manager' | 'inventory';
+export type EventManagerView = 'events' | 'create';
+export type EventManagerSection = 'lineup' | 'settings';
+
+export interface EventManagerRoute {
+  view: EventManagerView;
+  eventId?: string;
+  section: EventManagerSection;
+}
 
 export type TabGroupId = 'buyer-work' | 'operator-work';
 
@@ -98,6 +106,66 @@ export function useUrlStudioView(): [StudioView, (view: StudioView) => void] {
     setView(next);
   };
   return [view, navigate];
+}
+
+function isEventManagerView(value: string | null): value is EventManagerView {
+  return value === 'events' || value === 'create';
+}
+
+function isEventManagerSection(value: string | null): value is EventManagerSection {
+  return value === 'lineup' || value === 'settings';
+}
+
+/** Resolve the nested Event Manager state without interpreting Watch-page URLs. */
+export function getEventManagerRouteFromUrl(
+  value: string | URL | Pick<Location, 'pathname' | 'search' | 'hash'>,
+): EventManagerRoute {
+  const url = urlFor(value);
+  const view = url.searchParams.get('manager');
+  const section = url.searchParams.get('section');
+  const eventId = url.searchParams.get('event')?.trim();
+  return {
+    view: isEventManagerView(view) ? view : 'events',
+    ...(eventId ? { eventId } : {}),
+    section: isEventManagerSection(section) ? section : 'lineup',
+  };
+}
+
+export function eventManagerHref(route: EventManagerRoute, currentUrl = '/'): string {
+  const url = urlFor(currentUrl);
+  url.searchParams.set('tab', 'seller');
+  url.searchParams.set('studio', 'event-manager');
+  url.searchParams.set('manager', route.view);
+  if (route.eventId) url.searchParams.set('event', route.eventId);
+  else url.searchParams.delete('event');
+  if (route.view === 'events') url.searchParams.set('section', route.section);
+  else url.searchParams.delete('section');
+  return `${url.pathname}?${url.searchParams.toString()}${url.hash}`;
+}
+
+export function useUrlEventManagerRoute(): [EventManagerRoute, (route: EventManagerRoute) => void] {
+  const read = () => (typeof window === 'undefined'
+    ? { view: 'events', section: 'lineup' } as EventManagerRoute
+    : getEventManagerRouteFromUrl(window.location));
+  const [route, setRoute] = useState<EventManagerRoute>(read);
+
+  useEffect(() => {
+    const onPopState = () => setRoute(read());
+    window.addEventListener('popstate', onPopState);
+    return () => window.removeEventListener('popstate', onPopState);
+  }, []);
+
+  const navigate = (next: EventManagerRoute) => {
+    if (typeof window === 'undefined') return;
+    window.history.pushState(
+      { tab: 'seller', studio: 'event-manager', manager: next.view, event: next.eventId, section: next.section },
+      '',
+      eventManagerHref(next, window.location.href),
+    );
+    setRoute(next);
+  };
+
+  return [route, navigate];
 }
 
 
