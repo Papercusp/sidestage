@@ -90,9 +90,17 @@ export interface SquareSandboxConfig {
 
 const SQUARE_IDEMPOTENCY_PREFIX = 'sidestage:';
 const SQUARE_IDEMPOTENCY_HASH_LENGTH = 32;
+const SQUARE_REFERENCE_MAX_LENGTH = 40;
+const SQUARE_REFERENCE_HASH_LENGTH = SQUARE_REFERENCE_MAX_LENGTH - SQUARE_IDEMPOTENCY_PREFIX.length;
 
 function squareIdempotencyKey(orderId: string): string {
   const digest = createHash('sha256').update(orderId).digest('hex').slice(0, SQUARE_IDEMPOTENCY_HASH_LENGTH);
+  return `${SQUARE_IDEMPOTENCY_PREFIX}${digest}`;
+}
+
+function squareReferenceId(orderId: string): string {
+  if (orderId.length <= SQUARE_REFERENCE_MAX_LENGTH) return orderId;
+  const digest = createHash('sha256').update(orderId).digest('hex').slice(0, SQUARE_REFERENCE_HASH_LENGTH);
   return `${SQUARE_IDEMPOTENCY_PREFIX}${digest}`;
 }
 
@@ -140,7 +148,7 @@ export class SquareSandboxProvider implements PaymentProvider {
         idempotency_key: squareIdempotencyKey(input.orderId),
         amount_money: { amount: input.amountCents, currency: input.currency },
         location_id: locationId,
-        reference_id: input.orderId,
+        reference_id: squareReferenceId(input.orderId),
       }),
     });
     const payload = (await response.json()) as { payment?: { id?: string; status?: string }; errors?: Array<{ detail?: string }> };

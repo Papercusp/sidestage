@@ -194,7 +194,7 @@ describe('SquareSandboxProvider', () => {
     expect(calls).toBe(0);
   });
 
-  it('sends a stable Square-compliant idempotency key for generated order ids', async () => {
+  it('sends stable Square-compliant request ids for generated order ids', async () => {
     const requests: Array<Record<string, unknown>> = [];
     const square = new SquareSandboxProvider(
       { accessToken: 'sandbox-token', appId: 'app', locationId: 'loc' },
@@ -217,10 +217,15 @@ describe('SquareSandboxProvider', () => {
     await square.confirmPayment(input);
 
     const keys = requests.map(({ idempotency_key }) => String(idempotency_key));
+    const references = requests.map(({ reference_id }) => String(reference_id));
     expect(keys).toHaveLength(2);
     expect(keys[0]).toBe(keys[1]);
     expect(keys[0]).toMatch(/^sidestage:[a-f0-9]{32}$/);
     expect(keys[0]).toHaveLength(42);
+    expect(references).toHaveLength(2);
+    expect(references[0]).toBe(references[1]);
+    expect(references[0]).toMatch(/^sidestage:[a-f0-9]{30}$/);
+    expect(references[0]).toHaveLength(40);
   });
 
   it("verifies Square's URL-plus-body HMAC contract", () => {
