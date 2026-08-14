@@ -42,7 +42,15 @@ class StubStore implements EventStore {
   async listBySeller(sellerId: string): Promise<EventRecord[]> {
     return this.records.filter((entry) => entry.sellerId === sellerId);
   }
-  async publish(): Promise<void> {
+  async findById(eventId: string): Promise<EventRecord | undefined> {
+    return this.records.find((entry) => entry.eventId === eventId);
+  }
+  async findOwned(eventId: string, sellerId: string): Promise<EventRecord | undefined> {
+    return this.records.find(
+      (entry) => entry.eventId === eventId && entry.sellerId === sellerId,
+    );
+  }
+  async publish(): Promise<boolean> {
     throw new Error('StubStore.publish is not under test here — use InMemoryEventStore');
   }
   async unpublish(): Promise<boolean> {
@@ -67,8 +75,8 @@ describe('event directory (P-118 / D-019)', () => {
   it('registers a seller-scoped events.mine query that includes drafts', async () => {
     const service = new EventService(
       new StubStore([
-        record({ eventId: 'owned-draft', sellerId: 'demo-seller', status: 'draft' }),
-        record({ eventId: 'owned-live', sellerId: 'demo-seller', status: 'live' }),
+        record({ eventId: 'owned-draft', sellerId: 'seller-demo', status: 'draft' }),
+        record({ eventId: 'owned-live', sellerId: 'seller-demo', status: 'live' }),
         record({ eventId: 'other-live', sellerId: 'seller-other', status: 'live' }),
       ]),
       new ChatService(),
@@ -76,13 +84,24 @@ describe('event directory (P-118 / D-019)', () => {
     const queries = new SyncQueryRegistry();
     new EventSyncQueries(service, queries).onModuleInit();
 
-    await expect(queries.resolve('events.mine', { sellerId: 'demo-seller' })).resolves.toEqual([
+    await expect(queries.resolve(
+      'events.mine',
+      { sellerId: 'seller-other' },
+      { principal: 'seller-demo' },
+    )).resolves.toEqual([
       expect.objectContaining({ eventId: 'owned-live', status: 'live' }),
       expect.objectContaining({ eventId: 'owned-draft', status: 'draft' }),
     ]);
-    await expect(queries.resolve('events.mine', { sellerId: 'seller-other' })).resolves.toEqual([
+    await expect(queries.resolve(
+      'events.mine',
+      {},
+      { principal: 'seller-other' },
+    )).resolves.toEqual([
       expect.objectContaining({ eventId: 'other-live', sellerId: 'seller-other' }),
     ]);
+    await expect(queries.resolve('events.mine', {})).rejects.toThrow(
+      'x-demo-principal is required for events.mine',
+    );
   });
 
   it('groups live before upcoming before ended', () => {
