@@ -779,3 +779,170 @@ CREATE TABLE IF NOT EXISTS event (
 -- recently ended. Indexed on the two columns that ordering actually reads.
 CREATE INDEX IF NOT EXISTS event_status_starts_at_idx
   ON event (status, starts_at);
+
+-- ── Demo-principal ownership boundary (demo-user-isolation P-002) ──────────
+-- Event-anchored rows deliberately do NOT duplicate seller_id: event is the
+-- owner oracle, and the foreign keys below make every dependent event id
+-- resolvable through that oracle. Inventory and Scout sessions have no event
+-- anchor, so they carry their seller/buyer directly.
+--
+-- The defaults are a rolling-deploy compatibility bridge for the old writers
+-- that are live while this schema is applied. P-005/P-006 make every writer
+-- explicit and then remove these defaults; the immutable-owner triggers below
+-- already prevent an upsert from changing an established owner.
+
+ALTER TABLE storefront_product ADD COLUMN IF NOT EXISTS seller_id text;
+UPDATE storefront_product
+SET seller_id = 'demo-seller'
+WHERE seller_id IS NULL OR btrim(seller_id) = '';
+ALTER TABLE storefront_product ALTER COLUMN seller_id SET DEFAULT 'demo-seller';
+ALTER TABLE storefront_product ALTER COLUMN seller_id SET NOT NULL;
+
+ALTER TABLE inventory_reservation ADD COLUMN IF NOT EXISTS seller_id text;
+UPDATE inventory_reservation AS reservation
+SET seller_id = product.seller_id
+FROM storefront_product AS product
+WHERE reservation.variant_id = product.id
+  AND (reservation.seller_id IS NULL OR btrim(reservation.seller_id) = '');
+ALTER TABLE inventory_reservation ALTER COLUMN seller_id SET DEFAULT 'demo-seller';
+ALTER TABLE inventory_reservation ALTER COLUMN seller_id SET NOT NULL;
+
+ALTER TABLE scout_session ADD COLUMN IF NOT EXISTS buyer_id text;
+UPDATE scout_session
+SET buyer_id = 'buyer-demo'
+WHERE buyer_id IS NULL OR btrim(buyer_id) = '';
+ALTER TABLE scout_session ALTER COLUMN buyer_id SET DEFAULT 'buyer-demo';
+ALTER TABLE scout_session ALTER COLUMN buyer_id SET NOT NULL;
+
+ALTER TABLE auction_state ADD COLUMN IF NOT EXISTS seller_id text;
+
+-- Old snapshots can contain config/run-of-show/Copilot/auction rows created
+-- before the event directory existed. Materialise one deterministic draft row
+-- for each such id before installing foreign keys, so no dependent row is
+-- orphaned and re-applying this file is a no-op.
+WITH legacy_event_ids AS (
+  SELECT event_id FROM event_config
+  UNION
+  SELECT event_id FROM event_run_of_show
+  UNION
+  SELECT event_id FROM copilot_proposal
+  UNION
+  SELECT event_id FROM auction_state
+)
+INSERT INTO event (event_id, title, seller_id, seller_name, status)
+SELECT event_id, 'Legacy event ' || event_id, 'demo-seller', 'Demo Seller', 'draft'
+FROM legacy_event_ids
+WHERE event_id IS NOT NULL AND btrim(event_id) <> ''
+ON CONFLICT (event_id) DO NOTHING;
+
+UPDATE auction_state AS auction
+SET seller_id = owner.seller_id
+FROM event AS owner
+WHERE auction.event_id = owner.event_id
+  AND (auction.seller_id IS NULL OR btrim(auction.seller_id) = '');
+ALTER TABLE auction_state ALTER COLUMN seller_id SET DEFAULT 'demo-seller';
+ALTER TABLE auction_state ALTER COLUMN seller_id SET NOT NULL;
+
+CREATE UNIQUE INDEX IF NOT EXISTS event_id_seller_id_unique
+  ON event (event_id, seller_id);
+CREATE UNIQUE INDEX IF NOT EXISTS storefront_product_id_seller_id_unique
+  ON storefront_product (id, seller_id);
+
+CREATE INDEX IF NOT EXISTS event_seller_id_idx
+  ON event (seller_id, event_id);
+CREATE INDEX IF NOT EXISTS storefront_product_seller_active_idx
+  ON storefront_product (seller_id, active, "availableQty");
+CREATE INDEX IF NOT EXISTS inventory_reservation_seller_state_idx
+  ON inventory_reservation (seller_id, state, variant_id);
+CREATE INDEX IF NOT EXISTS auction_state_seller_event_idx
+  ON auction_state (seller_id, event_id, started_at DESC);
+CREATE INDEX IF NOT EXISTS scout_session_buyer_active_idx
+  ON scout_session (buyer_id, last_active_at DESC);
+
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'event_config_event_fk') THEN
+    ALTER TABLE event_config
+      ADD CONSTRAINT event_config_event_fk FOREIGN KEY (event_id)
+      REFERENCES event (event_id) ON UPDATE CASCADE ON DELETE CASCADE;
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'event_run_of_show_event_fk') THEN
+    ALTER TABLE event_run_of_show
+      ADD CONSTRAINT event_run_of_show_event_fk FOREIGN KEY (event_id)
+      REFERENCES event (event_id) ON UPDATE CASCADE ON DELETE CASCADE;
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'copilot_proposal_event_fk') THEN
+    ALTER TABLE copilot_proposal
+      ADD CONSTRAINT copilot_proposal_event_fk FOREIGN KEY (event_id)
+      REFERENCES event (event_id) ON UPDATE CASCADE ON DELETE CASCADE;
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'auction_state_event_owner_fk') THEN
+    ALTER TABLE auction_state
+      ADD CONSTRAINT auction_state_event_owner_fk FOREIGN KEY (event_id, seller_id)
+      REFERENCES event (event_id, seller_id) ON UPDATE CASCADE ON DELETE CASCADE;
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'inventory_reservation_variant_owner_fk') THEN
+    ALTER TABLE inventory_reservation
+      ADD CONSTRAINT inventory_reservation_variant_owner_fk FOREIGN KEY (variant_id, seller_id)
+      REFERENCES storefront_product (id, seller_id) ON UPDATE CASCADE ON DELETE CASCADE;
+  END IF;
+END;
+$$;
+
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'storefront_product_seller_nonempty') THEN
+    ALTER TABLE storefront_product ADD CONSTRAINT storefront_product_seller_nonempty
+      CHECK (btrim(seller_id) <> '');
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'inventory_reservation_seller_nonempty') THEN
+    ALTER TABLE inventory_reservation ADD CONSTRAINT inventory_reservation_seller_nonempty
+      CHECK (btrim(seller_id) <> '');
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'auction_state_seller_nonempty') THEN
+    ALTER TABLE auction_state ADD CONSTRAINT auction_state_seller_nonempty
+      CHECK (btrim(seller_id) <> '');
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'scout_session_buyer_nonempty') THEN
+    ALTER TABLE scout_session ADD CONSTRAINT scout_session_buyer_nonempty
+      CHECK (btrim(buyer_id) <> '');
+  END IF;
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION sidestage_preserve_owner()
+RETURNS trigger
+LANGUAGE plpgsql
+AS $$
+BEGIN
+  IF (to_jsonb(NEW) ->> TG_ARGV[0]) IS DISTINCT FROM (to_jsonb(OLD) ->> TG_ARGV[0]) THEN
+    RAISE EXCEPTION '% owner is immutable', TG_TABLE_NAME USING ERRCODE = '23514';
+  END IF;
+  RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS event_preserve_seller ON event;
+CREATE TRIGGER event_preserve_seller
+BEFORE UPDATE OF seller_id ON event
+FOR EACH ROW EXECUTE FUNCTION sidestage_preserve_owner('seller_id');
+
+DROP TRIGGER IF EXISTS storefront_product_preserve_seller ON storefront_product;
+CREATE TRIGGER storefront_product_preserve_seller
+BEFORE UPDATE OF seller_id ON storefront_product
+FOR EACH ROW EXECUTE FUNCTION sidestage_preserve_owner('seller_id');
+
+DROP TRIGGER IF EXISTS inventory_reservation_preserve_seller ON inventory_reservation;
+CREATE TRIGGER inventory_reservation_preserve_seller
+BEFORE UPDATE OF seller_id ON inventory_reservation
+FOR EACH ROW EXECUTE FUNCTION sidestage_preserve_owner('seller_id');
+
+DROP TRIGGER IF EXISTS auction_state_preserve_seller ON auction_state;
+CREATE TRIGGER auction_state_preserve_seller
+BEFORE UPDATE OF seller_id ON auction_state
+FOR EACH ROW EXECUTE FUNCTION sidestage_preserve_owner('seller_id');
+
+DROP TRIGGER IF EXISTS scout_session_preserve_buyer ON scout_session;
+CREATE TRIGGER scout_session_preserve_buyer
+BEFORE UPDATE OF buyer_id ON scout_session
+FOR EACH ROW EXECUTE FUNCTION sidestage_preserve_owner('buyer_id');

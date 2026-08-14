@@ -12,7 +12,7 @@ export interface SchemaQueryable {
   query(
     sql: string,
     params: unknown[],
-  ): Promise<{ rows: Array<{ table_name: string }> }>;
+  ): Promise<{ rows: Array<{ table_name?: string; marker?: string }> }>;
 }
 
 /**
@@ -68,6 +68,32 @@ export const REQUIRED_TABLES: readonly string[] = [
   'storefront_product_option',
 ];
 
+/**
+ * Ownership structures that must exist in addition to the tables themselves.
+ *
+ * The original guard only noticed a wholly missing table. P-002 evolves
+ * existing tables in place, so a stale volume can have every table while still
+ * lacking the columns, foreign keys, and immutable-owner triggers that make
+ * cross-user isolation real. These catalog markers keep that partial-migration
+ * state from booting quietly.
+ */
+export const REQUIRED_OWNERSHIP_STRUCTURES: readonly string[] = [
+  'column:auction_state.seller_id',
+  'column:inventory_reservation.seller_id',
+  'column:scout_session.buyer_id',
+  'column:storefront_product.seller_id',
+  'constraint:auction_state_event_owner_fk',
+  'constraint:copilot_proposal_event_fk',
+  'constraint:event_config_event_fk',
+  'constraint:event_run_of_show_event_fk',
+  'constraint:inventory_reservation_variant_owner_fk',
+  'trigger:auction_state_preserve_seller',
+  'trigger:event_preserve_seller',
+  'trigger:inventory_reservation_preserve_seller',
+  'trigger:scout_session_preserve_buyer',
+  'trigger:storefront_product_preserve_seller',
+];
+
 /** The remedy, in one place — it appears in the thrown message and the README. */
 export const SCHEMA_APPLY_REMEDY = 'npm run db:apply';
 
@@ -85,8 +111,35 @@ export async function findMissingTables(
       WHERE table_schema = 'public' AND table_name = ANY($1::text[])`,
     [[...required]],
   );
-  const present = new Set(rows.map((row) => row.table_name));
+  const present = new Set(rows.map((row) => row.table_name).filter((name): name is string => Boolean(name)));
   return required.filter((table) => !present.has(table));
+}
+
+/** Required P-002 ownership markers absent from the connected public schema. */
+export async function findMissingOwnershipStructures(
+  pool: SchemaQueryable,
+  required: readonly string[] = REQUIRED_OWNERSHIP_STRUCTURES,
+): Promise<string[]> {
+  if (required.length === 0) return [];
+  const { rows } = await pool.query(
+    `WITH present AS (
+       SELECT 'column:' || table_name || '.' || column_name AS marker
+         FROM information_schema.columns
+        WHERE table_schema = 'public'
+       UNION ALL
+       SELECT 'constraint:' || constraint_name AS marker
+         FROM information_schema.table_constraints
+        WHERE constraint_schema = 'public'
+       UNION ALL
+       SELECT 'trigger:' || trigger_name AS marker
+         FROM information_schema.triggers
+        WHERE trigger_schema = 'public'
+     )
+     SELECT marker FROM present WHERE marker = ANY($1::text[])`,
+    [[...required]],
+  );
+  const present = new Set(rows.map((row) => row.marker).filter((marker): marker is string => Boolean(marker)));
+  return required.filter((marker) => !present.has(marker));
 }
 
 /**
@@ -110,6 +163,18 @@ export function formatSchemaDriftMessage(missing: readonly string[]): string {
   return lines.join('\n');
 }
 
+export function formatOwnershipDriftMessage(missing: readonly string[]): string {
+  return [
+    `schema drift — ${missing.length} ownership structure(s) missing from the database:`,
+    ...missing.map((marker) => `    ${marker}`),
+    '',
+    'The tables exist, but this volume has not received the complete demo-principal',
+    'ownership migration. Starting would make user isolation depend on stale schema.',
+    '',
+    `  remedy: ${SCHEMA_APPLY_REMEDY}`,
+  ].join('\n');
+}
+
 /**
  * Throws when the connected database is missing tables the code queries.
  *
@@ -124,4 +189,8 @@ export async function assertSchemaCurrent(
 ): Promise<void> {
   const missing = await findMissingTables(pool, required);
   if (missing.length > 0) throw new Error(formatSchemaDriftMessage(missing));
+  const missingOwnership = await findMissingOwnershipStructures(pool);
+  if (missingOwnership.length > 0) {
+    throw new Error(formatOwnershipDriftMessage(missingOwnership));
+  }
 }
