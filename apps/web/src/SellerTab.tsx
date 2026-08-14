@@ -203,15 +203,6 @@ export function SellerTab({
       chat: <EventChat {...eventChatProps} surface="audience-overlay" />,
       transcript,
     },
-    transcript: {
-      className: 'seller-transcript',
-      mediaStream: stream.session?.localStream,
-      deepgramToken: import.meta.env.VITE_DEEPGRAM_TOKEN,
-      products: transcriptProducts,
-      activeProductId: selectedProductId,
-      onActiveProductChange,
-      onFinalSegment: recordTranscriptMoment,
-    },
     'on-deck': { selectedProduct, eventId, apiBaseUrl: import.meta.env.VITE_API_URL },
     copilot: {
       apiBaseUrl: import.meta.env.VITE_API_URL,
@@ -233,6 +224,7 @@ export function SellerTab({
     },
     'run-of-show': {
       eventId,
+      activeProductId: selectedProductId,
       activeProduct: selectedProduct,
       onActiveProductChange,
       apiBaseUrl: import.meta.env.VITE_API_URL,
