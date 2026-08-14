@@ -1,5 +1,5 @@
 import { BadRequestException, Inject, Injectable, Optional } from '@nestjs/common';
-import { createHmac, randomUUID, timingSafeEqual } from 'node:crypto';
+import { createHash, createHmac, randomUUID, timingSafeEqual } from 'node:crypto';
 import { CartService, type Cart } from '../cart/cart.service';
 import {
   normalizeShippingAddress,
@@ -88,6 +88,14 @@ export interface SquareSandboxConfig {
   apiBaseUrl?: string;
 }
 
+const SQUARE_IDEMPOTENCY_PREFIX = 'sidestage:';
+const SQUARE_IDEMPOTENCY_HASH_LENGTH = 32;
+
+function squareIdempotencyKey(orderId: string): string {
+  const digest = createHash('sha256').update(orderId).digest('hex').slice(0, SQUARE_IDEMPOTENCY_HASH_LENGTH);
+  return `${SQUARE_IDEMPOTENCY_PREFIX}${digest}`;
+}
+
 /** Native-fetch Square adapter: no SDK credential or package is required for a clean clone. */
 export class SquareSandboxProvider implements PaymentProvider {
   private readonly config: SquareSandboxConfig;
@@ -129,7 +137,7 @@ export class SquareSandboxProvider implements PaymentProvider {
       },
       body: JSON.stringify({
         source_id: input.sourceId,
-        idempotency_key: `sidestage:${input.orderId}`,
+        idempotency_key: squareIdempotencyKey(input.orderId),
         amount_money: { amount: input.amountCents, currency: input.currency },
         location_id: locationId,
         reference_id: input.orderId,

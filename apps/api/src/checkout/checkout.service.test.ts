@@ -194,6 +194,35 @@ describe('SquareSandboxProvider', () => {
     expect(calls).toBe(0);
   });
 
+  it('sends a stable Square-compliant idempotency key for generated order ids', async () => {
+    const requests: Array<Record<string, unknown>> = [];
+    const square = new SquareSandboxProvider(
+      { accessToken: 'sandbox-token', appId: 'app', locationId: 'loc' },
+      async (_url, init) => {
+        requests.push(JSON.parse(String(init?.body)) as Record<string, unknown>);
+        return new Response(JSON.stringify({ payment: { id: 'payment-1', status: 'COMPLETED' } }), {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        });
+      },
+    );
+    const input = {
+      orderId: 'order_0a31da4c-ba24-4b5d-97c8-68ed1efcc97a',
+      sourceId: 'cnon:card-nonce-ok',
+      amountCents: 5_814,
+      currency: 'USD' as const,
+    };
+
+    await expect(square.confirmPayment(input)).resolves.toEqual({ status: 'paid', transactionId: 'payment-1' });
+    await square.confirmPayment(input);
+
+    const keys = requests.map(({ idempotency_key }) => String(idempotency_key));
+    expect(keys).toHaveLength(2);
+    expect(keys[0]).toBe(keys[1]);
+    expect(keys[0]).toMatch(/^sidestage:[a-f0-9]{32}$/);
+    expect(keys[0]).toHaveLength(42);
+  });
+
   it("verifies Square's URL-plus-body HMAC contract", () => {
     const body = '{"type":"payment.completed"}';
     const url = 'https://example.test/checkout/webhook';
