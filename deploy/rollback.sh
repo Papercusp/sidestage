@@ -53,6 +53,33 @@ if $LIST; then
   exit 0
 fi
 
+# Resolve a SHORT sha against the tags actually present on prod. Everything an
+# operator reads during an incident -- git log, --list output, a chat message --
+# prints 7 chars, but the image tags are full 40-char shas. Before 2026-08-14 a
+# short sha fell straight through to the image-presence check below and was
+# rejected as "that sha is NOT rollback-able": false, and alarming at precisely
+# the moment you least want to doubt your rollback. Ambiguity is reported with
+# the candidates rather than guessed at.
+if [[ -n "$TARGET" && ! "$TARGET" =~ ^[0-9a-f]{40}$ ]]; then
+  mapfile -t PROD_TAGS < <(
+    "${SSH[@]}" "docker images --format '{{.Tag}}' sidestage-api" 2>/dev/null | tr -d '\r' | grep -v '^latest$' | sort -u
+  )
+  MATCHES=()
+  for tag in "${PROD_TAGS[@]}"; do
+    [[ -n "$tag" && "$tag" == "$TARGET"* ]] && MATCHES+=("$tag")
+  done
+  case "${#MATCHES[@]}" in
+    1) say "Resolved sha prefix '$TARGET' -> ${MATCHES[0]:0:7}"; TARGET="${MATCHES[0]}" ;;
+    0) echo "ERROR: no image on prod has a sha starting with '$TARGET'." >&2
+       echo "       See what IS rollback-able: ./deploy/rollback.sh --list" >&2
+       exit 2 ;;
+    *) echo "ERROR: sha prefix '$TARGET' is ambiguous on prod -- it matches:" >&2
+       printf '         %s\n' "${MATCHES[@]}" >&2
+       echo "       Re-run with more characters." >&2
+       exit 2 ;;
+  esac
+fi
+
 # Default target: the newest history entry that is NOT what is running now.
 if [[ -z "$TARGET" ]]; then
   TARGET="$("${SSH[@]}" "awk -v cur='$CURRENT' -F'\t' '\$2 != cur { last = \$2 } END { print last }' $HISTORY_FILE 2>/dev/null" || true)"

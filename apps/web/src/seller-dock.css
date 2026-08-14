@@ -269,9 +269,10 @@
 
 .seller-dock-toolbar-actions {
   display: flex;
+  order: -1;
   align-items: center;
   gap: 0.5rem;
-  margin-left: auto;
+  margin-left: 0;
 }
 
 /*

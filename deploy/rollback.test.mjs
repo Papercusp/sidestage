@@ -61,6 +61,78 @@ describe('deploy.sh records the deployed sha only after the health check', () =>
   });
 });
 
+describe('rollback.sh accepts a short sha', () => {
+  // REGRESSION GUARD. Image tags are full 40-char shas, but every surface an
+  // operator reads mid-incident -- git log, --list, a chat message -- prints 7.
+  // Before 2026-08-14 a short sha fell through to the image-presence check and
+  // was rejected with "that sha is NOT rollback-able", which is false and reads
+  // as "your rollback target is gone" at the worst possible moment. (The stale
+  // next-action note on WI-38800 told a successor to run exactly that command.)
+  it('resolves a sha prefix against the tags present on prod', () => {
+    expect(rollbackSource).toMatch(/\$\{#MATCHES\[@\]\}/);
+    expect(rollbackSource).toMatch(/== "\$TARGET"\*/);
+  });
+
+  it('only resolves when the target is not already a full sha', () => {
+    expect(rollbackSource).toMatch(/\^\[0-9a-f\]\{40\}\$/);
+  });
+
+  it('reports ambiguity with the candidates instead of guessing', () => {
+    const resolution = rollbackSource.slice(rollbackSource.indexOf('MATCHES=()'));
+    expect(resolution).toMatch(/ambiguous/i);
+    expect(resolution).toMatch(/printf '.*%s.*' "\$\{MATCHES\[@\]\}"/);
+  });
+});
+
+describe('the rsync preserves prod-side state instead of deleting it', () => {
+  // REGRESSION GUARD for a defect that made the two guards above VACUOUS.
+  //
+  // deploy.sh rsyncs a snapshot of the source tree to $PROD_DIR with --delete.
+  // .deployed-sha and .deploy-history live in $PROD_DIR but are written BY the
+  // deploy, so they are absent from that snapshot -- and --delete removed them
+  // on every single deploy, moments before PREV_SHA read .deployed-sha. So
+  // "captures the previous sha before overwriting it" passed on line ORDER
+  // while the value read was unconditionally empty: the auto-rollback had
+  // nothing to restore to, and `rollback.sh` with no --to could never find a
+  // previous sha. Observed live 2026-08-14: prod's .deploy-history held
+  // exactly one entry (the running deploy's own) and .deployed-sha vanished
+  // between two reads five minutes apart.
+  //
+  // Derived rather than hardcoded: the state files are read back out of the
+  // scripts, so adding a fourth one fails here until it is also excluded.
+
+  /** Basenames of files the scripts write into $PROD_DIR. */
+  function prodStateFiles(source) {
+    return [...source.matchAll(/^[A-Z_]+="\$PROD_DIR\/(\.[\w.-]+)"/gm)].map((m) => m[1]);
+  }
+
+  const declared = [...new Set([...prodStateFiles(deploySource), ...prodStateFiles(rollbackSource)])];
+
+  it('finds the prod-side state files the scripts write (guard is not vacuous)', () => {
+    expect(declared).toEqual(expect.arrayContaining(['.deployed-sha', '.deploy-history']));
+  });
+
+  it('still uses --delete, so excluding is load-bearing rather than moot', () => {
+    expect(deploySource).toMatch(/rsync -az --delete/);
+  });
+
+  it.each(declared)('excludes %s from the destructive rsync', (stateFile) => {
+    // Either an inline --exclude='/.foo' or membership in the PROD_STATE_FILES
+    // array that the excludes are built from.
+    const inline = new RegExp(`--exclude=(['"]?)/${stateFile.replace('.', '\\.')}\\1`);
+    const viaArray = new RegExp(`PROD_STATE_FILES=\\([^)]*${stateFile.replace('.', '\\.')}[\\s)]`);
+    expect(
+      inline.test(deploySource) || viaArray.test(deploySource),
+      `${stateFile} is written into $PROD_DIR but is not excluded from the rsync --delete, so every deploy destroys it`,
+    ).toBe(true);
+  });
+
+  it('builds the rsync excludes from that same list, not a drifting duplicate', () => {
+    expect(deploySource).toMatch(/RSYNC_EXCLUDES\+=\(--exclude="\/\$state_file"\)/);
+    expect(deploySource).toMatch(/rsync -az --delete "\$\{RSYNC_EXCLUDES\[@\]\}"/);
+  });
+});
+
 describe('rollback.sh argument handling', () => {
   function run(args) {
     try {
