@@ -3,6 +3,7 @@ FROM node:20-alpine AS build
 WORKDIR /app
 COPY . .
 RUN npm ci --no-audit --no-fund \
+  && npm run build --workspace @papercusp/sse \
   && npm run build --workspace @papercusp/typesense \
   && npm run build --workspace @papercusp/sidestage-api \
   && npm prune --omit=dev
@@ -13,6 +14,8 @@ ENV NODE_ENV=production
 COPY --from=build /app/node_modules ./node_modules
 COPY --from=build /app/apps/api/dist ./apps/api/dist
 COPY --from=build /app/apps/api/package.json ./apps/api/package.json
+COPY --from=build /app/libs/sse/dist ./libs/sse/dist
+COPY --from=build /app/libs/sse/package.json ./libs/sse/package.json
 COPY --from=build /app/libs/typesense/dist ./libs/typesense/dist
 COPY --from=build /app/libs/typesense/package.json ./libs/typesense/package.json
 COPY --from=build /app/package.json ./package.json
