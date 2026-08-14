@@ -15,7 +15,7 @@ export class AuctionSyncQueries implements OnModuleInit {
   onModuleInit(): void {
     this.queries.register('event.auction.active', async (args) => {
       const eventId = typeof args.eventId === 'string' ? args.eventId : '';
-      const auction = await this.auctions.getActiveAuction(eventId);
+      const auction = await this.auctions.getCurrentAuction(eventId);
       return auction ? [auction] : [];
     });
   }

@@ -159,7 +159,16 @@ const MAX_DURATION_SEC = 86_400;
 @Injectable()
 export class AuctionService {
   private readonly auctions = new Map<string, Auction>();
-  private readonly activeByEvent = new Map<string, string>();
+  /**
+   * The event's CURRENT auction — active, or the most recently closed one.
+   *
+   * It deliberately survives a close: the buyer panel reads this to show the
+   * SOLD/winner result, and clearing it here would make the closed state
+   * unreachable by every client path (closeInternal emits the winner and then
+   * invalidates the query that would re-serve it). A new startAuction on the
+   * same event overwrites the entry.
+   */
+  private readonly currentByEvent = new Map<string, string>();
   private readonly updatesByEvent = new Map<string, Subject<AuctionSseEvent>>();
   private updateSequence = 0;
 
@@ -175,8 +184,11 @@ export class AuctionService {
     const eventItemId = this.readId(input.eventItemId, 'eventItemId');
     const productId = this.readId(input.productId, 'productId');
     await this.expireActive(eventId);
-    const activeId = this.activeByEvent.get(eventId);
-    if (activeId) throw new ConflictException(`Event ${eventId} already has an active auction`);
+    // The entry survives a close, so presence alone no longer proves an auction
+    // is running — the status is what gates a new one.
+    const currentId = this.currentByEvent.get(eventId);
+    const current = currentId ? this.auctions.get(currentId) : undefined;
+    if (current?.status === 'active') throw new ConflictException(`Event ${eventId} already has an active auction`);
 
     const quantity = this.readPositiveInt(input.quantity, 'quantity');
     const startingPriceCents = this.readMoney(input.startingPriceCents, 'startingPriceCents');
@@ -215,17 +227,29 @@ export class AuctionService {
       bids: [],
     };
     this.auctions.set(auction.id, auction);
-    this.activeByEvent.set(eventId, auction.id);
+    this.currentByEvent.set(eventId, auction.id);
     this.emitAuctionUpdate(auction, true);
     return this.cloneAuction(auction);
   }
 
-  async getActiveAuction(eventId: string): Promise<Auction | null> {
-    const id = this.activeByEvent.get(this.readId(eventId, 'eventId'));
+  /**
+   * The event's current auction — ACTIVE, or the most recently closed one.
+   *
+   * Closed auctions are returned on purpose. This is what the buyer panel
+   * reads, and the close is the moment the buyer most needs to see: filtering
+   * to `status === 'active'` here made the panel's SOLD/winner state
+   * unreachable at runtime, so a winning bidder was shown "No auction is live
+   * yet" the instant they won (WI-38736). The entry is replaced when the next
+   * auction starts on the event.
+   */
+  async getCurrentAuction(eventId: string): Promise<Auction | null> {
+    const resolvedEventId = this.readId(eventId, 'eventId');
+    const id = this.currentByEvent.get(resolvedEventId);
     if (!id) return null;
-    await this.expireActive(eventId);
+    // Settles a run-out clock first, so a caller never sees a stale 'active'.
+    await this.expireActive(resolvedEventId);
     const auction = this.auctions.get(id);
-    return auction?.status === 'active' ? this.cloneAuction(auction) : null;
+    return auction ? this.cloneAuction(auction) : null;
   }
 
   async getAuction(id: string): Promise<Auction | null> {
@@ -299,11 +323,11 @@ export class AuctionService {
 
   async snapshotEvent(eventId: string): Promise<AuctionSseEvent> {
     const resolvedEventId = this.readId(eventId, 'eventId');
-    return this.createAuctionEvent(resolvedEventId, await this.getActiveAuction(resolvedEventId));
+    return this.createAuctionEvent(resolvedEventId, await this.getCurrentAuction(resolvedEventId));
   }
 
   private async expireActive(eventId: string): Promise<void> {
-    const id = this.activeByEvent.get(eventId);
+    const id = this.currentByEvent.get(eventId);
     if (!id) return;
     const auction = this.auctions.get(id);
     if (auction?.status === 'active' && Date.now() >= Date.parse(auction.endsAt)) await this.closeInternal(auction);
@@ -313,7 +337,8 @@ export class AuctionService {
     if (auction.status !== 'active') return;
     auction.status = 'closed';
     auction.closedAt = new Date().toISOString();
-    this.activeByEvent.delete(auction.eventId);
+    // The event's current-auction entry deliberately survives the close — see
+    // currentByEvent. Deleting it here is what hid the SOLD state (WI-38736).
     const winner = auction.bids[0];
     if (!winner) {
       // No winner means the start-time hold is no longer needed.

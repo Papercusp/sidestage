@@ -8,14 +8,14 @@ describe('AuctionService', () => {
   afterEach(() => vi.useRealTimers());
 
   it('registers the active auction read with the shared sync query registry', async () => {
-    const auctions = { getActiveAuction: vi.fn().mockResolvedValue({ id: 'auction-1', eventId: 'event-1' }) };
+    const auctions = { getCurrentAuction: vi.fn().mockResolvedValue({ id: 'auction-1', eventId: 'event-1' }) };
     const queries = new SyncQueryRegistry();
     new AuctionSyncQueries(auctions as never, queries).onModuleInit();
 
     await expect(queries.resolve('event.auction.active', { eventId: 'event-1' })).resolves.toEqual([
       { id: 'auction-1', eventId: 'event-1' },
     ]);
-    expect(auctions.getActiveAuction).toHaveBeenCalledWith('event-1');
+    expect(auctions.getCurrentAuction).toHaveBeenCalledWith('event-1');
   });
 
   it('starts on an event item and atomically holds quantity in reservedQty', async () => {
@@ -69,7 +69,89 @@ describe('AuctionService', () => {
     ]);
     await expect(auctions.listWinnerOrdersForBuyer('buyer-a')).resolves.toEqual([]);
     await expect(inventory.get('product-1')).resolves.toMatchObject({ reservedQty: 2, availableQty: 8 });
-    await expect(auctions.getActiveAuction('event-1')).resolves.toBeNull();
+    // The closed auction MUST remain readable: this is what the buyer panel
+    // renders the SOLD/winner state from. It previously returned null here,
+    // which is why a winning bidder saw "No auction is live yet" (WI-38736).
+    await expect(auctions.getCurrentAuction('event-1')).resolves.toMatchObject({
+      id: started.id,
+      status: 'closed',
+      winnerOrder: expect.objectContaining({ bidderId: 'buyer-b' }),
+    });
+  });
+
+  it('serves the closed auction to the buyer panel query, so the winner sees the result', async () => {
+    // The regression this locks down is END-TO-END through the query the panel
+    // actually reads. The panel's SOLD branch had passing prop-driven tests the
+    // whole time it was unreachable in the live wiring, so asserting on the
+    // component proves nothing here — the input is what was broken.
+    const inventory = new InMemoryAuctionInventory();
+    await inventory.seed('product-1', 3);
+    const auctions = new AuctionService(inventory);
+    const queries = new SyncQueryRegistry();
+    new AuctionSyncQueries(auctions as never, queries).onModuleInit();
+
+    const started = await auctions.startAuction({
+      eventId: 'event-1',
+      eventItemId: 'item-1',
+      productId: 'product-1',
+      quantity: 1,
+      startingPriceCents: 1000,
+    });
+    await auctions.placeBid(started.id, { bidderId: 'buyer-a', amountCents: 1400, displayName: 'A' });
+    await auctions.closeAuction(started.id);
+
+    const rows = (await queries.resolve('event.auction.active', { eventId: 'event-1' })) as Array<{
+      id: string;
+      status: string;
+      winnerOrder?: { bidderId: string };
+    }>;
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({ id: started.id, status: 'closed' });
+    expect(rows[0]?.winnerOrder?.bidderId).toBe('buyer-a');
+
+    // And the SSE snapshot a reconnecting client receives agrees with it —
+    // otherwise a dropped stream would still wipe the result on recovery.
+    const snapshot = JSON.parse((await auctions.snapshotEvent('event-1')).data) as {
+      auction: { id: string; status: string } | null;
+    };
+    expect(snapshot.auction).toMatchObject({ id: started.id, status: 'closed' });
+  });
+
+  it('lets the next auction start on an event whose previous one closed', async () => {
+    // The event's current-auction entry now survives a close, so the
+    // "already has an active auction" guard must key on STATUS, not presence.
+    const inventory = new InMemoryAuctionInventory();
+    await inventory.seed('product-1', 6);
+    const auctions = new AuctionService(inventory);
+    const first = await auctions.startAuction({
+      eventId: 'event-1',
+      eventItemId: 'item-1',
+      productId: 'product-1',
+      quantity: 1,
+      startingPriceCents: 500,
+    });
+    await auctions.closeAuction(first.id);
+
+    const second = await auctions.startAuction({
+      eventId: 'event-1',
+      eventItemId: 'item-2',
+      productId: 'product-1',
+      quantity: 1,
+      startingPriceCents: 700,
+    });
+    expect(second.id).not.toBe(first.id);
+    // ...and the current auction is now the NEW one, not the closed one.
+    await expect(auctions.getCurrentAuction('event-1')).resolves.toMatchObject({ id: second.id, status: 'active' });
+    // Starting a third while the second is live is still refused.
+    await expect(
+      auctions.startAuction({
+        eventId: 'event-1',
+        eventItemId: 'item-3',
+        productId: 'product-1',
+        quantity: 1,
+        startingPriceCents: 900,
+      }),
+    ).rejects.toThrow(/already has an active auction/);
   });
 
   it('releases the start-time hold when an auction closes without bids', async () => {
