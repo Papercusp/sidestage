@@ -108,11 +108,18 @@ describe('createSellerDockStore — round trip', () => {
     expect(reloaded.layoutJson).not.toEqual(sellerDockDefaultLayout());
   });
 
-  it('migrates retired Transcript and On Deck panes out of docked and floating layouts', async () => {
+  it('migrates retired Transcript, Event Chat, and On Deck panes out of saved layouts', async () => {
     const legacy = sellerDockDefaultLayout();
     const root = legacy.root as Extract<LayoutDoc['root'], { kind: 'group' }>;
     const rail = root.children.find((node) => node.id === 'seller-active-rail') as Extract<LayoutDoc['root'], { kind: 'group' }>;
-    const chatStrip = rail.children[0] as Extract<LayoutDoc['root'], { kind: 'tabs' }>;
+    const chatStrip: Extract<LayoutDoc['root'], { kind: 'tabs' }> = {
+      kind: 'tabs',
+      id: 'legacy-event-chat-group',
+      activePanelId: 'event-chat',
+      panels: [{ id: 'event-chat', type: 'event-chat', title: 'Event chat' }],
+      size: 450,
+    };
+    rail.children.unshift(chatStrip);
     chatStrip.panels.unshift({ id: 'transcript', type: 'transcript', title: 'Transcript' });
     chatStrip.activePanelId = 'transcript';
     rail.children.splice(1, 0, {
@@ -138,6 +145,7 @@ describe('createSellerDockStore — round trip', () => {
 
     expect(layoutPanelIds(legacy)).toContain('on-deck');
     expect(layoutPanelIds(legacy)).toContain('transcript');
+    expect(layoutPanelIds(legacy)).toContain('event-chat');
     expect(layoutPanelIds(legacy)).toContain('transcript-floating');
     await createSellerDockStore().save(SELLER_DOCK_LAYOUT_NAME, legacy);
     const migrated = await createSellerDockStore().load(SELLER_DOCK_LAYOUT_NAME);
@@ -145,10 +153,12 @@ describe('createSellerDockStore — round trip', () => {
 
     expect(layoutPanelIds(migratedLayout)).not.toContain('on-deck');
     expect(layoutPanelIds(migratedLayout)).not.toContain('transcript');
+    expect(layoutPanelIds(migratedLayout)).not.toContain('event-chat');
     expect(layoutPanelIds(migratedLayout)).not.toContain('transcript-floating');
+    expect(layoutPanelIds(migratedLayout)).not.toContain('event-chat-floating');
     expect(layoutPanelIds(migratedLayout)).toContain('run-of-show');
     expect((migratedLayout.root as Extract<LayoutDoc['root'], { kind: 'group' }>).children[0]?.size).toBe(701);
-    expect(migratedLayout.floating?.[0]?.activePanelId).toBe('event-chat-floating');
+    expect(migratedLayout.floating).toBeUndefined();
     expect(layoutPanelIds(migrateSellerActiveEventLayout(migratedLayout))).toEqual(
       layoutPanelIds(migratedLayout),
     );

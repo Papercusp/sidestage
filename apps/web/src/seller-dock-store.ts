@@ -164,7 +164,7 @@ function containsPanel(node: GroupNode | TabStrip, panelId: string): boolean {
   return node.children.some((child) => containsPanel(child, panelId));
 }
 
-const RETIRED_ACTIVE_EVENT_PANEL_IDS: readonly string[] = ['transcript', 'on-deck'];
+const RETIRED_ACTIVE_EVENT_PANEL_IDS: readonly string[] = ['transcript', 'on-deck', 'event-chat'];
 
 function floatingContainsPanel(layout: LayoutDoc, panelId: string): boolean {
   return layout.floating?.some((group) => (
@@ -180,7 +180,7 @@ function isRetiredActiveEventPanel(panel: PanelInstance): boolean {
 /**
  * Remove retired standalone panes from saved Active Event layouts without
  * discarding the seller's remaining dock geometry. On Deck was replaced by
- * Run of Show; Transcript now lives inside the Live console. If an On Deck
+ * Run of Show; Transcript and Event Chat now live inside the Live console. If an On Deck
  * layout also lost Run of Show, reseed instead: that route no longer has a
  * live-lineup surface to preserve.
  */
