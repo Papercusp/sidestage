@@ -69,6 +69,7 @@
 .auction-card:has(.auction-empty) { gap: .5rem; padding: .6rem .85rem; border-color: var(--border); background: none; box-shadow: none; }
 .auction-card:has(.auction-empty) .auction-empty { padding: 0; border: 0; color: var(--muted); }
 .auction-card:has(.auction-empty) .auction-empty strong { color: var(--text); font-weight: 600; }
+.auction-bid-status { margin: 0; color: var(--success); font-size: .82rem; font-weight: 650; }
 .auction-error { margin: 0; color: var(--danger); font-size: .82rem; }
 @media (max-width:560px) { .auction-card-heading,.auction-bid-row { align-items: stretch; flex-direction: column; } .auction-sync { align-self: flex-start; } .auction-stage { grid-template-columns: auto minmax(0,1fr); } .auction-feed { grid-column: 1 / -1; } }
 @media (max-width:380px) { .auction-stage { grid-template-columns: 1fr; justify-items: center; } .auction-headline { justify-items: center; text-align: center; } .auction-feed { justify-self: stretch; } }
