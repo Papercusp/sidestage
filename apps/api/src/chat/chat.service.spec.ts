@@ -43,15 +43,20 @@ describe('ChatService', () => {
     ]);
   });
 
-  it('registers chat and replay reads with the shared sync query registry', async () => {
+  it('registers chat, transcript, and replay reads with the shared sync query registry', async () => {
     const service = new ChatService();
     const queries = new SyncQueryRegistry();
     new ChatSyncQueries(service, queries).onModuleInit();
     service.addMessage('demo-event', {
       userId: 'buyer-1', displayName: 'Maya', role: 'buyer', text: 'Hello host',
     });
+    const transcript = service.addTranscriptMoment('demo-event', {
+      text: 'The glaze is food safe.',
+      startMs: 12_000,
+    });
 
     await expect(queries.resolve('event.chat.messages', { eventId: 'demo-event' })).resolves.toHaveLength(1);
+    await expect(queries.resolve('event.chat.transcript', { eventId: 'demo-event' })).resolves.toEqual([transcript]);
     await expect(queries.resolve('event.chat.stats', { eventId: 'demo-event' })).resolves.toEqual([
       { activeUsers: 1, buyers: 1, sellers: 0, totalMessages: 1 },
     ]);
@@ -138,8 +143,11 @@ describe('ChatService', () => {
       previewText: 'Here is the hand-painted detail on the Aurora cup.',
     }]);
     expect(events).toEqual([
+      'event.chat.transcript',
       'event.replay.chapters',
+      'event.chat.transcript',
       'event.replay.chapters',
+      'event.chat.transcript',
       'event.replay.chapters',
     ]);
   });
