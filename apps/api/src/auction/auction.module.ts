@@ -5,6 +5,7 @@ import { PgAuctionStore } from '../db/pg-auction-store';
 import { InventoryModule } from '../inventory/inventory.module';
 import { SyncModule } from '../sync/sync.module';
 import { SyncQueryRegistry } from '../sync/sync-query.registry';
+import { AuctionAccessService, AuctionAuditService } from './auction-access.service';
 import { AuctionController } from './auction.controller';
 import { AUCTION_STORE, AuctionService } from './auction.service';
 
@@ -33,6 +34,8 @@ export class AuctionSyncQueries implements OnModuleInit {
       inject: [PG_POOL],
       useFactory: (pool: Pool | null) => (pool ? new PgAuctionStore(pool) : null),
     },
+    AuctionAccessService,
+    AuctionAuditService,
     AuctionService,
     AuctionSyncQueries,
   ],

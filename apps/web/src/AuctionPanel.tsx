@@ -4,6 +4,7 @@ import { useSyncMutate, useSyncQuery } from '@papercusp/sync';
 import type { BuyerProduct } from './buyer';
 import { formatBuyerPrice } from './buyer';
 import {
+  getAuctionGuestSession,
   parseBidDollars,
   placeAuctionBid,
   secondsRemaining,
@@ -25,7 +26,12 @@ type SyncState = 'connecting' | 'live' | 'reconnecting' | 'polling';
 
 interface PlaceBidMutation {
   auctionId: string;
-  bid: { bidderId: string; displayName?: string; amountCents: number };
+  bid: { displayName?: string; amountCents: number; idempotencyKey: string };
+}
+
+function requestKey(): string {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') return crypto.randomUUID();
+  return `bid-${Date.now()}-${Math.random().toString(36).slice(2)}`;
 }
 
 export function activeAuctionFromSyncRows(rows?: readonly BuyerAuction[]): BuyerAuction | null {
@@ -93,8 +99,10 @@ export function AuctionPanel({
   const [bidDraft, setBidDraft] = useState('');
   const [bidError, setBidError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [viewerBidderId, setViewerBidderId] = useState<string | null>(null);
   const [nowMs, setNowMs] = useState(Date.now());
   const suggestedFor = useRef('');
+  const pendingBid = useRef<{ fingerprint: string; key: string } | null>(null);
 
   const auctionQuery = useSyncQuery<BuyerAuction>({
     queryName: 'event.auction.active',
@@ -117,6 +125,15 @@ export function AuctionPanel({
     [apiBaseUrl],
   );
   const mutateBid = useSyncMutate<PlaceBidMutation, BuyerAuction>('auction.placeBid', placeBidFallback);
+
+  useEffect(() => {
+    let active = true;
+    void getAuctionGuestSession(apiBaseUrl).then(
+      (session) => { if (active) setViewerBidderId(session.bidderId); },
+      () => undefined,
+    );
+    return () => { active = false; };
+  }, [apiBaseUrl]);
 
   useEffect(() => {
     const quoteKey = auction ? `${auction.id}:${auction.currentPriceCents}` : '';
@@ -144,7 +161,8 @@ export function AuctionPanel({
 
   const product = useMemo(() => products.find((candidate) => candidate.id === auction?.productId), [auction?.productId, products]);
   const leadingBid = auction?.bids[0];
-  const isLeading = leadingBid?.bidderId === bidderId;
+  const effectiveBidderId = viewerBidderId ?? auction?.viewerBidderId ?? bidderId;
+  const isLeading = leadingBid?.bidderId === effectiveBidderId;
   const parsedBid = parseBidDollars(bidDraft);
   const canBid = Boolean(auction && phase === 'live' && parsedBid !== null && parsedBid > auction.currentPriceCents && !submitting);
 
@@ -166,10 +184,16 @@ export function AuctionPanel({
     setSubmitting(true);
     setBidError(null);
     try {
-      await mutateBid({
+      const fingerprint = `${auction.id}:${parsedBid}`;
+      if (pendingBid.current?.fingerprint !== fingerprint) {
+        pendingBid.current = { fingerprint, key: requestKey() };
+      }
+      const updated = await mutateBid({
         auctionId: auction.id,
-        bid: { bidderId, displayName, amountCents: parsedBid },
+        bid: { displayName, amountCents: parsedBid, idempotencyKey: pendingBid.current.key },
       });
+      setViewerBidderId(updated.viewerBidderId ?? effectiveBidderId);
+      pendingBid.current = null;
     } catch (cause) {
       setBidError(cause instanceof Error ? cause.message : 'Your bid could not be placed.');
     } finally {
@@ -270,7 +294,7 @@ export function AuctionPanel({
           </div>
           <div className={`auction-leader${isLeading ? ' is-you' : ''}`}>
             {isClosed
-              ? auction.winnerOrder?.bidderId === bidderId
+              ? auction.winnerOrder?.bidderId === effectiveBidderId
                 ? 'You won—your item is ready for checkout.'
                 : leadingBid ? `${leadingBid.displayName ?? 'A buyer'} won at ${formatBuyerPrice(leadingBid.amountCents)}.` : 'The auction closed without a bid.'
               /* Past tense while settling: bidding is over, so "leads" would
