@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import type { Pool } from 'pg';
 import { DatabaseModule, PG_POOL } from '../db/database.module';
+import { EventModule } from '../events/event.module';
 import { PolicyController } from './policy.controller';
 import {
   InMemoryPolicyStore,
@@ -22,7 +23,7 @@ export const DEMO_CAPABILITIES: ProviderCapabilities = {
 };
 
 @Module({
-  imports: [DatabaseModule],
+  imports: [DatabaseModule, EventModule],
   controllers: [PolicyController],
   providers: [
     PolicyService,

@@ -1,6 +1,18 @@
-import { Controller, Delete, Get, Headers, Inject, NotFoundException, Param } from '@nestjs/common';
-import { DEFAULT_SELLER_ID } from '../policies/policy.service';
+import {
+  Controller,
+  Delete,
+  Get,
+  Headers,
+  Inject,
+  NotFoundException,
+  Param,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { SyncInvalidationService } from '../sync/sync-invalidation.service';
+import {
+  DEMO_PRINCIPAL_HEADER,
+  rolePrincipal,
+} from '../sync/sync-request-context';
 import { EventService, type EventRecord, type EventSummary } from './event.service';
 
 export interface EventListResponse {
@@ -9,6 +21,14 @@ export interface EventListResponse {
 
 export interface SellerEventListResponse {
   events: EventRecord[];
+}
+
+function requireSellerId(principal: unknown): string {
+  const sellerId = rolePrincipal(principal, 'seller');
+  if (!sellerId) {
+    throw new UnauthorizedException(`${DEMO_PRINCIPAL_HEADER} is required for seller-owned resources.`);
+  }
+  return sellerId;
 }
 
 /**
@@ -35,9 +55,9 @@ export class EventController {
 
   @Get('mine')
   async listMine(
-    @Headers('x-seller-id') sellerIdHeader: string | undefined,
+    @Headers(DEMO_PRINCIPAL_HEADER) principalHeader: string | undefined,
   ): Promise<SellerEventListResponse> {
-    return { events: await this.events.listForSeller(sellerIdHeader ?? DEFAULT_SELLER_ID) };
+    return { events: await this.events.listForSeller(requireSellerId(principalHeader)) };
   }
 
   /**
@@ -48,15 +68,15 @@ export class EventController {
   @Delete(':eventId')
   async unpublish(
     @Param('eventId') eventId: string,
-    @Headers('x-seller-id') sellerIdHeader: string | undefined,
+    @Headers(DEMO_PRINCIPAL_HEADER) principalHeader: string | undefined,
   ): Promise<{ eventId: string; status: 'draft' }> {
-    const sellerId = sellerIdHeader?.trim() || DEFAULT_SELLER_ID;
+    const sellerId = requireSellerId(principalHeader);
     const unpublished = await this.events.unpublish(eventId, sellerId);
     if (!unpublished) {
       throw new NotFoundException('Event not found for this seller.');
     }
     this.invalidations.invalidate('events.guide');
-    this.invalidations.invalidate('events.mine');
+    this.invalidations.invalidate('events.mine', undefined, { principal: principalHeader });
     return { eventId, status: 'draft' };
   }
 }

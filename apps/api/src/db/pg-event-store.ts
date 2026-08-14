@@ -69,6 +69,29 @@ export class PgEventStore implements EventStore {
     return result.rows.flatMap((row) => mapRow(row));
   }
 
+  async findById(eventId: string): Promise<EventRecord | undefined> {
+    const result = await this.pool.query<EventRow>(
+      `SELECT event_id, title, seller_id, seller_name, status,
+              starts_at, ended_at, thumbnail_url
+         FROM event
+        WHERE event_id = $1`,
+      [eventId],
+    );
+    return result.rows.flatMap((row) => mapRow(row))[0];
+  }
+
+  async findOwned(eventId: string, sellerId: string): Promise<EventRecord | undefined> {
+    const result = await this.pool.query<EventRow>(
+      `SELECT event_id, title, seller_id, seller_name, status,
+              starts_at, ended_at, thumbnail_url
+         FROM event
+        WHERE event_id = $1
+          AND seller_id = $2`,
+      [eventId, sellerId],
+    );
+    return result.rows.flatMap((row) => mapRow(row))[0];
+  }
+
   /**
    * Upsert the seller-created event's directory row (EI-20426845001666103 /
    * P-014). A NEW event inserts as 'scheduled' so it is buyer-visible at
@@ -77,22 +100,24 @@ export class PgEventStore implements EventStore {
    * starts_at or ended_at: a config re-save (rename, thumbnail swap) on a live
    * or ended event must never reset its lifecycle.
    */
-  async publish(input: EventPublication): Promise<void> {
-    await this.pool.query(
+  async publish(input: EventPublication): Promise<boolean> {
+    const result = await this.pool.query<{ event_id: string }>(
       `INSERT INTO event (event_id, title, seller_id, seller_name, status, thumbnail_url)
        VALUES ($1, $2, $3, $4, 'scheduled', $5)
        ON CONFLICT (event_id) DO UPDATE
          SET title = EXCLUDED.title,
-             seller_id = EXCLUDED.seller_id,
              seller_name = EXCLUDED.seller_name,
              thumbnail_url = EXCLUDED.thumbnail_url,
              status = CASE
                WHEN event.status = 'draft' THEN 'scheduled'
                ELSE event.status
              END,
-             updated_at = now()`,
+             updated_at = now()
+       WHERE event.seller_id = EXCLUDED.seller_id
+       RETURNING event_id`,
       [input.eventId, input.title, input.sellerId, input.sellerName, input.thumbnailUrl ?? null],
     );
+    return result.rows.length > 0;
   }
 
   async unpublish(eventId: string, sellerId: string): Promise<boolean> {

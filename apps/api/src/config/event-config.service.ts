@@ -33,40 +33,68 @@ export interface EventConfig {
 }
 
 export interface EventConfigStore {
-  get(eventId: string): Promise<EventConfig | undefined>;
-  set(config: EventConfig): Promise<void>;
+  get(eventId: string, sellerId?: string): Promise<EventConfig | undefined>;
+  set(config: EventConfig, sellerId?: string): Promise<boolean>;
 }
 
 @Injectable()
 export class InMemoryEventConfigStore implements EventConfigStore {
-  private readonly configs = new Map<string, EventConfig>();
+  private readonly configs = new Map<string, { config: EventConfig; sellerId?: string }>();
 
-  async get(eventId: string): Promise<EventConfig | undefined> {
-    return this.configs.get(eventId);
+  async get(eventId: string, sellerId?: string): Promise<EventConfig | undefined> {
+    const stored = this.configs.get(eventId);
+    if (!stored) return undefined;
+    if (sellerId && stored.sellerId !== sellerId) return undefined;
+    return stored.config;
   }
 
-  async set(config: EventConfig): Promise<void> {
-    this.configs.set(config.eventId, config);
+  async set(config: EventConfig, sellerId?: string): Promise<boolean> {
+    const stored = this.configs.get(config.eventId);
+    if (sellerId && stored?.sellerId && stored.sellerId !== sellerId) return false;
+    this.configs.set(config.eventId, {
+      config,
+      ...(stored?.sellerId || sellerId ? { sellerId: stored?.sellerId ?? sellerId } : {}),
+    });
+    return true;
   }
 }
 
 export class PgEventConfigStore implements EventConfigStore {
   constructor(private readonly pool: Pool) {}
 
-  async get(eventId: string): Promise<EventConfig | undefined> {
+  async get(eventId: string, sellerId?: string): Promise<EventConfig | undefined> {
     const result = await this.pool.query<{ payload: EventConfig }>(
-      'SELECT payload FROM event_config WHERE event_id = $1',
-      [eventId],
+      sellerId
+        ? `SELECT config.payload
+             FROM event_config AS config
+             JOIN event AS owner ON owner.event_id = config.event_id
+            WHERE config.event_id = $1
+              AND owner.seller_id = $2`
+        : 'SELECT payload FROM event_config WHERE event_id = $1',
+      sellerId ? [eventId, sellerId] : [eventId],
     );
     return result.rows[0]?.payload ?? undefined;
   }
 
-  async set(config: EventConfig): Promise<void> {
-    await this.pool.query(
-      `INSERT INTO event_config (event_id, payload, updated_at) VALUES ($1, $2::jsonb, now())
-       ON CONFLICT (event_id) DO UPDATE SET payload = EXCLUDED.payload, updated_at = now()`,
-      [config.eventId, JSON.stringify(config)],
+  async set(config: EventConfig, sellerId?: string): Promise<boolean> {
+    const result = await this.pool.query<{ event_id: string }>(
+      sellerId
+        ? `INSERT INTO event_config (event_id, payload, updated_at)
+           SELECT owner.event_id, $2::jsonb, now()
+             FROM event AS owner
+            WHERE owner.event_id = $1
+              AND owner.seller_id = $3
+           ON CONFLICT (event_id) DO UPDATE
+             SET payload = EXCLUDED.payload, updated_at = now()
+           RETURNING event_id`
+        : `INSERT INTO event_config (event_id, payload, updated_at) VALUES ($1, $2::jsonb, now())
+           ON CONFLICT (event_id) DO UPDATE SET payload = EXCLUDED.payload, updated_at = now()
+           RETURNING event_id`,
+      sellerId
+        ? [config.eventId, JSON.stringify(config), sellerId]
+        : [config.eventId, JSON.stringify(config)],
     );
+    return result.rows.length > 0;
   }
 }
 
@@ -148,14 +176,25 @@ export function withDerivedPriceFloors(
 export class EventConfigService {
   constructor(@Inject(EVENT_CONFIG_STORE) private readonly store: EventConfigStore) {}
 
-  async get(eventId: string): Promise<EventConfig> {
+  async get(eventId: string, sellerId?: string): Promise<EventConfig> {
     const id = this.readEventId(eventId);
-    return (await this.store.get(id)) ?? defaultEventConfig(id);
+    return (await this.store.get(id, sellerId)) ?? defaultEventConfig(id);
   }
 
   async save(eventId: string, input: Partial<Omit<EventConfig, 'eventId' | 'updatedAt'>>): Promise<EventConfig> {
+    const next = await this.prepare(eventId, input);
+    await this.store.set(next);
+    return next;
+  }
+
+  /** Validate and merge without writing, so callers can establish the event FK first. */
+  async prepare(
+    eventId: string,
+    input: Partial<Omit<EventConfig, 'eventId' | 'updatedAt'>>,
+    sellerId?: string,
+  ): Promise<EventConfig> {
     const id = this.readEventId(eventId);
-    const current = await this.get(id);
+    const current = await this.get(id, sellerId);
     // `thumbnailUrl` is tri-state on the way in: absent => keep what is stored,
     // explicit null/'' => clear it, a string => validate and replace. Without
     // the null case a seller could never REMOVE a thumbnail once set, because
@@ -173,8 +212,12 @@ export class EventConfigService {
       },
       updatedAt: new Date().toISOString(),
     };
-    await this.store.set(next);
     return next;
+  }
+
+  /** Owner-scoped write; false collapses a foreign and absent event to one result. */
+  async persistOwned(config: EventConfig, sellerId: string): Promise<boolean> {
+    return this.store.set(config, sellerId);
   }
 
   private readEventId(value: string): string {

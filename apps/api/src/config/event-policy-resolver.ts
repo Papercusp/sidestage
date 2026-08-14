@@ -1,6 +1,7 @@
-import { Inject, Injectable } from '@nestjs/common';
+import { Inject, Injectable, NotFoundException } from '@nestjs/common';
 import type { CopilotPolicy } from '../copilot/copilot.types';
-import { DEFAULT_SELLER_ID, PolicyService } from '../policies/policy.service';
+import { EventService } from '../events/event.service';
+import { PolicyService } from '../policies/policy.service';
 import { EventConfigService, policyFromConfig, withDerivedPriceFloors } from './event-config.service';
 
 export const EVENT_POLICY_RESOLVER = Symbol('EVENT_POLICY_RESOLVER');
@@ -31,11 +32,16 @@ export class ConfigEventPolicyResolver implements EventPolicyResolver {
   constructor(
     @Inject(EventConfigService) private readonly configs: EventConfigService,
     @Inject(PolicyService) private readonly policies: PolicyService,
+    @Inject(EventService) private readonly events: EventService,
   ) {}
 
   async resolve(eventId: string, items: readonly PricedEventItem[]): Promise<CopilotPolicy> {
-    const published = await this.policies.effectiveCopilotPolicy(DEFAULT_SELLER_ID, eventId);
-    const policy = published ? published.policy : policyFromConfig(await this.configs.get(eventId));
+    const event = await this.events.findById(eventId);
+    if (!event) throw new NotFoundException('Event not found.');
+    const published = await this.policies.effectiveCopilotPolicy(event.sellerId, eventId);
+    const policy = published
+      ? published.policy
+      : policyFromConfig(await this.configs.get(eventId, event.sellerId));
     return withDerivedPriceFloors(policy, items);
   }
 }
