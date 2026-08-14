@@ -30,6 +30,14 @@ export type EventConfigUpdate = Pick<EventConfigView, 'name' | 'replyTone' | 'gu
 
 export type ConfigSaveState = 'idle' | 'saving' | 'saved' | 'error' | 'offline';
 
+/** REST fallback headers share the same principal contract as sync transport. */
+export function eventConfigRequestHeaders(principal?: string): Record<string, string> {
+  return {
+    'content-type': 'application/json',
+    ...(principal ? { [DEMO_PRINCIPAL_HEADER]: principal } : {}),
+  };
+}
+
 interface GuardrailCopy {
   key: keyof EventGuardrails;
   title: string;
@@ -382,10 +390,7 @@ export function EventSettingsPanel({
   const saveFallback = useCallback(async (input: EventConfigUpdate) => {
     const response = await fetch(`${resolveApiBaseUrl(apiBaseUrl)}/events/${encodeURIComponent(eventId)}/config`, {
       method: 'PUT',
-      headers: {
-        'content-type': 'application/json',
-        ...(principal ? { [DEMO_PRINCIPAL_HEADER]: principal } : {}),
-      },
+      headers: eventConfigRequestHeaders(principal),
       body: JSON.stringify(input),
     });
     if (!response.ok) throw new Error(`HTTP ${response.status}`);

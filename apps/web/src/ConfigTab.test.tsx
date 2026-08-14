@@ -6,6 +6,7 @@ import {
   EventSettingsPanel,
   configReadiness,
   countConfigChanges,
+  eventConfigRequestHeaders,
   eventConfigUpdate,
   offlineEventConfig,
   type EventConfigView,
@@ -22,6 +23,16 @@ const CONFIG: EventConfigView = {
 };
 
 describe('ConfigTab sync mapping', () => {
+  it('uses the canonical demo principal on the REST save fallback', () => {
+    expect(eventConfigRequestHeaders('demo-avi')).toEqual({
+      'content-type': 'application/json',
+      'x-demo-principal': 'demo-avi',
+    });
+    expect(eventConfigRequestHeaders()).toEqual({
+      'content-type': 'application/json',
+    });
+  });
+
   it('maps the named-query row into an update without sending server-owned fields', () => {
     expect(eventConfigUpdate(CONFIG)).toEqual({
       name: 'Friday drop',
