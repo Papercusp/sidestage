@@ -43,6 +43,26 @@ export interface PreflightReport {
   checks: PreflightCheck[];
 }
 
+export const CLIENT_REALTIME_PROBE_EVENT = 'rehearsal.client-round-trip';
+
+export interface ClientClockReceipt {
+  serverTimeMs: number;
+}
+
+export interface ClientRealtimeProbeReceipt extends ClientClockReceipt {
+  eventId: string;
+  nonce: string;
+}
+
+/** One timestamp feeds both the HTTP receipt and the correlated SSE event. */
+export function createClientRealtimeProbeReceipt(
+  eventId: string,
+  nonce: string,
+  now: () => number = Date.now,
+): ClientRealtimeProbeReceipt {
+  return { eventId, nonce, serverTimeMs: now() };
+}
+
 /**
  * The outcome of the live durability probe.
  *

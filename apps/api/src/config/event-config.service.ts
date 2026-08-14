@@ -112,6 +112,28 @@ export function policyFromConfig(config: EventConfig): CopilotPolicy {
   };
 }
 
+/**
+ * Fills in the per-product price floors PolicyActionGuard requires (WI-38673).
+ * A floor the policy already names (a published policy document, P-114) always
+ * wins; a product with no explicit floor derives one from its verified event
+ * price and the policy's markdown cap, so "guardrails: on" yields guarded
+ * discounting instead of the guard's blanket "no floor configured" refusal.
+ * Mirrors the client-side derivation in apps/web/src/events/api.ts
+ * (policyWithVerifiedFloors) so preview and enforcement agree.
+ */
+export function withDerivedPriceFloors(
+  policy: CopilotPolicy,
+  items: readonly { productId: string; priceCents: number }[],
+): CopilotPolicy {
+  const floors: Record<string, number> = { ...policy.priceFloorCentsByProduct };
+  for (const item of items) {
+    if (Number.isSafeInteger(floors[item.productId])) continue;
+    if (!Number.isSafeInteger(item.priceCents) || item.priceCents <= 0) continue;
+    floors[item.productId] = Math.max(1, Math.ceil(item.priceCents * (1 - policy.maxMarkdownPercent / 100)));
+  }
+  return { ...policy, priceFloorCentsByProduct: floors };
+}
+
 @Injectable()
 export class EventConfigService {
   constructor(@Inject(EVENT_CONFIG_STORE) private readonly store: EventConfigStore) {}

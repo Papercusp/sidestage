@@ -169,3 +169,60 @@ describe('GuardedActionService', () => {
     })).rejects.toThrow();
   });
 });
+
+describe('config-authoritative policy resolution (WI-38673)', () => {
+  const configPolicy: CopilotPolicy = {
+    automationLevel: 'confirm',
+    allowAutoActions: false,
+    priceFloorCentsByProduct: { mug: 1_050 },
+    maxMarkdownPercent: 30,
+    blockedActionKinds: [],
+    tone: 'warm',
+  };
+
+  it('enforces the resolver policy over the caller-registered policy', async () => {
+    const seen: { eventId?: string; items?: readonly { productId: string; priceCents: number }[] } = {};
+    const actions = new GuardedActionService({
+      resolve: async (eventId, items) => {
+        seen.eventId = eventId;
+        seen.items = items;
+        return configPolicy;
+      },
+    });
+    // The register caller brings a permissive policy: 1-cent floor, no cap.
+    // Before WI-38673 this policy governed — an HTTP caller could bring its own.
+    actions.registerEvent('event-1', {
+      policy: { ...policy, priceFloorCentsByProduct: { mug: 1 }, maxMarkdownPercent: 100 },
+      items: [item],
+    });
+
+    await expect(actions.apply({
+      eventId: 'event-1',
+      actorId: 'seller-1',
+      action: { kind: 'markdown', productId: 'mug', priceCents: 900, reason: 'Below the config floor' },
+    })).rejects.toThrow('floor');
+
+    // The resolver saw the registered items, so floors derive from verified prices.
+    expect(seen.eventId).toBe('event-1');
+    expect(seen.items).toEqual([{ productId: 'mug', priceCents: 1_500 }]);
+
+    // A markdown the config policy allows still goes through.
+    const applied = await actions.apply({
+      eventId: 'event-1',
+      actorId: 'seller-1',
+      action: { kind: 'markdown', productId: 'mug', priceCents: 1_100, reason: 'Inside the config floor' },
+    });
+    expect(applied.state.priceCents).toBe(1_100);
+  });
+
+  it('falls back to the registered policy when no resolver is wired (rehearsal path)', async () => {
+    const actions = new GuardedActionService();
+    actions.registerEvent('event-1', { policy, items: [item] });
+    const applied = await actions.apply({
+      eventId: 'event-1',
+      actorId: 'seller-1',
+      action: { kind: 'markdown', productId: 'mug', priceCents: 1_250, reason: 'Registered policy governs' },
+    });
+    expect(applied.state.priceCents).toBe(1_250);
+  });
+});

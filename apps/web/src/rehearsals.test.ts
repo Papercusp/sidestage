@@ -1,14 +1,20 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
+  buildClientPreflightReport,
   buildReadinessReport,
   fetchPreflight,
   historyDelta,
+  probeClockSkew,
+  probeMediaLoopback,
+  probeRealtimeRoundTrip,
   readHistory,
   readinessReportFilename,
   recordHistory,
   runDressRehearsal,
   runRehearsal,
+  type ClientPreflightReport,
   type DressRehearsalVerdict,
+  type OpenRealtimeProbeSource,
   type PreflightReport,
   type RehearsalHistoryEntry,
   type RehearsalKind,
@@ -208,6 +214,148 @@ describe('historyDelta', () => {
   });
 });
 
+describe('measured browser preflight', () => {
+  it('requires the correlated nonce to return through the real SSE invalidation path', async () => {
+    let callbacks: Parameters<OpenRealtimeProbeSource>[0] | undefined;
+    const close = vi.fn();
+    const openSource: OpenRealtimeProbeSource = (next) => {
+      callbacks = next;
+      queueMicrotask(next.onOpen);
+      return { close };
+    };
+    let clock = 100;
+    const fetchImpl = vi.fn(async (_url: string | URL | Request, init?: RequestInit) => {
+      const nonce = (JSON.parse(String(init?.body)) as { nonce: string }).nonce;
+      queueMicrotask(() => {
+        clock = 137;
+        callbacks?.onInvalidate(JSON.stringify({
+          name: 'rehearsal.client-round-trip',
+          args: { nonce, serverTimeMs: 120 },
+        }));
+      });
+      return { ok: true, status: 200, json: async () => ({ nonce }) } as Response;
+    });
+
+    await expect(probeRealtimeRoundTrip('event/a', {
+      apiBaseUrl: 'http://api.test/',
+      fetchImpl: fetchImpl as typeof fetch,
+      now: () => clock,
+      nonce: () => 'probe-nonce-123',
+      openSource,
+      timeoutMs: 50,
+    })).resolves.toEqual({ kind: 'measured', latencyMs: 37, serverTimeMs: 120 });
+
+    expect(callbacks?.url).toBe('http://api.test/sync/sse?eventId=event%2Fa');
+    expect(fetchImpl.mock.calls[0]?.[0]).toBe('http://api.test/rehearsals/client-realtime/event%2Fa');
+    expect(close).toHaveBeenCalledOnce();
+  });
+
+  it('distinguishes an emitted probe with no return from one that never opened', async () => {
+    const opensButNeverReturns: OpenRealtimeProbeSource = (callbacks) => {
+      queueMicrotask(callbacks.onOpen);
+      return { close: vi.fn() };
+    };
+    const fetchImpl = vi.fn(async (_url: string | URL | Request, init?: RequestInit) => {
+      const nonce = (JSON.parse(String(init?.body)) as { nonce: string }).nonce;
+      return { ok: true, status: 200, json: async () => ({ nonce }) } as Response;
+    });
+    const failed = await probeRealtimeRoundTrip('event-1', {
+      fetchImpl: fetchImpl as typeof fetch,
+      nonce: () => 'probe-nonce-123',
+      openSource: opensButNeverReturns,
+      timeoutMs: 5,
+    });
+    expect(failed).toEqual({ kind: 'failed', message: 'No round trip within 5ms after the probe was emitted.' });
+
+    const notAttempted = await probeRealtimeRoundTrip('event-1', {
+      openSource: () => ({ close: vi.fn() }),
+      timeoutMs: 5,
+    });
+    expect(notAttempted).toEqual({
+      kind: 'not-attempted',
+      message: 'Not attempted: the realtime stream did not open within 5ms.',
+    });
+  });
+
+  it('opens camera and microphone, measures bytes from both, and always releases their tracks', async () => {
+    const video = {
+      kind: 'video', label: 'Studio cam', readyState: 'live',
+      getSettings: () => ({ width: 1920, height: 1080 }), stop: vi.fn(),
+    } as unknown as MediaStreamTrack;
+    const audio = {
+      kind: 'audio', label: 'Desk mic', readyState: 'live',
+      getSettings: () => ({ sampleRate: 48_000 }), stop: vi.fn(),
+    } as unknown as MediaStreamTrack;
+    const stream = {
+      getVideoTracks: () => [video],
+      getAudioTracks: () => [audio],
+      getTracks: () => [video, audio],
+    } as unknown as MediaStream;
+    const getUserMedia = vi.fn(async () => stream);
+    const captureTrackBytes = vi.fn(async (track: MediaStreamTrack) => track.kind === 'video' ? 4_096 : 2_048);
+
+    await expect(probeMediaLoopback({ mediaDevices: { getUserMedia }, captureTrackBytes }))
+      .resolves.toEqual({
+        kind: 'measured',
+        videoBytes: 4_096,
+        audioBytes: 2_048,
+        videoLabel: 'Studio cam',
+        audioLabel: 'Desk mic',
+        width: 1920,
+        height: 1080,
+        sampleRate: 48_000,
+      });
+    expect(getUserMedia).toHaveBeenCalledWith({ video: true, audio: true });
+    expect(captureTrackBytes).toHaveBeenCalledTimes(2);
+    expect(video.stop).toHaveBeenCalledOnce();
+    expect(audio.stop).toHaveBeenCalledOnce();
+  });
+
+  it('does not turn missing media instrumentation or zero captured bytes into a green check', async () => {
+    await expect(probeMediaLoopback({ mediaDevices: null })).resolves.toMatchObject({ kind: 'unavailable' });
+
+    const video = { kind: 'video', label: '', readyState: 'live', getSettings: () => ({}), stop: vi.fn() } as unknown as MediaStreamTrack;
+    const audio = { kind: 'audio', label: '', readyState: 'live', getSettings: () => ({}), stop: vi.fn() } as unknown as MediaStreamTrack;
+    const stream = {
+      getVideoTracks: () => [video], getAudioTracks: () => [audio], getTracks: () => [video, audio],
+    } as unknown as MediaStream;
+    await expect(probeMediaLoopback({
+      mediaDevices: { getUserMedia: async () => stream },
+      captureTrackBytes: async (track) => track.kind === 'video' ? 100 : 0,
+    })).resolves.toMatchObject({ kind: 'failed', message: expect.stringContaining('microphone produced no') });
+    expect(video.stop).toHaveBeenCalledOnce();
+    expect(audio.stop).toHaveBeenCalledOnce();
+  });
+
+  it('measures clock skew at the HTTP midpoint and carries the uncertainty window', async () => {
+    const ticks = [1_000, 1_040];
+    const measured = await probeClockSkew({
+      apiBaseUrl: 'http://api.test',
+      now: () => ticks.shift() ?? 1_040,
+      fetchImpl: (async () => ({ ok: true, status: 200, json: async () => ({ serverTimeMs: 1_025 }) } as Response)) as typeof fetch,
+    });
+    expect(measured).toEqual({ kind: 'measured', skewMs: 5, roundTripMs: 40, uncertaintyMs: 20 });
+  });
+
+  it('builds readiness from observations and keeps unknowns from rendering ready', () => {
+    const ready = buildClientPreflightReport({
+      realtime: { kind: 'measured', latencyMs: 25, serverTimeMs: 1_000 },
+      media: { kind: 'measured', videoBytes: 10, audioBytes: 8, videoLabel: 'cam', audioLabel: 'mic' },
+      clock: { kind: 'measured', skewMs: 5, roundTripMs: 20, uncertaintyMs: 10 },
+      now: () => 1,
+    });
+    expect(ready.ready).toBe(true);
+    expect(ready.checks.every((check) => check.observed.length > 0 && check.expectation.length > 0)).toBe(true);
+
+    const unknown = buildClientPreflightReport({
+      realtime: { kind: 'not-attempted', message: 'Not attempted' },
+      media: { kind: 'unavailable', message: 'Unavailable' },
+      clock: { kind: 'unknown', message: 'Unknown' },
+    });
+    expect(unknown).toMatchObject({ ready: false, blockers: 0, unknowns: 3 });
+  });
+});
+
 describe('buildReadinessReport', () => {
   const preflight = (ready: boolean): PreflightReport => ({
     eventId: EVENT,
@@ -229,30 +377,42 @@ describe('buildReadinessReport', () => {
     reports: [],
   });
 
-  it('is ready only when BOTH halves ran and passed', () => {
-    const now = () => Date.parse('2026-08-13T21:00:00.000Z');
-    expect(buildReadinessReport({ eventId: EVENT, preflight: preflight(true), verdict: verdict(true), now }).ready).toBe(true);
-    expect(buildReadinessReport({ eventId: EVENT, preflight: preflight(false), verdict: verdict(true), now }).ready).toBe(false);
-    expect(buildReadinessReport({ eventId: EVENT, preflight: preflight(true), verdict: verdict(false), now }).ready).toBe(false);
+  const clientPreflight = (ready: boolean): ClientPreflightReport => ({
+    ranAt: '2026-08-13T20:02:00.000Z',
+    ready,
+    blockers: ready ? 0 : 1,
+    warnings: 0,
+    unknowns: 0,
+    checks: [],
   });
 
-  it('treats a half that never ran as not-ready, not as a pass', () => {
+  it('is ready only when server, browser, and rehearsal measurements all ran and passed', () => {
     const now = () => Date.parse('2026-08-13T21:00:00.000Z');
-    expect(buildReadinessReport({ eventId: EVENT, preflight: preflight(true), verdict: null, now }).ready).toBe(false);
-    expect(buildReadinessReport({ eventId: EVENT, preflight: null, verdict: verdict(true), now }).ready).toBe(false);
-    expect(buildReadinessReport({ eventId: EVENT, preflight: null, verdict: null, now }).ready).toBe(false);
+    expect(buildReadinessReport({ eventId: EVENT, preflight: preflight(true), clientPreflight: clientPreflight(true), verdict: verdict(true), now }).ready).toBe(true);
+    expect(buildReadinessReport({ eventId: EVENT, preflight: preflight(false), clientPreflight: clientPreflight(true), verdict: verdict(true), now }).ready).toBe(false);
+    expect(buildReadinessReport({ eventId: EVENT, preflight: preflight(true), clientPreflight: clientPreflight(false), verdict: verdict(true), now }).ready).toBe(false);
+    expect(buildReadinessReport({ eventId: EVENT, preflight: preflight(true), clientPreflight: clientPreflight(true), verdict: verdict(false), now }).ready).toBe(false);
+  });
+
+  it('treats any measurement group that never ran as not-ready, not as a pass', () => {
+    const now = () => Date.parse('2026-08-13T21:00:00.000Z');
+    expect(buildReadinessReport({ eventId: EVENT, preflight: preflight(true), clientPreflight: clientPreflight(true), verdict: null, now }).ready).toBe(false);
+    expect(buildReadinessReport({ eventId: EVENT, preflight: preflight(true), clientPreflight: null, verdict: verdict(true), now }).ready).toBe(false);
+    expect(buildReadinessReport({ eventId: EVENT, preflight: null, clientPreflight: clientPreflight(true), verdict: verdict(true), now }).ready).toBe(false);
   });
 
   it('carries both halves through verbatim and stamps the generation time', () => {
     const file = buildReadinessReport({
       eventId: EVENT,
       preflight: preflight(true),
+      clientPreflight: clientPreflight(true),
       verdict: verdict(true),
       now: () => Date.parse('2026-08-13T21:30:45.500Z'),
     });
     expect(file.generatedAt).toBe('2026-08-13T21:30:45.500Z');
     expect(file.eventId).toBe(EVENT);
     expect(file.preflight?.ranAt).toBe('2026-08-13T20:00:00.000Z');
+    expect(file.clientPreflight?.ranAt).toBe('2026-08-13T20:02:00.000Z');
     expect(file.verdict?.totalCases).toBe(12);
   });
 });
