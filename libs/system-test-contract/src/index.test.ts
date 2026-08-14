@@ -36,7 +36,7 @@ function passingResult(): SystemTestRunResult {
       { state: 'queued', at: NOW },
       { state: 'running', at: '2026-08-14T20:00:10.000Z' },
       { state: 'cleaning', at: '2026-08-14T20:00:50.000Z' },
-      { state: 'finished', at: '2026-08-14T20:01:00.000Z' },
+      { state: 'passed', at: '2026-08-14T20:01:00.000Z' },
     ],
     cases: manifest.cases.map((testCase) => ({
       caseId: testCase.caseId,
