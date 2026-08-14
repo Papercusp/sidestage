@@ -9,6 +9,7 @@ import {
 } from '../app-routing';
 import EventCreationPanel from '../event-creation/EventCreationPanel';
 import type { EventCreationPayload } from '../event-creation/catalog';
+import { RunOfShowPlannerPanel } from '../seller/RunOfShowPlannerPanel';
 import {
   addItemsToSellerEvent,
   adjustSellerEventStock,
@@ -104,6 +105,15 @@ function managerRoute(
 ): EventManagerRoute {
   return { view: 'events', ...(eventId ? { eventId } : {}), section };
 }
+
+const EVENT_DETAIL_SECTIONS: ReadonlyArray<{
+  id: EventManagerSection;
+  label: string;
+}> = [
+  { id: 'lineup', label: 'Lineup' },
+  { id: 'settings', label: 'Settings' },
+  { id: 'rehearse', label: 'Rehearse' },
+];
 
 export function EventManager({
   eventId,
@@ -413,7 +423,7 @@ export function EventManager({
             </div>
 
             <nav className="event-detail-tabs" aria-label={`${name} detail`} role="tablist">
-              {(['lineup', 'settings'] as const).map((section) => {
+              {EVENT_DETAIL_SECTIONS.map(({ id: section, label }) => {
                 const next = managerRoute(selectedEventId, section);
                 return (
                   <a
@@ -424,7 +434,7 @@ export function EventManager({
                     aria-selected={route.section === section}
                     onClick={openRoute(next)}
                   >
-                    {section === 'lineup' ? 'Lineup' : 'Settings'}
+                    {label}
                   </a>
                 );
               })}
@@ -433,6 +443,10 @@ export function EventManager({
             {route.section === 'settings' ? (
               <div className="event-settings-view" role="tabpanel">
                 <EventSettingsPanel eventId={selectedEventId} apiBaseUrl={apiBaseUrl} embedded />
+              </div>
+            ) : route.section === 'rehearse' ? (
+              <div className="event-rehearse-view" role="tabpanel">
+                <RunOfShowPlannerPanel eventId={selectedEventId} apiBaseUrl={apiBaseUrl} />
               </div>
             ) : (
               <div className="event-lineup-view" role="tabpanel">
