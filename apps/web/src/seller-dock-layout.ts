@@ -78,8 +78,26 @@ export const SELLER_PANEL_TITLES: Readonly<Record<SellerPanelId, string>> = {
   'event-settings': 'Event settings',
 };
 
-/** The layout name this dock persists under (P-010 keys storage by it). */
-export const SELLER_DOCK_LAYOUT_NAME = 'seller';
+/** Panels on the default Active Event board. Chat is embedded in stage-status. */
+export const SELLER_ACTIVE_PANEL_IDS = [
+  'stage-status',
+  'transcript',
+  'on-deck',
+  'copilot',
+] as const satisfies readonly SellerPanelId[];
+
+/** Panels on the independently persisted Event Manager board. */
+export const SELLER_MANAGER_PANEL_IDS = [
+  'event-manager',
+  'event-settings',
+] as const satisfies readonly SellerPanelId[];
+
+/** Stable names are also the localStorage identity for each Studio board. */
+export const SELLER_ACTIVE_DOCK_LAYOUT_NAME = 'seller-active-event';
+export const SELLER_MANAGER_DOCK_LAYOUT_NAME = 'seller-event-manager';
+
+/** Compatibility alias for helpers/tests that operate on the default board. */
+export const SELLER_DOCK_LAYOUT_NAME = SELLER_ACTIVE_DOCK_LAYOUT_NAME;
 
 /**
  * A single-panel tab strip.
@@ -105,39 +123,49 @@ function solo(id: SellerPanelId, size: number): TabStrip {
  * The default seller layout. A fresh function per call: `LayoutDoc` is handed to
  * a store that may mutate/serialize it, so callers must never share one object.
  */
-export function sellerDockDefaultLayout(): LayoutDoc {
+export function sellerActiveEventDockDefaultLayout(): LayoutDoc {
   return {
     schemaVersion: 1,
     root: {
       kind: 'group',
-      id: 'seller-root',
+      id: 'seller-active-root',
       direction: 'row',
       children: [
         {
           kind: 'group',
-          id: 'seller-primary',
+          id: 'seller-active-primary',
           direction: 'col',
-          size: 600, // 1.2fr
+          size: 620,
           children: [
-            strip(['stage-status', 'event-settings'], 500, 'stage-status'), // one current-event strip
-            solo('copilot', 250),
-            solo('event-manager', 250),
+            solo('stage-status', 650),
+            solo('copilot', 350),
           ],
         },
         {
           kind: 'group',
-          id: 'seller-rail',
+          id: 'seller-active-rail',
           direction: 'col',
-          size: 400, // .8fr
+          size: 380,
           children: [
-            solo('transcript', 250),
-            solo('on-deck', 250),
-            solo('event-chat', 500), // absorbs the grid's empty row-4 cell
+            solo('transcript', 600),
+            solo('on-deck', 400),
           ],
         },
       ],
     },
   };
+}
+
+export function sellerEventManagerDockDefaultLayout(): LayoutDoc {
+  return {
+    schemaVersion: 1,
+    root: strip(['event-manager', 'event-settings'], 1000, 'event-manager'),
+  };
+}
+
+/** Default remains Active Event for callers that do not select a Studio view. */
+export function sellerDockDefaultLayout(): LayoutDoc {
+  return sellerActiveEventDockDefaultLayout();
 }
 
 /** Which column a panel occupies in the default layout. */

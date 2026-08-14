@@ -81,7 +81,7 @@ describe('BuyerTab product preview', () => {
     expect(markup).not.toContain('View all');
   });
 
-  it('exposes mobile Shop and Chat modes without removing either desktop surface', () => {
+  it('keeps the real chat mounted in the video overlay and exposes mobile Shop and Chat controls', () => {
     const markup = render(PRODUCTS);
 
     expect(markup).toContain('aria-label="Buyer mobile view"');
@@ -89,6 +89,9 @@ describe('BuyerTab product preview', () => {
     expect(markup).toContain('aria-pressed="false">Chat');
     expect(markup).toContain('data-buyer-mode="shop"');
     expect(markup).toContain('aria-label="Event chat"');
+    expect(markup).toContain('buyer-video-chat-overlay');
+    expect(markup).toContain('aria-expanded="false"');
+    expect(markup).not.toContain('buyer-chat-card');
   });
 
   it('pins the approved responsive stage and non-covering sticky action in page CSS', () => {
@@ -96,5 +99,6 @@ describe('BuyerTab product preview', () => {
     expect(buyerCss).toMatch(/\.buyer-mobile-action\s*\{[^}]*position:\s*sticky/s);
     expect(buyerCss).toMatch(/\.buyer-mode-switch button\s*\{[^}]*min-height:\s*2\.75rem/s);
     expect(buyerCss).toContain(".buyer-lower-grid[data-buyer-mode='chat'] .buyer-shop-panel");
+    expect(buyerCss).not.toContain(".buyer-lower-grid[data-buyer-mode='shop'] .buyer-chat-card");
   });
 });

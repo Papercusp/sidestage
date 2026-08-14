@@ -9,6 +9,8 @@ export const BUYER_ID_STORAGE_KEY = 'sidestage-buyer-id';
 export const BUYER_ID_CHANGED_EVENT = 'sidestage:buyer-id-changed';
 export const SERVER_BUYER_ID = 'buyer-server-render';
 
+export type DemoIdentityRole = 'buyer' | 'seller';
+
 export interface DemoIdentityStorage {
   getItem(key: string): string | null;
   setItem(key: string, value: string): void;
@@ -51,6 +53,24 @@ export function normalizeDemoIdentity(value: string): string | null {
   return normalized.length > 0 ? normalized : null;
 }
 
+/**
+ * Give an otherwise shared demo persona an unambiguous transport identity.
+ *
+ * Buyer and seller surfaces may represent the same human-readable persona,
+ * but chat presence, triage and test fixtures must never collapse the two
+ * roles into one participant. Re-prefixing (rather than stacking prefixes)
+ * also makes switching from `buyer-avi` on Watch to Studio yield `seller-avi`.
+ */
+export function normalizeRoleDemoIdentity(
+  value: string,
+  role: DemoIdentityRole,
+): string | null {
+  const normalized = normalizeDemoIdentity(value);
+  if (!normalized) return null;
+  const persona = normalized.replace(/^(?:buyer|seller)-+/i, '');
+  return persona.length > 0 ? `${role}-${persona}` : null;
+}
+
 function readStoredIdentity(
   storage: DemoIdentityStorage | null,
   key: string,
@@ -72,24 +92,29 @@ function persistIdentity(storage: DemoIdentityStorage | null, userId: string): v
   }
 }
 
-export function readDemoIdentity(options: DemoIdentityOptions = {}): string {
+export function readDemoIdentity(
+  options: DemoIdentityOptions = {},
+  role?: DemoIdentityRole,
+): string {
   const storage = options.storage === undefined ? browserStorage() : options.storage;
   const existing = readStoredIdentity(storage, DEMO_IDENTITY_STORAGE_KEY);
-  if (existing) return existing;
+  if (existing) return role ? normalizeRoleDemoIdentity(existing, role)! : existing;
 
   // One-way migration from the buyer-only D-013 seam. Mirroring the value into
   // the canonical key preserves every existing demo user across this upgrade.
   const legacyBuyerId = readStoredIdentity(storage, BUYER_ID_STORAGE_KEY);
   if (legacyBuyerId) {
     persistIdentity(storage, legacyBuyerId);
-    return legacyBuyerId;
+    return role ? normalizeRoleDemoIdentity(legacyBuyerId, role)! : legacyBuyerId;
   }
 
-  if (!storage && typeof window === 'undefined' && !options.randomId) return SERVER_DEMO_USER_ID;
+  if (!storage && typeof window === 'undefined' && !options.randomId) {
+    return role ? normalizeRoleDemoIdentity(SERVER_DEMO_USER_ID, role)! : SERVER_DEMO_USER_ID;
+  }
 
   const created = `demo-${(options.randomId ?? (() => generatedDemoUserId().slice('demo-'.length)))()}`;
   persistIdentity(storage, created);
-  return created;
+  return role ? normalizeRoleDemoIdentity(created, role)! : created;
 }
 
 function announceBrowserIdentity(userId: string): void {
@@ -100,8 +125,12 @@ function announceBrowserIdentity(userId: string): void {
 }
 
 /** Persist an arbitrary non-empty demo id and announce it to mounted surfaces. */
-export function writeDemoIdentity(value: string, options: DemoIdentityOptions = {}): string | null {
-  const userId = normalizeDemoIdentity(value);
+export function writeDemoIdentity(
+  value: string,
+  options: DemoIdentityOptions = {},
+  role?: DemoIdentityRole,
+): string | null {
+  const userId = role ? normalizeRoleDemoIdentity(value, role) : normalizeDemoIdentity(value);
   if (!userId) return null;
 
   const storage = options.storage === undefined ? browserStorage() : options.storage;
@@ -115,21 +144,23 @@ export function writeDemoIdentity(value: string, options: DemoIdentityOptions = 
  * update this window immediately; storage events keep other tabs in step. No
  * auth/session semantics are implied — this is the D-013 demo seam.
  */
-export function useDemoIdentity(): {
+export function useDemoIdentity(role?: DemoIdentityRole): {
   userId: string;
   impersonate: (value: string) => string | null;
 } {
-  const [userId, setUserId] = useState(() => readDemoIdentity());
+  const [userId, setUserId] = useState(() => readDemoIdentity({}, role));
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
     const onIdentityChange = (event: Event) => {
-      const next = normalizeDemoIdentity((event as CustomEvent<string>).detail ?? '');
+      const value = (event as CustomEvent<string>).detail ?? '';
+      const next = role ? normalizeRoleDemoIdentity(value, role) : normalizeDemoIdentity(value);
       if (next) setUserId(next);
     };
     const onStorage = (event: StorageEvent) => {
       if (event.key !== DEMO_IDENTITY_STORAGE_KEY && event.key !== BUYER_ID_STORAGE_KEY) return;
-      const next = normalizeDemoIdentity(event.newValue ?? '');
+      const value = event.newValue ?? '';
+      const next = role ? normalizeRoleDemoIdentity(value, role) : normalizeDemoIdentity(value);
       if (next) setUserId(next);
     };
     window.addEventListener(DEMO_IDENTITY_CHANGED_EVENT, onIdentityChange);
@@ -140,26 +171,28 @@ export function useDemoIdentity(): {
       window.removeEventListener(BUYER_ID_CHANGED_EVENT, onIdentityChange);
       window.removeEventListener('storage', onStorage);
     };
-  }, []);
+  }, [role]);
 
   const impersonate = useCallback((value: string) => {
-    const next = writeDemoIdentity(value);
+    const next = writeDemoIdentity(value, {}, role);
     if (next) setUserId(next);
     return next;
-  }, []);
+  }, [role]);
 
   return { userId, impersonate };
 }
 
-/** Buyer compatibility aliases; all delegate to the one canonical identity. */
-export const normalizeBuyerIdentity = normalizeDemoIdentity;
-export const readBuyerIdentity = readDemoIdentity;
-export const writeBuyerIdentity = writeDemoIdentity;
+/** Buyer compatibility aliases; all delegate to the role-scoped identity. */
+export const normalizeBuyerIdentity = (value: string) => normalizeRoleDemoIdentity(value, 'buyer');
+export const readBuyerIdentity = (options: BuyerIdentityOptions = {}) => readDemoIdentity(options, 'buyer');
+export const writeBuyerIdentity = (value: string, options: BuyerIdentityOptions = {}) => (
+  writeDemoIdentity(value, options, 'buyer')
+);
 
 export function useBuyerIdentity(): {
   buyerId: string;
   impersonate: (value: string) => string | null;
 } {
-  const { userId, impersonate } = useDemoIdentity();
+  const { userId, impersonate } = useDemoIdentity('buyer');
   return { buyerId: userId, impersonate };
 }

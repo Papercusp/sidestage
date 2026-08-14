@@ -5,6 +5,7 @@ import {
   DEMO_IDENTITY_STORAGE_KEY,
   normalizeDemoIdentity,
   normalizeBuyerIdentity,
+  normalizeRoleDemoIdentity,
   readDemoIdentity,
   readBuyerIdentity,
   writeDemoIdentity,
@@ -67,7 +68,25 @@ describe('shared demo identity', () => {
     expect(storage.getItem(DEMO_IDENTITY_STORAGE_KEY)).toBe('buyer-alias');
     expect(storage.getItem(BUYER_ID_STORAGE_KEY)).toBe('buyer-alias');
     expect(announce).toHaveBeenCalledWith('buyer-alias');
-    expect(normalizeBuyerIdentity).toBe(normalizeDemoIdentity);
+    expect(normalizeBuyerIdentity('seller-alias')).toBe('buyer-alias');
+  });
+
+  it('projects one stored persona into distinct buyer and seller identities', () => {
+    const storage = new MemoryStorage();
+    storage.setItem(DEMO_IDENTITY_STORAGE_KEY, 'buyer-avi');
+
+    expect(readDemoIdentity({ storage }, 'buyer')).toBe('buyer-avi');
+    expect(readDemoIdentity({ storage }, 'seller')).toBe('seller-avi');
+    expect(normalizeRoleDemoIdentity(' seller-Team A ', 'buyer')).toBe('buyer-Team A');
+  });
+
+  it('enforces a role prefix when a scoped identity is written', () => {
+    const storage = new MemoryStorage();
+    const announce = vi.fn();
+
+    expect(writeDemoIdentity('avi', { storage, announce }, 'seller')).toBe('seller-avi');
+    expect(storage.getItem(DEMO_IDENTITY_STORAGE_KEY)).toBe('seller-avi');
+    expect(announce).toHaveBeenCalledWith('seller-avi');
   });
 
   it('rejects only an empty id and preserves the current identity', () => {
