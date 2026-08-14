@@ -256,7 +256,7 @@ CREATE TEMP TABLE event_demo_manifest (
   brand text NOT NULL,
   base_price_cents integer NOT NULL,
   image_filename text NOT NULL UNIQUE CHECK (
-    image_filename ~ '^[a-z0-9-]+\\.webp$'
+    image_filename ~ '^[a-z0-9-]+\.webp$'
   )
 ) ON COMMIT DROP;
 
@@ -653,7 +653,7 @@ BEGIN
     AND (
       jsonb_array_length(catalog.images) <> 1
       OR jsonb_array_length(variant.variant_images) <> 1
-      OR catalog.images->0->>'url' !~ '^/demo-products/[a-z0-9-]+\\.webp$'
+      OR catalog.images->0->>'url' !~ '^/demo-products/[a-z0-9-]+\.webp$'
       OR variant.variant_images->0->>'url' IS DISTINCT FROM catalog.images->0->>'url'
       OR catalog.images->0->>'alt' IS DISTINCT FROM catalog.title
       OR variant.variant_images->0->>'alt' IS DISTINCT FROM catalog.title

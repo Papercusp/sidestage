@@ -295,6 +295,14 @@ describe('the curated Event Manager seed', () => {
     expect(seed).toContain('lack one matching local group WebP and stable title alt');
   });
 
+  it('uses PostgreSQL-native escaping for the executable WebP guards', () => {
+    expect(DEMO_SQL).toContain(`image_filename ~ '^[a-z0-9-]+\\.webp$'`);
+    expect(DEMO_SQL).toContain(
+      `catalog.images->0->>'url' !~ '^/demo-products/[a-z0-9-]+\\.webp$'`,
+    );
+    expect(DEMO_SQL).not.toContain(`[a-z0-9-]+\\\\.webp$`);
+  });
+
   it('derives four variants per group and pins the executable database invariants', () => {
     expect(DEMO_SQL).toContain('CROSS JOIN generate_series(1, 4)');
     expect(DEMO_SQL).toContain('expected 50 groups / 200 variants');
