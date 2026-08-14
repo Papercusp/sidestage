@@ -9,6 +9,7 @@
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "pretest": "npm run build --workspace @papercusp/typesense",
     "test": "vitest run src",
+    "test:file": "vitest run",
     "clean": "rm -rf dist"
   },
   "dependencies": {
