@@ -1,6 +1,7 @@
 import { useCallback, useMemo, useState } from 'react';
 import { TABS, tabHref, useUrlTab } from './app-routing';
 import { AppDownloadButtons } from './components/AppDownloadButtons';
+import { BuildHistoryTab } from './BuildHistoryTab';
 import { BuyerTab } from './BuyerTab';
 import { ConfigTab } from './ConfigTab';
 import { browserEventId, DEFAULT_EVENT_TITLE, mediaBaseUrl } from './event-identity';
@@ -90,6 +91,7 @@ export function App() {
             onActiveProductChange={setSelectedProductId}
           />
         ) : null}
+        {tab === 'history' ? <BuildHistoryTab /> : null}
         {tab === 'config' ? <ConfigTab /> : null}
         {tab === 'test' ? <TestTab /> : null}
         <footer className="footer">

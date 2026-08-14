@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { ActionModule } from './actions/action.module';
 import { AuctionModule } from './auction/auction.module';
+import { BuildHistoryModule } from './build-history/build-history.module';
 import { CatalogModule } from './catalog/catalog.module';
 import { DatabaseModule } from './db/database.module';
 import { CartModule } from './cart/cart.module';
@@ -18,7 +19,7 @@ import { ShippingModule } from './shipping/shipping.module';
 import { StatsModule } from './stats/stats.module';
 
 @Module({
-  imports: [DatabaseModule, ActionModule, AuctionModule, CartModule, CatalogModule, ChatModule, CheckoutModule, EventConfigModule, EventModule, InventoryModule, JudgeModule, PolicyModule, RehearsalModule, ScoutModule, ShippingModule, StatsModule],
+  imports: [DatabaseModule, ActionModule, AuctionModule, BuildHistoryModule, CartModule, CatalogModule, ChatModule, CheckoutModule, EventConfigModule, EventModule, InventoryModule, JudgeModule, PolicyModule, RehearsalModule, ScoutModule, ShippingModule, StatsModule],
   controllers: [HealthController],
 })
 export class AppModule {}
