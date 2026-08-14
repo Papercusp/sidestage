@@ -216,6 +216,7 @@ export function SellerTab({
     copilot: {
       apiBaseUrl: import.meta.env.VITE_API_URL,
       eventId: room?.eventId ?? chatEventId(eventId),
+      actorId: userId,
     },
     'event-chat': eventChatProps,
     'event-manager': {
