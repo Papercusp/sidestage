@@ -3,7 +3,17 @@
 import { act, createElement } from 'react';
 import { createRoot } from 'react-dom/client';
 import { describe, expect, it, vi } from 'vitest';
-import { STUDIO_VIEW_TABS, studioBoardConfig, useTranscriptMomentRecorder } from './SellerTab';
+import {
+  shouldUseMobileStudio,
+  STUDIO_VIEW_TABS,
+  studioBoardConfig,
+  useTranscriptMomentRecorder,
+} from './SellerTab';
+import {
+  isMobileStudioViewport,
+  STUDIO_MOBILE_MEDIA_QUERY,
+  STUDIO_MOBILE_MODES,
+} from './SellerMobileStudio';
 
 function panelIds(seed: () => { root: unknown }): string[] {
   const visit = (node: unknown): string[] => {
@@ -20,11 +30,31 @@ function panelIds(seed: () => { root: unknown }): string[] {
 }
 
 describe('Studio board selection', () => {
+  it('switches the phone experience to one explicit live panel at a time', () => {
+    expect(STUDIO_MOBILE_MODES).toEqual([
+      { id: 'stage', label: 'Stage' },
+      { id: 'lineup', label: 'Lineup' },
+      { id: 'chat', label: 'Chat' },
+      { id: 'copilot', label: 'Copilot' },
+    ]);
+    expect(isMobileStudioViewport((query) => ({
+      matches: query === STUDIO_MOBILE_MEDIA_QUERY,
+    }))).toBe(true);
+    expect(isMobileStudioViewport(() => ({ matches: false }))).toBe(false);
+  });
+
+  it('keeps Inventory and Event Manager selected on mobile reloads', () => {
+    expect(shouldUseMobileStudio('active-event', true)).toBe(true);
+    expect(shouldUseMobileStudio('event-manager', true)).toBe(false);
+    expect(shouldUseMobileStudio('inventory', true)).toBe(false);
+    expect(shouldUseMobileStudio('active-event', false)).toBe(false);
+  });
+
   it('exposes the exact three peer Studio subtabs in order', () => {
     expect(STUDIO_VIEW_TABS).toEqual([
-      { id: 'active-event', label: 'Current event' },
-      { id: 'event-manager', label: 'Event manager' },
       { id: 'inventory', label: 'Inventory' },
+      { id: 'event-manager', label: 'Event Manager' },
+      { id: 'active-event', label: 'Active Event' },
     ]);
   });
 

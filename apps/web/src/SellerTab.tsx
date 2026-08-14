@@ -8,6 +8,7 @@ import { chatEventId, DEFAULT_EVENT_ID, DEFAULT_EVENT_TITLE, mediaBaseUrl } from
 import { useCopyState, useStreamSession } from './hooks';
 import { studioViewHref, useUrlStudioView, type StudioView } from './app-routing';
 import { InventoryPanel } from './InventoryPanel';
+import { SellerMobileStudio, useMobileStudioViewport } from './SellerMobileStudio';
 import { SellerDock } from './SellerDock';
 import {
   SELLER_ACTIVE_DOCK_LAYOUT_NAME,
@@ -27,9 +28,9 @@ import { connectPublisher, createEventRoom, type EventRoom, type PublisherSessio
 import './studio.css';
 
 export const STUDIO_VIEW_TABS = [
-  { id: 'active-event', label: 'Current event' },
-  { id: 'event-manager', label: 'Event manager' },
   { id: 'inventory', label: 'Inventory' },
+  { id: 'event-manager', label: 'Event Manager' },
+  { id: 'active-event', label: 'Active Event' },
 ] as const satisfies readonly { id: StudioView; label: string }[];
 
 export function studioBoardConfig(view: StudioView) {
@@ -43,7 +44,11 @@ export function studioBoardConfig(view: StudioView) {
         layoutName: SELLER_MANAGER_DOCK_LAYOUT_NAME,
         layoutSeed: sellerEventManagerDockDefaultLayout,
         resetEventName: SELLER_MANAGER_DOCK_RESET_EVENT,
-      };
+    };
+}
+
+export function shouldUseMobileStudio(view: StudioView, mobileViewport: boolean): boolean {
+  return mobileViewport && view === 'active-event';
 }
 
 export interface TranscriptMomentMutationInput {
@@ -109,6 +114,7 @@ export function SellerTab({
   const { copyState, copy } = useCopyState();
   const { userId, impersonate } = useDemoIdentity('seller');
   const [studioView, navigateStudioView] = useUrlStudioView();
+  const mobileStudio = useMobileStudioViewport();
   const recordTranscriptMoment = useTranscriptMomentRecorder({
     eventId,
     roomEventId: room?.eventId,
@@ -258,6 +264,8 @@ export function SellerTab({
       </nav>
       {studioView === 'inventory' ? (
         <InventoryPanel apiBaseUrl={import.meta.env.VITE_API_URL} />
+      ) : shouldUseMobileStudio(studioView, mobileStudio) ? (
+        <SellerMobileStudio panels={panels} />
       ) : (
         <SellerDock
           key={layoutName}

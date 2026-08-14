@@ -51,3 +51,92 @@
   background: color-mix(in srgb, var(--success) 8%, var(--surface));
   font-size: 0.8rem;
 }
+
+/*
+ * The desktop dock is intentionally not squeezed into a phone. At <=760px the
+ * Seller tab swaps to SellerMobileStudio, which mounts one live surface at a
+ * time and keeps its mode switch reachable at the bottom of the viewport.
+ */
+@media (max-width: 760px) {
+  .app-shell.app-shell--seller {
+    --channel-guide-width: 0px;
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .app-shell--seller > .channel-guide-panel {
+    display: none;
+  }
+
+  .app-shell--seller .skip-link {
+    left: 0.5rem;
+  }
+
+  .studio-subtabs {
+    padding-inline: 0.5rem;
+  }
+
+  .seller-mobile-studio {
+    display: flex;
+    flex: 1 1 auto;
+    flex-direction: column;
+    min-width: 0;
+    min-height: 0;
+    overflow: hidden;
+    background: var(--bg);
+  }
+
+  .seller-mobile-panel {
+    flex: 1 1 auto;
+    min-width: 0;
+    min-height: 0;
+    overflow: auto;
+    padding: 0.75rem 0.75rem 1rem;
+  }
+
+  .seller-mobile-panel > * {
+    width: 100%;
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  .seller-mobile-tabs {
+    position: sticky;
+    z-index: 12;
+    bottom: 0;
+    display: grid;
+    flex: 0 0 auto;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 0.25rem;
+    border-top: 1px solid var(--border-strong);
+    padding: 0.5rem max(0.5rem, env(safe-area-inset-right)) max(0.5rem, env(safe-area-inset-bottom)) max(0.5rem, env(safe-area-inset-left));
+    background: color-mix(in srgb, var(--surface-raised) 94%, transparent);
+    box-shadow: 0 -0.75rem 2rem rgb(var(--shadow-hue) / 12%);
+    backdrop-filter: blur(16px);
+  }
+
+  .seller-mobile-tabs button {
+    min-width: 0;
+    min-height: 2.75rem;
+    border: 1px solid transparent;
+    border-radius: 0.6rem;
+    padding: 0.55rem 0.25rem;
+    color: var(--muted);
+    background: transparent;
+    font: inherit;
+    font-size: 0.68rem;
+    font-weight: 750;
+    cursor: pointer;
+  }
+
+  .seller-mobile-tabs button[aria-selected='true'] {
+    border-color: var(--border);
+    color: var(--text);
+    background: var(--surface);
+    box-shadow: var(--shadow-control);
+  }
+
+  .seller-mobile-tabs button:focus-visible {
+    outline: 2px solid var(--focus-ring);
+    outline-offset: 2px;
+  }
+}
