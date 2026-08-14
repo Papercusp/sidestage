@@ -1,5 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import type { Pool } from 'pg';
+import { memoryTokens } from '../scout/scout-memory';
 import { DEMO_CATALOG_FIXTURE } from './catalog.fixture';
 import type {
   CatalogPage,
@@ -117,6 +118,12 @@ interface VariantRow {
   dimensions: CatalogVariant['dimensions'] | null;
 }
 
+interface SqlSearchQuery {
+  predicate: string;
+  value: string | string[];
+  rank?: string;
+}
+
 function rowToVariant(row: VariantRow): CatalogVariant {
   return {
     id: row.id,
@@ -204,21 +211,42 @@ export class PgCatalogSource implements CatalogSource {
     // SQL path: the GIN-indexed tsvector. An OR with a slug ILIKE defeats both
     // indexes and full-scans 1.1M rows, so the slug match is a FALLBACK query
     // (own gin_trgm index) used only when the text search finds nothing.
-    const primary = await this.runSearch(query, q ? `c.search_tsv @@ plainto_tsquery('simple', $Q)` : null);
+    const tokens = memoryTokens(q);
+    if (q && tokens.length === 0) {
+      return { rows: [], page, pageSize, total: 0, totalIsFloor: false };
+    }
+    // `search_tsv` intentionally uses the `simple` dictionary so imported
+    // brands/product codes are preserved. The QUERY uses English stemming to
+    // discard conversational stopwords, then prefix-matches the simple
+    // lexemes so plural "kettles" (`kettl:*`) still matches title "Kettle".
+    // Tokens come from the same injection-safe tokenizer Scout memory uses;
+    // raw user text can never become tsquery syntax.
+    const tsQuery = `to_tsquery('english', array_to_string($Q::text[], ':* | ') || ':*')`;
+    const primary = await this.runSearch(query, q ? {
+      predicate: `c.search_tsv @@ ${tsQuery}`,
+      rank: `ts_rank(c.search_tsv, ${tsQuery})`,
+      value: tokens,
+    } : null);
     if (primary.rows.length > 0 || !q) return primary;
-    return this.runSearch(query, `v.slug ILIKE '%' || $Q || '%'`);
+    return this.runSearch(query, {
+      predicate: `v.slug ILIKE '%' || $Q || '%'`,
+      value: q,
+    });
   }
 
-  private async runSearch(query: CatalogQuery, qClause: string | null): Promise<CatalogPage> {
+  private async runSearch(query: CatalogQuery, search: SqlSearchQuery | null): Promise<CatalogPage> {
     const { q, productType, availability, page, pageSize } = normalizeQuery(query);
     const where: string[] = ['v.active'];
     const params: unknown[] = [];
     const collectionWhere = collectionPredicate(this.collection, params);
     if (collectionWhere) where.push(collectionWhere);
 
-    if (q && qClause) {
-      params.push(q);
-      where.push(qClause.replaceAll('$Q', `$${params.length}`));
+    let rankSql: string | undefined;
+    if (q && search) {
+      params.push(search.value);
+      const qParam = `$${params.length}`;
+      where.push(search.predicate.replaceAll('$Q', qParam));
+      rankSql = search.rank?.replaceAll('$Q', qParam);
     }
     if (productType) {
       params.push(productType);
@@ -247,7 +275,7 @@ export class PgCatalogSource implements CatalogSource {
       `SELECT ${VARIANT_COLUMNS}
        ${fromSql}
        WHERE ${whereSql}
-       ORDER BY v."availableQty" > 0 DESC, v.id
+       ORDER BY ${rankSql ? `${rankSql} DESC, ` : ''}v."availableQty" > 0 DESC, v.id
        LIMIT $${params.length - 1} OFFSET $${params.length}`,
       params,
     );
