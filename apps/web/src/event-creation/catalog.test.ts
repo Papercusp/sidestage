@@ -10,9 +10,13 @@ import {
 } from './catalog';
 
 describe('event creation catalog helpers', () => {
-  it('searches across product title, brand, type, sku, and condition', () => {
+  it('searches across product title, brand, type, sku, and colour', () => {
     expect(filterCatalog(DEMO_CATALOG, 'northstar', 'all', 'all')).toHaveLength(2);
-    expect(filterCatalog(DEMO_CATALOG, 'BH-ESP-200-REF', 'all', 'all')[0]?.condition).toBe('REFURBISHED');
+    expect(filterCatalog(DEMO_CATALOG, 'BH-ESP-200-CRM', 'all', 'all')[0]?.color).toBe('Cream');
+    // Colour is the variant axis, so a seller searching it must land on the one
+    // colorway rather than on both rows of the product group (WI-38716).
+    expect(filterCatalog(DEMO_CATALOG, 'walnut', 'all', 'all').map((row) => row.id))
+      .toEqual(['demo-desk-walnut']);
     expect(filterCatalog(DEMO_CATALOG, 'camera', 'CAMERA', 'in-stock')).toHaveLength(2);
   });
 
@@ -39,7 +43,7 @@ describe('event creation catalog helpers', () => {
     expect(createEventPayload('  Sunday drop  ', [draft])).toEqual({
       name: 'Sunday drop',
       items: [{
-        catalogId: 'demo-espresso-new',
+        catalogId: 'demo-espresso-matte-black',
         groupId: 'demo-espresso-machine',
         eventPriceCents: 47500,
         quantityLimit: 12,

@@ -9,6 +9,8 @@ export interface CatalogRow {
   brand: string;
   productType: string;
   sku: string;
+  /** The variant axis the picker shows — see CatalogVariant.color. */
+  color?: string;
   condition: string;
   handlingDays: number | null;
   priceCents: number;
@@ -81,7 +83,7 @@ export function filterCatalog(
     if (productType !== 'all' && row.productType !== productType) return false;
     if (availability === 'in-stock' && row.availableQty < 1) return false;
     if (!normalizedQuery) return true;
-    return [row.title, row.brand, row.productType, row.sku, row.condition]
+    return [row.title, row.brand, row.productType, row.sku, row.color ?? '', row.condition]
       .some((field) => field.toLowerCase().includes(normalizedQuery));
   });
 }

@@ -27,7 +27,7 @@ describe('seller event helpers', () => {
   it('maps a catalog row into an event item with the event identity', () => {
     const item = eventItemFromCatalog(DEMO_CATALOG[0], 'studio-sale');
 
-    expect(item.id).toBe('studio-sale:demo-espresso-new');
+    expect(item.id).toBe('studio-sale:demo-espresso-matte-black');
     expect(item.basePriceCents).toBe(49999);
     expect(item.priceCents).toBe(49999);
     expect(item.quantity).toBe(1);
