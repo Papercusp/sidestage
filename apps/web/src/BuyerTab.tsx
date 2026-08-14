@@ -65,7 +65,7 @@ export function buyerProductsFromSyncRows(
 
 export async function openOrHoldBuyerProduct(
   product: BuyerProduct,
-  checkout: BuyerCheckoutActions,
+  checkout: Pick<BuyerCheckoutActions, 'heldProductIds' | 'openHeldItems' | 'holdProduct'>,
 ): Promise<'opened' | 'held'> {
   if (checkout.heldProductIds.includes(product.id)) {
     checkout.openHeldItems();
