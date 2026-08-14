@@ -8,10 +8,17 @@ import type { RehearsalHistoryEntry, RehearsalReport } from './rehearsals';
  * supposed to happen, which is exactly the moment they close the tab and hope.
  */
 
-function deltaLabel(delta: number | null): string | null {
+/**
+ * The delta tile, as a value and its caption.
+ *
+ * Returned as two fields rather than one sentence: the tile renders the value
+ * large and the caption small, and splitting a sentence on its first space to
+ * fill them puts the word "no" in the number slot when nothing changed.
+ */
+function deltaLabel(delta: number | null): { value: string; caption: string } | null {
   if (delta === null) return null;
-  if (delta === 0) return 'no change since the last run';
-  return delta > 0 ? `+${delta} since the last run` : `${delta} since the last run`;
+  if (delta === 0) return { value: 'No change', caption: 'since the last run' };
+  return { value: delta > 0 ? `+${delta}` : `${delta}`, caption: 'since the last run' };
 }
 
 export function RehearsalPanel({
@@ -62,7 +69,7 @@ export function RehearsalPanel({
               <span>checks held</span>
             </div>
             <div><strong>{report.latencyMs}ms</strong><span>run time</span></div>
-            {delta_ ? <div><strong>{delta_.split(' ')[0]}</strong><span>{delta_.split(' ').slice(1).join(' ')}</span></div> : null}
+            {delta_ ? <div><strong>{delta_.value}</strong><span>{delta_.caption}</span></div> : null}
           </div>
 
           {report.caveats?.length ? (
