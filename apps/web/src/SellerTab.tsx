@@ -226,20 +226,11 @@ export function SellerTab({
       apiBaseUrl: import.meta.env.VITE_API_URL,
       onEventReady: (nextEventId: string) => setEventId(nextEventId),
     },
-    'event-settings': {
-      eventId,
-      apiBaseUrl: import.meta.env.VITE_API_URL,
-      embedded: true,
-    },
     'run-of-show': {
       eventId,
       stageLog: runOfShowLog,
       activeProduct: selectedProduct,
       onActiveProductChange,
-      apiBaseUrl: import.meta.env.VITE_API_URL,
-    },
-    'run-of-show-planner': {
-      eventId,
       apiBaseUrl: import.meta.env.VITE_API_URL,
     },
   };
