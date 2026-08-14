@@ -1,4 +1,4 @@
-import { Controller, Get, Inject, Module, Param } from '@nestjs/common';
+import { Controller, Get, Inject, Injectable, Module, Param, type OnModuleInit } from '@nestjs/common';
 import type { Pool } from 'pg';
 import { ChatService } from '../chat/chat.service';
 import { ChatModule } from '../chat/chat.module';
@@ -7,6 +7,8 @@ import { GuardedActionService } from '../actions/action.service';
 import { AuctionModule } from '../auction/auction.module';
 import { AuctionService } from '../auction/auction.service';
 import { DatabaseModule, PG_POOL } from '../db/database.module';
+import { SyncModule } from '../sync/sync.module';
+import { SyncQueryRegistry } from '../sync/sync-query.registry';
 
 export interface EventStats {
   eventId: string;
@@ -131,8 +133,24 @@ export class StatsController {
   }
 }
 
+@Injectable()
+export class StatsSyncQueries implements OnModuleInit {
+  constructor(
+    @Inject(StatsController) private readonly stats: StatsController,
+    @Inject(SyncQueryRegistry) private readonly queries: SyncQueryRegistry,
+  ) {}
+
+  onModuleInit(): void {
+    this.queries.register('event.stats', async (args) => {
+      const eventId = typeof args.eventId === 'string' ? args.eventId : '';
+      return [await this.stats.stats(eventId)];
+    });
+  }
+}
+
 @Module({
-  imports: [ActionModule, AuctionModule, ChatModule, DatabaseModule],
+  imports: [ActionModule, AuctionModule, ChatModule, DatabaseModule, SyncModule],
   controllers: [StatsController],
+  providers: [StatsSyncQueries],
 })
 export class StatsModule {}

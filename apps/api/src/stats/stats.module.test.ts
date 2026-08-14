@@ -1,7 +1,19 @@
 import { describe, expect, it, vi } from 'vitest';
-import { StatsController } from './stats.module';
+import { SyncQueryRegistry } from '../sync/sync-query.registry';
+import { StatsController, StatsSyncQueries } from './stats.module';
 
 describe('StatsController pricing history', () => {
+  it('registers event stats with the shared sync query registry', async () => {
+    const stats = { stats: vi.fn().mockResolvedValue({ eventId: 'event-1', viewers: 3, itemsSold: 2, totalRaisedCents: 4200 }) };
+    const queries = new SyncQueryRegistry();
+    new StatsSyncQueries(stats as never, queries).onModuleInit();
+
+    await expect(queries.resolve('event.stats', { eventId: 'event-1' })).resolves.toEqual([
+      { eventId: 'event-1', viewers: 3, itemsSold: 2, totalRaisedCents: 4200 },
+    ]);
+    expect(stats.stats).toHaveBeenCalledWith('event-1');
+  });
+
   it('combines settled checkout, targeted-offer, and auction outcomes for one product', async () => {
     const pool = {
       query: vi.fn().mockResolvedValue({

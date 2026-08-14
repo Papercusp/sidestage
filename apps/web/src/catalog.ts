@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import { useSyncQuery } from '@papercusp/sync';
 import type { CatalogRow } from './event-creation/catalog';
 import type { BuyerProduct } from './buyer';
 
@@ -33,13 +34,16 @@ export interface CatalogPage {
   totalIsFloor: boolean;
 }
 
-export interface CatalogSearch {
+// A type alias, not an interface: interfaces have no implicit index signature,
+// so `interface CatalogSearch` is not assignable to useSyncQuery's
+// `args?: Record<string, unknown>`. An object type alias is.
+export type CatalogSearch = {
   q?: string;
   productType?: string;
   availability?: 'all' | 'in-stock';
   page?: number;
   pageSize?: number;
-}
+};
 
 export function resolveApiBaseUrl(explicit?: string): string {
   return (explicit ?? import.meta.env.VITE_API_URL ?? 'http://localhost:3100').replace(/\/$/, '');
@@ -73,77 +77,66 @@ export interface UseCatalogState {
   productTypes: string[];
 }
 
+export function filterOfflineCatalog(search: CatalogSearch): CatalogVariant[] {
+  const {
+    q = '', productType = 'all', availability = 'all', page = 1, pageSize = 24,
+  } = search;
+  const needle = q.trim().toLowerCase();
+  const filtered = OFFLINE_FIXTURE.filter((row) => {
+    if (productType !== 'all' && row.productType !== productType) return false;
+    if (availability === 'in-stock' && row.availableQty < 1) return false;
+    if (!needle) return true;
+    return [row.title, row.brand, row.sku].some((field) => field.toLowerCase().includes(needle));
+  });
+  const start = Math.max(0, page - 1) * pageSize;
+  return filtered.slice(start, start + pageSize);
+}
+
 /** Debounced catalog search hook — the single client path to product data. */
 export function useCatalog(search: CatalogSearch, apiBaseUrl?: string, debounceMs = 250): UseCatalogState {
-  const [state, setState] = useState<UseCatalogState>({
-    rows: [],
-    total: 0,
-    totalIsFloor: false,
-    loading: true,
-    offline: false,
-    productTypes: [],
-  });
-  const requestSeq = useRef(0);
   const { q = '', productType = 'all', availability = 'all', page = 1, pageSize = 24 } = search;
+  const [debouncedSearch, setDebouncedSearch] = useState<CatalogSearch>(() => ({
+    q, productType, availability, page, pageSize,
+  }));
 
   useEffect(() => {
-    let cancelled = false;
-    void fetchProductTypes(apiBaseUrl)
-      .then((types) => {
-        if (!cancelled) setState((current) => ({ ...current, productTypes: types }));
-      })
-      .catch(() => {
-        if (!cancelled) {
-          setState((current) => ({
-            ...current,
-            productTypes: [...new Set(OFFLINE_FIXTURE.map((row) => row.productType))],
-          }));
-        }
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [apiBaseUrl]);
-
-  useEffect(() => {
-    const seq = ++requestSeq.current;
-    setState((current) => ({ ...current, loading: true }));
     const timer = setTimeout(() => {
-      fetchCatalog({ q, productType, availability, page, pageSize }, apiBaseUrl)
-        .then((result) => {
-          if (requestSeq.current !== seq) return;
-          setState((current) => ({
-            ...current,
-            rows: result.rows,
-            total: result.total,
-            totalIsFloor: result.totalIsFloor,
-            loading: false,
-            offline: false,
-          }));
-        })
-        .catch(() => {
-          if (requestSeq.current !== seq) return;
-          const needle = q.trim().toLowerCase();
-          const rows = OFFLINE_FIXTURE.filter((row) => {
-            if (productType !== 'all' && row.productType !== productType) return false;
-            if (availability === 'in-stock' && row.availableQty < 1) return false;
-            if (!needle) return true;
-            return [row.title, row.brand, row.sku].some((field) => field.toLowerCase().includes(needle));
-          });
-          setState((current) => ({
-            ...current,
-            rows,
-            total: rows.length,
-            totalIsFloor: false,
-            loading: false,
-            offline: true,
-          }));
-        });
+      setDebouncedSearch({ q, productType, availability, page, pageSize });
     }, debounceMs);
     return () => clearTimeout(timer);
-  }, [q, productType, availability, page, pageSize, apiBaseUrl, debounceMs]);
+  }, [q, productType, availability, page, pageSize, debounceMs]);
 
-  return state;
+  const pageQuery = useSyncQuery<CatalogPage>({
+    queryName: 'catalog.page',
+    args: { ...debouncedSearch },
+    pollIntervalMs: 10_000,
+  });
+  const typesQuery = useSyncQuery<string>({
+    queryName: 'catalog.types',
+    pollIntervalMs: 60_000,
+  });
+  const offlineRows = useMemo(
+    () => filterOfflineCatalog(debouncedSearch),
+    [debouncedSearch],
+  );
+  const pageResult = pageQuery.data?.[0];
+  const offline = Boolean(pageQuery.error);
+  const productTypes = typesQuery.error
+    ? [...new Set(OFFLINE_FIXTURE.map((row) => row.productType))]
+    : typesQuery.data ?? [];
+
+  // The app-wide provider owns the transport URL. Keep apiBaseUrl in the
+  // signature for embedders that still pass it to the REST helper functions.
+  void apiBaseUrl;
+
+  return {
+    rows: offline ? offlineRows : pageResult?.rows ?? [],
+    total: offline ? offlineRows.length : pageResult?.total ?? 0,
+    totalIsFloor: offline ? false : pageResult?.totalIsFloor ?? false,
+    loading: pageQuery.loading || pageQuery.fetching,
+    offline,
+    productTypes,
+  };
 }
 
 export function variantToCatalogRow(variant: CatalogVariant): CatalogRow {

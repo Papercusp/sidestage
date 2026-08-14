@@ -1,5 +1,6 @@
-import { BadRequestException, Injectable } from '@nestjs/common';
+import { BadRequestException, Inject, Injectable, Optional } from '@nestjs/common';
 import { Subject, type Observable } from 'rxjs';
+import { SyncInvalidationService } from '../sync/sync-invalidation.service';
 
 export type ChatRole = 'buyer' | 'seller';
 
@@ -137,6 +138,12 @@ export class ChatService {
   private readonly events = new Map<string, EventState>();
   private readonly clock = () => Date.now();
   private sequence = 0;
+
+  constructor(
+    @Optional()
+    @Inject(SyncInvalidationService)
+    private readonly syncInvalidations?: SyncInvalidationService,
+  ) {}
 
   getMessages(eventId: string): ChatMessage[] {
     const state = this.getEvent(eventId);
@@ -348,6 +355,10 @@ export class ChatService {
       type: 'invalidate',
       data: JSON.stringify({ name, args: { eventId: resolvedEventId }, tsMs: now }),
     });
+    this.syncInvalidations?.invalidate(name, { eventId: resolvedEventId });
+    if (name === 'event.chat.stats') {
+      this.syncInvalidations?.invalidate('event.stats', { eventId: resolvedEventId });
+    }
   }
 
   private readBoundedString(value: unknown, field: string, maxLength: number): string {

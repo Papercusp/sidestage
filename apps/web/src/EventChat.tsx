@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { FormEvent } from 'react';
-import { SyncProvider, useSyncMutate, useSyncQuery } from '@papercusp/sync';
+import { useSyncMutate, useSyncQuery } from '@papercusp/sync';
 import { MESSAGE_IMPORTANCE_ORDER, triageMessages, type MessageImportance, type TriagedMessage } from './message-triage';
 
 export type EventChatRole = 'buyer' | 'seller';
@@ -336,16 +336,5 @@ function EventChatSurface({
  * query or mutation contract used by the chat surface.
  */
 export function EventChat(props: EventChatProps) {
-  const syncEndpoint = syncEndpointFor(props.apiBaseUrl);
-  const endpointOverride = `${syncEndpoint}/sse?eventId=${encodeURIComponent(props.eventId)}`;
-  return (
-    <SyncProvider
-      syncType="SSE"
-      restEndpoint={syncEndpoint}
-      endpointOverride={endpointOverride}
-      pollIntervalMs={10_000}
-    >
-      <EventChatSurface {...props} />
-    </SyncProvider>
-  );
+  return <EventChatSurface {...props} />;
 }

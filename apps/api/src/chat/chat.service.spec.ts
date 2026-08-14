@@ -1,13 +1,19 @@
 import { describe, expect, it } from 'vitest';
+import { SyncInvalidationService } from '../sync/sync-invalidation.service';
+import { SyncQueryRegistry } from '../sync/sync-query.registry';
+import { ChatSyncQueries } from './chat.module';
 import { ChatService } from './chat.service';
 
 describe('ChatService', () => {
   it('stores a message, upserts its presence, and emits sync invalidations', () => {
-    const service = new ChatService();
+    const sharedInvalidations = new SyncInvalidationService();
+    const service = new ChatService(sharedInvalidations);
     const events: string[] = [];
+    const sharedEvents: string[] = [];
     service.updates('demo-event').subscribe((event) => {
       events.push(JSON.parse(event.data).name as string);
     });
+    sharedInvalidations.events().subscribe((event) => sharedEvents.push(event.name));
 
     const message = service.addMessage('demo-event', {
       userId: 'buyer-1',
@@ -28,6 +34,27 @@ describe('ChatService', () => {
     expect(service.getPresence('demo-event')).toHaveLength(1);
     expect(service.getStats('demo-event')).toEqual({ activeUsers: 1, buyers: 1, sellers: 0, totalMessages: 1 });
     expect(events).toEqual(['event.chat.messages', 'event.chat.presence', 'event.chat.stats']);
+    expect(sharedEvents).toEqual([
+      'event.chat.messages',
+      'event.chat.presence',
+      'event.chat.stats',
+      'event.stats',
+    ]);
+  });
+
+  it('registers chat and replay reads with the shared sync query registry', async () => {
+    const service = new ChatService();
+    const queries = new SyncQueryRegistry();
+    new ChatSyncQueries(service, queries).onModuleInit();
+    service.addMessage('demo-event', {
+      userId: 'buyer-1', displayName: 'Maya', role: 'buyer', text: 'Hello host',
+    });
+
+    await expect(queries.resolve('event.chat.messages', { eventId: 'demo-event' })).resolves.toHaveLength(1);
+    await expect(queries.resolve('event.chat.stats', { eventId: 'demo-event' })).resolves.toEqual([
+      { activeUsers: 1, buyers: 1, sellers: 0, totalMessages: 1 },
+    ]);
+    await expect(queries.resolve('event.replay.chapters', { eventId: 'demo-event' })).resolves.toEqual([]);
   });
 
   it('answers from the closest transcript moment and cites the stream timestamp', () => {

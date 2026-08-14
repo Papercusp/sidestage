@@ -1,7 +1,5 @@
-import { SyncProvider, useSyncQuery } from '@papercusp/sync';
+import { useSyncQuery } from '@papercusp/sync';
 import type { RefObject } from 'react';
-
-import { resolveApiOrigin, syncEndpointFor } from './EventChat';
 
 export interface ReplayChapter {
   id: string;
@@ -76,21 +74,11 @@ function ReplayChaptersSurface({
 export function ReplayChapters({
   eventId,
   videoRef,
-  apiBaseUrl,
+  apiBaseUrl: _apiBaseUrl,
 }: {
   eventId: string;
   videoRef: RefObject<HTMLVideoElement | null>;
   apiBaseUrl?: string;
 }) {
-  const syncEndpoint = syncEndpointFor(apiBaseUrl);
-  return (
-    <SyncProvider
-      syncType="SSE"
-      restEndpoint={syncEndpoint}
-      endpointOverride={`${resolveApiOrigin(apiBaseUrl)}/sync/sse?eventId=${encodeURIComponent(eventId)}`}
-      pollIntervalMs={10_000}
-    >
-      <ReplayChaptersSurface eventId={eventId} videoRef={videoRef} />
-    </SyncProvider>
-  );
+  return <ReplayChaptersSurface eventId={eventId} videoRef={videoRef} />;
 }

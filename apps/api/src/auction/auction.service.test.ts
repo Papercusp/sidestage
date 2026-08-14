@@ -1,8 +1,21 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { SyncQueryRegistry } from '../sync/sync-query.registry';
+import { AuctionSyncQueries } from './auction.module';
 import { AuctionService, InMemoryAuctionInventory } from './auction.service';
 
 describe('AuctionService', () => {
   afterEach(() => vi.useRealTimers());
+
+  it('registers the active auction read with the shared sync query registry', async () => {
+    const auctions = { getActiveAuction: vi.fn().mockResolvedValue({ id: 'auction-1', eventId: 'event-1' }) };
+    const queries = new SyncQueryRegistry();
+    new AuctionSyncQueries(auctions as never, queries).onModuleInit();
+
+    await expect(queries.resolve('event.auction.active', { eventId: 'event-1' })).resolves.toEqual([
+      { id: 'auction-1', eventId: 'event-1' },
+    ]);
+    expect(auctions.getActiveAuction).toHaveBeenCalledWith('event-1');
+  });
 
   it('starts on an event item and atomically holds quantity in reservedQty', async () => {
     const inventory = new InMemoryAuctionInventory();
