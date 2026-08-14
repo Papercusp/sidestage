@@ -1,8 +1,104 @@
 import react from '@vitejs/plugin-react';
+import { existsSync, realpathSync } from 'node:fs';
+import { dirname, isAbsolute, join, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { defineConfig, loadEnv } from 'vite';
+import { defineConfig, loadEnv, type Plugin } from 'vite';
 
 const repositoryRoot = fileURLToPath(new URL('../..', import.meta.url));
+const webRoot = fileURLToPath(new URL('.', import.meta.url));
+const reactRefreshRuntime = join('@vitejs', 'plugin-react', 'dist', 'refresh-runtime.js');
+
+type RuntimeLookupOptions = {
+  fileExists?: (path: string) => boolean;
+  realpath?: (path: string) => string;
+};
+
+/** Resolve a workspace dependency exactly as Node would: nearest node_modules first. */
+export function findNearestDependencyRuntime(
+  startDirectory: string,
+  repositoryBoundary: string,
+  runtimeRelativePath: string,
+  { fileExists = existsSync, realpath = realpathSync }: RuntimeLookupOptions = {},
+): string | null {
+  const start = resolve(startDirectory);
+  const boundary = resolve(repositoryBoundary);
+  const relativeStart = relative(boundary, start);
+  if (relativeStart.startsWith('..') || isAbsolute(relativeStart)) {
+    throw new Error(`Dependency lookup start must be inside ${boundary}; received ${start}`);
+  }
+
+  let directory = start;
+  while (true) {
+    const candidate = join(directory, 'node_modules', runtimeRelativePath);
+    if (fileExists(candidate)) return realpath(candidate);
+    if (directory === boundary) return null;
+    directory = dirname(directory);
+  }
+}
+
+type DependencyTopologyGuardOptions = {
+  intervalMs?: number;
+  findRuntime?: () => string | null;
+  fileExists?: (path: string) => boolean;
+};
+
+/**
+ * A running @vitejs/plugin-react instance retains an absolute path to its
+ * refresh runtime. npm workspace re-hoisting can invalidate that path while
+ * leaving Vite alive and the HTML shell healthy. Restart Vite only after the
+ * old path is gone and a replacement runtime is fully present.
+ */
+export function createDependencyTopologyGuard({
+  intervalMs = 1_000,
+  findRuntime = () =>
+    findNearestDependencyRuntime(webRoot, repositoryRoot, reactRefreshRuntime),
+  fileExists = existsSync,
+}: DependencyTopologyGuardOptions = {}): Plugin {
+  return {
+    name: 'sidestage-dependency-topology-guard',
+    apply: 'serve',
+    configureServer(server) {
+      const startupRuntime = findRuntime();
+      if (!startupRuntime) {
+        server.config.logger.warn(
+          '[sidestage] React refresh runtime is missing; dependency topology guard is inactive.',
+        );
+        return;
+      }
+
+      let restartInFlight = false;
+      let reportedInstallWindow = false;
+      const timer = setInterval(() => {
+        if (restartInFlight || fileExists(startupRuntime)) return;
+
+        const currentRuntime = findRuntime();
+        if (!currentRuntime || !fileExists(currentRuntime)) {
+          if (!reportedInstallWindow) {
+            reportedInstallWindow = true;
+            server.config.logger.warn(
+              '[sidestage] React refresh runtime moved during an install; waiting for the replacement before restarting Vite.',
+            );
+          }
+          return;
+        }
+
+        restartInFlight = true;
+        server.config.logger.warn(
+          `[sidestage] React refresh runtime re-hoisted from ${startupRuntime} to ${currentRuntime}; restarting Vite.`,
+        );
+        void server.restart(true).catch((error: unknown) => {
+          restartInFlight = false;
+          server.config.logger.error(
+            `[sidestage] Vite restart after dependency re-hoist failed: ${error instanceof Error ? error.message : String(error)}`,
+          );
+        });
+      }, intervalMs);
+      timer.unref?.();
+
+      return () => clearInterval(timer);
+    },
+  };
+}
 
 function parsePort(value: string | undefined, fallback: number, name: string): number {
   const candidate = value?.trim();
@@ -37,7 +133,7 @@ const { apiOrigin, webPort } = resolveDevServerEnvironment(environment);
 
 export default defineConfig({
   envDir: isTest ? false : repositoryRoot,
-  plugins: [react()],
+  plugins: [react(), createDependencyTopologyGuard()],
   server: {
     host: '0.0.0.0',
     port: webPort,
