@@ -24,7 +24,7 @@ export const TABS: ReadonlyArray<TabDefinition> = [
   { id: 'buyer', label: 'Watch', description: 'Browse the live catalog', group: 'buyer-work' },
   { id: 'orders', label: 'Orders', description: 'Review purchases and product moments', group: 'buyer-work' },
   { id: 'seller', label: 'Studio', description: 'Run the stage', group: 'operator-work' },
-  { id: 'history', label: 'Releases', description: 'Review shipped work', group: 'operator-work' },
+  { id: 'history', label: 'History', description: 'Review shipped plans', group: 'operator-work' },
   { id: 'test', label: 'Tests', description: 'Run isolated synthetic suites', group: 'operator-work' },
 ];
 
