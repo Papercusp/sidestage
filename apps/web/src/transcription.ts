@@ -4,7 +4,7 @@
  * A short-lived Deepgram token keeps the permanent API key on the server. If
  * no token is configured, the browser Web Speech API is used as a local demo
  * fallback. Both providers emit the same interim/final segment contract so a
- * transcript pane does not need to know which transport is active.
+ * transcript controller does not need to know which transport is active.
  */
 
 export type TranscriptionProvider = 'deepgram' | 'web-speech';

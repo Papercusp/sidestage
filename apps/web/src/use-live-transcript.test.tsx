@@ -4,6 +4,8 @@ import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
+  findTranscriptProductMention,
+  resolveTranscriptStageIntent,
   useLiveTranscript,
   type LiveTranscriptController,
   type TranscriptProductOption,
@@ -21,6 +23,25 @@ const PRODUCTS: readonly TranscriptProductOption[] = [
   { id: 'hoodie', label: 'Linen hoodie', aliases: ['hoodie'] },
   { id: 'mug', label: 'Stoneware mug', price: '$24.00', aliases: ['mug'] },
 ];
+
+describe('transcript product mentions', () => {
+  it('matches labels and aliases without being case-sensitive', () => {
+    expect(findTranscriptProductMention('Could you show me that STONEWARE mug?', PRODUCTS)?.id).toBe('mug');
+    expect(findTranscriptProductMention('The hoodie looks great on camera.', PRODUCTS)?.id).toBe('hoodie');
+  });
+
+  it('does not stage a product until a pending mention is confirmed', () => {
+    expect(resolveTranscriptStageIntent('Show the stoneware mug', PRODUCTS, null)).toEqual({
+      kind: 'propose',
+      product: PRODUCTS[1],
+    });
+    expect(resolveTranscriptStageIntent('yes', PRODUCTS, null)).toBeNull();
+    expect(resolveTranscriptStageIntent('stage it', PRODUCTS, PRODUCTS[1])).toEqual({
+      kind: 'confirm',
+      product: PRODUCTS[1],
+    });
+  });
+});
 
 class FakeTranscriptionSession implements TranscriptionSession {
   readonly provider = 'web-speech' as const;

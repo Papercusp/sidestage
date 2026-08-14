@@ -26,6 +26,8 @@ import '../run-of-show.css';
 
 export interface RunOfShowPanelProps {
   eventId: string;
+  /** The staged product identity survives even when commerce detail is not in the catalog window. */
+  activeProductId: string | null;
   /** The product currently on stage, including the live card's commerce detail. */
   activeProduct: CatalogProduct | null;
   /** One-tap advisory staging: the seller chose to follow the plan. */
@@ -176,8 +178,13 @@ export function RunOfShowPanelView({
   );
 }
 
-export function RunOfShowPanel({ eventId, activeProduct, onActiveProductChange, apiBaseUrl }: RunOfShowPanelProps) {
-  const activeProductId = activeProduct?.id ?? null;
+export function RunOfShowPanel({
+  eventId,
+  activeProductId,
+  activeProduct,
+  onActiveProductChange,
+  apiBaseUrl,
+}: RunOfShowPanelProps) {
   /**
    * The plan rides the audited sync path (sync-contract.test.ts): the server
    * registers `event.runOfShow` and invalidates it on every PUT, so a save in
