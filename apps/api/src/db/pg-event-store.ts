@@ -66,9 +66,28 @@ export class PgEventStore implements EventStore {
              seller_id = EXCLUDED.seller_id,
              seller_name = EXCLUDED.seller_name,
              thumbnail_url = EXCLUDED.thumbnail_url,
+             status = CASE
+               WHEN event.status = 'draft' THEN 'scheduled'
+               ELSE event.status
+             END,
              updated_at = now()`,
       [input.eventId, input.title, input.sellerId, input.sellerName, input.thumbnailUrl ?? null],
     );
+  }
+
+  async unpublish(eventId: string, sellerId: string): Promise<boolean> {
+    const result = await this.pool.query<{ event_id: string }>(
+      `UPDATE event
+          SET status = 'draft',
+              starts_at = NULL,
+              ended_at = NULL,
+              updated_at = now()
+        WHERE event_id = $1
+          AND seller_id = $2
+      RETURNING event_id`,
+      [eventId, sellerId],
+    );
+    return result.rows.length > 0;
   }
 }
 

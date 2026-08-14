@@ -71,8 +71,12 @@ describe('snapshot-source.sh', () => {
     writeFileSync(path.join(repository, 'src/importer.ts'), importerAtSnapshot);
     writeFileSync(path.join(repository, 'src/new-module.ts'), 'export const value = 1;\n');
     writeFileSync(path.join(repository, 'ignored.env'), 'must-not-ship\n');
+    mkdirSync(path.join(repository, '.vitest-tmp'), { recursive: true });
+    writeFileSync(path.join(repository, '.vitest-tmp/results.json'), '{"stale":true}\n');
     writeFileSync(path.join(repository, 'libs/example/tracked.txt'), 'submodule snapshot\n');
     writeFileSync(path.join(repository, 'libs/example/new.txt'), 'submodule new\n');
+    mkdirSync(path.join(repository, 'libs/example/.vitest-tmp'), { recursive: true });
+    writeFileSync(path.join(repository, 'libs/example/.vitest-tmp/results.json'), '{"stale":true}\n');
 
     const rootStatusBefore = git(repository, 'status', '--short');
     const submoduleStatusBefore = git(path.join(repository, 'libs/example'), 'status', '--short');
@@ -92,6 +96,8 @@ describe('snapshot-source.sh', () => {
     expect(readFileSync(path.join(snapshot, 'libs/example/tracked.txt'), 'utf8')).toBe('submodule snapshot\n');
     expect(readFileSync(path.join(snapshot, 'libs/example/new.txt'), 'utf8')).toBe('submodule new\n');
     expect(existsSync(path.join(snapshot, 'ignored.env'))).toBe(false);
+    expect(existsSync(path.join(snapshot, '.vitest-tmp/results.json'))).toBe(false);
+    expect(existsSync(path.join(snapshot, 'libs/example/.vitest-tmp/results.json'))).toBe(false);
     expect(existsSync(path.join(snapshot, '.git'))).toBe(false);
   });
 });

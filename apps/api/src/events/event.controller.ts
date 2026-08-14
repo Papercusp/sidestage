@@ -1,4 +1,6 @@
-import { Controller, Get, Inject } from '@nestjs/common';
+import { Controller, Delete, Get, Headers, Inject, NotFoundException, Param } from '@nestjs/common';
+import { DEFAULT_SELLER_ID } from '../policies/policy.service';
+import { SyncInvalidationService } from '../sync/sync-invalidation.service';
 import { EventService, type EventSummary } from './event.service';
 
 export interface EventListResponse {
@@ -17,10 +19,32 @@ export interface EventListResponse {
  */
 @Controller('events')
 export class EventController {
-  constructor(@Inject(EventService) private readonly events: EventService) {}
+  constructor(
+    @Inject(EventService) private readonly events: EventService,
+    @Inject(SyncInvalidationService) private readonly invalidations: SyncInvalidationService,
+  ) {}
 
   @Get()
   async list(): Promise<EventListResponse> {
     return { events: await this.events.listForGuide() };
+  }
+
+  /**
+   * Seller teardown is deliberately an unpublish, not a hard delete: buyers
+   * stop seeing the event immediately, while event-scoped history remains
+   * available for diagnosis and a later config save can publish it again.
+   */
+  @Delete(':eventId')
+  async unpublish(
+    @Param('eventId') eventId: string,
+    @Headers('x-seller-id') sellerIdHeader: string | undefined,
+  ): Promise<{ eventId: string; status: 'draft' }> {
+    const sellerId = sellerIdHeader?.trim() || DEFAULT_SELLER_ID;
+    const unpublished = await this.events.unpublish(eventId, sellerId);
+    if (!unpublished) {
+      throw new NotFoundException('Event not found for this seller.');
+    }
+    this.invalidations.invalidate('events.guide');
+    return { eventId, status: 'draft' };
   }
 }

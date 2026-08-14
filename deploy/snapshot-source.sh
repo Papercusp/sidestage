@@ -26,6 +26,13 @@ if [[ -n "$(find "$destination" -mindepth 1 -print -quit)" ]]; then
 fi
 
 scratch_dir="$(mktemp -d "${TMPDIR:-/tmp}/sidestage-snapshot-index.XXXXXX")"
+snapshot_exclude_file="$scratch_dir/deploy-excludes"
+cat >"$snapshot_exclude_file" <<'EOF'
+# Test-run state is never application source. Keep it out at every recursive
+# repository boundary, including submodules whose own .gitignore predates the
+# shared Vitest cache convention.
+.vitest-tmp/
+EOF
 cleanup() {
   rm -rf -- "$scratch_dir"
 }
@@ -41,13 +48,13 @@ snapshot_repository() {
   index_number=$((index_number + 1))
   index_file="$scratch_dir/index-$index_number"
 
-  GIT_INDEX_FILE="$index_file" git -C "$repository" read-tree HEAD
-  GIT_INDEX_FILE="$index_file" git -C "$repository" add -A -- .
+  GIT_INDEX_FILE="$index_file" git -c core.excludesFile="$snapshot_exclude_file" -C "$repository" read-tree HEAD
+  GIT_INDEX_FILE="$index_file" git -c core.excludesFile="$snapshot_exclude_file" -C "$repository" add -A -- .
 
   status="$(
-    GIT_INDEX_FILE="$index_file" git -C "$repository" \
+    GIT_INDEX_FILE="$index_file" git -c core.excludesFile="$snapshot_exclude_file" -C "$repository" \
       diff --name-status --ignore-submodules=all
-    GIT_INDEX_FILE="$index_file" git -C "$repository" \
+    GIT_INDEX_FILE="$index_file" git -c core.excludesFile="$snapshot_exclude_file" -C "$repository" \
       ls-files --others --exclude-standard
   )"
   if [[ -n "$status" ]]; then
@@ -61,7 +68,7 @@ snapshot_repository() {
     export_root="$destination/$prefix"
   fi
   mkdir -p "$export_root"
-  GIT_INDEX_FILE="$index_file" git -C "$repository" \
+  GIT_INDEX_FILE="$index_file" git -c core.excludesFile="$snapshot_exclude_file" -C "$repository" \
     checkout-index --all --force --prefix="$export_root/"
 
   while IFS= read -r -d '' index_entry; do
@@ -77,7 +84,7 @@ snapshot_repository() {
     submodule_prefix="${prefix:+$prefix/}$relative_path"
     snapshot_repository "$repository/$relative_path" "$submodule_prefix"
   done < <(
-    GIT_INDEX_FILE="$index_file" git -C "$repository" ls-files --stage -z
+    GIT_INDEX_FILE="$index_file" git -c core.excludesFile="$snapshot_exclude_file" -C "$repository" ls-files --stage -z
   )
 }
 

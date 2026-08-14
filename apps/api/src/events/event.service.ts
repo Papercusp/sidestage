@@ -78,6 +78,14 @@ export interface EventStore {
    * thumbnail swap on a live or ended event never resets its lifecycle.
    */
   publish(input: EventPublication): Promise<void>;
+
+  /**
+   * Remove one seller-owned event from every buyer read without destroying
+   * its config, audit, chat, or commerce history. The operation is idempotent:
+   * an already-draft row still counts as found, while another seller's row is
+   * indistinguishable from a missing one.
+   */
+  unpublish(eventId: string, sellerId: string): Promise<boolean>;
 }
 
 export const EVENT_STORE = Symbol('EVENT_STORE');
@@ -195,7 +203,9 @@ export class InMemoryEventStore implements EventStore {
       } else {
         delete existing.thumbnailUrl;
       }
-      // status / startsAt / endedAt deliberately untouched — see EventStore.publish.
+      // A seller can publish a previously withdrawn draft again. Other
+      // lifecycle states remain untouched on ordinary config saves.
+      if (existing.status === 'draft') existing.status = 'scheduled';
       return;
     }
     this.records.push({
@@ -208,6 +218,17 @@ export class InMemoryEventStore implements EventStore {
       endedAt: null,
       ...(input.thumbnailUrl ? { thumbnailUrl: input.thumbnailUrl } : {}),
     });
+  }
+
+  async unpublish(eventId: string, sellerId: string): Promise<boolean> {
+    const existing = this.records.find(
+      (record) => record.eventId === eventId && record.sellerId === sellerId,
+    );
+    if (!existing) return false;
+    existing.status = 'draft';
+    existing.startsAt = null;
+    existing.endedAt = null;
+    return true;
   }
 }
 
@@ -222,6 +243,10 @@ export class UnavailableEventStore implements EventStore {
   }
 
   async publish(): Promise<void> {
+    return this.unavailable();
+  }
+
+  async unpublish(): Promise<boolean> {
     return this.unavailable();
   }
 }
@@ -312,6 +337,15 @@ export class EventService {
       sellerName: DEFAULT_SELLER_NAME,
       ...(config.thumbnailUrl ? { thumbnailUrl: config.thumbnailUrl } : {}),
     });
+  }
+
+  /**
+   * Withdraw a seller-owned event from the public guide. Drafting instead of
+   * deleting preserves every event-scoped record and lets the normal config
+   * save path publish it again later.
+   */
+  async unpublish(eventId: string, sellerId = DEFAULT_SELLER_ID): Promise<boolean> {
+    return this.store.unpublish(eventId.trim(), sellerId.trim());
   }
 
   /**
