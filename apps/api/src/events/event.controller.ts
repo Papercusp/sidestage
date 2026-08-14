@@ -1,10 +1,14 @@
 import { Controller, Delete, Get, Headers, Inject, NotFoundException, Param } from '@nestjs/common';
 import { DEFAULT_SELLER_ID } from '../policies/policy.service';
 import { SyncInvalidationService } from '../sync/sync-invalidation.service';
-import { EventService, type EventSummary } from './event.service';
+import { EventService, type EventRecord, type EventSummary } from './event.service';
 
 export interface EventListResponse {
   events: EventSummary[];
+}
+
+export interface SellerEventListResponse {
+  events: EventRecord[];
 }
 
 /**
@@ -29,6 +33,13 @@ export class EventController {
     return { events: await this.events.listForGuide() };
   }
 
+  @Get('mine')
+  async listMine(
+    @Headers('x-seller-id') sellerIdHeader: string | undefined,
+  ): Promise<SellerEventListResponse> {
+    return { events: await this.events.listForSeller(sellerIdHeader ?? DEFAULT_SELLER_ID) };
+  }
+
   /**
    * Seller teardown is deliberately an unpublish, not a hard delete: buyers
    * stop seeing the event immediately, while event-scoped history remains
@@ -45,6 +56,7 @@ export class EventController {
       throw new NotFoundException('Event not found for this seller.');
     }
     this.invalidations.invalidate('events.guide');
+    this.invalidations.invalidate('events.mine');
     return { eventId, status: 'draft' };
   }
 }

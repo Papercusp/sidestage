@@ -5,7 +5,11 @@ import {
   connectViewer,
   createEventRoom,
   MediaTransportError,
+  parseIceServerLinks,
 } from './streaming';
+
+const TURN_LINK = '<turns:media.sidestage.example:443?transport=tcp>; rel="ice-server"; '
+  + 'username="1700000000:test"; credential="secret=="; credential-type="password"';
 
 class FakeTrack {
   stopped = false;
@@ -36,6 +40,8 @@ class FakePeerConnection {
   readonly tracks: Array<{ track: FakeTrack; stream: FakeMediaStream }> = [];
   readonly transceivers: string[] = [];
   closed = false;
+
+  constructor(readonly configuration?: RTCConfiguration) {}
 
   addTrack(track: FakeTrack, stream: FakeMediaStream) {
     this.tracks.push({ track, stream });
@@ -73,6 +79,13 @@ function response(location = '/resource/1', status = 201): Response {
   });
 }
 
+function optionsResponse(link = TURN_LINK): Response {
+  return new Response(null, {
+    status: 204,
+    headers: link ? { Link: link } : undefined,
+  });
+}
+
 describe('SideStage event streaming', () => {
   it('normalizes an event room and creates one stable buyer share link', () => {
     const room = createEventRoom('  Sunday-Drop  ', 'https://sidestage.example/live');
@@ -93,6 +106,20 @@ describe('SideStage event streaming', () => {
     expect(() => createEventRoom('')).toThrow(/Event ids/);
   });
 
+  it('parses MediaMTX ICE-server Link metadata before negotiation', () => {
+    expect(parseIceServerLinks(
+      `<stun:stun.example:3478>; rel="ice-server", ${TURN_LINK}`,
+    )).toEqual([
+      { urls: 'stun:stun.example:3478' },
+      {
+        urls: 'turns:media.sidestage.example:443?transport=tcp',
+        username: '1700000000:test',
+        credential: 'secret==',
+        credentialType: 'password',
+      },
+    ]);
+  });
+
   it('publishes camera and microphone tracks over WHIP and cleans up the resource', async () => {
     const room = createEventRoom('demo-event', 'https://sidestage.example/');
     const camera = new FakeTrack();
@@ -102,20 +129,30 @@ describe('SideStage event streaming', () => {
     const requests: Array<{ url: string; init?: RequestInit }> = [];
     const fetchImpl = async (url: string | URL | Request, init?: RequestInit) => {
       requests.push({ url: String(url), init });
+      if (init?.method === 'OPTIONS') return optionsResponse();
       return response();
     };
 
     const session = await connectPublisher({
       room,
       mediaDevices: { getUserMedia: async () => localStream as unknown as MediaStream },
-      peerConnectionFactory: () => peerConnection as unknown as RTCPeerConnection,
+      peerConnectionFactory: (configuration) => {
+        expect(configuration?.iceServers).toEqual([{
+          urls: 'turns:media.sidestage.example:443?transport=tcp',
+          username: '1700000000:test',
+          credential: 'secret==',
+          credentialType: 'password',
+        }]);
+        return peerConnection as unknown as RTCPeerConnection;
+      },
       fetchImpl,
     });
 
     expect(peerConnection.tracks).toHaveLength(2);
     expect(requests[0]?.url).toBe('http://localhost:8889/sidestage-demo-event/whip');
-    expect(requests[0]?.init?.method).toBe('POST');
-    expect(requests[0]?.init?.body).toBe('v=0\no=fake-offer');
+    expect(requests[0]?.init?.method).toBe('OPTIONS');
+    expect(requests[1]?.init?.method).toBe('POST');
+    expect(requests[1]?.init?.body).toBe('v=0\no=fake-offer');
     expect(peerConnection.remoteDescription?.type).toBe('answer');
     expect(session.resourceUrl).toBe('http://localhost:8889/resource/1');
 
@@ -124,29 +161,37 @@ describe('SideStage event streaming', () => {
     expect(camera.stopped).toBe(true);
     expect(microphone.stopped).toBe(true);
     expect(peerConnection.closed).toBe(true);
-    expect(requests).toHaveLength(2);
-    expect(requests[1]?.init?.method).toBe('DELETE');
+    expect(requests).toHaveLength(3);
+    expect(requests[2]?.init?.method).toBe('DELETE');
   });
 
   it('subscribes buyers with recvonly audio/video transceivers over WHEP', async () => {
     const room = createEventRoom('demo-event', 'https://sidestage.example/');
     const peerConnection = new FakePeerConnection();
-    const requests: string[] = [];
+    const requests: Array<{ url: string; method: string | undefined }> = [];
 
     const session = await connectViewer({
       room,
       peerConnectionFactory: () => peerConnection as unknown as RTCPeerConnection,
       mediaStreamFactory: () => new FakeMediaStream() as unknown as MediaStream,
-      fetchImpl: async (url) => {
-        requests.push(String(url));
+      fetchImpl: async (url, init) => {
+        requests.push({ url: String(url), method: init?.method });
+        if (init?.method === 'OPTIONS') return optionsResponse();
         return response('/resource/buyer-1');
       },
     });
 
     expect(peerConnection.transceivers).toEqual(['video', 'audio']);
-    expect(requests[0]).toBe('http://localhost:8889/sidestage-demo-event/whep');
+    expect(requests[0]).toEqual({
+      url: 'http://localhost:8889/sidestage-demo-event/whep',
+      method: 'OPTIONS',
+    });
+    expect(requests[1]?.method).toBe('POST');
     await session.stop();
-    expect(requests[1]).toBe('http://localhost:8889/resource/buyer-1');
+    expect(requests[2]).toEqual({
+      url: 'http://localhost:8889/resource/buyer-1',
+      method: 'DELETE',
+    });
   });
 
   it('closes and releases local tracks when WHIP negotiation fails', async () => {
@@ -161,7 +206,9 @@ describe('SideStage event streaming', () => {
         getUserMedia: async () => new FakeMediaStream([camera, microphone]) as unknown as MediaStream,
       },
       peerConnectionFactory: () => peerConnection as unknown as RTCPeerConnection,
-      fetchImpl: async () => response('', 503),
+      fetchImpl: async (_url, init) => (
+        init?.method === 'OPTIONS' ? optionsResponse() : response('', 503)
+      ),
     })).rejects.toMatchObject({
       name: 'MediaTransportError',
       status: 503,

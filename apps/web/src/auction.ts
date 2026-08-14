@@ -94,6 +94,25 @@ export function parseAuctionEvent(data: string): BuyerAuction | null | undefined
   }
 }
 
+export class AuctionRequestError extends Error {
+  constructor(readonly status: number, message: string) {
+    super(message);
+    this.name = 'AuctionRequestError';
+  }
+}
+
+function responseErrorMessage(raw: string, status: number): string {
+  if (raw) {
+    try {
+      const parsed = JSON.parse(raw) as { message?: unknown };
+      if (typeof parsed.message === 'string' && parsed.message.trim()) return parsed.message.trim();
+    } catch {
+      return raw;
+    }
+  }
+  return `Auction request failed (${status})`;
+}
+
 async function requestJson<T>(url: string, init?: RequestInit): Promise<T> {
   const response = await fetch(url, {
     ...init,
@@ -109,12 +128,17 @@ async function requestJson<T>(url: string, init?: RequestInit): Promise<T> {
     } catch {
       // Keep the status when an intermediary closes before sending a body.
     }
-    throw new Error(`Auction request failed (${response.status})${detail ? `: ${detail}` : ''}`);
+    throw new AuctionRequestError(response.status, responseErrorMessage(detail, response.status));
   }
   return response.json() as Promise<T>;
 }
 
-let guestSessionPromise: Promise<AuctionGuestSession> | null = null;
+let guestSessionCache: { origin: string; promise: Promise<AuctionGuestSession> } | null = null;
+
+function clearGuestSession(apiBaseUrl?: string): void {
+  const origin = resolveAuctionApiOrigin(apiBaseUrl);
+  if (guestSessionCache?.origin === origin) guestSessionCache = null;
+}
 
 /**
  * Establishes anonymous continuity without accepting identity from the page.
@@ -122,33 +146,65 @@ let guestSessionPromise: Promise<AuctionGuestSession> | null = null;
  * public bidder id needed to render "You won" correctly.
  */
 export function getAuctionGuestSession(apiBaseUrl?: string): Promise<AuctionGuestSession> {
-  if (!guestSessionPromise) {
-    guestSessionPromise = requestJson<AuctionGuestSession>(auctionGuestAccessUrl(apiBaseUrl), {
+  const origin = resolveAuctionApiOrigin(apiBaseUrl);
+  if (guestSessionCache?.origin !== origin) {
+    const promise = requestJson<AuctionGuestSession>(auctionGuestAccessUrl(apiBaseUrl), {
       method: 'POST',
       credentials: 'include',
     }).catch((error) => {
-      guestSessionPromise = null;
+      clearGuestSession(apiBaseUrl);
       throw error;
     });
+    guestSessionCache = { origin, promise };
   }
-  return guestSessionPromise;
+  return guestSessionCache.promise;
 }
 
 export function fetchActiveAuction(eventId: string, apiBaseUrl?: string): Promise<BuyerAuction | null> {
   return requestJson<BuyerAuction | null>(activeAuctionUrl(eventId, apiBaseUrl));
 }
 
-export function placeAuctionBid(
+export async function placeAuctionBid(
   auctionId: string,
   input: { bidderId?: string; displayName?: string; amountCents: number; idempotencyKey: string },
   apiBaseUrl?: string,
 ): Promise<BuyerAuction> {
-  return getAuctionGuestSession(apiBaseUrl).then(() => requestJson<BuyerAuction>(auctionBidUrl(auctionId, apiBaseUrl), {
-    method: 'POST',
-    credentials: 'include',
-    headers: { 'idempotency-key': input.idempotencyKey },
-    // bidderId is intentionally omitted: the server derives it from the
-    // signed guest cookie and cannot be widened by a forged request body.
-    body: JSON.stringify({ displayName: input.displayName, amountCents: input.amountCents }),
-  }));
+  const submit = () => requestJson<BuyerAuction>(auctionBidUrl(auctionId, apiBaseUrl), {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'idempotency-key': input.idempotencyKey },
+      // bidderId is intentionally omitted: the server derives it from the
+      // signed guest cookie and cannot be widened by a forged request body.
+      body: JSON.stringify({ displayName: input.displayName, amountCents: input.amountCents }),
+    });
+
+  await getAuctionGuestSession(apiBaseUrl);
+  try {
+    return await submit();
+  } catch (error) {
+    // A long-lived tab can retain a resolved session promise after its signed
+    // cookie expires. Mint a fresh server-authored guest principal once and
+    // replay the SAME idempotency key; the write is safe whether the first
+    // response was a genuine 401 or was lost after the server accepted it.
+    if (!(error instanceof AuctionRequestError) || error.status !== 401) throw error;
+    clearGuestSession(apiBaseUrl);
+    await getAuctionGuestSession(apiBaseUrl);
+    return submit();
+  }
+}
+
+export function auctionBidErrorMessage(error: unknown): string {
+  if (!(error instanceof AuctionRequestError)) {
+    return error instanceof Error ? error.message : 'Your bid could not be placed.';
+  }
+  if (error.status === 409) {
+    return /closed/i.test(error.message)
+      ? 'Bidding has closed. Confirming the result from the server.'
+      : 'Another buyer moved the auction. The current price is refreshing—review your bid and try again.';
+  }
+  if (error.status === 429) return 'Bidding is moving quickly. Wait a moment, then try again.';
+  if (error.status === 401 || error.status === 403) {
+    return 'Your buyer session could not be restored. Refresh the page before bidding again.';
+  }
+  return error.message;
 }

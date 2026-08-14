@@ -25,7 +25,7 @@ describe('EventController seller teardown', () => {
     return { controller, invalidated };
   }
 
-  it('drafts the seller-owned row, invalidates the guide, and is idempotent', async () => {
+  it('drafts the seller-owned row, keeps it in My events, and invalidates both directories', async () => {
     const { controller, invalidated } = build();
 
     await expect(controller.unpublish(PROBE.eventId, PROBE.sellerId)).resolves.toEqual({
@@ -33,11 +33,14 @@ describe('EventController seller teardown', () => {
       status: 'draft',
     });
     await expect(controller.list()).resolves.toEqual({ events: [] });
+    await expect(controller.listMine(PROBE.sellerId)).resolves.toEqual({
+      events: [expect.objectContaining({ eventId: PROBE.eventId, status: 'draft' })],
+    });
     await expect(controller.unpublish(PROBE.eventId, PROBE.sellerId)).resolves.toEqual({
       eventId: PROBE.eventId,
       status: 'draft',
     });
-    expect(invalidated).toEqual(['events.guide', 'events.guide']);
+    expect(invalidated).toEqual(['events.guide', 'events.mine', 'events.guide', 'events.mine']);
   });
 
   it('does not reveal whether another seller owns the event', async () => {
@@ -50,5 +53,11 @@ describe('EventController seller teardown', () => {
       events: [expect.objectContaining({ eventId: PROBE.eventId })],
     });
     expect(invalidated).toEqual([]);
+  });
+
+  it('never returns another seller\'s rows from My events', async () => {
+    const { controller } = build();
+
+    await expect(controller.listMine('seller-other')).resolves.toEqual({ events: [] });
   });
 });

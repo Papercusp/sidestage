@@ -30,7 +30,7 @@ export interface StreamingConfig {
 }
 
 export interface PeerConnectionFactory {
-  (): RTCPeerConnection;
+  (configuration?: RTCConfiguration): RTCPeerConnection;
 }
 
 export interface MediaDevicesProvider {
@@ -79,6 +79,54 @@ export class MediaTransportError extends Error {
     this.name = 'MediaTransportError';
     this.status = status;
   }
+}
+
+function linkParameter(link: string, name: string): string | null {
+  const match = link.match(
+    new RegExp(`(?:^|;)\\s*${name}\\s*=\\s*(?:"((?:\\\\.|[^"])*)"|([^;\\s]+))`, 'i'),
+  );
+  const value = match?.[1] ?? match?.[2];
+  return value ? value.replace(/\\(["\\])/g, '$1') : null;
+}
+
+/**
+ * Parse the standard WHIP/WHEP `Link: ...; rel="ice-server"` metadata that
+ * MediaMTX exposes from endpoint OPTIONS requests. Fetch combines repeated
+ * Link fields with commas, so split only at the beginning of the next link.
+ */
+export function parseIceServerLinks(linkHeader: string | null): RTCIceServer[] {
+  if (!linkHeader) return [];
+
+  return linkHeader.split(/,(?=\s*<)/).flatMap((link) => {
+    const url = link.match(/^\s*<([^>]+)>/)?.[1];
+    const rel = linkParameter(link, 'rel');
+    if (!url || !rel?.split(/\s+/).includes('ice-server')) return [];
+
+    const username = linkParameter(link, 'username');
+    const credential = linkParameter(link, 'credential');
+    const credentialType = linkParameter(link, 'credential-type');
+
+    return [{
+      urls: url,
+      ...(username ? { username } : {}),
+      ...(credential ? { credential } : {}),
+      ...(credentialType === 'password' ? { credentialType: 'password' as const } : {}),
+    }];
+  });
+}
+
+async function discoverIceServers(
+  endpoint: string,
+  fetchImpl: typeof fetch,
+): Promise<RTCIceServer[]> {
+  const response = await fetchImpl(endpoint, { method: 'OPTIONS' });
+  if (!response.ok) {
+    throw new MediaTransportError(
+      `Media server rejected ICE server discovery (${response.status}).`,
+      response.status,
+    );
+  }
+  return parseIceServerLinks(response.headers.get('Link'));
 }
 
 /**
@@ -194,11 +242,11 @@ async function negotiate(
   return location ? new URL(location, endpoint).toString() : null;
 }
 
-function defaultPeerConnectionFactory(): RTCPeerConnection {
+function defaultPeerConnectionFactory(configuration?: RTCConfiguration): RTCPeerConnection {
   if (typeof RTCPeerConnection === 'undefined') {
     throw new MediaTransportError('WebRTC is unavailable in this browser.');
   }
-  return new RTCPeerConnection();
+  return new RTCPeerConnection(configuration);
 }
 
 function defaultMediaDevices(): MediaDevicesProvider {
@@ -236,7 +284,11 @@ async function deleteResource(resourceUrl: string | null, fetchImpl: typeof fetc
 export async function connectPublisher(options: PublisherOptions): Promise<PublisherSession> {
   const fetchImpl = options.fetchImpl ?? fetch;
   const mediaDevices = options.mediaDevices ?? defaultMediaDevices();
-  const peerConnection = (options.peerConnectionFactory ?? defaultPeerConnectionFactory)();
+  const endpoint = buildMediaEndpoint(options.room, 'whip', options);
+  const iceServers = await discoverIceServers(endpoint, fetchImpl);
+  const peerConnection = (options.peerConnectionFactory ?? defaultPeerConnectionFactory)(
+    iceServers.length > 0 ? { iceServers } : undefined,
+  );
   const localStream = await mediaDevices.getUserMedia({ video: true, audio: true });
   for (const track of localStream.getTracks()) peerConnection.addTrack(track, localStream);
 
@@ -244,7 +296,7 @@ export async function connectPublisher(options: PublisherOptions): Promise<Publi
   try {
     resourceUrl = await negotiate(
       peerConnection,
-      buildMediaEndpoint(options.room, 'whip', options),
+      endpoint,
       fetchImpl,
     );
   } catch (error) {
@@ -270,7 +322,11 @@ export async function connectPublisher(options: PublisherOptions): Promise<Publi
 
 export async function connectViewer(options: ViewerOptions): Promise<ViewerSession> {
   const fetchImpl = options.fetchImpl ?? fetch;
-  const peerConnection = (options.peerConnectionFactory ?? defaultPeerConnectionFactory)();
+  const endpoint = buildMediaEndpoint(options.room, 'whep', options);
+  const iceServers = await discoverIceServers(endpoint, fetchImpl);
+  const peerConnection = (options.peerConnectionFactory ?? defaultPeerConnectionFactory)(
+    iceServers.length > 0 ? { iceServers } : undefined,
+  );
   let viewerStream = (options.mediaStreamFactory ?? defaultMediaStreamFactory)();
   peerConnection.ontrack = (event) => {
     viewerStream = event.streams[0] ?? viewerStream;
@@ -286,7 +342,7 @@ export async function connectViewer(options: ViewerOptions): Promise<ViewerSessi
   try {
     resourceUrl = await negotiate(
       peerConnection,
-      buildMediaEndpoint(options.room, 'whep', options),
+      endpoint,
       fetchImpl,
     );
   } catch (error) {

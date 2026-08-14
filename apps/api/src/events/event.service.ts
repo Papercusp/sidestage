@@ -63,6 +63,9 @@ export interface EventStore {
    */
   listBuyerVisible(): Promise<EventRecord[]>;
 
+  /** Every event owned by one seller, including unpublished drafts. */
+  listBySeller(sellerId: string): Promise<EventRecord[]>;
+
   /**
    * Upsert the directory row for a seller-created event (EI-20426845001666103
    * / P-014): before this existed, the UI create flow wrote event_config and
@@ -192,6 +195,10 @@ export class InMemoryEventStore implements EventStore {
     return this.records.filter((record) => record.status !== 'draft');
   }
 
+  async listBySeller(sellerId: string): Promise<EventRecord[]> {
+    return this.records.filter((record) => record.sellerId === sellerId);
+  }
+
   async publish(input: EventPublication): Promise<void> {
     const existing = this.records.find((record) => record.eventId === input.eventId);
     if (existing) {
@@ -242,6 +249,10 @@ export class UnavailableEventStore implements EventStore {
     return this.unavailable();
   }
 
+  async listBySeller(): Promise<EventRecord[]> {
+    return this.unavailable();
+  }
+
   async publish(): Promise<void> {
     return this.unavailable();
   }
@@ -259,6 +270,14 @@ export function statusRank(status: EventStatus): number {
   if (status === 'live') return 0;
   if (status === 'scheduled') return 1;
   return 2;
+}
+
+/** Seller workspace order: current work, upcoming work, drafts, then history. */
+export function sellerStatusRank(status: EventStatus): number {
+  if (status === 'live') return 0;
+  if (status === 'scheduled') return 1;
+  if (status === 'draft') return 2;
+  return 3;
 }
 
 function timeValue(iso: string | null): number | null {
@@ -295,6 +314,32 @@ export function compareForGuide(a: EventSummary, b: EventSummary): number {
       return left - right;
     }
   } else {
+    const left = timeValue(a.endedAt);
+    const right = timeValue(b.endedAt);
+    if (left !== right) {
+      if (left === null) return 1;
+      if (right === null) return -1;
+      return right - left;
+    }
+  }
+
+  return a.title.localeCompare(b.title);
+}
+
+/** Stable lifecycle-first ordering for the seller-owned event directory. */
+export function compareForSeller(a: EventRecord, b: EventRecord): number {
+  const byStatus = sellerStatusRank(a.status) - sellerStatusRank(b.status);
+  if (byStatus !== 0) return byStatus;
+
+  if (a.status === 'scheduled') {
+    const left = timeValue(a.startsAt);
+    const right = timeValue(b.startsAt);
+    if (left !== right) {
+      if (left === null) return 1;
+      if (right === null) return -1;
+      return left - right;
+    }
+  } else if (a.status === 'ended') {
     const left = timeValue(a.endedAt);
     const right = timeValue(b.endedAt);
     if (left !== right) {
@@ -364,5 +409,15 @@ export class EventService {
       viewers: record.status === 'live' ? this.chat.getStats(record.eventId).activeUsers : 0,
     }));
     return summaries.sort(compareForGuide);
+  }
+
+  /**
+   * The seller's own event directory. Unlike the buyer guide this includes
+   * drafts, never derives audience presence, and is scoped at the store read
+   * so another seller's rows do not cross the API boundary.
+   */
+  async listForSeller(sellerId = DEFAULT_SELLER_ID): Promise<EventRecord[]> {
+    const id = sellerId.trim() || DEFAULT_SELLER_ID;
+    return (await this.store.listBySeller(id)).sort(compareForSeller);
   }
 }

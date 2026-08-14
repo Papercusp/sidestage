@@ -49,6 +49,26 @@ export class PgEventStore implements EventStore {
     return result.rows.flatMap((row) => mapRow(row));
   }
 
+  async listBySeller(sellerId: string): Promise<EventRecord[]> {
+    const result = await this.pool.query<EventRow>(
+      `SELECT event_id, title, seller_id, seller_name, status,
+              starts_at, ended_at, thumbnail_url
+         FROM event
+        WHERE seller_id = $1
+        ORDER BY CASE status
+                   WHEN 'live' THEN 0
+                   WHEN 'scheduled' THEN 1
+                   WHEN 'draft' THEN 2
+                   ELSE 3
+                 END,
+                 starts_at NULLS LAST,
+                 title`,
+      [sellerId],
+    );
+
+    return result.rows.flatMap((row) => mapRow(row));
+  }
+
   /**
    * Upsert the seller-created event's directory row (EI-20426845001666103 /
    * P-014). A NEW event inserts as 'scheduled' so it is buyer-visible at

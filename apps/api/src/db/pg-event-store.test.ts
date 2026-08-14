@@ -3,6 +3,18 @@ import { describe, expect, it, vi } from 'vitest';
 import { PgEventStore } from './pg-event-store';
 
 describe('PgEventStore unpublish', () => {
+  it('reads every status for only the requested seller', async () => {
+    const query = vi.fn().mockResolvedValue({ rows: [] });
+    const store = new PgEventStore({ query } as unknown as Pool);
+
+    await store.listBySeller('seller-probe');
+
+    expect(query).toHaveBeenCalledWith(
+      expect.stringMatching(/FROM event[\s\S]*seller_id = \$1[\s\S]*WHEN 'draft' THEN 2/),
+      ['seller-probe'],
+    );
+  });
+
   it('drafts only the exact seller-owned event and preserves the row', async () => {
     const query = vi.fn().mockResolvedValue({ rows: [{ event_id: 'wi38795-probe' }] });
     const store = new PgEventStore({ query } as unknown as Pool);
