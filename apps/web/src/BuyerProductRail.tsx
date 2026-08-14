@@ -1,7 +1,8 @@
-import { useMemo } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import { RichGrid, type ColumnDef } from "@papercusp/grid-core";
 
 import { formatBuyerPrice, type BuyerProduct } from "./buyer";
+import { useBuyerCheckout } from "./BuyerCheckout";
 import "./BuyerProductRail.css";
 
 export interface BuyerProductRailProps {
@@ -37,6 +38,25 @@ export function BuyerProductRail({
   selectedProductId = null,
   onHold,
 }: BuyerProductRailProps) {
+  const addHeldProductToCheckout = useBuyerCheckout();
+  const lastQueuedHold = useRef<string | null>(null);
+
+  // BuyerTab sets selectedProductId only after the inventory hold succeeds.
+  // Observing that transition keeps the hold authoritative without duplicating
+  // its API call here, while D-011 lets the App-level provider own cart +
+  // checkout composition without editing the protected BuyerTab file.
+  useEffect(() => {
+    if (!selectedProductId) {
+      lastQueuedHold.current = null;
+      return;
+    }
+    if (!addHeldProductToCheckout || lastQueuedHold.current === selectedProductId) return;
+    const heldProduct = products.find((product) => product.id === selectedProductId);
+    if (!heldProduct) return;
+    lastQueuedHold.current = selectedProductId;
+    void addHeldProductToCheckout(heldProduct);
+  }, [addHeldProductToCheckout, products, selectedProductId]);
+
   const columns = useMemo<ColumnDef<BuyerProduct>[]>(
     () => [
       {

@@ -20,6 +20,16 @@ export interface InventoryPickerGridProps {
   ) => void;
 }
 
+/**
+ * What tells this variant apart from its siblings. SideStage sells colorways,
+ * so colour is the axis; only a Restart-imported row with no colour axis falls
+ * back to the resale grade and lead time it was imported with (WI-38716).
+ */
+export function variantAxisLabel(row: CatalogRow): string {
+  if (row.color) return row.color;
+  return `${row.condition} · ${row.handlingDays ?? "—"}d handling`;
+}
+
 function ProductCell({ row }: { row: CatalogRow }) {
   return (
     <div className="event-product-cell">
@@ -55,13 +65,11 @@ export function InventoryPickerGrid({
         header: "Variant",
         headerText: "Variant",
         width: 1.5,
-        toCopyText: (row) => `${row.sku} · ${row.condition}`,
+        toCopyText: (row) => `${row.sku} · ${variantAxisLabel(row)}`,
         render: ({ row }) => (
           <div className="event-variant-cell">
             <strong>{row.sku}</strong>
-            <span>
-              {row.condition} · {row.handlingDays ?? "—"}d handling
-            </span>
+            <span>{variantAxisLabel(row)}</span>
           </div>
         ),
       },

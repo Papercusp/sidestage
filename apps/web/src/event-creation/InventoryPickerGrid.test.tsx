@@ -1,7 +1,7 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 
-import { InventoryPickerGrid } from "./InventoryPickerGrid";
+import { InventoryPickerGrid, variantAxisLabel } from "./InventoryPickerGrid";
 import type { CatalogRow, EventItemDraft } from "./catalog";
 
 const ROWS: CatalogRow[] = [
@@ -12,11 +12,14 @@ const ROWS: CatalogRow[] = [
     brand: "BrewHaus",
     productType: "KITCHEN_APPLIANCE",
     sku: "BH-ESP-200-NEW",
+    color: "Matte Black",
     condition: "NEW",
     handlingDays: 2,
     priceCents: 49_999,
     availableQty: 12,
   },
+  // Deliberately carries NO colour: a Restart-imported row has no colour axis,
+  // and the variant cell must fall back to its grade rather than render blank.
   {
     id: "espresso-sold",
     groupId: "espresso",
@@ -62,5 +65,32 @@ describe("InventoryPickerGrid", () => {
     expect(markup).toContain("12 ready");
     expect(markup).toContain("catalog-row-unavailable");
     expect(markup).toContain("Sold out");
+  });
+
+  it("shows the colour as the variant axis, falling back to the imported grade", () => {
+    const markup = renderToStaticMarkup(
+      <InventoryPickerGrid
+        rows={ROWS}
+        selectedRowIds={new Set()}
+        drafts={DRAFTS}
+        onSelectedRowIdsChange={() => undefined}
+        onDraftChange={() => undefined}
+      />,
+    );
+
+    // The colour is what tells two variants of one product apart, so it — not
+    // the resale grade Restart imports — is the variant cell (WI-38716).
+    expect(markup).toContain("Matte Black");
+    expect(markup).not.toContain("2d handling");
+    // A row with no colour axis still has to say something useful.
+    expect(markup).toContain("5d handling");
+  });
+});
+
+describe("variantAxisLabel", () => {
+  it("prefers colour and falls back to grade and lead time", () => {
+    expect(variantAxisLabel(ROWS[0])).toBe("Matte Black");
+    expect(variantAxisLabel(ROWS[1])).toBe("USED · 5d handling");
+    expect(variantAxisLabel({ ...ROWS[1], handlingDays: null })).toBe("USED · —d handling");
   });
 });

@@ -8,7 +8,7 @@ const PRODUCTS: BuyerProduct[] = [
   {
     id: "espresso-new",
     title: "Barista Pro Espresso Machine",
-    subtitle: "BrewHaus · NEW",
+    subtitle: "BrewHaus · Matte Black",
     priceCents: 49_999,
     compareAtPriceCents: 54_999,
     availableQty: 12,
@@ -16,7 +16,7 @@ const PRODUCTS: BuyerProduct[] = [
   {
     id: "espresso-sold",
     title: "Barista Pro Espresso Machine",
-    subtitle: "BrewHaus · REFURBISHED",
+    subtitle: "BrewHaus · Cream",
     priceCents: 34_999,
     availableQty: 0,
     badge: "Sold out",
