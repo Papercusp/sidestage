@@ -39,6 +39,17 @@
   line-height: 1.5;
 }
 
+.event-manager-queue-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.event-manager-queue-heading > div { display: grid; gap: .3rem; }
+.event-manager-queue-heading .eyebrow { margin: 0; }
+.event-manager-queue-heading strong { font-size: .86rem; }
+
 .event-lineup-grid {
   min-height: 260px;
   overflow: hidden;
@@ -559,6 +570,7 @@
   .event-manager { padding: 1rem; }
 
   .event-manager-heading,
+  .event-manager-queue-heading,
   .event-detail-heading,
   .event-detail-toolbar,
   .event-catalog-drawer-heading {
@@ -567,6 +579,7 @@
   }
 
   .event-manager-heading .button,
+  .event-manager-queue-heading .button,
   .event-detail-toolbar .button,
   .event-new-form .button { width: 100%; }
 

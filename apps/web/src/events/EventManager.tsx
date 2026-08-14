@@ -110,11 +110,6 @@ export function EventManager({
             Search the real catalog, reserve event quantities, then run Push, Swap, Markdown, and Stock through the guarded action service.
           </p>
         </div>
-        {items.length ? (
-          <button className="button primary" type="button" onClick={() => setPickerOpen((open) => !open)}>
-            {pickerOpen ? 'Close catalog' : 'Add catalog items'}
-          </button>
-        ) : null}
       </div>
 
       {!loaded ? <p className="event-manager-message" role="status">Loading verified event state…</p> : null}
@@ -140,6 +135,15 @@ export function EventManager({
               <strong>Guarded seller actions are live</strong>
               <small>Price floors, markdown limits, verified inventory, audit, and rollback are enforced server-side.</small>
             </span>
+          </div>
+          <div className="event-manager-queue-heading">
+            <div>
+              <p className="eyebrow">Event queue</p>
+              <strong>{items.length} reserved {items.length === 1 ? 'item' : 'items'} ready for the live lineup</strong>
+            </div>
+            <button className="button secondary" type="button" onClick={() => setPickerOpen((open) => !open)}>
+              {pickerOpen ? 'Close lineup editor' : 'Manage lineup'}
+            </button>
           </div>
           <EventLineupGrid
             items={items}

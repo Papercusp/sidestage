@@ -30,6 +30,8 @@ describe('EventManager', () => {
     expect(markup).toContain('Auction quantity for Barista Pro Espresso Machine');
     expect(markup).toContain('Offer quantity for Barista Pro Espresso Machine');
     expect(markup).toContain('Barista Pro Espresso Machine');
+    expect(markup).toContain('Event queue');
+    expect(markup).toContain('Manage lineup');
   });
 
   it('renders the reservation-backed setup picker for an empty event', () => {
