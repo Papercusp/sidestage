@@ -53,11 +53,11 @@ describe('P-005 product card and shell', () => {
     expect(markup).toContain('aria-current="page"');
     expect(markup).toContain('href="#main-content"');
     expect(markup).toContain('Live commerce');
-    expect(markup).toContain('Join the room');
+    expect(markup).toContain('Now selling');
     expect(markup).toContain('Event products');
     expect(markup).toContain('Live chat');
     expect(markup).toContain('Message the room');
-    expect(markup).toContain('Share event');
+    expect(markup).toContain('Share room');
   });
 
   it('keeps the shared paper shell and keyboard-control baseline tokenized', () => {
