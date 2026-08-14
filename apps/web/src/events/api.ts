@@ -96,6 +96,31 @@ export class EventApiError extends Error {
   }
 }
 
+export const SELLER_AUCTION_TOKEN_KEY = 'sidestage.auction.seller-token.v1';
+
+export function readSellerAuctionToken(): string | undefined {
+  try {
+    return typeof sessionStorage === 'undefined' ? undefined : sessionStorage.getItem(SELLER_AUCTION_TOKEN_KEY)?.trim() || undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+export function rememberSellerAuctionToken(token: string): void {
+  try {
+    sessionStorage.setItem(SELLER_AUCTION_TOKEN_KEY, token.trim());
+  } catch {
+    // Session-only access can still be used for this render when storage is unavailable.
+  }
+}
+
+export async function verifySellerAuctionAccess(token: string, apiBaseUrl?: string): Promise<void> {
+  await requestJson(eventUrl('/auctions/access/seller', apiBaseUrl), {
+    method: 'POST',
+    headers: { authorization: `Bearer ${token.trim()}` },
+  });
+}
+
 export async function requestJson<T>(url: string, init?: RequestInit): Promise<T> {
   const response = await fetch(url, {
     ...init,
@@ -327,9 +352,11 @@ export async function startSellerAuction(
   quantity: number,
   startingPriceCents: number,
   apiBaseUrl?: string,
+  sellerAccessToken = readSellerAuctionToken(),
 ): Promise<SellerAuction> {
   return requestJson<SellerAuction>(eventUrl('/auctions/start', apiBaseUrl), {
     method: 'POST',
+    headers: sellerAccessToken ? { authorization: `Bearer ${sellerAccessToken}` } : undefined,
     body: JSON.stringify({
       eventId,
       eventItemId: item.eventItemId,
