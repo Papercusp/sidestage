@@ -28,6 +28,8 @@ export interface BuyerOrderVideoSnapshot {
   startMs?: number;
   endMs?: number;
   previewText?: string;
+  evidenceKind?: 'condition';
+  evidenceLabel?: string;
 }
 
 export interface BuyerOrder {
@@ -126,12 +128,22 @@ export class BuyerOrdersService {
       eventTitle,
       sellerName: input.event?.sellerName,
       currency: 'USD',
-      videoSnapshots: input.items.map((item) => this.snapshot(input.eventId, eventTitle, input.event, item)),
+      videoSnapshots: input.items.flatMap((item) => {
+        const chapters = this.chaptersFor(input.eventId, item.productId);
+        return chapters.length > 0
+          ? chapters.map((chapter) => this.snapshot(input.eventId, eventTitle, input.event, item, chapter))
+          : [this.snapshot(input.eventId, eventTitle, input.event, item)];
+      }),
     };
   }
 
-  private snapshot(eventId: string, eventTitle: string, event: EventSummary | undefined, item: BuyerOrderItem): BuyerOrderVideoSnapshot {
-    const chapter = this.chapterFor(eventId, item.productId);
+  private snapshot(
+    eventId: string,
+    eventTitle: string,
+    event: EventSummary | undefined,
+    item: BuyerOrderItem,
+    chapter?: ReplayChapter,
+  ): BuyerOrderVideoSnapshot {
     return {
       id: `${eventId}:${item.productId}:${chapter?.startMs ?? 'event'}`,
       eventId,
@@ -143,11 +155,17 @@ export class BuyerOrdersService {
       startMs: chapter?.startMs,
       endMs: chapter?.endMs,
       previewText: chapter?.previewText,
+      evidenceKind: chapter?.evidenceKind,
+      evidenceLabel: chapter?.evidenceLabel,
     };
   }
 
   private chapterFor(eventId: string, productId: string): ReplayChapter | undefined {
-    return this.chat.getReplayChapters(eventId).find((chapter) => chapter.productId === productId);
+    return this.chaptersFor(eventId, productId)[0];
+  }
+
+  private chaptersFor(eventId: string, productId: string): ReplayChapter[] {
+    return this.chat.getReplayChapters(eventId).filter((chapter) => chapter.productId === productId);
   }
 
   private readBuyerId(value: string): string {
