@@ -23,6 +23,11 @@ interface HoldBody {
   sourceId?: string;
 }
 
+interface RestockBody {
+  quantity?: number;
+  priceCents?: number;
+}
+
 const HOLD_KINDS = new Set<InventoryHoldSource['kind']>(['auction', 'event', 'cart']);
 
 function readSource(body: HoldBody): InventoryHoldSource {
@@ -67,6 +72,21 @@ export class InventoryController {
     const snapshot = await this.inventory.get(productId);
     if (released) this.publishInventoryChange(productId);
     return { released, source, snapshot };
+  }
+
+  @Post(':productId/restock')
+  async restock(@Param('productId') productId: string, @Body() body: RestockBody) {
+    const quantity = body.quantity;
+    if (!Number.isInteger(quantity) || (quantity ?? 0) <= 0) {
+      throw new BadRequestException('quantity must be a positive integer');
+    }
+    if (body.priceCents !== undefined && (!Number.isInteger(body.priceCents) || body.priceCents < 0)) {
+      throw new BadRequestException('priceCents must be a non-negative integer');
+    }
+    const snapshot = await this.inventory.restock(productId, quantity!, body.priceCents);
+    if (!snapshot) throw new NotFoundException(`Inventory item ${productId} was not found`);
+    this.publishInventoryChange(productId);
+    return { restocked: true, quantity, snapshot };
   }
 
   private publishInventoryChange(productId: string): void {

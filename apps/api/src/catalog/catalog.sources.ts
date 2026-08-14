@@ -267,7 +267,13 @@ export class PgCatalogSource implements CatalogSource {
 /** Clean-clone fallback: the same eight variants demo.sql seeds. */
 @Injectable()
 export class FixtureCatalogSource implements CatalogSource {
-  constructor(private readonly fixture: readonly CatalogVariant[] = DEMO_CATALOG_FIXTURE) {}
+  private readonly fixture: CatalogVariant[];
+
+  constructor(fixture: readonly CatalogVariant[] = DEMO_CATALOG_FIXTURE) {
+    // The exported fixture is immutable shared test/demo data. Each source gets
+    // its own rows so a Studio intake mutation cannot leak between app boots.
+    this.fixture = fixture.map((variant) => ({ ...variant }));
+  }
 
   async search(query: CatalogQuery): Promise<CatalogPage> {
     const { q, productType, availability, page, pageSize } = normalizeQuery(query);
@@ -295,6 +301,19 @@ export class FixtureCatalogSource implements CatalogSource {
 
   async variant(id: string): Promise<CatalogVariant | undefined> {
     return this.fixture.find((variant) => variant.id === id);
+  }
+
+  async restock(id: string, quantity: number, priceCents?: number): Promise<CatalogVariant | undefined> {
+    const index = this.fixture.findIndex((variant) => variant.id === id);
+    if (index < 0) return undefined;
+    const current = this.fixture[index];
+    const next: CatalogVariant = {
+      ...current,
+      availableQty: current.availableQty + quantity,
+      priceCents: priceCents ?? current.priceCents,
+    };
+    this.fixture[index] = next;
+    return { ...next };
   }
 }
 

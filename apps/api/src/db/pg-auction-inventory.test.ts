@@ -33,4 +33,18 @@ describe('PgAuctionInventory hold lifecycle', () => {
       ['cart', 'cart-1', 'product-1'],
     );
   });
+
+  it('increments stock without writing reserved_qty and optionally updates price', async () => {
+    const row = { productId: 'product-1', qty: 8, reservedQty: 2, availableQty: 6, priceCents: 1_500 };
+    const query = vi.fn().mockResolvedValue({ rows: [row] });
+    const inventory = new PgAuctionInventory({ query } as never);
+
+    await expect(inventory.restock('product-1', 3, 1_500)).resolves.toEqual(row);
+
+    const [sql, params] = query.mock.calls[0] as [string, unknown[]];
+    expect(sql).toContain('qty = qty + $2');
+    expect(sql).toContain('price_cents = COALESCE($3, price_cents)');
+    expect(sql).not.toMatch(/SET[\s\S]*reserved_qty\s*=/);
+    expect(params).toEqual(['product-1', 3, 1_500]);
+  });
 });

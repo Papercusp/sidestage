@@ -11,6 +11,7 @@ interface VariantRow {
   qty: number;
   reservedQty: number;
   availableQty: number;
+  priceCents: number;
 }
 
 /**
@@ -26,7 +27,7 @@ export class PgAuctionInventory implements AuctionInventory {
   async get(productId: string): Promise<AuctionInventorySnapshot | undefined> {
     await this.pool.query('SELECT expire_inventory_reservations()');
     const result = await this.pool.query<VariantRow>(
-      'SELECT id AS "productId", qty, reserved_qty AS "reservedQty", "availableQty" FROM storefront_product WHERE id = $1',
+      'SELECT id AS "productId", qty, reserved_qty AS "reservedQty", "availableQty", price_cents AS "priceCents" FROM storefront_product WHERE id = $1',
       [productId],
     );
     return result.rows[0] ?? undefined;
@@ -45,10 +46,29 @@ export class PgAuctionInventory implements AuctionInventory {
       `INSERT INTO storefront_product (id, slug, region, sku, price_cents, active, qty, reserved_qty)
        VALUES ($1, $1, 'US', upper(regexp_replace($1, '[^A-Za-z0-9]+', '-', 'g')), 0, true, $2, $3)
        ON CONFLICT (id) DO UPDATE SET qty = EXCLUDED.qty, reserved_qty = EXCLUDED.reserved_qty
-       RETURNING id AS "productId", qty, reserved_qty AS "reservedQty", "availableQty"`,
+       RETURNING id AS "productId", qty, reserved_qty AS "reservedQty", "availableQty", price_cents AS "priceCents"`,
       [id, qty, reservedQty],
     );
     return result.rows[0];
+  }
+
+  async restock(productId: string, quantity: number, priceCents?: number): Promise<AuctionInventorySnapshot | undefined> {
+    const id = productId.trim();
+    if (!id || id.length > 120) throw new BadRequestException('productId is required and must be 120 characters or fewer');
+    if (!Number.isInteger(quantity) || quantity <= 0) throw new BadRequestException('quantity must be a positive integer');
+    if (priceCents !== undefined && (!Number.isInteger(priceCents) || priceCents < 0)) {
+      throw new BadRequestException('priceCents must be a non-negative integer');
+    }
+    const result = await this.pool.query<VariantRow>(
+      `UPDATE storefront_product
+          SET qty = qty + $2,
+              price_cents = COALESCE($3, price_cents),
+              updated_at = now()
+        WHERE id = $1
+        RETURNING id AS "productId", qty, reserved_qty AS "reservedQty", "availableQty", price_cents AS "priceCents"`,
+      [id, quantity, priceCents ?? null],
+    );
+    return result.rows[0] ?? undefined;
   }
 
   async reserve(productId: string, quantity: number, source: InventoryHoldSource, expiresAt?: string): Promise<boolean> {

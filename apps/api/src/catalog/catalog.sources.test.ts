@@ -9,7 +9,7 @@ vi.mock('@papercusp/typesense', () => ({
   typesenseService: { search: typesenseSearch },
 }));
 
-import { EVENT_DEMO_COLLECTION, PgCatalogSource } from './catalog.sources';
+import { EVENT_DEMO_COLLECTION, FixtureCatalogSource, PgCatalogSource } from './catalog.sources';
 
 describe('PgCatalogSource', () => {
   beforeEach(() => {
@@ -90,5 +90,19 @@ describe('PgCatalogSource', () => {
     expect(rowsSql).toContain("axis.slug = 'color'");
     expect(rowsSql).toContain("axis.slug = 'size'");
     expect(observedParams[1]).toEqual([EVENT_DEMO_COLLECTION, 50, 0]);
+  });
+});
+
+describe('FixtureCatalogSource', () => {
+  it('mirrors inventory intake into subsequent catalog reads without mutating the shared fixture', async () => {
+    const fixture = [{
+      id: 'mug', groupId: 'cups', title: 'Mug', brand: 'Kiln', productType: 'HOME', sku: 'MUG',
+      condition: 'NEW', handlingDays: 1, priceCents: 1_200, availableQty: 2,
+    }];
+    const source = new FixtureCatalogSource(fixture);
+
+    await expect(source.restock('mug', 3, 1_500)).resolves.toMatchObject({ availableQty: 5, priceCents: 1_500 });
+    await expect(source.variant('mug')).resolves.toMatchObject({ availableQty: 5, priceCents: 1_500 });
+    expect(fixture[0]).toMatchObject({ availableQty: 2, priceCents: 1_200 });
   });
 });

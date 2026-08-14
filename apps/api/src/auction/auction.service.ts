@@ -1,6 +1,7 @@
 import { BadRequestException, ConflictException, Inject, Injectable, NotFoundException, Optional } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
 import { Subject, type Observable } from 'rxjs';
+import type { CatalogSource } from '../catalog/catalog.types';
 import { SyncInvalidationService } from '../sync/sync-invalidation.service';
 
 export const AUCTION_INVENTORY = Symbol('AUCTION_INVENTORY');
@@ -12,6 +13,7 @@ export interface AuctionInventorySnapshot {
   qty: number;
   reservedQty: number;
   availableQty: number;
+  priceCents?: number;
 }
 
 /** Identifies WHO holds inventory, so holds are idempotent and releasable per source. */
@@ -30,6 +32,7 @@ export interface InventoryHoldSource {
 export interface AuctionInventory {
   get(productId: string): Promise<AuctionInventorySnapshot | undefined>;
   seed(productId: string, qty: number, reservedQty?: number): Promise<AuctionInventorySnapshot>;
+  restock(productId: string, quantity: number, priceCents?: number): Promise<AuctionInventorySnapshot | undefined>;
   reserve(productId: string, quantity: number, source: InventoryHoldSource, expiresAt?: string): Promise<boolean>;
   release(productId: string, quantity: number, source: InventoryHoldSource): Promise<boolean>;
   commit(productId: string, source: InventoryHoldSource): Promise<boolean>;
@@ -46,6 +49,8 @@ export class InMemoryAuctionInventory implements AuctionInventory {
   private readonly items = new Map<string, AuctionInventorySnapshot>();
   private readonly holds = new Map<string, InMemoryInventoryHold>();
 
+  constructor(private readonly catalog?: CatalogSource) {}
+
   async get(productId: string): Promise<AuctionInventorySnapshot | undefined> {
     this.expireHolds(productId);
     const item = this.items.get(productId);
@@ -61,6 +66,38 @@ export class InMemoryAuctionInventory implements AuctionInventory {
     const item = { productId: id, qty, reservedQty, availableQty: Math.max(0, qty - reservedQty) };
     this.items.set(id, item);
     return { ...item };
+  }
+
+  async restock(productId: string, quantity: number, priceCents?: number): Promise<AuctionInventorySnapshot | undefined> {
+    const id = this.readId(productId, 'productId');
+    if (!Number.isInteger(quantity) || quantity <= 0) throw new BadRequestException('quantity must be a positive integer');
+    if (priceCents !== undefined && (!Number.isInteger(priceCents) || priceCents < 0)) {
+      throw new BadRequestException('priceCents must be a non-negative integer');
+    }
+
+    // The clean-clone catalog is the existing read authority. Mirror intake
+    // there first so catalog.page invalidation exposes the same stock change;
+    // do not grow a second fixture/store just for Studio inventory.
+    const catalogVariant = this.catalog?.restock
+      ? await this.catalog.restock(id, quantity, priceCents)
+      : undefined;
+    const item = this.items.get(id);
+    if (!item && !catalogVariant) return undefined;
+
+    const next = item ?? {
+      productId: id,
+      qty: catalogVariant!.availableQty,
+      reservedQty: 0,
+      availableQty: catalogVariant!.availableQty,
+      priceCents: catalogVariant!.priceCents,
+    };
+    if (item) {
+      next.qty += quantity;
+      next.availableQty = Math.max(0, next.qty - next.reservedQty);
+      if (priceCents !== undefined) next.priceCents = priceCents;
+    }
+    this.items.set(id, next);
+    return { ...next };
   }
 
   async reserve(productId: string, quantity: number, source: InventoryHoldSource, expiresAt?: string): Promise<boolean> {
