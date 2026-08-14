@@ -172,6 +172,9 @@ describe('AuctionPanel', () => {
   it('can shrink inside the narrow mobile column beside the persistent channel guide', () => {
     expect(auctionCss).toMatch(/\.auction-card\s*\{[^}]*grid-template-columns:\s*minmax\(0,\s*1fr\)[^}]*min-width:\s*0/);
     expect(auctionCss).toMatch(/\.auction-card\s*>\s*\*\s*\{[^}]*min-width:\s*0/);
+    expect(auctionCss).toMatch(/\.auction-feed-list\s*\{[^}]*min-width:\s*0/);
+    expect(auctionCss).toMatch(/\.auction-feed-row\s*\{[^}]*min-width:\s*0/);
+    expect(auctionCss).toMatch(/\.auction-feed-who\s*\{[^}]*min-width:\s*0[^}]*overflow:\s*hidden/);
   });
 
   it('maps the event.auction.active named-query rows into the existing view shape', () => {

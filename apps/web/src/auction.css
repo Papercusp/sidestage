@@ -37,13 +37,13 @@
 .auction-feed { display: grid; align-content: start; gap: .3rem; min-width: 0; }
 .auction-feed-label { color: var(--muted); font-size: .58rem; font-weight: 700; letter-spacing: .14em; text-transform: uppercase; }
 .auction-feed-empty { margin: 0; color: var(--muted); font-size: .72rem; }
-.auction-feed-list { display: grid; gap: .25rem; margin: 0; padding: 0; list-style: none; }
-.auction-feed-row { display: flex; align-items: baseline; justify-content: space-between; gap: .5rem; padding: .3rem .5rem; border: 1px solid var(--border); border-radius: .42rem; background: var(--surface-glass); color: var(--muted); font-size: .72rem; }
+.auction-feed-list { display: grid; min-width: 0; gap: .25rem; margin: 0; padding: 0; list-style: none; }
+.auction-feed-row { display: flex; min-width: 0; align-items: baseline; justify-content: space-between; gap: .5rem; padding: .3rem .5rem; border: 1px solid var(--border); border-radius: .42rem; background: var(--surface-glass); color: var(--muted); font-size: .72rem; }
 .auction-feed-row b { color: var(--yellow-text); font-weight: 700; font-variant-numeric: tabular-nums; }
 .auction-feed-row.is-leading { border-color: color-mix(in srgb, var(--yellow-text) 45%, transparent); color: var(--text); }
 .auction-feed-row.is-won { border-color: var(--success); background: color-mix(in srgb, var(--success) 9%, transparent); color: var(--success); }
 .auction-feed-row.is-won b { color: var(--success); }
-.auction-feed-who { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.auction-feed-who { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 /* crimson, OUTLINED — never a fill (D-003) */
 .auction-stamp { position: absolute; left: 50%; top: 46%; z-index: 2; transform: translate(-50%,-50%) rotate(-11deg); padding: .06rem .7rem .16rem; border: 5px solid var(--danger); border-radius: .7rem; background: color-mix(in srgb, var(--surface) 84%, transparent); color: var(--danger); font-size: clamp(1.9rem,6.5vw,2.9rem); font-weight: 800; letter-spacing: -.05em; pointer-events: none; }
