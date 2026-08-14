@@ -189,6 +189,21 @@ SHA="$(git rev-parse HEAD)"
 PREV_SHA="$("${SSH[@]}" "cat $DEPLOYED_SHA_FILE 2>/dev/null" || true)"
 PREV_SHA="${PREV_SHA//[$'\r\n']/}"
 
+auto_rollback_failed_release() {
+  local failure="$1" rolled_back_exit="$2"
+  if [[ -n "$PREV_SHA" ]]; then
+    echo "==> AUTO-ROLLBACK to ${PREV_SHA:0:7}" >&2
+    if SIDESTAGE_DEPLOY_LOCK_HELD=1 bash "$SCRIPT_DIR/rollback.sh" --to "$PREV_SHA"; then
+      echo "ERROR: deploy of ${SHA:0:7} failed $failure; prod rolled back to ${PREV_SHA:0:7}" >&2
+      exit "$rolled_back_exit"
+    fi
+    echo "FATAL: rollback to ${PREV_SHA:0:7} ALSO failed -- prod needs hands" >&2
+    exit 4
+  fi
+  echo "FATAL: no previous sha recorded, cannot auto-rollback -- prod needs hands" >&2
+  exit 4
+}
+
 say "Build + up on prod (SIDESTAGE_SHA=${SHA:0:7}, previous=${PREV_SHA:0:7})"
 "${SSH[@]}" "cd $PROD_DIR && SIDESTAGE_SHA=$SHA $COMPOSE build --pull api web && SIDESTAGE_SHA=$SHA $COMPOSE up -d --remove-orphans"
 
@@ -213,17 +228,7 @@ done
 
 if ! $healthy; then
   echo "ERROR: API health check failed after 20 attempts" >&2
-  if [[ -n "$PREV_SHA" ]]; then
-    echo "==> AUTO-ROLLBACK to ${PREV_SHA:0:7}" >&2
-    if SIDESTAGE_DEPLOY_LOCK_HELD=1 bash "$SCRIPT_DIR/rollback.sh" --to "$PREV_SHA"; then
-      echo "ERROR: deploy of ${SHA:0:7} failed health check; prod rolled back to ${PREV_SHA:0:7}" >&2
-      exit 3
-    fi
-    echo "FATAL: rollback to ${PREV_SHA:0:7} ALSO failed -- prod needs hands" >&2
-    exit 4
-  fi
-  echo "FATAL: no previous sha recorded, cannot auto-rollback -- prod needs hands" >&2
-  exit 4
+  auto_rollback_failed_release "health check" 3
 fi
 
 # VERIFY BEFORE RECORDING -- the same principle the health gate above follows:
@@ -260,7 +265,17 @@ if ! $sha_ok; then
 fi
 say "OK: /healthz (leg: $HEALTH_LEG) reports ${SHA:0:7}"
 
-say "Recording deployed sha (health check + sha verification passed)"
+# Health + sha prove the process and ingress, but not the release's defining
+# product path. Require six real, in-stock rows and a Scout result derived from
+# those rows before making this sha the recorded rollback baseline. This guard
+# is read-only; a failure restores the previously proven release.
+say "Release positive control (real catalog + Scout)"
+if ! node "$SCRIPT_DIR/release-positive-control.mjs" --base-url "https://$PUBLIC_HOSTNAME"; then
+  echo "ERROR: release positive control failed" >&2
+  auto_rollback_failed_release "release positive control" 6
+fi
+
+say "Recording deployed sha (health, sha, and positive control passed)"
 "${SSH[@]}" "
   set -e
   cd $PROD_DIR

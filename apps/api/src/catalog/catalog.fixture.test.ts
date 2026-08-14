@@ -1,11 +1,16 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
+import type { Pool } from 'pg';
 
 import { describe, expect, it } from 'vitest';
 
 import { DEMO_CATALOG_FIXTURE } from './catalog.fixture';
 import { catalogSourceForPool } from './catalog.module';
-import { FixtureCatalogSource, UnavailableCatalogSource } from './catalog.sources';
+import {
+  EVENT_DEMO_COLLECTION,
+  FixtureCatalogSource,
+  UnavailableCatalogSource,
+} from './catalog.sources';
 import type { CatalogVariant } from './catalog.types';
 
 /** db/seed/demo.sql, from the repo root (this file is apps/api/src/catalog/). */
@@ -128,6 +133,25 @@ describe('catalog source selection', () => {
     await expect(source.search({})).rejects.toThrow('durable catalog storage is not connected');
     await expect(source.productTypes()).rejects.toThrow('durable catalog storage is not connected');
     await expect(source.variant('demo-espresso-matte-black')).rejects.toThrow('durable catalog storage is not connected');
+  });
+
+  it.each([
+    ['production', 'the unscoped real corpus', ''],
+    ['development', 'the curated demo collection', EVENT_DEMO_COLLECTION],
+  ] as const)('uses %s durable storage with %s', async (nodeEnv, _description, expectedCollection) => {
+    const observedParams: unknown[][] = [];
+    const pool = {
+      query: async (_sql: string, params: unknown[]) => {
+        observedParams.push([...params]);
+        return observedParams.length === 1 ? { rows: [{ n: '6' }] } : { rows: [] };
+      },
+    } as unknown as Pool;
+
+    const source = catalogSourceForPool(pool, { NODE_ENV: nodeEnv });
+    await source.search({ availability: 'in-stock', pageSize: 6 });
+
+    expect(observedParams[0]).toEqual([expectedCollection, 10_001]);
+    expect(observedParams[1]).toEqual([expectedCollection, 6, 0]);
   });
 });
 

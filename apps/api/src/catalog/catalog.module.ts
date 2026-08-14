@@ -4,7 +4,12 @@ import { DatabaseModule, PG_POOL, demoDataEnabled } from '../db/database.module'
 import { SyncModule } from '../sync/sync.module';
 import { SyncQueryRegistry, type SyncQueryArgs } from '../sync/sync-query.registry';
 import { CatalogController } from './catalog.controller';
-import { FixtureCatalogSource, PgCatalogSource, UnavailableCatalogSource } from './catalog.sources';
+import {
+  EVENT_DEMO_COLLECTION,
+  FixtureCatalogSource,
+  PgCatalogSource,
+  UnavailableCatalogSource,
+} from './catalog.sources';
 import { CATALOG_SOURCE, type CatalogQuery, type CatalogSource } from './catalog.types';
 
 function optionalString(args: SyncQueryArgs, key: string): string | undefined {
@@ -44,7 +49,10 @@ export function catalogSourceForPool(
   pool: Pool | null,
   env: NodeJS.ProcessEnv = process.env,
 ): CatalogSource {
-  if (pool) return new PgCatalogSource(pool);
+  if (pool) {
+    const collection = env.NODE_ENV === 'production' ? '' : EVENT_DEMO_COLLECTION;
+    return new PgCatalogSource(pool, collection);
+  }
   return demoDataEnabled(env) ? new FixtureCatalogSource() : new UnavailableCatalogSource();
 }
 
