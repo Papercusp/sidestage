@@ -1,10 +1,12 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react';
 import { useSyncMutate, useSyncQuery } from '@papercusp/sync';
+import { tabHref } from './app-routing';
 import { resolveApiBaseUrl } from './catalog';
 import { TabHeader } from './components/TabHeader';
 import { browserEventId } from './event-identity';
+import './config.css';
 
-interface EventGuardrails {
+export interface EventGuardrails {
   priceChanges: boolean;
   inventoryClaims: boolean;
   buyerSensitive: boolean;
@@ -16,17 +18,81 @@ export interface EventConfigView {
   replyTone: 'warm' | 'playful' | 'minimal';
   guardrails: EventGuardrails;
   updatedAt: string;
+  policy?: {
+    automationLevel?: string;
+    maxMarkdownPercent?: number;
+  };
+  policySource?: string;
+  policyRevisionId?: string;
 }
 
 export type EventConfigUpdate = Pick<EventConfigView, 'name' | 'replyTone' | 'guardrails'>;
 
-type SaveState = 'idle' | 'saving' | 'saved' | 'error' | 'offline';
+export type ConfigSaveState = 'idle' | 'saving' | 'saved' | 'error' | 'offline';
 
-const GUARDRAIL_COPY: ReadonlyArray<{ key: keyof EventGuardrails; title: string; detail: string }> = [
-  { key: 'priceChanges', title: 'Price changes', detail: 'Never invent a discount or bundle.' },
-  { key: 'inventoryClaims', title: 'Inventory claims', detail: 'Use the latest catalog quantity only.' },
-  { key: 'buyerSensitive', title: 'Buyer-sensitive topics', detail: 'Keep uncertain replies in review.' },
+interface GuardrailCopy {
+  key: keyof EventGuardrails;
+  title: string;
+  enabledDetail: string;
+  disabledDetail: string;
+  enabledBadge: string;
+  disabledBadge: string;
+}
+
+const GUARDRAIL_COPY: ReadonlyArray<GuardrailCopy> = [
+  {
+    key: 'priceChanges',
+    title: 'Confirm price changes',
+    enabledDetail: 'Every markdown needs approval. Product floors derive from verified catalog prices.',
+    disabledDetail: 'The copilot may apply price changes automatically within the active policy.',
+    enabledBadge: 'Review first',
+    disabledBadge: 'Auto allowed',
+  },
+  {
+    key: 'inventoryClaims',
+    title: 'Protect live inventory',
+    enabledDetail: 'Availability claims use the latest catalog quantity before a reply is approved.',
+    disabledDetail: 'Replies may use inventory context without requiring a fresh quantity check.',
+    enabledBadge: 'Live quantity',
+    disabledBadge: 'Not enforced',
+  },
+  {
+    key: 'buyerSensitive',
+    title: 'Keep sensitive replies in review',
+    enabledDetail: 'Uncertain replies about payments, orders, or buyer data wait for seller approval.',
+    disabledDetail: 'Sensitive-topic replies follow the active automation policy without this extra hold.',
+    enabledBadge: 'Seller review',
+    disabledBadge: 'Policy default',
+  },
 ];
+
+export interface ConfigReadiness {
+  ready: boolean;
+  completedRequired: number;
+  totalRequired: number;
+  issue: string | null;
+}
+
+export function configReadiness(config: EventConfigView): ConfigReadiness {
+  const identityComplete = config.name.trim().length > 0;
+  const completedRequired = (identityComplete ? 1 : 0) + 2;
+  return {
+    ready: identityComplete,
+    completedRequired,
+    totalRequired: 3,
+    issue: identityComplete ? null : 'Event name is required before these defaults can be saved.',
+  };
+}
+
+export function countConfigChanges(current: EventConfigView, baseline: EventConfigView | null): number {
+  if (!baseline) return 0;
+  return Number(current.name !== baseline.name)
+    + Number(current.replyTone !== baseline.replyTone)
+    + GUARDRAIL_COPY.reduce(
+      (count, { key }) => count + Number(current.guardrails[key] !== baseline.guardrails[key]),
+      0,
+    );
+}
 
 export function offlineEventConfig(eventId: string): EventConfigView {
   return {
@@ -35,6 +101,8 @@ export function offlineEventConfig(eventId: string): EventConfigView {
     replyTone: 'warm',
     guardrails: { priceChanges: true, inventoryClaims: true, buyerSensitive: true },
     updatedAt: new Date(0).toISOString(),
+    policy: { automationLevel: 'confirm', maxMarkdownPercent: 30 },
+    policySource: 'config-toggle',
   };
 }
 
@@ -46,6 +114,228 @@ export function eventConfigUpdate(config: EventConfigView): EventConfigUpdate {
   };
 }
 
+function savedLabel(saveState: ConfigSaveState, savedAt: Date | null, dirtyCount: number): string {
+  if (saveState === 'saving') return 'Saving event defaults…';
+  if (saveState === 'saved' && savedAt) return `Saved ${savedAt.toLocaleTimeString()}`;
+  if (saveState === 'error') return 'Save failed — check the API and try again.';
+  if (saveState === 'offline') return 'API unreachable — these fallback values cannot be persisted.';
+  return dirtyCount > 0 ? 'Review the changes before saving.' : 'All changes are saved.';
+}
+
+function formattedRevision(value: string): string {
+  const parsed = new Date(value);
+  return Number.isNaN(parsed.valueOf()) ? value : parsed.toLocaleString();
+}
+
+export interface ConfigEditorProps {
+  config: EventConfigView;
+  baseline: EventConfigView | null;
+  saveState: ConfigSaveState;
+  savedAt: Date | null;
+  rehearseHref: string;
+  onChange: (next: EventConfigView) => void;
+  onSave: () => void;
+}
+
+export function ConfigEditor({
+  config,
+  baseline,
+  saveState,
+  savedAt,
+  rehearseHref,
+  onChange,
+  onSave,
+}: ConfigEditorProps) {
+  const [validationVisible, setValidationVisible] = useState(false);
+  const nameInput = useRef<HTMLInputElement>(null);
+  const readiness = configReadiness(config);
+  const dirtyCount = countConfigChanges(config, baseline);
+  const publishedPolicyActive = Boolean(config.policySource && config.policySource !== 'config-toggle');
+  const progress = Math.round((readiness.completedRequired / readiness.totalRequired) * 100);
+
+  const submit = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!readiness.ready) {
+      setValidationVisible(true);
+      nameInput.current?.focus();
+      return;
+    }
+    setValidationVisible(false);
+    onSave();
+  };
+
+  const update = (next: EventConfigView) => {
+    onChange(next);
+    if (next.name.trim()) setValidationVisible(false);
+  };
+
+  return (
+    <form className="config-page" onSubmit={submit} noValidate>
+      <div className={`config-readiness-banner ${readiness.ready ? publishedPolicyActive ? 'is-warning' : 'is-ready' : 'is-blocked'}`} role={readiness.ready ? 'status' : 'alert'}>
+        <span className="config-readiness-mark" aria-hidden="true">{readiness.ready ? publishedPolicyActive ? 'i' : '✓' : '!'}</span>
+        <div>
+          <strong>
+            {!readiness.ready
+              ? 'Configuration needs attention'
+              : publishedPolicyActive
+                ? 'A published policy is active for this event'
+                : 'Ready to rehearse with these event defaults'}
+          </strong>
+          <p>
+            {!readiness.ready
+              ? readiness.issue
+              : publishedPolicyActive
+                ? `Saving here updates event defaults; Rehearse continues to use policy revision ${config.policyRevisionId ?? 'currently published'}.`
+                : 'Price floors are derived from verified catalog prices, and Rehearse reads this same configuration.'}
+          </p>
+        </div>
+        {!readiness.ready ? (
+          <button className="button secondary" type="button" onClick={() => nameInput.current?.focus()}>Fix event name</button>
+        ) : null}
+      </div>
+
+      <div className="config-context-row">
+        <div>
+          <span className="config-context-label">Editing event</span>
+          <strong>{config.name.trim() || 'Untitled event'}</strong>
+        </div>
+        <code>{config.eventId}</code>
+      </div>
+
+      <div className="config-page-grid">
+        <section className="config-sections" aria-label="Event settings">
+          <details className="config-section" open>
+            <summary>
+              <span><strong>Event identity</strong><small>What buyers see when they enter this event.</small></span>
+              <span className={`config-section-status ${readiness.ready ? 'is-complete' : 'is-blocked'}`}>
+                {readiness.ready ? 'Complete' : 'Required'}
+              </span>
+            </summary>
+            <div className="config-section-content">
+              <label className="config-field" htmlFor="event-name">
+                <span>Event name</span>
+                <input
+                  ref={nameInput}
+                  id="event-name"
+                  value={config.name}
+                  aria-invalid={validationVisible && !readiness.ready ? true : undefined}
+                  aria-describedby={validationVisible && !readiness.ready ? 'event-name-error' : 'event-name-help'}
+                  onChange={(event) => update({ ...config, name: event.target.value })}
+                />
+                <small id="event-name-help">Shown in the room, event guide, and rehearsal results.</small>
+                {validationVisible && !readiness.ready ? <small className="config-field-error" id="event-name-error">Enter an event name before saving.</small> : null}
+              </label>
+            </div>
+          </details>
+
+          <details className="config-section" open>
+            <summary>
+              <span><strong>Commerce guardrails</strong><small>Boundaries the seller and copilot must honor.</small></span>
+              <span className="config-section-status is-complete">Configured</span>
+            </summary>
+            <div className="config-section-content config-guardrail-list">
+              {GUARDRAIL_COPY.map((guardrail) => {
+                const enabled = config.guardrails[guardrail.key];
+                return (
+                  <label className="config-check-row" key={guardrail.key}>
+                    <input
+                      type="checkbox"
+                      checked={enabled}
+                      onChange={(event) => update({
+                        ...config,
+                        guardrails: { ...config.guardrails, [guardrail.key]: event.target.checked },
+                      })}
+                    />
+                    <span>
+                      <strong>{guardrail.title}</strong>
+                      <small>{enabled ? guardrail.enabledDetail : guardrail.disabledDetail}</small>
+                    </span>
+                    <span className={`config-policy-badge ${enabled ? '' : 'is-muted'}`}>
+                      {enabled ? guardrail.enabledBadge : guardrail.disabledBadge}
+                    </span>
+                  </label>
+                );
+              })}
+            </div>
+          </details>
+
+          <details className="config-section" open>
+            <summary>
+              <span><strong>Copilot behavior</strong><small>How suggestions should sound to the seller and buyer.</small></span>
+              <span className="config-section-status is-complete">Complete</span>
+            </summary>
+            <div className="config-section-content">
+              <label className="config-field" htmlFor="reply-tone">
+                <span>Reply tone</span>
+                <select
+                  id="reply-tone"
+                  value={config.replyTone}
+                  onChange={(event) => update({ ...config, replyTone: event.target.value as EventConfigView['replyTone'] })}
+                >
+                  <option value="warm">Warm and concise</option>
+                  <option value="playful">Playful and bright</option>
+                  <option value="minimal">Minimal and direct</option>
+                </select>
+                <small>This changes phrasing, never the safety checks above.</small>
+              </label>
+            </div>
+          </details>
+        </section>
+
+        <aside className="config-summary" aria-label="Readiness summary">
+          <article className="config-summary-card">
+            <div className="config-summary-heading">
+              <div><span>Readiness</span><h2>{readiness.completedRequired} of {readiness.totalRequired} sections</h2></div>
+              <span className={`config-section-status ${readiness.ready ? 'is-complete' : 'is-blocked'}`}>{readiness.ready ? 'Ready' : 'Blocked'}</span>
+            </div>
+            <div className="config-progress" role="progressbar" aria-label="Configuration readiness" aria-valuemin={0} aria-valuemax={100} aria-valuenow={progress}>
+              <span style={{ width: `${progress}%` }} />
+            </div>
+            <dl className="config-readiness-list">
+              <div><dt>Event identity</dt><dd className={readiness.ready ? 'is-complete' : 'is-blocked'}>{readiness.ready ? 'Complete' : 'Required'}</dd></div>
+              <div><dt>Commerce guardrails</dt><dd className="is-complete">Configured</dd></div>
+              <div><dt>Copilot behavior</dt><dd className="is-complete">Complete</dd></div>
+            </dl>
+            <a className="button secondary config-full-width" href={rehearseHref}>Open Rehearse</a>
+          </article>
+
+          <article className="config-summary-card">
+            <div className="config-summary-heading">
+              <div><span>Effective policy</span><h2>{publishedPolicyActive ? 'Published policy' : 'Event defaults'}</h2></div>
+            </div>
+            <p className="config-summary-copy">
+              {publishedPolicyActive
+                ? 'A published policy currently has precedence over the toggles on this page.'
+                : config.guardrails.priceChanges
+                  ? `Seller confirmation is required; markdowns are capped at ${config.policy?.maxMarkdownPercent ?? 30}%.`
+                  : 'Automatic price actions are allowed by the current event defaults.'}
+            </p>
+            <div className="config-revision">
+              <span>Last server revision</span>
+              <strong>{formattedRevision(config.updatedAt)}</strong>
+            </div>
+          </article>
+        </aside>
+      </div>
+
+      <footer className="config-save-bar">
+        <p>
+          <strong>{dirtyCount === 0 ? 'No unsaved changes' : `${dirtyCount} unsaved ${dirtyCount === 1 ? 'change' : 'changes'}`}</strong>
+          <span className={saveState === 'error' || saveState === 'offline' ? 'is-error' : ''} role="status">
+            {savedLabel(saveState, savedAt, dirtyCount)}
+          </span>
+        </p>
+        <div>
+          <a className="button secondary" href={rehearseHref}>Run preflight</a>
+          <button className="button primary" type="submit" disabled={saveState === 'saving' || dirtyCount === 0}>
+            {saveState === 'saving' ? 'Saving…' : 'Save event defaults'}
+          </button>
+        </div>
+      </footer>
+    </form>
+  );
+}
+
 /**
  * Real event configuration (P-105): loads and persists via
  * /events/:eventId/config, and the saved guardrails derive the policy the
@@ -54,7 +344,8 @@ export function eventConfigUpdate(config: EventConfigView): EventConfigUpdate {
 export function ConfigTab() {
   const eventId = browserEventId();
   const [config, setConfig] = useState<EventConfigView | null>(null);
-  const [saveState, setSaveState] = useState<SaveState>('idle');
+  const [baseline, setBaseline] = useState<EventConfigView | null>(null);
+  const [saveState, setSaveState] = useState<ConfigSaveState>('idle');
   const [savedAt, setSavedAt] = useState<Date | null>(null);
   const appliedRevision = useRef<string | null>(null);
 
@@ -80,22 +371,34 @@ export function ConfigTab() {
     if (loaded && loaded.updatedAt !== appliedRevision.current) {
       appliedRevision.current = loaded.updatedAt;
       setConfig(loaded);
+      setBaseline(loaded);
       setSaveState((current) => current === 'offline' ? 'idle' : current);
       return;
     }
     if (configQuery.error) {
       setSaveState('offline');
-      setConfig((current) => current ?? offlineEventConfig(eventId));
+      setConfig((current) => {
+        if (current) return current;
+        const fallback = offlineEventConfig(eventId);
+        setBaseline(fallback);
+        return fallback;
+      });
     }
   }, [configQuery.data, configQuery.error, eventId]);
 
+  const updateConfig = (next: EventConfigView) => {
+    setConfig(next);
+    setSaveState((current) => current === 'offline' ? current : 'idle');
+  };
+
   const save = async () => {
-    if (!config) return;
+    if (!config || !configReadiness(config).ready) return;
     setSaveState('saving');
     try {
       const saved = await mutateConfig(eventConfigUpdate(config));
       appliedRevision.current = saved.updatedAt;
       setConfig(saved);
+      setBaseline(saved);
       setSaveState('saved');
       setSavedAt(new Date());
       configQuery.invalidate();
@@ -106,78 +409,35 @@ export function ConfigTab() {
 
   if (!config) {
     return (
-      <div className="tab-layout density-compact">
+      <div className="tab-layout density-compact config-loading" role="status">
         <TabHeader
-          eyebrow="Config / event guardrails"
-          title="Make the safe choice easy."
-          copy="Set the defaults your copilot should respect before the first buyer joins the room."
+          eyebrow="Event configuration"
+          title="Settings"
+          copy="Every control explains its scope and consequence, with readiness tied to the same event rehearsal checks."
         />
-        <p className="muted">Loading event settings…</p>
+        <p>Loading event settings…</p>
       </div>
     );
   }
 
+  const rehearseHref = tabHref('test', typeof window === 'undefined' ? '/' : window.location.href);
+
   return (
     <div className="tab-layout density-compact">
       <TabHeader
-        eyebrow="Config / event guardrails"
-        title="Make the safe choice easy."
-        copy="Set the defaults your copilot should respect before the first buyer joins the room."
+        eyebrow="Event configuration"
+        title="Settings"
+        copy="Every control explains its scope and consequence, with readiness tied to the same event rehearsal checks."
       />
-      <div className="config-grid">
-        <section className="settings-panel" aria-labelledby="event-settings-title">
-          <div className="panel-kicker">Event settings</div>
-          <h2 id="event-settings-title">{config.name}</h2>
-          <label className="field-label" htmlFor="event-name">Event name</label>
-          <input
-            id="event-name"
-            className="text-input"
-            value={config.name}
-            onChange={(event) => setConfig({ ...config, name: event.target.value })}
-          />
-          <label className="field-label" htmlFor="reply-tone">Reply tone</label>
-          <select
-            id="reply-tone"
-            className="text-input"
-            value={config.replyTone}
-            onChange={(event) => setConfig({ ...config, replyTone: event.target.value as EventConfigView['replyTone'] })}
-          >
-            <option value="warm">Warm and concise</option>
-            <option value="playful">Playful and bright</option>
-            <option value="minimal">Minimal and direct</option>
-          </select>
-        </section>
-        <section className="settings-panel" aria-labelledby="guardrails-title">
-          <div className="panel-kicker">Guardrails</div>
-          <h2 id="guardrails-title">Always ask before send</h2>
-          {GUARDRAIL_COPY.map(({ key, title, detail }) => (
-            <label className="toggle-row" key={key}>
-              <input
-                type="checkbox"
-                checked={config.guardrails[key]}
-                onChange={(event) => setConfig({
-                  ...config,
-                  guardrails: { ...config.guardrails, [key]: event.target.checked },
-                })}
-              />
-              {' '}
-              <span><strong>{title}</strong><small>{detail}</small></span>
-            </label>
-          ))}
-        </section>
-      </div>
-      <div className="config-footer">
-        <span className="config-save-state" role="status">
-          {saveState === 'saving' ? 'Saving…'
-            : saveState === 'saved' && savedAt ? `Saved ${savedAt.toLocaleTimeString()}`
-            : saveState === 'error' ? 'Save failed — check the API and try again.'
-            : saveState === 'offline' ? 'API unreachable — showing defaults; changes will not persist.'
-            : `Event: ${config.eventId}`}
-        </span>
-        <button className="button primary config-save" type="button" onClick={() => void save()} disabled={saveState === 'saving'}>
-          Save event defaults
-        </button>
-      </div>
+      <ConfigEditor
+        config={config}
+        baseline={baseline}
+        saveState={saveState}
+        savedAt={savedAt}
+        rehearseHref={rehearseHref}
+        onChange={updateConfig}
+        onSave={() => void save()}
+      />
     </div>
   );
 }
