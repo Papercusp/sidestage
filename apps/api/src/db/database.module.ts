@@ -2,6 +2,7 @@ import { Global, Logger, Module } from '@nestjs/common';
 import { Pool } from 'pg';
 
 import {
+  REQUIRED_CHAT_STRUCTURES,
   REQUIRED_OWNERSHIP_STRUCTURES,
   REQUIRED_ORDER_STRUCTURES,
   REQUIRED_TABLES,
@@ -88,7 +89,8 @@ export async function createPoolOrNull(
     `Postgres reachable — durable stores active (${url.replace(/:[^:@/]+@/, ':***@')}), ` +
       `schema OK (${REQUIRED_TABLES.length}/${REQUIRED_TABLES.length} tables, ` +
       `${REQUIRED_OWNERSHIP_STRUCTURES.length}/${REQUIRED_OWNERSHIP_STRUCTURES.length} ownership structures, ` +
-      `${REQUIRED_ORDER_STRUCTURES.length}/${REQUIRED_ORDER_STRUCTURES.length} payable-order structures).`,
+      `${REQUIRED_ORDER_STRUCTURES.length}/${REQUIRED_ORDER_STRUCTURES.length} payable-order structures, ` +
+      `${REQUIRED_CHAT_STRUCTURES.length}/${REQUIRED_CHAT_STRUCTURES.length} durable-chat structures).`,
   );
   return pool;
 }

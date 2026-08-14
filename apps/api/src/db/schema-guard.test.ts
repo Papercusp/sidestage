@@ -4,16 +4,19 @@ import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 import {
+  REQUIRED_CHAT_STRUCTURES,
   REQUIRED_OWNERSHIP_STRUCTURES,
   REQUIRED_ORDER_STRUCTURES,
   REQUIRED_TABLES,
   SCHEMA_APPLY_REMEDY,
   type SchemaQueryable,
   assertSchemaCurrent,
+  findMissingChatStructures,
   findMissingOwnershipStructures,
   findMissingOrderStructures,
   findMissingTables,
   formatOwnershipDriftMessage,
+  formatChatDriftMessage,
   formatOrderDriftMessage,
   formatSchemaDriftMessage,
 } from './schema-guard';
@@ -30,7 +33,11 @@ function tablesDeclaredInSchemaSql(sql: string): string[] {
 /** A pg Pool stand-in that reports exactly `present` as existing. */
 function poolWithTables(
   present: readonly string[],
-  structures: readonly string[] = [...REQUIRED_OWNERSHIP_STRUCTURES, ...REQUIRED_ORDER_STRUCTURES],
+  structures: readonly string[] = [
+    ...REQUIRED_OWNERSHIP_STRUCTURES,
+    ...REQUIRED_ORDER_STRUCTURES,
+    ...REQUIRED_CHAT_STRUCTURES,
+  ],
 ): SchemaQueryable {
   return {
     query: async (sql: string, params: unknown[]) => {
@@ -185,6 +192,38 @@ describe('canonical payable-order schema guard', () => {
 
   it('names the idempotent schema apply remedy', () => {
     expect(formatOrderDriftMessage(['column:checkout_order.source_kind'])).toContain(SCHEMA_APPLY_REMEDY);
+  });
+});
+
+describe('durable-chat schema guard', () => {
+  it('tracks event ownership, idempotency, paging, and presence indexes', () => {
+    expect(REQUIRED_CHAT_STRUCTURES).toEqual(expect.arrayContaining([
+      'constraint:chat_message_event_fk',
+      'constraint:chat_presence_event_fk',
+      'constraint:chat_transcript_moment_event_fk',
+      'index:chat_message_idempotency_unique',
+      'index:chat_message_visible_page_idx',
+      'index:chat_presence_freshness_idx',
+      'index:chat_transcript_event_timeline_idx',
+    ]));
+  });
+
+  it('reports a partially-applied durable-chat schema', async () => {
+    const present = [
+      ...REQUIRED_OWNERSHIP_STRUCTURES,
+      ...REQUIRED_ORDER_STRUCTURES,
+      ...REQUIRED_CHAT_STRUCTURES,
+    ].filter((marker) => marker !== 'index:chat_message_idempotency_unique');
+    await expect(findMissingChatStructures(poolWithTables(REQUIRED_TABLES, present))).resolves.toEqual([
+      'index:chat_message_idempotency_unique',
+    ]);
+    await expect(assertSchemaCurrent(poolWithTables(REQUIRED_TABLES, present))).rejects.toThrow(
+      /index:chat_message_idempotency_unique/,
+    );
+  });
+
+  it('names the idempotent schema apply remedy', () => {
+    expect(formatChatDriftMessage(['index:chat_presence_freshness_idx'])).toContain(SCHEMA_APPLY_REMEDY);
   });
 });
 

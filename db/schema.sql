@@ -1004,6 +1004,18 @@ CREATE INDEX IF NOT EXISTS system_test_run_state_heartbeat_idx
 CREATE INDEX IF NOT EXISTS system_test_run_created_at_idx
   ON system_test_run (created_at DESC);
 
+-- Existing SideStage volumes predate retry support; CREATE TABLE IF NOT EXISTS
+-- does not add new columns, so keep this lift repeatable for both fresh and
+-- already-initialized databases.
+ALTER TABLE system_test_run ADD COLUMN IF NOT EXISTS event_id text;
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'system_test_run_event_id_format') THEN
+    ALTER TABLE system_test_run ADD CONSTRAINT system_test_run_event_id_format
+      CHECK (event_id IS NULL OR event_id ~ '^[a-z0-9](?:[a-z0-9._-]{0,126}[a-z0-9])?$');
+  END IF;
+END $$;
+
 CREATE TABLE IF NOT EXISTS system_test_suite (
   run_id text PRIMARY KEY REFERENCES system_test_run (id) ON DELETE CASCADE,
   suite_id text NOT NULL,
@@ -1281,3 +1293,71 @@ DROP TRIGGER IF EXISTS checkout_order_preserve_source_id ON checkout_order;
 CREATE TRIGGER checkout_order_preserve_source_id
 BEFORE UPDATE OF source_id ON checkout_order
 FOR EACH ROW EXECUTE FUNCTION sidestage_preserve_owner('source_id');
+
+-- ── Durable public chat, transcript, and presence authority (P-003) ────────
+-- SSE remains the transient invalidation transport. These rows are the
+-- restart-safe read authority used by ChatService and its Zero query surfaces.
+CREATE TABLE IF NOT EXISTS chat_message (
+  id text PRIMARY KEY,
+  event_id text NOT NULL,
+  user_id text NOT NULL,
+  display_name text NOT NULL,
+  role text NOT NULL,
+  text text NOT NULL,
+  grounding jsonb,
+  client_request_id text,
+  created_at timestamptz NOT NULL,
+  moderated_at timestamptz,
+  moderated_by text,
+  moderation_reason text,
+  CONSTRAINT chat_message_event_fk
+    FOREIGN KEY (event_id) REFERENCES event (event_id) ON DELETE CASCADE,
+  CONSTRAINT chat_message_role_known CHECK (role IN ('buyer', 'seller')),
+  CONSTRAINT chat_message_identity_nonempty
+    CHECK (btrim(user_id) <> '' AND btrim(display_name) <> ''),
+  CONSTRAINT chat_message_text_nonempty CHECK (btrim(text) <> '')
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS chat_message_idempotency_unique
+  ON chat_message (event_id, user_id, client_request_id)
+  WHERE client_request_id IS NOT NULL;
+CREATE INDEX IF NOT EXISTS chat_message_visible_page_idx
+  ON chat_message (event_id, created_at DESC, id DESC)
+  WHERE moderated_at IS NULL;
+
+CREATE TABLE IF NOT EXISTS chat_transcript_moment (
+  id text PRIMARY KEY,
+  event_id text NOT NULL,
+  text text NOT NULL,
+  start_ms bigint,
+  end_ms bigint,
+  product_id text,
+  product_title text,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  CONSTRAINT chat_transcript_moment_event_fk
+    FOREIGN KEY (event_id) REFERENCES event (event_id) ON DELETE CASCADE,
+  CONSTRAINT chat_transcript_moment_text_nonempty CHECK (btrim(text) <> ''),
+  CONSTRAINT chat_transcript_moment_timing_nonnegative CHECK (
+    (start_ms IS NULL OR start_ms >= 0) AND (end_ms IS NULL OR end_ms >= 0)
+  )
+);
+
+CREATE INDEX IF NOT EXISTS chat_transcript_event_timeline_idx
+  ON chat_transcript_moment (event_id, created_at DESC, id DESC);
+
+CREATE TABLE IF NOT EXISTS chat_presence (
+  event_id text NOT NULL,
+  user_id text NOT NULL,
+  display_name text NOT NULL,
+  role text NOT NULL,
+  last_seen_at timestamptz NOT NULL,
+  PRIMARY KEY (event_id, user_id),
+  CONSTRAINT chat_presence_event_fk
+    FOREIGN KEY (event_id) REFERENCES event (event_id) ON DELETE CASCADE,
+  CONSTRAINT chat_presence_role_known CHECK (role IN ('buyer', 'seller')),
+  CONSTRAINT chat_presence_identity_nonempty
+    CHECK (btrim(user_id) <> '' AND btrim(display_name) <> '')
+);
+
+CREATE INDEX IF NOT EXISTS chat_presence_freshness_idx
+  ON chat_presence (event_id, last_seen_at);

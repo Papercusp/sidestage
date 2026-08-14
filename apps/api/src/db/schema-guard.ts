@@ -49,6 +49,9 @@ export interface SchemaQueryable {
 export const REQUIRED_TABLES: readonly string[] = [
   'auction_state',
   'cart',
+  'chat_message',
+  'chat_presence',
+  'chat_transcript_moment',
   'checkout_order',
   'copilot_proposal',
   'event',
@@ -121,6 +124,17 @@ export const REQUIRED_ORDER_STRUCTURES: readonly string[] = [
   'trigger:checkout_order_preserve_source_kind',
 ];
 
+/** Durable chat structures required for idempotency, paging, and restart-safe reads. */
+export const REQUIRED_CHAT_STRUCTURES: readonly string[] = [
+  'constraint:chat_message_event_fk',
+  'constraint:chat_presence_event_fk',
+  'constraint:chat_transcript_moment_event_fk',
+  'index:chat_message_idempotency_unique',
+  'index:chat_message_visible_page_idx',
+  'index:chat_presence_freshness_idx',
+  'index:chat_transcript_event_timeline_idx',
+];
+
 /** The remedy, in one place — it appears in the thrown message and the README. */
 export const SCHEMA_APPLY_REMEDY = 'npm run db:apply';
 
@@ -189,6 +203,14 @@ export function findMissingOrderStructures(
   return findMissingSchemaStructures(pool, required);
 }
 
+/** Required durable-chat markers absent from the public schema. */
+export function findMissingChatStructures(
+  pool: SchemaQueryable,
+  required: readonly string[] = REQUIRED_CHAT_STRUCTURES,
+): Promise<string[]> {
+  return findMissingSchemaStructures(pool, required);
+}
+
 /**
  * The operator-facing drift message. Names every missing table (not just a
  * count) and the exact command that fixes it, because the failure is silent by
@@ -235,6 +257,18 @@ export function formatOrderDriftMessage(missing: readonly string[]): string {
   ].join('\n');
 }
 
+export function formatChatDriftMessage(missing: readonly string[]): string {
+  return [
+    `schema drift — ${missing.length} durable-chat structure(s) missing from the database:`,
+    ...missing.map((marker) => `    ${marker}`),
+    '',
+    'The chat tables exist, but idempotency, paging, or event ownership is only',
+    'partially applied. Starting would make public chat fail or fork after retries.',
+    '',
+    `  remedy: ${SCHEMA_APPLY_REMEDY}`,
+  ].join('\n');
+}
+
 /**
  * Throws when the connected database is missing tables the code queries.
  *
@@ -256,5 +290,9 @@ export async function assertSchemaCurrent(
   const missingOrder = await findMissingOrderStructures(pool);
   if (missingOrder.length > 0) {
     throw new Error(formatOrderDriftMessage(missingOrder));
+  }
+  const missingChat = await findMissingChatStructures(pool);
+  if (missingChat.length > 0) {
+    throw new Error(formatChatDriftMessage(missingChat));
   }
 }
