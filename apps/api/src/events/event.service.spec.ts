@@ -313,6 +313,32 @@ describe('seller-created events reach the guide (EI-20426845001666103 / P-014)',
     expect(event.startsAt).toBe('2026-08-14T10:00:00.000Z');
   });
 
+  it('rejects a colliding foreign publication without changing the established owner or content', async () => {
+    const store = new InMemoryEventStore([
+      record({
+        eventId: 'owned-show',
+        title: 'Original title',
+        sellerId: 'seller-alpha',
+        sellerName: 'Alpha',
+        status: 'live',
+      }),
+    ]);
+    const service = new EventService(store, new ChatService());
+
+    await expect(service.publishFromConfig(
+      { eventId: 'owned-show', name: 'Hijacked title' },
+      { sellerId: 'seller-beta', sellerName: 'Beta' },
+    )).resolves.toBe(false);
+
+    await expect(service.findOwned('owned-show', 'seller-beta')).resolves.toBeUndefined();
+    await expect(service.findOwned('owned-show', 'seller-alpha')).resolves.toMatchObject({
+      title: 'Original title',
+      sellerId: 'seller-alpha',
+      sellerName: 'Alpha',
+      status: 'live',
+    });
+  });
+
   it('withdraws only the owning seller\'s event and can publish the draft again', async () => {
     const store = new InMemoryEventStore([
       record({ eventId: 'release-probe', sellerId: 'seller-a', status: 'live' }),
