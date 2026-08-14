@@ -278,7 +278,18 @@ if ! node "$SCRIPT_DIR/release-positive-control.mjs" --base-url "https://$PUBLIC
   auto_rollback_failed_release "release positive control" 6
 fi
 
-say "Recording deployed sha (health, sha, and positive control passed)"
+# A release rehearsal can create a real, buyer-visible event row and still
+# finish with an empty residue claim. Refuse to record that state as the new
+# rollback baseline: this gate is read-only, exact-id classification lives in
+# release-probe-hygiene.mjs, and a failure restores the previously proven
+# release without deleting diagnostic/event history.
+say "Release event hygiene (no public probe residue)"
+if ! node "$SCRIPT_DIR/release-probe-hygiene.mjs" --base-url "https://$PUBLIC_HOSTNAME"; then
+  echo "ERROR: release event hygiene failed" >&2
+  auto_rollback_failed_release "release event hygiene" 7
+fi
+
+say "Recording deployed sha (health, sha, positive control, and event hygiene passed)"
 "${SSH[@]}" "
   set -e
   cd $PROD_DIR

@@ -1,8 +1,14 @@
+import { readFileSync } from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { describe, expect, it, vi } from 'vitest';
 import {
   enforceReleaseProbeHygiene,
   findReleaseProbeResidue,
 } from './release-probe-hygiene.mjs';
+
+const here = path.dirname(fileURLToPath(import.meta.url));
+const deploySource = readFileSync(path.join(here, 'deploy.sh'), 'utf8');
 
 function guide(events, status = 200) {
   return new Response(JSON.stringify({ events }), {
@@ -108,5 +114,24 @@ describe('release probe hygiene gate', () => {
       clean: true,
       fetchImpl,
     })).rejects.toThrow('Public event residue remains after cleanup');
+  });
+});
+
+describe('production deploy wiring', () => {
+  it('runs the read-only hygiene verdict after the positive control and before recording the sha', () => {
+    const positiveControl = deploySource.indexOf('release-positive-control.mjs');
+    const eventHygiene = deploySource.indexOf('release-probe-hygiene.mjs');
+    const shaWrite = deploySource.indexOf('> $DEPLOYED_SHA_FILE');
+
+    expect(positiveControl).toBeGreaterThan(-1);
+    expect(eventHygiene).toBeGreaterThan(positiveControl);
+    expect(shaWrite).toBeGreaterThan(eventHygiene);
+  });
+
+  it('auto-rolls back instead of recording a release with public probe residue', () => {
+    expect(deploySource).toMatch(
+      /if ! node "\$SCRIPT_DIR\/release-probe-hygiene\.mjs" --base-url "https:\/\/\$PUBLIC_HOSTNAME"/,
+    );
+    expect(deploySource).toMatch(/auto_rollback_failed_release "release event hygiene" 7/);
   });
 });
