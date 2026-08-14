@@ -6,6 +6,7 @@ import {
   type DockLayoutStore,
   type GroupNode,
   type LayoutDoc,
+  type PanelInstance,
   type TabStrip,
 } from '@papercusp/dock-workbench';
 
@@ -163,29 +164,45 @@ function containsPanel(node: GroupNode | TabStrip, panelId: string): boolean {
   return node.children.some((child) => containsPanel(child, panelId));
 }
 
+const RETIRED_ACTIVE_EVENT_PANEL_IDS: readonly string[] = ['transcript', 'on-deck'];
+
+function floatingContainsPanel(layout: LayoutDoc, panelId: string): boolean {
+  return layout.floating?.some((group) => (
+    group.panels.some((panel) => panel.id === panelId || panel.type === panelId)
+  )) ?? false;
+}
+
+function isRetiredActiveEventPanel(panel: PanelInstance): boolean {
+  return RETIRED_ACTIVE_EVENT_PANEL_IDS.includes(panel.id)
+    || RETIRED_ACTIVE_EVENT_PANEL_IDS.includes(panel.type);
+}
+
 /**
- * Option 3 replaces the standalone On Deck pane with the unified Run of Show.
- * Remove that retired pane from saved Active Event layouts without discarding
- * the seller's remaining dock geometry. If they had closed Run of Show, reseed
- * instead: the route may not restore without its one live-lineup surface.
+ * Remove retired standalone panes from saved Active Event layouts without
+ * discarding the seller's remaining dock geometry. On Deck was replaced by
+ * Run of Show; Transcript now lives inside the Live console. If an On Deck
+ * layout also lost Run of Show, reseed instead: that route no longer has a
+ * live-lineup surface to preserve.
  */
 export function migrateSellerActiveEventLayout(layout: LayoutDoc): LayoutDoc {
-  const floatingHasOnDeck = layout.floating?.some((group) => (
-    group.panels.some((panel) => panel.id === 'on-deck' || panel.type === 'on-deck')
-  )) ?? false;
-  const dockedHasOnDeck = containsPanel(layout.root, 'on-deck');
-  if (!dockedHasOnDeck && !floatingHasOnDeck) return layout;
-  if (!containsPanel(layout.root, 'run-of-show') && !(layout.floating?.some((group) => (
-    group.panels.some((panel) => panel.id === 'run-of-show' || panel.type === 'run-of-show')
-  )) ?? false)) {
+  const retiredIds = RETIRED_ACTIVE_EVENT_PANEL_IDS.filter((panelId) => (
+    containsPanel(layout.root, panelId) || floatingContainsPanel(layout, panelId)
+  ));
+  if (retiredIds.length === 0) return layout;
+
+  const hasOnDeck = retiredIds.includes('on-deck');
+  if (hasOnDeck && !containsPanel(layout.root, 'run-of-show') && !floatingContainsPanel(layout, 'run-of-show')) {
     return sellerActiveEventDockDefaultLayout();
   }
 
-  const root = withoutPanel(layout.root, 'on-deck');
+  const root = retiredIds.reduce<GroupNode | TabStrip | null>(
+    (current, panelId) => current ? withoutPanel(current, panelId) : null,
+    layout.root,
+  );
   if (!root) return sellerActiveEventDockDefaultLayout();
   const floating = layout.floating
     ?.map((group) => {
-      const panels = group.panels.filter((panel) => panel.id !== 'on-deck' && panel.type !== 'on-deck');
+      const panels = group.panels.filter((panel) => !isRetiredActiveEventPanel(panel));
       if (panels.length === 0) return null;
       return {
         ...group,
