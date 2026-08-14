@@ -37,3 +37,6 @@
 [submodule "libs/scout-chat"]
 	path = libs/scout-chat
 	url = https://github.com/Papercusp/scout-chat.git
+[submodule "libs/scout-runtime"]
+	path = libs/scout-runtime
+	url = https://github.com/Papercusp/scout-runtime.git

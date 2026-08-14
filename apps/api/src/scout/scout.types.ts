@@ -195,6 +195,8 @@ export interface ScoutIdentityResolver {
 
 export const SCOUT_CATALOG = Symbol('SCOUT_CATALOG');
 export const SCOUT_REPLY_MODEL = Symbol('SCOUT_REPLY_MODEL');
+/** Shared provider-neutral model adapter; production binds this to Vertex. */
+export const SCOUT_RUNTIME_MODEL = Symbol('SCOUT_RUNTIME_MODEL');
 export const SCOUT_SESSION_STORE = Symbol('SCOUT_SESSION_STORE');
 export const SCOUT_MEMORY_STORE = Symbol('SCOUT_MEMORY_STORE');
 export const SCOUT_IDENTITY_RESOLVER = Symbol('SCOUT_IDENTITY_RESOLVER');
