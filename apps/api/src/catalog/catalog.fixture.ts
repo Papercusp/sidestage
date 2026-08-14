@@ -26,7 +26,7 @@ export const DEMO_CATALOG_FIXTURE: readonly CatalogVariant[] = [
     handlingDays: 2,
     priceCents: 49999,
     availableQty: 12,
-    imageUrl: 'https://placehold.co/640x640/2f3033/ffffff/png?text=Barista+Pro+Matte+Black',
+    imageUrl: '/demo-products/barista-pro-matte-black.webp',
     description: 'A compact dual-boiler espresso machine with a built-in grinder and steam wand, in a matte black powder-coat.',
   },
   {
@@ -41,7 +41,7 @@ export const DEMO_CATALOG_FIXTURE: readonly CatalogVariant[] = [
     handlingDays: 2,
     priceCents: 49999,
     availableQty: 5,
-    imageUrl: 'https://placehold.co/640x640/efe6d5/3a352c/png?text=Barista+Pro+Cream',
+    imageUrl: '/demo-products/barista-pro-cream.webp',
     description: 'The same dual-boiler Barista Pro in a warm cream enamel with brushed trim.',
   },
   {
@@ -56,7 +56,7 @@ export const DEMO_CATALOG_FIXTURE: readonly CatalogVariant[] = [
     handlingDays: 2,
     priceCents: 19999,
     availableQty: 24,
-    imageUrl: 'https://placehold.co/640x640/1b2033/ffffff/png?text=Cloud+ANC+Midnight',
+    imageUrl: '/demo-products/cloud-anc-midnight.webp',
     description: 'Over-ear wireless headphones with adaptive noise cancellation and a 30-hour battery, in midnight navy.',
   },
   {
@@ -71,7 +71,7 @@ export const DEMO_CATALOG_FIXTURE: readonly CatalogVariant[] = [
     handlingDays: 2,
     priceCents: 19999,
     availableQty: 8,
-    imageUrl: 'https://placehold.co/640x640/d8c6a8/3a3226/png?text=Cloud+ANC+Sand',
+    imageUrl: '/demo-products/cloud-anc-sand.webp',
     description: 'The sand colorway of the Cloud ANC, same adaptive noise cancellation.',
   },
   {
@@ -86,7 +86,7 @@ export const DEMO_CATALOG_FIXTURE: readonly CatalogVariant[] = [
     handlingDays: 3,
     priceCents: 89999,
     availableQty: 6,
-    imageUrl: 'https://placehold.co/640x640/26262a/ffffff/png?text=Creator+4K+Black',
+    imageUrl: '/demo-products/creator-4k-black.webp',
     description: 'Lightweight mirrorless camera with 4K60 video, a flip screen, and USB-C streaming, in the classic black body.',
   },
   {
@@ -101,7 +101,7 @@ export const DEMO_CATALOG_FIXTURE: readonly CatalogVariant[] = [
     handlingDays: 3,
     priceCents: 89999,
     availableQty: 3,
-    imageUrl: 'https://placehold.co/640x640/c9ccd1/2b2e33/png?text=Creator+4K+Silver',
+    imageUrl: '/demo-products/creator-4k-silver.webp',
     description: 'The Creator 4K in silver over a magnesium shell, otherwise identical to the black body.',
   },
   {
@@ -116,7 +116,7 @@ export const DEMO_CATALOG_FIXTURE: readonly CatalogVariant[] = [
     handlingDays: 7,
     priceCents: 54999,
     availableQty: 10,
-    imageUrl: 'https://placehold.co/640x640/c8a97a/3a2c18/png?text=Lift+Desk+Natural+Oak',
+    imageUrl: '/demo-products/lift-desk-natural-oak.webp',
     description: 'Dual-motor electric standing desk with memory presets and a natural oak top.',
   },
   {
@@ -131,7 +131,7 @@ export const DEMO_CATALOG_FIXTURE: readonly CatalogVariant[] = [
     handlingDays: 7,
     priceCents: 54999,
     availableQty: 2,
-    imageUrl: 'https://placehold.co/640x640/5b3a2a/ffffff/png?text=Lift+Desk+Walnut',
+    imageUrl: '/demo-products/lift-desk-walnut.webp',
     description: 'The same dual-motor Lift desk with a dark walnut top — the low-stock colorway.',
   },
 ];

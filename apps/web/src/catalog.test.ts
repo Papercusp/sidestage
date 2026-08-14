@@ -48,6 +48,13 @@ describe('the offline demo fixture sells on a COLOUR axis', () => {
     expect(OFFLINE_FIXTURE.filter((variant) => !variant.color).map((v) => v.id)).toEqual([]);
   });
 
+  it('uses unique project-owned product photography for every colourway', () => {
+    const images = OFFLINE_FIXTURE.map((variant) => variant.imageUrl);
+    expect(new Set(images).size).toBe(OFFLINE_FIXTURE.length);
+    expect(images.every((image) => /^\/demo-products\/[a-z0-9-]+\.webp$/.test(image ?? '')))
+      .toBe(true);
+  });
+
   it('distinguishes the variants within a product group by colour alone', () => {
     const groups = new Map<string, typeof OFFLINE_FIXTURE[number][]>();
     for (const variant of OFFLINE_FIXTURE) {

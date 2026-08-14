@@ -24,6 +24,7 @@ interface SeededVariant {
   condition: string;
   handling: number;
   optionSignature: string;
+  imageUrl: string;
 }
 
 interface EventDemoManifestRow {
@@ -54,16 +55,20 @@ function eventDemoManifest(sql: string): EventDemoManifestRow[] {
  * to cover the two-axis, sold-out and no-option cases.
  */
 function seededDemoVariants(sql: string): SeededVariant[] {
-  const row = /^\s*\('(demo-[a-z0-9-]+)',\s*'[^']*',\s*'US',\s*'([A-Z0-9-]+)',\s*(\d+),\s*true,\s*'([a-z0-9-]+)',\s*'([A-Z]+)',\s*(\d+),\s*'([^']*)'/gm;
-  return [...sql.matchAll(row)].map((match) => ({
-    id: match[1],
-    sku: match[2],
-    priceCents: Number(match[3]),
-    groupId: match[4],
-    condition: match[5],
-    handling: Number(match[6]),
-    optionSignature: match[7],
-  }));
+  const row = /^\s*\('(demo-[a-z0-9-]+)',\s*'[^']*',\s*'US',\s*'([A-Z0-9-]+)',\s*(\d+),\s*true,\s*'([a-z0-9-]+)',\s*'([A-Z]+)',\s*(\d+),\s*'([^']*)',\s*'(\[[^']+\])'/gm;
+  return [...sql.matchAll(row)].map((match) => {
+    const images = JSON.parse(match[8]) as Array<{ url?: string }>;
+    return {
+      id: match[1],
+      sku: match[2],
+      priceCents: Number(match[3]),
+      groupId: match[4],
+      condition: match[5],
+      handling: Number(match[6]),
+      optionSignature: match[7],
+      imageUrl: images[0]?.url ?? '',
+    };
+  });
 }
 
 function byGroup(variants: readonly CatalogVariant[]): Map<string, CatalogVariant[]> {
@@ -108,6 +113,22 @@ describe('the demo catalog sells on a COLOUR axis', () => {
   it('shows each colourway its own photo rather than one shared group image', () => {
     const images = DEMO_CATALOG_FIXTURE.map((variant) => variant.imageUrl);
     expect(new Set(images).size).toBe(DEMO_CATALOG_FIXTURE.length);
+  });
+
+  it('ships every demo photo as a project-owned, non-trivial WebP asset', () => {
+    for (const variant of DEMO_CATALOG_FIXTURE) {
+      const imageUrl = variant.imageUrl ?? '';
+      expect(imageUrl).toMatch(/^\/demo-products\/[a-z0-9-]+\.webp$/);
+
+      const image = readFileSync(join(
+        __dirname,
+        '../../../../apps/web/public',
+        imageUrl.replace(/^\//, ''),
+      ));
+      expect(image.byteLength, `${variant.id} is suspiciously small`).toBeGreaterThan(20_000);
+      expect(image.subarray(0, 4).toString('ascii')).toBe('RIFF');
+      expect(image.subarray(8, 12).toString('ascii')).toBe('WEBP');
+    }
   });
 
   it('finds a variant by its colour, so a seller can search "walnut"', async () => {
@@ -184,6 +205,11 @@ describe('DEMO_CATALOG_FIXTURE tracks db/seed/demo.sql', () => {
   it('encodes each fixture colour as the row option_signature', () => {
     expect(seeded.map((row) => row.optionSignature))
       .toEqual(DEMO_CATALOG_FIXTURE.map((variant) => `color=${slugify(variant.color ?? '')}`));
+  });
+
+  it('seeds the same owned image path for every fixture variant', () => {
+    expect(seeded.map((row) => row.imageUrl))
+      .toEqual(DEMO_CATALOG_FIXTURE.map((variant) => variant.imageUrl));
   });
 
   it('keeps condition and handling out of the seeded variant axis', () => {
