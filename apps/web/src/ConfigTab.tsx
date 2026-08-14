@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useId, useRef, useState, type FormEvent } from 'react';
-import { useSyncMutate, useSyncQuery } from '@papercusp/sync';
+import { DEMO_PRINCIPAL_HEADER, useSyncMutate, useSyncQuery } from '@papercusp/sync';
 import { catalogDemoDataEnabled, resolveApiBaseUrl } from './catalog';
 import { TabHeader } from './components/TabHeader';
 import { browserEventId } from './event-identity';
@@ -348,6 +348,7 @@ export function ConfigEditor({
  */
 export interface EventSettingsPanelProps {
   eventId: string;
+  principal?: string;
   apiBaseUrl?: string;
   embedded?: boolean;
   /** Test/embed override; production builds default false via import.meta.env.DEV. */
@@ -361,6 +362,7 @@ export interface EventSettingsPanelProps {
  */
 export function EventSettingsPanel({
   eventId,
+  principal,
   apiBaseUrl,
   embedded = false,
   allowDemoData = catalogDemoDataEnabled(),
@@ -380,12 +382,15 @@ export function EventSettingsPanel({
   const saveFallback = useCallback(async (input: EventConfigUpdate) => {
     const response = await fetch(`${resolveApiBaseUrl(apiBaseUrl)}/events/${encodeURIComponent(eventId)}/config`, {
       method: 'PUT',
-      headers: { 'content-type': 'application/json' },
+      headers: {
+        'content-type': 'application/json',
+        ...(principal ? { [DEMO_PRINCIPAL_HEADER]: principal } : {}),
+      },
       body: JSON.stringify(input),
     });
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
     return (await response.json()) as EventConfigView;
-  }, [apiBaseUrl, eventId]);
+  }, [apiBaseUrl, eventId, principal]);
   const mutateConfig = useSyncMutate<EventConfigUpdate, EventConfigView>('event.updateConfig', saveFallback);
 
   useEffect(() => {
