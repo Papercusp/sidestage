@@ -1,10 +1,8 @@
 import { Injectable } from '@nestjs/common';
-import type { DemoPrincipal } from '@papercusp/sync/principal';
+import type { SyncRequestContext } from './sync-request-context';
 
 export type SyncQueryArgs = Record<string, unknown>;
-export interface SyncRequestContext {
-  principal: DemoPrincipal;
-}
+export type { SyncRequestContext } from './sync-request-context';
 export type SyncQueryHandler = (
   args: SyncQueryArgs,
   context: SyncRequestContext,

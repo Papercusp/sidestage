@@ -73,6 +73,7 @@ async function mount(proposal: CopilotProposal = baseProposal) {
   const chatSend = vi.fn();
   const value = {
     transport: 'POLLING' as const,
+    principal: null,
     useDataImpl,
     prefetch: vi.fn(),
     mutate: {

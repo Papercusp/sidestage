@@ -8,11 +8,6 @@ import {
   Sse,
   type MessageEvent,
 } from '@nestjs/common';
-import {
-  DEMO_PRINCIPAL_HEADER,
-  DEMO_PRINCIPAL_QUERY_PARAM,
-  normalizeDemoPrincipal,
-} from '@papercusp/sync/principal';
 import { filter, interval, map, merge, of, type Observable } from 'rxjs';
 import {
   SyncInvalidationService,
@@ -21,8 +16,13 @@ import {
 import {
   SyncQueryRegistry,
   type SyncQueryArgs,
-  type SyncRequestContext,
 } from './sync-query.registry';
+import {
+  DEMO_PRINCIPAL_HEADER,
+  DEMO_PRINCIPAL_QUERY_PARAM,
+  normalizeDemoPrincipal,
+  type SyncRequestContext,
+} from './sync-request-context';
 
 interface SyncQuery {
   name?: unknown;

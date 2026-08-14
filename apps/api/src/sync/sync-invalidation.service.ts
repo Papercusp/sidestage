@@ -1,7 +1,6 @@
 import { Injectable } from '@nestjs/common';
-import { normalizeDemoPrincipal } from '@papercusp/sync/principal';
 import { Subject, type Observable } from 'rxjs';
-import type { SyncRequestContext } from './sync-query.registry';
+import { normalizeDemoPrincipal, type SyncRequestContext } from './sync-request-context';
 
 export interface SyncInvalidation {
   name: string;
