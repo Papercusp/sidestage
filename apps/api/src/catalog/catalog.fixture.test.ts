@@ -157,9 +157,14 @@ describe('catalog source selection', () => {
   });
 
   it.each([
-    ['production', 'the unscoped real corpus', ''],
-    ['development', 'the curated demo collection', EVENT_DEMO_COLLECTION],
-  ] as const)('uses %s durable storage with %s', async (nodeEnv, _description, expectedCollection) => {
+    ['production', 'the unscoped real corpus', [10_001], [6, 0]],
+    [
+      'development',
+      'the curated demo collection',
+      [EVENT_DEMO_COLLECTION, 10_001],
+      [EVENT_DEMO_COLLECTION, 6, 0],
+    ],
+  ] as const)('uses %s durable storage with %s', async (nodeEnv, _description, expectedCountParams, expectedPageParams) => {
     const observedParams: unknown[][] = [];
     const pool = {
       query: async (_sql: string, params: unknown[]) => {
@@ -171,8 +176,8 @@ describe('catalog source selection', () => {
     const source = catalogSourceForPool(pool, { NODE_ENV: nodeEnv });
     await source.search({ availability: 'in-stock', pageSize: 6 });
 
-    expect(observedParams[0]).toEqual([expectedCollection, 10_001]);
-    expect(observedParams[1]).toEqual([expectedCollection, 6, 0]);
+    expect(observedParams[0]).toEqual(expectedCountParams);
+    expect(observedParams[1]).toEqual(expectedPageParams);
   });
 });
 
