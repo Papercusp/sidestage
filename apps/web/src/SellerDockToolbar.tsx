@@ -1,4 +1,4 @@
-import { useEffect, useState, type RefObject } from 'react';
+import { useEffect, useState, type ReactNode, type RefObject } from 'react';
 import { requestSellerDockLayoutReset } from './seller-dock-store';
 
 /**
@@ -30,6 +30,8 @@ export interface SellerDockToolbarProps {
   onResetLayout?: () => void;
   /** The whole shell, including this toolbar and the persisted dock board. */
   fullscreenTargetRef?: RefObject<HTMLDivElement | null>;
+  /** Seller-wide controls that belong above every dock panel. */
+  children?: ReactNode;
 }
 
 export interface SellerDockFullscreenTarget {
@@ -69,6 +71,7 @@ export async function toggleSellerDockFullscreen(
 export function SellerDockToolbar({
   onResetLayout,
   fullscreenTargetRef,
+  children,
 }: SellerDockToolbarProps = {}) {
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [fullscreenError, setFullscreenError] = useState<string | null>(null);
@@ -110,34 +113,37 @@ export function SellerDockToolbar({
 
   return (
     <div className="seller-dock-toolbar">
+      {children ? <div className="seller-dock-toolbar-identity">{children}</div> : null}
       {fullscreenError ? (
         <span className="seller-dock-fullscreen-error" role="alert">
           {fullscreenError}
         </span>
       ) : null}
-      {fullscreenTargetRef ? (
+      <div className="seller-dock-toolbar-actions">
+        {fullscreenTargetRef ? (
+          <button
+            type="button"
+            className="seller-dock-fullscreen"
+            onClick={() => void toggleFullscreen()}
+            aria-pressed={isFullscreen}
+            title={
+              isFullscreen
+                ? 'Return the seller board to the page'
+                : 'Show the entire seller board in fullscreen'
+            }
+          >
+            {isFullscreen ? 'Exit fullscreen' : 'Enter fullscreen'}
+          </button>
+        ) : null}
         <button
           type="button"
-          className="seller-dock-fullscreen"
-          onClick={() => void toggleFullscreen()}
-          aria-pressed={isFullscreen}
-          title={
-            isFullscreen
-              ? 'Return the seller board to the page'
-              : 'Show the entire seller board in fullscreen'
-          }
+          className="seller-dock-reset"
+          onClick={reset}
+          title="Restore the default seller layout"
         >
-          {isFullscreen ? 'Exit fullscreen' : 'Enter fullscreen'}
+          Reset layout
         </button>
-      ) : null}
-      <button
-        type="button"
-        className="seller-dock-reset"
-        onClick={reset}
-        title="Restore the default seller layout"
-      >
-        Reset layout
-      </button>
+      </div>
     </div>
   );
 }

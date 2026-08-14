@@ -46,9 +46,12 @@ describe('seller dock fullscreen', () => {
 
   it('renders both board controls with an accessible fullscreen state', () => {
     const markup = renderToStaticMarkup(
-      <SellerDockToolbar fullscreenTargetRef={createRef<HTMLDivElement>()} />,
+      <SellerDockToolbar fullscreenTargetRef={createRef<HTMLDivElement>()}>
+        <span>Shared seller identity</span>
+      </SellerDockToolbar>,
     );
 
+    expect(markup).toContain('Shared seller identity');
     expect(markup).toContain('Enter fullscreen');
     expect(markup).toContain('aria-pressed="false"');
     expect(markup).toContain('Reset layout');

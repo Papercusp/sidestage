@@ -1,4 +1,4 @@
-.buyer-identity {
+.demo-identity {
   display: grid;
   gap: .38rem;
   min-width: min(20rem, 100%);
@@ -8,7 +8,7 @@
   background: color-mix(in srgb, var(--brand-yellow) 10%, var(--surface));
 }
 
-.buyer-identity-heading {
+.demo-identity-heading {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -20,7 +20,7 @@
   text-transform: uppercase;
 }
 
-.buyer-identity-heading strong {
+.demo-identity-heading strong {
   max-width: 11rem;
   overflow: hidden;
   color: var(--text);
@@ -31,13 +31,13 @@
   white-space: nowrap;
 }
 
-.buyer-identity-row {
+.demo-identity-row {
   display: flex;
   align-items: stretch;
   gap: .4rem;
 }
 
-.buyer-identity-row input {
+.demo-identity-row input {
   min-width: 0;
   flex: 1;
   border: 1px solid var(--border);
@@ -48,27 +48,27 @@
   font-size: .72rem;
 }
 
-.buyer-identity-row input:focus {
+.demo-identity-row input:focus {
   outline: 2px solid color-mix(in srgb, var(--brand-red) 36%, transparent);
   outline-offset: 1px;
   border-color: var(--red-text);
 }
 
-.buyer-identity-row .button {
+.demo-identity-row .button {
   flex: 0 0 auto;
   padding: .5rem .65rem;
   font-size: .7rem;
 }
 
-.buyer-identity small,
-.buyer-identity-error {
+.demo-identity small,
+.demo-identity-error {
   color: var(--muted);
   font-size: .6rem;
   line-height: 1.35;
 }
 
-.buyer-identity-error { color: var(--danger); }
+.demo-identity-error { color: var(--danger); }
 
 @media (max-width: 560px) {
-  .buyer-identity { width: 100%; }
+  .demo-identity { width: 100%; }
 }

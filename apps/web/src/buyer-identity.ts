@@ -1,21 +1,29 @@
 import { useCallback, useEffect, useState } from 'react';
 
+export const DEMO_IDENTITY_STORAGE_KEY = 'sidestage-demo-user-id';
+export const DEMO_IDENTITY_CHANGED_EVENT = 'sidestage:demo-user-id-changed';
+export const SERVER_DEMO_USER_ID = 'demo-server-render';
+
+/** Legacy names remain exported while buyer-only call sites migrate. */
 export const BUYER_ID_STORAGE_KEY = 'sidestage-buyer-id';
 export const BUYER_ID_CHANGED_EVENT = 'sidestage:buyer-id-changed';
 export const SERVER_BUYER_ID = 'buyer-server-render';
 
-export interface BuyerIdentityStorage {
+export interface DemoIdentityStorage {
   getItem(key: string): string | null;
   setItem(key: string, value: string): void;
 }
 
-export interface BuyerIdentityOptions {
-  storage?: BuyerIdentityStorage | null;
+export interface DemoIdentityOptions {
+  storage?: DemoIdentityStorage | null;
   randomId?: () => string;
-  announce?: (buyerId: string) => void;
+  announce?: (userId: string) => void;
 }
 
-function browserStorage(): BuyerIdentityStorage | null {
+export type BuyerIdentityStorage = DemoIdentityStorage;
+export type BuyerIdentityOptions = DemoIdentityOptions;
+
+function browserStorage(): DemoIdentityStorage | null {
   if (typeof window === 'undefined') return null;
   try {
     return window.localStorage;
@@ -26,11 +34,11 @@ function browserStorage(): BuyerIdentityStorage | null {
   }
 }
 
-function generatedBuyerId(): string {
+function generatedDemoUserId(): string {
   const token = typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
     ? crypto.randomUUID().slice(0, 8)
     : Math.random().toString(36).slice(2, 10);
-  return `buyer-${token}`;
+  return `demo-${token}`;
 }
 
 /**
@@ -38,86 +46,120 @@ function generatedBuyerId(): string {
  * user accidentally impersonating " alice " while preserving spaces,
  * punctuation, unicode, and every other character inside the id.
  */
-export function normalizeBuyerIdentity(value: string): string | null {
+export function normalizeDemoIdentity(value: string): string | null {
   const normalized = value.trim();
   return normalized.length > 0 ? normalized : null;
 }
 
-export function readBuyerIdentity(options: BuyerIdentityOptions = {}): string {
+function readStoredIdentity(
+  storage: DemoIdentityStorage | null,
+  key: string,
+): string | null {
+  try {
+    return normalizeDemoIdentity(storage?.getItem(key) ?? '');
+  } catch {
+    return null;
+  }
+}
+
+function persistIdentity(storage: DemoIdentityStorage | null, userId: string): void {
+  for (const key of [DEMO_IDENTITY_STORAGE_KEY, BUYER_ID_STORAGE_KEY]) {
+    try {
+      storage?.setItem(key, userId);
+    } catch {
+      // The id still works for this page even when persistence is unavailable.
+    }
+  }
+}
+
+export function readDemoIdentity(options: DemoIdentityOptions = {}): string {
   const storage = options.storage === undefined ? browserStorage() : options.storage;
-  try {
-    const existing = normalizeBuyerIdentity(storage?.getItem(BUYER_ID_STORAGE_KEY) ?? '');
-    if (existing) return existing;
-  } catch {
-    // Fall through to a usable in-memory identity.
+  const existing = readStoredIdentity(storage, DEMO_IDENTITY_STORAGE_KEY);
+  if (existing) return existing;
+
+  // One-way migration from the buyer-only D-013 seam. Mirroring the value into
+  // the canonical key preserves every existing demo user across this upgrade.
+  const legacyBuyerId = readStoredIdentity(storage, BUYER_ID_STORAGE_KEY);
+  if (legacyBuyerId) {
+    persistIdentity(storage, legacyBuyerId);
+    return legacyBuyerId;
   }
 
-  if (!storage && typeof window === 'undefined' && !options.randomId) return SERVER_BUYER_ID;
+  if (!storage && typeof window === 'undefined' && !options.randomId) return SERVER_DEMO_USER_ID;
 
-  const created = `buyer-${(options.randomId ?? (() => generatedBuyerId().slice('buyer-'.length)))()}`;
-  try {
-    storage?.setItem(BUYER_ID_STORAGE_KEY, created);
-  } catch {
-    // The id still works for this page even when persistence is unavailable.
-  }
+  const created = `demo-${(options.randomId ?? (() => generatedDemoUserId().slice('demo-'.length)))()}`;
+  persistIdentity(storage, created);
   return created;
 }
 
-function announceBrowserIdentity(buyerId: string): void {
+function announceBrowserIdentity(userId: string): void {
   if (typeof window === 'undefined' || typeof CustomEvent === 'undefined') return;
-  window.dispatchEvent(new CustomEvent<string>(BUYER_ID_CHANGED_EVENT, { detail: buyerId }));
+  window.dispatchEvent(new CustomEvent<string>(DEMO_IDENTITY_CHANGED_EVENT, { detail: userId }));
+  // Keep already-mounted buyer-only surfaces in sync during hot upgrades.
+  window.dispatchEvent(new CustomEvent<string>(BUYER_ID_CHANGED_EVENT, { detail: userId }));
 }
 
 /** Persist an arbitrary non-empty demo id and announce it to mounted surfaces. */
-export function writeBuyerIdentity(value: string, options: BuyerIdentityOptions = {}): string | null {
-  const buyerId = normalizeBuyerIdentity(value);
-  if (!buyerId) return null;
+export function writeDemoIdentity(value: string, options: DemoIdentityOptions = {}): string | null {
+  const userId = normalizeDemoIdentity(value);
+  if (!userId) return null;
 
   const storage = options.storage === undefined ? browserStorage() : options.storage;
-  try {
-    storage?.setItem(BUYER_ID_STORAGE_KEY, buyerId);
-  } catch {
-    // Keep the current tab functional even when the browser refuses storage.
-  }
-  (options.announce ?? announceBrowserIdentity)(buyerId);
-  return buyerId;
+  persistIdentity(storage, userId);
+  (options.announce ?? announceBrowserIdentity)(userId);
+  return userId;
 }
 
 /**
- * One app-wide identity hook shared by BuyerTab and the Orders tab. Custom
- * events update this window immediately; the storage event keeps other tabs in
- * step. No auth/session semantics are implied — this is the D-013 demo seam.
+ * One app-wide identity hook shared by buyer and seller surfaces. Custom events
+ * update this window immediately; storage events keep other tabs in step. No
+ * auth/session semantics are implied — this is the D-013 demo seam.
  */
-export function useBuyerIdentity(): {
-  buyerId: string;
+export function useDemoIdentity(): {
+  userId: string;
   impersonate: (value: string) => string | null;
 } {
-  const [buyerId, setBuyerId] = useState(() => readBuyerIdentity());
+  const [userId, setUserId] = useState(() => readDemoIdentity());
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
     const onIdentityChange = (event: Event) => {
-      const next = normalizeBuyerIdentity((event as CustomEvent<string>).detail ?? '');
-      if (next) setBuyerId(next);
+      const next = normalizeDemoIdentity((event as CustomEvent<string>).detail ?? '');
+      if (next) setUserId(next);
     };
     const onStorage = (event: StorageEvent) => {
-      if (event.key !== BUYER_ID_STORAGE_KEY) return;
-      const next = normalizeBuyerIdentity(event.newValue ?? '');
-      if (next) setBuyerId(next);
+      if (event.key !== DEMO_IDENTITY_STORAGE_KEY && event.key !== BUYER_ID_STORAGE_KEY) return;
+      const next = normalizeDemoIdentity(event.newValue ?? '');
+      if (next) setUserId(next);
     };
+    window.addEventListener(DEMO_IDENTITY_CHANGED_EVENT, onIdentityChange);
     window.addEventListener(BUYER_ID_CHANGED_EVENT, onIdentityChange);
     window.addEventListener('storage', onStorage);
     return () => {
+      window.removeEventListener(DEMO_IDENTITY_CHANGED_EVENT, onIdentityChange);
       window.removeEventListener(BUYER_ID_CHANGED_EVENT, onIdentityChange);
       window.removeEventListener('storage', onStorage);
     };
   }, []);
 
   const impersonate = useCallback((value: string) => {
-    const next = writeBuyerIdentity(value);
-    if (next) setBuyerId(next);
+    const next = writeDemoIdentity(value);
+    if (next) setUserId(next);
     return next;
   }, []);
 
-  return { buyerId, impersonate };
+  return { userId, impersonate };
+}
+
+/** Buyer compatibility aliases; all delegate to the one canonical identity. */
+export const normalizeBuyerIdentity = normalizeDemoIdentity;
+export const readBuyerIdentity = readDemoIdentity;
+export const writeBuyerIdentity = writeDemoIdentity;
+
+export function useBuyerIdentity(): {
+  buyerId: string;
+  impersonate: (value: string) => string | null;
+} {
+  const { userId, impersonate } = useDemoIdentity();
+  return { buyerId: userId, impersonate };
 }

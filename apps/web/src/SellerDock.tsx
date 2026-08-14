@@ -128,7 +128,7 @@ export interface SellerDockProps {
   children?: ReactNode;
 }
 
-export function SellerDock({ panels, registry, store, missingComponent }: SellerDockProps) {
+export function SellerDock({ panels, registry, store, missingComponent, children }: SellerDockProps) {
   // A fresh store per mount would re-seed and drop the user's saved layout, so
   // it is memoised for the life of the component.
   const layoutStore = useMemo(() => store ?? createSellerDockStore(), [store]);
@@ -137,7 +137,7 @@ export function SellerDock({ panels, registry, store, missingComponent }: Seller
   return (
     <SellerDockContext.Provider value={panels}>
       <div ref={shellRef} className="seller-dock-shell">
-        <SellerDockToolbar fullscreenTargetRef={shellRef} />
+        <SellerDockToolbar fullscreenTargetRef={shellRef}>{children}</SellerDockToolbar>
         {/*
           P-015 wraps the host in a resize frame. It is a WRAPPER, not a
           replacement: .seller-dock-host keeps the geometry P-007/P-011 gave it
