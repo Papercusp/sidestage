@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useSyncMutate } from '@papercusp/sync';
 import { useDemoIdentity } from './buyer-identity';
 import { requestChatJson } from './chat-api';
@@ -8,6 +8,7 @@ import { chatEventId, DEFAULT_EVENT_ID, DEFAULT_EVENT_TITLE, mediaBaseUrl } from
 import { useCopyState, useStreamSession } from './hooks';
 import { studioViewHref, useUrlStudioView, type StudioView } from './app-routing';
 import { InventoryPanel } from './InventoryPanel';
+import { emptyStageLog, stageLogOnProductChange } from './run-of-show';
 import { SellerMobileStudio, useMobileStudioViewport } from './SellerMobileStudio';
 import { SellerDock } from './SellerDock';
 import {
@@ -110,11 +111,19 @@ export function SellerTab({
 }) {
   const [eventId, setEventId] = useState(DEFAULT_EVENT_ID);
   const [room, setRoom] = useState<EventRoom | null>(null);
+  const [runOfShowLog, setRunOfShowLog] = useState(emptyStageLog);
   const stream = useStreamSession<PublisherSession>();
   const { copyState, copy } = useCopyState();
   const { userId, impersonate } = useDemoIdentity('seller');
   const [studioView, navigateStudioView] = useUrlStudioView();
   const mobileStudio = useMobileStudioViewport();
+
+  // The desktop dock and mobile tab host remount their panels at the breakpoint.
+  // Keep the live show clock above both hosts so that transition history survives.
+  useEffect(() => {
+    setRunOfShowLog((current) => stageLogOnProductChange(current, selectedProductId, Date.now()));
+  }, [selectedProductId]);
+
   const recordTranscriptMoment = useTranscriptMomentRecorder({
     eventId,
     roomEventId: room?.eventId,
@@ -224,7 +233,7 @@ export function SellerTab({
     },
     'run-of-show': {
       eventId,
-      activeProductId: selectedProductId,
+      stageLog: runOfShowLog,
       activeProduct: selectedProduct,
       onActiveProductChange,
       apiBaseUrl: import.meta.env.VITE_API_URL,
