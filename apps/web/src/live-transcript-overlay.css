@@ -105,7 +105,7 @@
 }
 
 .live-transcript-history {
-  max-height: min(48%, 15rem);
+  max-height: 4.5rem;
   overflow: auto;
   overscroll-behavior: contain;
   border: 1px solid color-mix(in srgb, var(--on-video) 38%, transparent);
@@ -186,7 +186,7 @@
      its status, audience chat, and captions distinct vertical bands instead of
      stacking all three absolute overlays into the legacy 220px video height. */
   .seller-stream-preview > .stream-video {
-    min-height: 25rem;
+    min-height: 26rem;
     aspect-ratio: auto;
   }
 
@@ -206,5 +206,17 @@
 
   .seller-stream-preview .seller-video-chat-overlay[data-open] {
     height: 7.5rem;
+  }
+}
+
+@container (max-width: 18rem) {
+  /* Dock splits can make the camera narrower than a phone even on a wider
+     viewport. Allow the wrapped status and transcript copy another band. */
+  .seller-stream-preview > .stream-video {
+    min-height: 31rem;
+  }
+
+  .seller-stream-preview .seller-video-chat-overlay {
+    top: 7.5rem;
   }
 }
