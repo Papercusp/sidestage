@@ -52,7 +52,10 @@ export class RehearsalController {
     // resolver GuardedActionService uses, fed the event's registered items so
     // derived floors read as ready instead of a stale "no floor" blocker.
     const items = this.actions.listItems(eventId)
-      .map((item) => ({ productId: item.productId, priceCents: item.priceCents }));
+      .map((item) => ({
+        productId: item.productId,
+        priceCents: item.referencePriceCents ?? item.priceCents,
+      }));
     return buildPreflightReport({
       eventId: config.eventId,
       config,
