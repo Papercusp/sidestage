@@ -1,23 +1,42 @@
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
 import { EventManager } from './EventManager';
-import { DEMO_EVENTS } from './events';
+import type { SellerEventItem } from './api';
+
+const ITEMS: SellerEventItem[] = [{
+  eventId: 'sunday-drop',
+  eventItemId: 'sunday-drop:espresso',
+  productId: 'espresso',
+  title: 'Barista Pro Espresso Machine',
+  priceCents: 47_500,
+  availableQty: 12,
+  quantity: 3,
+  onStage: true,
+  attributes: { brand: 'BrewHaus', sku: 'BH-ESP-200-NEW', basePriceCents: 49_999 },
+}];
 
 describe('EventManager', () => {
-  it('renders event list/detail controls from the seller event model', () => {
-    const markup = renderToStaticMarkup(<EventManager initialEvents={DEMO_EVENTS} />);
+  it('renders the real guarded lineup through RichGrid', () => {
+    const markup = renderToStaticMarkup(
+      <EventManager eventId="sunday-drop" eventName="Sunday drop" initialItems={ITEMS} />,
+    );
 
-    expect(markup).toContain('Run every drop from one view.');
-    expect(markup).toContain('Sunday vintage drop');
-    expect(markup).toContain('Add catalog items');
-    expect(markup).toContain('Markdown guardrail: 20% maximum');
-    expect(markup).toContain('Event price for Barista Pro Espresso Machine');
+    expect(markup).toContain('Sunday drop');
+    expect(markup).toContain('data-rg-screen-grid="true"');
+    expect(markup).toContain('Push');
+    expect(markup).toContain('Swap');
+    expect(markup).toContain('Markdown');
+    expect(markup).toContain('Stock');
+    expect(markup).toContain('Barista Pro Espresso Machine');
   });
 
-  it('renders an empty detail state when there are no events', () => {
-    const markup = renderToStaticMarkup(<EventManager initialEvents={[]} />);
+  it('renders the reservation-backed setup picker for an empty event', () => {
+    const markup = renderToStaticMarkup(
+      <EventManager eventId="new-event" eventName="New event" initialItems={[]} />,
+    );
 
-    expect(markup).toContain('Create an event to start building your live floor.');
-    expect(markup).toContain('0 scheduled spaces');
+    expect(markup).toContain('Build the live lineup.');
+    expect(markup).toContain('Create event');
+    expect(markup).toContain('source-tracked event reservations');
   });
 });

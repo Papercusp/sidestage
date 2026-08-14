@@ -308,6 +308,20 @@
   padding-top: .35rem;
 }
 
+.event-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: .75rem;
+  color: var(--muted);
+  font-size: .72rem;
+}
+
+.event-pagination > div {
+  display: flex;
+  gap: .45rem;
+}
+
 .event-creation-footer > div {
   display: grid;
   gap: .3rem;

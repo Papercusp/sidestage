@@ -114,7 +114,12 @@ export function SellerTab({
           eventTitle={DEFAULT_EVENT_TITLE}
           apiBaseUrl={import.meta.env.VITE_API_URL}
         />
-        <EventManager />
+        <EventManager
+          eventId={eventId}
+          eventName={DEFAULT_EVENT_TITLE}
+          apiBaseUrl={import.meta.env.VITE_API_URL}
+          onEventReady={(nextEventId) => setEventId(nextEventId)}
+        />
       </div>
     </div>
   );

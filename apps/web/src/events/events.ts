@@ -1,7 +1,4 @@
-import {
-  DEMO_CATALOG,
-  type CatalogRow,
-} from '../event-creation/catalog';
+import type { CatalogRow } from '../event-creation/catalog';
 
 export type EventStatus = 'draft' | 'scheduled' | 'live' | 'ended';
 
@@ -182,28 +179,3 @@ function emptyEventForUpdate(item: EventItem): SellerEvent {
     items: [item],
   };
 }
-
-function demoEvent(
-  id: string,
-  name: string,
-  status: EventStatus,
-  startsAt: string,
-  catalogRows: readonly CatalogRow[],
-  viewers: number,
-): SellerEvent {
-  return {
-    id,
-    name,
-    status,
-    startsAt,
-    viewers,
-    maxMarkdownPercent: 20,
-    items: catalogRows.map((row) => eventItemFromCatalog(row, id)),
-  };
-}
-
-export const DEMO_EVENTS: readonly SellerEvent[] = [
-  demoEvent('sunday-drop', 'Sunday vintage drop', 'live', '2026-08-16T18:00:00.000Z', DEMO_CATALOG.slice(0, 3), 42),
-  demoEvent('studio-essentials', 'Studio essentials', 'scheduled', '2026-08-22T16:30:00.000Z', DEMO_CATALOG.slice(3, 6), 0),
-  demoEvent('archive-clearout', 'Archive clearout', 'ended', '2026-08-08T19:00:00.000Z', DEMO_CATALOG.slice(6, 8), 0),
-];
