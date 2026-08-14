@@ -1,6 +1,6 @@
 {
   "irVersion": "0.1",
-  "surface": "sidestage-studio-event-chat-comparison",
+  "surface": "sidestage-studio-live-engagement-and-chat-study",
   "ecosystem": "*",
   "layout": {
     "kind": "stack",
@@ -8,16 +8,26 @@
     "children": [
       {
         "kind": "header",
-        "title": { "key": "studio.chat.study.title", "default": "Make Event Chat useful while the room is moving" },
+        "title": { "key": "studio.chat.study.title", "default": "One live engagement overlay for buyer and seller" },
         "slots": {
-          "status": { "kind": "badge", "label": { "key": "studio.chat.study.status", "default": "Preview only" } }
+          "status": { "kind": "badge", "label": { "key": "studio.chat.study.status", "default": "Shipped baseline" } }
+        }
+      },
+      {
+        "kind": "card",
+        "title": { "key": "studio.engagement.shipped.title", "default": "Shipped live engagement overlay" },
+        "slots": {
+          "audience": { "kind": "text", "copy": { "key": "studio.engagement.shipped.audience", "default": "Buyer and seller use the same video-owned engagement surface." } },
+          "transcript": { "kind": "text", "copy": { "key": "studio.engagement.shipped.transcript", "default": "Live captions, status, product context, and expandable transcript history remain visible over video." } },
+          "chat": { "kind": "text", "copy": { "key": "studio.engagement.shipped.chat", "default": "Event Chat is mounted in the overlay and can collapse without losing its subscription or message state." } },
+          "migration": { "kind": "text", "copy": { "key": "studio.engagement.shipped.migration", "default": "Standalone seller chat and transcript navigation is retired from default desktop and mobile layouts; saved active-event layouts migrate forward." } }
         }
       },
       {
         "kind": "tabs",
-        "label": { "key": "studio.chat.concepts", "default": "Answer Queue, Conversation and Focus, or Live Pulse" },
+        "label": { "key": "studio.chat.concepts", "default": "Future concepts: Answer Queue, Conversation and Focus, or Live Pulse" },
         "interactions": ["select"],
-        "a11y": { "role": "tablist", "ariaLabel": { "key": "studio.chat.concepts.a11y", "default": "Event Chat design concepts" } }
+        "a11y": { "role": "tablist", "ariaLabel": { "key": "studio.chat.concepts.a11y", "default": "Future Event Chat workflow concepts" } }
       },
       {
         "kind": "card",
