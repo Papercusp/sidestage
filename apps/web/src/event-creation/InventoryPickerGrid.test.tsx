@@ -88,8 +88,10 @@ describe("InventoryPickerGrid", () => {
 });
 
 describe("variantAxisLabel", () => {
-  it("prefers colour and falls back to grade and lead time", () => {
+  it("shows normalized color and size axes and falls back to grade and lead time", () => {
     expect(variantAxisLabel(ROWS[0])).toBe("Matte Black");
+    expect(variantAxisLabel({ ...ROWS[0], size: "Medium" })).toBe("Matte Black · Medium");
+    expect(variantAxisLabel({ ...ROWS[0], color: undefined, size: "Large" })).toBe("Large");
     expect(variantAxisLabel(ROWS[1])).toBe("USED · 5d handling");
     expect(variantAxisLabel({ ...ROWS[1], handlingDays: null })).toBe("USED · —d handling");
   });

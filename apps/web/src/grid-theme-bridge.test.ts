@@ -23,6 +23,13 @@ describe('normalizeToHex', () => {
     expect(normalizeToHex('rgb(214 43 31 / 0.5)')).toBe('#d62b1f');
   });
 
+  it('scales CSS Color 4 srgb channels instead of rounding a light mix to black', () => {
+    // Chromium serializes the selected-row color-mix in this normalized form.
+    // The old generic number parser turned every channel into 0 or 1.
+    expect(normalizeToHex('color(srgb 0.976471 0.92549 0.909804)')).toBe('#f9ece8');
+    expect(normalizeToHex('color(srgb 1.2 -0.1 0.5 / 0.3)')).toBe('#ff0080');
+  });
+
   it('passes an already-hex value through, lowercased, and expands the 3-digit form', () => {
     expect(normalizeToHex('#D62B1F')).toBe('#d62b1f');
     expect(normalizeToHex('#FFF')).toBe('#ffffff');
@@ -40,7 +47,12 @@ describe('normalizeToHex', () => {
   it('always yields a value papergrid can concatenate an alpha suffix onto', () => {
     // The real failure mode this guards: grid-theme.ts builds `1px solid ${editBorder}55`.
     // A raw `var(--brand-red)` or an `rgb(...)` string there produces invalid CSS.
-    for (const input of ['rgb(214, 43, 31)', '#D62B1F', 'rgb(255 196 0 / 1)']) {
+    for (const input of [
+      'rgb(214, 43, 31)',
+      '#D62B1F',
+      'rgb(255 196 0 / 1)',
+      'color(srgb 0.97 0.91 0.89)',
+    ]) {
       expect(normalizeToHex(input)).toMatch(/^#[0-9a-f]{6}$/);
     }
   });

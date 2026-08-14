@@ -9,7 +9,7 @@ vi.mock('@papercusp/typesense', () => ({
   typesenseService: { search: typesenseSearch },
 }));
 
-import { PgCatalogSource } from './catalog.sources';
+import { EVENT_DEMO_COLLECTION, PgCatalogSource } from './catalog.sources';
 
 describe('PgCatalogSource', () => {
   beforeEach(() => {
@@ -22,7 +22,7 @@ describe('PgCatalogSource', () => {
       found: 1,
     });
     const poolQuery = vi.fn().mockResolvedValue({ rows: [] });
-    const source = new PgCatalogSource({ query: poolQuery } as unknown as Pool);
+    const source = new PgCatalogSource({ query: poolQuery } as unknown as Pool, '');
 
     await source.search({
       q: 'a versatile gift for a remote worker who travels and loves music',
@@ -44,5 +44,41 @@ describe('PgCatalogSource', () => {
     expect(query).toContain('v.group_id IS NULL AND v.id = ANY($1)');
     expect(query).not.toContain('COALESCE(v.group_id, v.id) = ANY($1)');
     expect(params).toEqual([['group-1']]);
+  });
+
+  it('scopes default reads to the curated collection and projects both option axes', async () => {
+    const poolQuery = vi.fn()
+      .mockResolvedValueOnce({ rows: [{ n: '200' }] })
+      .mockResolvedValueOnce({ rows: [{
+        id: 'event-demo-36-v2',
+        groupId: 'event-demo-36',
+        title: 'Coastal Wrap Dress',
+        brand: 'Atelier June',
+        productType: 'APPAREL',
+        sku: 'SS-DEMO-36-V2',
+        color: 'Midnight',
+        size: 'Medium',
+        condition: 'NEW',
+        handlingDays: 2,
+        priceCents: 15_000,
+        availableQty: 9,
+        imageUrl: null,
+        description: null,
+        weight: null,
+        dimensions: null,
+      }] });
+    const source = new PgCatalogSource({ query: poolQuery } as unknown as Pool);
+
+    const page = await source.search({ page: 1, pageSize: 50 });
+
+    expect(page.total).toBe(200);
+    expect(page.rows[0]).toMatchObject({ color: 'Midnight', size: 'Medium' });
+    const [countSql, countParams] = poolQuery.mock.calls[0] as [string, unknown[]];
+    const [rowsSql, rowsParams] = poolQuery.mock.calls[1] as [string, unknown[]];
+    expect(countSql).toContain("properties->>'sidestageCollection' = $1");
+    expect(countParams).toEqual([EVENT_DEMO_COLLECTION, 10_001]);
+    expect(rowsSql).toContain("axis.slug = 'color'");
+    expect(rowsSql).toContain("axis.slug = 'size'");
+    expect(rowsParams).toEqual([EVENT_DEMO_COLLECTION, 50, 0]);
   });
 });

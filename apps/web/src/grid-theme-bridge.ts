@@ -30,7 +30,13 @@
  */
 import { configureGridColors, type GridColors } from '@papercusp/grid-core';
 
-/** Normalise a computed CSS colour (`rgb(r, g, b)` / `rgb(r g b / a)`) to `#rrggbb`. Pure. */
+/**
+ * Normalise the concrete forms Chromium returns for computed colours to
+ * `#rrggbb`. CSS Color 4 may serialize a `color-mix()` as
+ * `color(srgb 0.97 0.91 0.89)`: those channels are normalized to 0–1 and
+ * must be scaled to 0–255. Treating them like `rgb()` channels rounds a light
+ * selection fill to `#010101`, which is effectively black (WI-38882).
+ */
 export function normalizeToHex(computed: string): string | null {
   if (!computed) return null;
   const trimmed = computed.trim();
@@ -39,11 +45,16 @@ export function normalizeToHex(computed: string): string | null {
     const [r, g, b] = trimmed.slice(1);
     return `#${r}${r}${g}${g}${b}${b}`.toLowerCase();
   }
-  const channels = trimmed.match(/-?[\d.]+/g);
-  if (!channels || channels.length < 3) return null;
-  return `#${channels
-    .slice(0, 3)
-    .map((n) => Math.max(0, Math.min(255, Math.round(parseFloat(n)))).toString(16).padStart(2, '0'))
+  const numericChannels = (body: string): number[] =>
+    [...body.matchAll(/-?(?:\d+\.?\d*|\.\d+)(?:e[+-]?\d+)?/gi)]
+      .map((match) => Number(match[0]));
+  const rgb = trimmed.match(/^rgba?\((.*)\)$/i);
+  const srgb = trimmed.match(/^color\(srgb\s+(.+)\)$/i);
+  const channels = rgb ? numericChannels(rgb[1]) : srgb ? numericChannels(srgb[1]) : [];
+  if (channels.length < 3) return null;
+  const scale = srgb ? 255 : 1;
+  return `#${channels.slice(0, 3).map((channel) =>
+    Math.max(0, Math.min(255, Math.round(channel * scale))).toString(16).padStart(2, '0'))
     .join('')}`;
 }
 
