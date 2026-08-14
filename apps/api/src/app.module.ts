@@ -17,9 +17,10 @@ import { RehearsalModule } from './rehearsals/rehearsal.module';
 import { ScoutModule } from './scout/scout.module';
 import { ShippingModule } from './shipping/shipping.module';
 import { StatsModule } from './stats/stats.module';
+import { SyncModule } from './sync/sync.module';
 
 @Module({
-  imports: [DatabaseModule, ActionModule, AuctionModule, BuildHistoryModule, CartModule, CatalogModule, ChatModule, CheckoutModule, EventConfigModule, EventModule, InventoryModule, JudgeModule, PolicyModule, RehearsalModule, ScoutModule, ShippingModule, StatsModule],
+  imports: [DatabaseModule, SyncModule, ActionModule, AuctionModule, BuildHistoryModule, CartModule, CatalogModule, ChatModule, CheckoutModule, EventConfigModule, EventModule, InventoryModule, JudgeModule, PolicyModule, RehearsalModule, ScoutModule, ShippingModule, StatsModule],
   controllers: [HealthController],
 })
 export class AppModule {}

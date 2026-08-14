@@ -1,7 +1,7 @@
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
 
-import { BuyerTab } from './BuyerTab';
+import { BuyerTab, buyerProductsFromSyncRows, buyerStatsFromSyncRows } from './BuyerTab';
 
 /**
  * The BUYER-side cover for the event thumbnail.
@@ -92,5 +92,39 @@ describe('BuyerTab event thumbnail', () => {
     // renders a broken <img> until the fetch lands would go unnoticed here.
     const box = thumbnailBox(render(undefined));
     expect(box).not.toContain('<img');
+  });
+});
+
+describe('BuyerTab sync read models', () => {
+  it('maps the event stats named-query row without changing the buyer view shape', () => {
+    expect(buyerStatsFromSyncRows([STATS])).toEqual(STATS);
+    expect(buyerStatsFromSyncRows([])).toBeNull();
+  });
+
+  it('maps a catalog page and reserves the fixture for transport failure', () => {
+    const synced = buyerProductsFromSyncRows([{
+      rows: [{
+        id: 'variant-1',
+        groupId: 'product-1',
+        title: 'Stoneware mug',
+        brand: 'Northstar',
+        productType: 'HOME',
+        sku: 'MUG-1',
+        condition: 'NEW',
+        handlingDays: 2,
+        priceCents: 2_400,
+        availableQty: 3,
+      }],
+      page: 1,
+      pageSize: 6,
+      total: 1,
+      totalIsFloor: false,
+    }], false);
+
+    expect(synced).toEqual([
+      expect.objectContaining({ id: 'variant-1', title: 'Stoneware mug', priceCents: 2_400, availableQty: 3 }),
+    ]);
+    expect(buyerProductsFromSyncRows(undefined, false)).toEqual([]);
+    expect(buyerProductsFromSyncRows(undefined, true).length).toBeGreaterThan(0);
   });
 });

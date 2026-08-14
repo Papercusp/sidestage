@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useSyncMutate, useSyncQuery } from '@papercusp/sync';
 
 import {
   availableBuyerProducts,
@@ -7,7 +8,7 @@ import {
   type BuyerProduct,
   type BuyerStats,
 } from './buyer';
-import { fetchCatalog, OFFLINE_FIXTURE, resolveApiBaseUrl, variantToBuyerProduct } from './catalog';
+import { type CatalogPage, OFFLINE_FIXTURE, resolveApiBaseUrl, variantToBuyerProduct } from './catalog';
 import { EventChat } from './EventChat';
 import { DEFAULT_EVENT_ID, DEFAULT_EVENT_TITLE } from './event-identity';
 import { streamLabel, useCopyState, useStreamSession } from './hooks';
@@ -39,6 +40,33 @@ export interface BuyerTabProps {
   onEventChange?: (eventId: string) => void;
   /** Supplied by tests; otherwise fetched from GET /events. */
   guideEvents?: readonly GuideEvent[];
+}
+
+interface InventoryHoldMutation {
+  productId: string;
+  quantity: number;
+  sourceKind: 'cart';
+  sourceId: string;
+}
+
+interface InventoryHoldResult {
+  snapshot?: { availableQty: number };
+}
+
+class InventoryHoldConflict extends Error {}
+
+const EMPTY_BUYER_STATS: BuyerStats = { viewers: 0, itemsSold: 0, totalRaisedCents: 0 };
+
+export function buyerStatsFromSyncRows(rows?: readonly BuyerStats[]): BuyerStats | null {
+  return rows?.[0] ?? null;
+}
+
+export function buyerProductsFromSyncRows(
+  rows: readonly CatalogPage[] | undefined,
+  offline: boolean,
+): BuyerProduct[] {
+  const variants = offline ? OFFLINE_FIXTURE : rows?.[0]?.rows ?? [];
+  return variants.map(variantToBuyerProduct);
 }
 
 export function BuyerTab({
@@ -103,48 +131,28 @@ export function BuyerTab({
     setGuideOpen(false);
     if (nextEventId !== eventId) onEventChange?.(nextEventId);
   };
-  // Live stats (P-111 — no dummy data): real presence + paid orders, polled.
-  const [liveStats, setLiveStats] = useState<BuyerStats | null>(null);
-  useEffect(() => {
-    if (statsProp) return;
-    let cancelled = false;
-    const load = () => {
-      fetch(`${resolveApiBaseUrl()}/events/${encodeURIComponent(eventId)}/stats`)
-        .then(async (response) => {
-          if (!response.ok) throw new Error(`HTTP ${response.status}`);
-          const body = (await response.json()) as { viewers: number; itemsSold: number; totalRaisedCents: number };
-          if (!cancelled) setLiveStats({ viewers: body.viewers, itemsSold: body.itemsSold, totalRaisedCents: body.totalRaisedCents });
-        })
-        .catch(() => {
-          if (!cancelled) setLiveStats({ viewers: 0, itemsSold: 0, totalRaisedCents: 0 });
-        });
-    };
-    load();
-    const timer = setInterval(load, 15_000);
-    return () => {
-      cancelled = true;
-      clearInterval(timer);
-    };
-  }, [eventId, statsProp]);
-  const stats = statsProp ?? liveStats ?? { viewers: 0, itemsSold: 0, totalRaisedCents: 0 };
+  // Live stats (P-111 — no dummy data): real presence + paid orders through
+  // the app-wide sync transport, with polling retained as its fallback mode.
+  const statsQuery = useSyncQuery<BuyerStats>({
+    queryName: 'event.stats',
+    args: { eventId },
+    enabled: !statsProp,
+    pollIntervalMs: 15_000,
+  });
+  const stats = statsProp ?? buyerStatsFromSyncRows(statsQuery.data) ?? EMPTY_BUYER_STATS;
   // The event's product rail comes from the ONE catalog source (P-102): the
   // API read model when reachable, the shared offline fixture otherwise.
-  const [catalogProducts, setCatalogProducts] = useState<readonly BuyerProduct[] | null>(null);
-  useEffect(() => {
-    if (productsProp) return;
-    let cancelled = false;
-    fetchCatalog({ availability: 'in-stock', pageSize: 6 })
-      .then((page) => {
-        if (!cancelled) setCatalogProducts(page.rows.map(variantToBuyerProduct));
-      })
-      .catch(() => {
-        if (!cancelled) setCatalogProducts(OFFLINE_FIXTURE.map(variantToBuyerProduct));
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [productsProp]);
-  const products = productsProp ?? catalogProducts ?? [];
+  const catalogQuery = useSyncQuery<CatalogPage>({
+    queryName: 'catalog.page',
+    args: { availability: 'in-stock', pageSize: 6 },
+    enabled: !productsProp,
+    pollIntervalMs: 10_000,
+  });
+  const catalogProducts = useMemo(
+    () => buyerProductsFromSyncRows(catalogQuery.data, Boolean(catalogQuery.error)),
+    [catalogQuery.data, catalogQuery.error],
+  );
+  const products = productsProp ?? catalogProducts;
   // The event thumbnail (P-014). Read once per event — it changes only when the
   // seller re-uploads, so it does not share the stats poll.
   const [fetchedThumbnailUrl, setFetchedThumbnailUrl] = useState<string | undefined>(undefined);
@@ -171,6 +179,22 @@ export function BuyerTab({
   // action consumes the same persisted id, and the Orders tab imports the same
   // hook rather than inventing a second notion of "current user".
   const { buyerId, impersonate } = useBuyerIdentity();
+
+  const holdProductFallback = useCallback(async (input: InventoryHoldMutation): Promise<InventoryHoldResult> => {
+    const response = await fetch(`${resolveApiBaseUrl()}/inventory/${encodeURIComponent(input.productId)}/hold`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        quantity: input.quantity,
+        sourceKind: input.sourceKind,
+        sourceId: input.sourceId,
+      }),
+    });
+    if (response.status === 409) throw new InventoryHoldConflict();
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    return (await response.json()) as InventoryHoldResult;
+  }, []);
+  const mutateHold = useSyncMutate<InventoryHoldMutation, InventoryHoldResult>('inventory.hold', holdProductFallback);
 
   useEffect(() => {
     return () => stream.stop();
@@ -205,24 +229,25 @@ export function BuyerTab({
   const reserveProduct = async (product: BuyerProduct) => {
     if (product.availableQty <= 0) return;
     try {
-      const response = await fetch(`${resolveApiBaseUrl()}/inventory/${encodeURIComponent(product.id)}/hold`, {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ quantity: 1, sourceKind: 'cart', sourceId: buyerId }),
+      const result = await mutateHold({
+        productId: product.id,
+        quantity: 1,
+        sourceKind: 'cart',
+        sourceId: buyerId,
       });
-      if (response.status === 409) {
-        setHoldNotice(`${product.title} just sold out.`);
-        setHoldOverrides((current) => ({ ...current, [product.id]: 0 }));
-        return;
-      }
-      if (!response.ok) throw new Error(`HTTP ${response.status}`);
-      const result = (await response.json()) as { snapshot?: { availableQty: number } };
       setSelectedProductId(product.id);
       setHoldNotice(`${product.title} is held for you.`);
       if (result.snapshot) {
         setHoldOverrides((current) => ({ ...current, [product.id]: result.snapshot!.availableQty }));
       }
-    } catch {
+      catalogQuery.invalidate?.();
+    } catch (error) {
+      if (error instanceof InventoryHoldConflict) {
+        setHoldNotice(`${product.title} just sold out.`);
+        setHoldOverrides((current) => ({ ...current, [product.id]: 0 }));
+        catalogQuery.invalidate?.();
+        return;
+      }
       setHoldNotice('The hold could not be placed — check your connection and try again.');
     }
   };

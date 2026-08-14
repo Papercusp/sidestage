@@ -1,7 +1,9 @@
+import { NestFactory } from '@nestjs/core';
 import { firstValueFrom, filter, take } from 'rxjs';
 import { describe, expect, it, vi } from 'vitest';
 import { SyncController } from './sync.controller';
 import { SyncInvalidationService } from './sync-invalidation.service';
+import { SyncModule } from './sync.module';
 import { SyncQueryRegistry } from './sync-query.registry';
 
 function createSync() {
@@ -15,6 +17,21 @@ function createSync() {
 }
 
 describe('SyncController', () => {
+  it('injects the registry and invalidation stream when Nest boots under tsx', async () => {
+    const context = await NestFactory.createApplicationContext(SyncModule, { logger: false });
+    try {
+      const controller = context.get(SyncController);
+      await expect(firstValueFrom(controller.syncEvents().pipe(take(1)))).resolves.toMatchObject({
+        type: 'heartbeat',
+      });
+      await expect(controller.restQueryBatch({ queries: [{ name: 'missing.query' }] })).resolves.toEqual({
+        results: [expect.objectContaining({ error: 'unknown sync query: missing.query' })],
+      });
+    } finally {
+      await context.close();
+    }
+  });
+
   it('resolves async named queries and preserves batch positions', async () => {
     const { controller, queries } = createSync();
     queries.register('catalog.page', async (args) => [{ page: args.page }]);

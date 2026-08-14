@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { SyncInvalidationService, type SyncInvalidation } from '../sync/sync-invalidation.service';
 import { SyncQueryRegistry } from '../sync/sync-query.registry';
 import { AuctionSyncQueries } from './auction.module';
 import { AuctionService, InMemoryAuctionInventory } from './auction.service';
@@ -116,6 +117,38 @@ describe('AuctionService', () => {
 
     expect(snapshots.map((snapshot) => snapshot.auction?.currentPriceCents)).toEqual([1_000, 1_200, 1_200]);
     expect(snapshots.map((snapshot) => snapshot.auction?.status)).toEqual(['active', 'active', 'closed']);
+  });
+
+  it('publishes auction and inventory changes on the shared sync invalidation bus', async () => {
+    const inventory = new InMemoryAuctionInventory();
+    await inventory.seed('product-1', 2);
+    const invalidations = new SyncInvalidationService();
+    const published: SyncInvalidation[] = [];
+    const subscription = invalidations.events().subscribe((event) => published.push(event));
+    const auctions = new AuctionService(inventory, invalidations);
+
+    const started = await auctions.startAuction({
+      eventId: 'event-1',
+      eventItemId: 'item-1',
+      productId: 'product-1',
+      quantity: 1,
+      startingPriceCents: 1_000,
+    });
+    await auctions.placeBid(started.id, { bidderId: 'buyer-a', amountCents: 1_200 });
+    await auctions.closeAuction(started.id);
+    subscription.unsubscribe();
+
+    expect(published.map(({ name }) => name)).toEqual([
+      'event.auction.active',
+      'catalog.page',
+      'event.auction.active',
+      'event.auction.active',
+    ]);
+    expect(published.filter(({ name }) => name === 'event.auction.active').map(({ args }) => args)).toEqual([
+      { eventId: 'event-1' },
+      { eventId: 'event-1' },
+      { eventId: 'event-1' },
+    ]);
   });
 
   it('lists active and completed outcomes only for the requested product', async () => {

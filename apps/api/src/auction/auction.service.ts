@@ -1,6 +1,7 @@
-import { BadRequestException, ConflictException, Inject, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, Inject, Injectable, NotFoundException, Optional } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
 import { Subject, type Observable } from 'rxjs';
+import { SyncInvalidationService } from '../sync/sync-invalidation.service';
 
 export const AUCTION_INVENTORY = Symbol('AUCTION_INVENTORY');
 
@@ -162,7 +163,12 @@ export class AuctionService {
   private readonly updatesByEvent = new Map<string, Subject<AuctionSseEvent>>();
   private updateSequence = 0;
 
-  constructor(@Inject(AUCTION_INVENTORY) private readonly inventory: AuctionInventory) {}
+  constructor(
+    @Inject(AUCTION_INVENTORY) private readonly inventory: AuctionInventory,
+    @Optional()
+    @Inject(SyncInvalidationService)
+    private readonly syncInvalidations?: SyncInvalidationService,
+  ) {}
 
   async startAuction(input: StartAuctionInput): Promise<Auction> {
     const eventId = this.readId(input.eventId, 'eventId');
@@ -210,7 +216,7 @@ export class AuctionService {
     };
     this.auctions.set(auction.id, auction);
     this.activeByEvent.set(eventId, auction.id);
-    this.emitAuctionUpdate(auction);
+    this.emitAuctionUpdate(auction, true);
     return this.cloneAuction(auction);
   }
 
@@ -312,7 +318,7 @@ export class AuctionService {
     if (!winner) {
       // No winner means the start-time hold is no longer needed.
       await this.inventory.release(auction.productId, auction.quantity, { kind: 'auction', id: auction.id });
-      this.emitAuctionUpdate(auction);
+      this.emitAuctionUpdate(auction, true);
       return;
     }
     auction.winnerOrder = {
@@ -332,8 +338,10 @@ export class AuctionService {
     this.emitAuctionUpdate(auction);
   }
 
-  private emitAuctionUpdate(auction: Auction): void {
+  private emitAuctionUpdate(auction: Auction, inventoryChanged = false): void {
     this.updateSubject(auction.eventId).next(this.createAuctionEvent(auction.eventId, auction));
+    this.syncInvalidations?.invalidate('event.auction.active', { eventId: auction.eventId });
+    if (inventoryChanged) this.syncInvalidations?.invalidate('catalog.page');
   }
 
   private createAuctionEvent(eventId: string, auction: Auction | null): AuctionSseEvent {

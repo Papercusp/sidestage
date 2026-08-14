@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Inject,
   Post,
   Query,
   Sse,
@@ -34,7 +35,9 @@ export interface SyncResult {
 @Controller('sync')
 export class SyncController {
   constructor(
+    @Inject(SyncQueryRegistry)
     private readonly queries: SyncQueryRegistry,
+    @Inject(SyncInvalidationService)
     private readonly invalidations: SyncInvalidationService,
   ) {}
 
