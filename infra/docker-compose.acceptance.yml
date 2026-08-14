@@ -1,0 +1,106 @@
+# Acceptance override for docker-compose.yml. The provisioner always supplies a
+# per-run project name, so networks and named volumes remain isolated. Published
+# host ports are removed: black-box clients run on the project network and the
+# public production ingress is never attached.
+services:
+  postgres:
+    restart: "no"
+    ports: !override []
+    volumes: !override
+      - ./db/schema.sql:/docker-entrypoint-initdb.d/10-schema.sql:ro
+      - ./db/seed/demo.sql:/docker-entrypoint-initdb.d/20-demo.sql:ro
+
+  typesense:
+    restart: "no"
+    ports: !override []
+    volumes: !override []
+
+  redis:
+    restart: "no"
+    ports: !override []
+    volumes: !override []
+
+  mediamtx:
+    restart: "no"
+    ports: !override []
+    environment:
+      MTX_WEBRTCADDITIONALHOSTS: mediamtx
+
+  api:
+    image: sidestage-acceptance-api:${SIDESTAGE_SHA:?requested SHA is required}
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+      args:
+        SIDESTAGE_SHA: ${SIDESTAGE_SHA:?requested SHA is required}
+    restart: "no"
+    environment:
+      NODE_ENV: test
+      API_PREFIX: api
+      SIDESTAGE_SHA: ${SIDESTAGE_SHA:?requested SHA is required}
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      DATA_BACKEND: pg
+      TYPESENSE_HOST: typesense
+      TYPESENSE_PORT: 8108
+      TYPESENSE_API_KEY: ${TYPESENSE_API_KEY}
+      TYPESENSE_EMBEDDING_PROVIDER: none
+      REDIS_URL: redis://redis:6379
+      MEDIAMTX_HOST: mediamtx
+      MEDIAMTX_WHIP_URL: http://mediamtx:8889
+      MEDIAMTX_WHEP_URL: http://mediamtx:8889
+      SIDESTAGE_AUCTION_SELLER_TOKEN: acceptance-only-seller-token
+      SIDESTAGE_AUCTION_SIGNING_SECRET: acceptance-only-signing-secret
+      SQUARE_APP_ID: ""
+      SQUARE_LOCATION_ID: ""
+      SQUARE_ACCESS_TOKEN: ""
+      EASYPOST_API_KEY: ""
+    depends_on:
+      postgres:
+        condition: service_healthy
+      typesense:
+        condition: service_started
+      redis:
+        condition: service_started
+      mediamtx:
+        condition: service_started
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3100/healthz').then(r=>{if(!r.ok)process.exit(1)})"]
+      interval: 2s
+      timeout: 2s
+      retries: 30
+
+  web:
+    image: sidestage-acceptance-web:${SIDESTAGE_SHA:?requested SHA is required}
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+      args:
+        VITE_API_URL: http://api:3100/api
+        VITE_MEDIAMTX_URL: http://mediamtx:8889
+    restart: "no"
+    depends_on:
+      api:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1/"]
+      interval: 2s
+      timeout: 2s
+      retries: 30
+
+  worker:
+    image: sidestage-acceptance-api:${SIDESTAGE_SHA:?requested SHA is required}
+    command: ["node", "apps/api/dist/system-tests/acceptance-worker.js"]
+    restart: "no"
+    environment:
+      NODE_ENV: test
+      ACCEPTANCE_RUN_ID: ${ACCEPTANCE_RUN_ID:?run ID is required}
+      SIDESTAGE_SHA: ${SIDESTAGE_SHA:?requested SHA is required}
+      ACCEPTANCE_WORKER_PORT: 3101
+    depends_on:
+      api:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3101/healthz').then(r=>{if(!r.ok)process.exit(1)})"]
+      interval: 2s
+      timeout: 2s
+      retries: 30
