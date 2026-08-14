@@ -9,7 +9,7 @@ import {
   type SellerEventItem,
 } from './api';
 
-const SELLER = { sellerId: 'seller-27', sellerName: 'Studio 27' };
+const SELLER = { sellerId: 'seller-27', sellerName: 'Studio 27', principal: 'demo-27' };
 
 function json(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {
@@ -65,7 +65,10 @@ describe('seller event API orchestration', () => {
     expect(result.items[0]).toMatchObject({ productId: 'mug', priceCents: 1_500, quantity: 3 });
     expect(calls.some((call) => call.url.endsWith('/inventory/mug/hold'))).toBe(true);
     const configPut = calls.find((call) => call.url.endsWith('/events/sunday-drop/config') && call.init?.method === 'PUT');
-    expect(new Headers(configPut?.init?.headers).get(DEMO_PRINCIPAL_HEADER)).toBe('seller-27');
+    const configGet = calls.find((call) => call.url.endsWith('/events/sunday-drop/config') && !call.init?.method);
+    expect(new Headers(configPut?.init?.headers).get(DEMO_PRINCIPAL_HEADER)).toBe('demo-27');
+    expect(new Headers(configGet?.init?.headers).get(DEMO_PRINCIPAL_HEADER)).toBe('demo-27');
+    expect(new Headers(configPut?.init?.headers).get('x-seller-id')).toBeNull();
     expect(new Headers(configPut?.init?.headers).get('x-seller-name')).toBe('Studio 27');
   });
 
