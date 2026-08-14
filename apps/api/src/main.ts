@@ -11,7 +11,7 @@ async function bootstrap() {
   // only after loading the repo env so those packages observe the intended values.
   const AppModule = await loadAppModule();
   const app = await NestFactory.create(AppModule);
-  app.enableCors();
+  app.enableCors({ origin: true, credentials: true });
   // Production routes the API behind one hostname under /api (API_PREFIX=api);
   // local dev keeps bare paths on :3100. healthz stays unprefixed for probes.
   const prefix = (process.env.API_PREFIX ?? '').trim().replace(/^\/+|\/+$/g, '');
