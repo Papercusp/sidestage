@@ -20,8 +20,8 @@ import { isRenderableThumbnailUrl } from './event-creation/thumbnail';
 import { fetchEventGuide, fetchEventThumbnailUrl, type GuideEvent } from './events/api';
 import { ChannelGuide } from './events/ChannelGuide';
 import { ReplayChapters } from './ReplayChapters';
-import { BuyerIdentityControl } from './BuyerIdentityControl';
-import { useBuyerIdentity } from './buyer-identity';
+import { DemoIdentityControl } from './BuyerIdentityControl';
+import { useDemoIdentity } from './buyer-identity';
 
 export interface BuyerTabProps {
   eventId?: string;
@@ -180,7 +180,7 @@ export function BuyerTab({
   // D-013: this is deliberately an auth-free demo identity. Every buyer-side
   // action consumes the same persisted id, and the Orders tab imports the same
   // hook rather than inventing a second notion of "current user".
-  const { buyerId, impersonate } = useBuyerIdentity();
+  const { userId, impersonate } = useDemoIdentity();
 
   const holdProductFallback = useCallback(async (input: InventoryHoldMutation): Promise<InventoryHoldResult> => {
     const response = await fetch(`${resolveApiBaseUrl()}/inventory/${encodeURIComponent(input.productId)}/hold`, {
@@ -239,7 +239,7 @@ export function BuyerTab({
         productId: product.id,
         quantity: 1,
         sourceKind: 'cart',
-        sourceId: buyerId,
+        sourceId: userId,
       });
       setSelectedProductId(product.id);
       setHoldNotice(`${product.title} is held for you.`);
@@ -280,7 +280,11 @@ export function BuyerTab({
           </div>
         </div>
         <div className="buyer-heading-actions">
-          <BuyerIdentityControl buyerId={buyerId} onImpersonate={impersonate} />
+          <DemoIdentityControl
+            userId={userId}
+            onImpersonate={impersonate}
+            inputId="buyer-demo-user-id"
+          />
           {/* D-019: the "What's on" trigger. It carries the live-room count so
               the guide advertises what is happening without being opened. */}
           <button
@@ -351,8 +355,8 @@ export function BuyerTab({
           <AuctionPanel
             eventId={eventId}
             products={products}
-            bidderId={buyerId}
-            displayName={buyerId}
+            bidderId={userId}
+            displayName={userId}
             apiBaseUrl={import.meta.env.VITE_API_URL}
           />
 
@@ -394,8 +398,8 @@ export function BuyerTab({
           <EventChat
             eventId={eventId}
             role="buyer"
-            userId={buyerId}
-            displayName={buyerId}
+            userId={userId}
+            displayName={userId}
             eventTitle={eventTitle}
             apiBaseUrl={resolveApiBaseUrl()}
           />
