@@ -9,6 +9,7 @@ describe('SideStage tab state', () => {
     expect(getTabFromUrl('/')).toBe('buyer');
     expect(getTabFromUrl('/?tab=seller')).toBe('seller');
     expect(getTabFromUrl('/?tab=orders')).toBe('orders');
+    expect(getTabFromUrl('/?tab=history')).toBe('history');
     expect(getTabFromUrl('/config')).toBe('config');
     expect(getTabFromUrl('/?tab=unknown')).toBe('buyer');
   });
@@ -27,9 +28,9 @@ describe('P-005 product card and shell', () => {
     expect(markup).toContain('data-product-id="demo-espresso-new"');
   });
 
-  it('renders all five tab destinations in the app shell', () => {
+  it('renders all six tab destinations in the app shell', () => {
     const markup = renderToStaticMarkup(<App />);
-    for (const tab of ['Buyer', 'Orders', 'Seller', 'Config', 'Test']) {
+    for (const tab of ['Buyer', 'Orders', 'Seller', 'Build history', 'Config', 'Test']) {
       expect(markup).toContain(`>${tab}</a>`);
     }
     expect(markup).toContain('Join the room');
