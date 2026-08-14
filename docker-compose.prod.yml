@@ -63,9 +63,15 @@ services:
       - traefik.http.services.sidestage-media.loadbalancer.server.port=8889
 
   api:
+    # Tagged per-sha so a previous release stays recoverable after a rebuild
+    # (deploy/rollback.sh selects one by setting SIDESTAGE_SHA). Defaults to
+    # :latest, so an un-exported var behaves exactly as before.
+    image: sidestage-api:${SIDESTAGE_SHA:-latest}
     build:
       context: .
       dockerfile: apps/api/Dockerfile
+      args:
+        SIDESTAGE_SHA: ${SIDESTAGE_SHA:-unknown}
     restart: unless-stopped
     environment:
       NODE_ENV: production
@@ -105,6 +111,8 @@ services:
       - traefik.http.services.sidestage-api.loadbalancer.server.port=3100
 
   web:
+    # See the api service: per-sha tag keeps the previous release recoverable.
+    image: sidestage-web:${SIDESTAGE_SHA:-latest}
     build:
       context: .
       dockerfile: apps/web/Dockerfile

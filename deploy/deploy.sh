@@ -25,6 +25,7 @@ PROD_SSH_KEY="${SSH_KEY:-$HOME/.ssh/papercusp-latitude-frame}"
 PROD_DIR="/opt/SideStage"
 COMPOSE="docker compose -f docker-compose.prod.yml --env-file .env.production"
 DEPLOYED_SHA_FILE="$PROD_DIR/.deployed-sha"
+HISTORY_FILE="$PROD_DIR/.deploy-history"
 DRY_RUN=false
 [[ "${1:-}" == "--dry-run" ]] && DRY_RUN=true
 
@@ -56,21 +57,61 @@ say "Checking .env.production exists on prod"
   exit 2
 }
 
-say "Build + up on prod"
-"${SSH[@]}" "cd $PROD_DIR && $COMPOSE build --pull api web && $COMPOSE up -d --remove-orphans"
+SHA="$(git rev-parse HEAD)"
+# Capture what is live BEFORE we overwrite anything, so a failed health check
+# has somewhere to roll back TO.
+PREV_SHA="$("${SSH[@]}" "cat $DEPLOYED_SHA_FILE 2>/dev/null" || true)"
+PREV_SHA="${PREV_SHA//[$'\r\n']/}"
 
-say "Recording deployed sha"
-git rev-parse HEAD | "${SSH[@]}" "cat > $DEPLOYED_SHA_FILE"
+say "Build + up on prod (SIDESTAGE_SHA=${SHA:0:7}, previous=${PREV_SHA:0:7})"
+"${SSH[@]}" "cd $PROD_DIR && SIDESTAGE_SHA=$SHA $COMPOSE build --pull api web && SIDESTAGE_SHA=$SHA $COMPOSE up -d --remove-orphans"
+
+# The sha is recorded ONLY after the health check passes -- see below. Writing
+# it before the check (the pre-2026-08-14 order) left prod asserting a sha it
+# had never verified whenever a deploy came up unhealthy.
 
 say "Health check"
+healthy=false
 for attempt in $(seq 1 20); do
   if "${SSH[@]}" "curl -sf --max-time 4 http://127.0.0.1:3100/healthz -H 'Host: sidestage'" >/dev/null 2>&1 \
-     || "${SSH[@]}" "cd $PROD_DIR && $COMPOSE exec -T api node -e 'fetch(\"http://127.0.0.1:3100/healthz\").then(r=>{if(!r.ok)throw 0})'" >/dev/null 2>&1; then
+     || "${SSH[@]}" "cd $PROD_DIR && SIDESTAGE_SHA=$SHA $COMPOSE exec -T api node -e 'fetch(\"http://127.0.0.1:3100/healthz\").then(r=>{if(!r.ok)throw 0})'" >/dev/null 2>&1; then
     say "API healthy (attempt $attempt)"
+    healthy=true
     break
   fi
-  [[ "$attempt" == 20 ]] && { echo "ERROR: API health check failed after 20 attempts" >&2; exit 3; }
   sleep 3
 done
+
+if ! $healthy; then
+  echo "ERROR: API health check failed after 20 attempts" >&2
+  if [[ -n "$PREV_SHA" ]]; then
+    echo "==> AUTO-ROLLBACK to ${PREV_SHA:0:7}" >&2
+    if bash "$SCRIPT_DIR/rollback.sh" --to "$PREV_SHA"; then
+      echo "ERROR: deploy of ${SHA:0:7} failed health check; prod rolled back to ${PREV_SHA:0:7}" >&2
+      exit 3
+    fi
+    echo "FATAL: rollback to ${PREV_SHA:0:7} ALSO failed -- prod needs hands" >&2
+    exit 4
+  fi
+  echo "FATAL: no previous sha recorded, cannot auto-rollback -- prod needs hands" >&2
+  exit 4
+fi
+
+say "Recording deployed sha (health check passed)"
+"${SSH[@]}" "
+  set -e
+  cd $PROD_DIR
+  docker tag sidestage-api:$SHA sidestage-api:latest
+  docker tag sidestage-web:$SHA sidestage-web:latest
+  printf '%s\t%s\tdeploy\n' \"\$(date -u +%Y-%m-%dT%H:%M:%SZ)\" $SHA >> $HISTORY_FILE
+  printf '%s' $SHA > $DEPLOYED_SHA_FILE
+"
+
+say "Verifying /healthz reports the sha we just shipped"
+served="$("${SSH[@]}" "curl -sf --max-time 4 http://127.0.0.1:3100/healthz -H 'Host: sidestage'" 2>/dev/null || true)"
+case "$served" in
+  *"$SHA"*) say "OK: /healthz reports ${SHA:0:7}" ;;
+  *) echo "WARN: /healthz did not report $SHA (got: ${served:-<no response>}). Expected on the first deploy after the sha-reporting change." >&2 ;;
+esac
 
 say "Done. Public: https://\$PUBLIC_HOSTNAME (Traefik routes once DNS resolves)."
