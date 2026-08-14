@@ -66,7 +66,6 @@ describe('ConfigTab sync mapping', () => {
         baseline={{ ...CONFIG, policySource: 'published', policyRevisionId: 'policy-42' }}
         saveState="idle"
         savedAt={null}
-        rehearseHref="/?tab=test"
         onChange={() => undefined}
         onSave={() => undefined}
       />,
@@ -77,9 +76,10 @@ describe('ConfigTab sync mapping', () => {
     expect(html).toContain('Commerce guardrails');
     expect(html).toContain('Copilot behavior');
     expect(html).toContain('Configuration readiness');
-    expect(html).toContain('Run preflight');
-    expect(html).toContain('Save event defaults');
+    expect(html).toContain('Event readiness');
+    expect(html).toContain('Running event preflight');
+    expect(html).toContain('Save event settings');
     expect(html).toContain('No unsaved changes');
-    expect(html).toContain('href="/?tab=test"');
+    expect(html).not.toContain('Open Rehearse');
   });
 });

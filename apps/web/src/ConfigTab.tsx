@@ -1,9 +1,9 @@
-import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react';
+import { useCallback, useEffect, useId, useRef, useState, type FormEvent } from 'react';
 import { useSyncMutate, useSyncQuery } from '@papercusp/sync';
-import { tabHref } from './app-routing';
 import { resolveApiBaseUrl } from './catalog';
 import { TabHeader } from './components/TabHeader';
 import { browserEventId } from './event-identity';
+import { EventReadinessPanel } from './EventReadinessPanel';
 import './config.css';
 
 export interface EventGuardrails {
@@ -132,7 +132,6 @@ export interface ConfigEditorProps {
   baseline: EventConfigView | null;
   saveState: ConfigSaveState;
   savedAt: Date | null;
-  rehearseHref: string;
   onChange: (next: EventConfigView) => void;
   onSave: () => void;
 }
@@ -142,12 +141,16 @@ export function ConfigEditor({
   baseline,
   saveState,
   savedAt,
-  rehearseHref,
   onChange,
   onSave,
 }: ConfigEditorProps) {
   const [validationVisible, setValidationVisible] = useState(false);
   const nameInput = useRef<HTMLInputElement>(null);
+  const idPrefix = useId();
+  const eventNameId = `${idPrefix}-event-name`;
+  const eventNameHelpId = `${idPrefix}-event-name-help`;
+  const eventNameErrorId = `${idPrefix}-event-name-error`;
+  const replyToneId = `${idPrefix}-reply-tone`;
   const readiness = configReadiness(config);
   const dirtyCount = countConfigChanges(config, baseline);
   const publishedPolicyActive = Boolean(config.policySource && config.policySource !== 'config-toggle');
@@ -185,8 +188,8 @@ export function ConfigEditor({
             {!readiness.ready
               ? readiness.issue
               : publishedPolicyActive
-                ? `Saving here updates event defaults; Rehearse continues to use policy revision ${config.policyRevisionId ?? 'currently published'}.`
-                : 'Price floors are derived from verified catalog prices, and Rehearse reads this same configuration.'}
+                ? `Saving here updates event settings; event preflight continues to use policy revision ${config.policyRevisionId ?? 'currently published'}.`
+                : 'Price floors are derived from verified catalog prices, and event preflight reads this same configuration.'}
           </p>
         </div>
         {!readiness.ready ? (
@@ -212,18 +215,18 @@ export function ConfigEditor({
               </span>
             </summary>
             <div className="config-section-content">
-              <label className="config-field" htmlFor="event-name">
+              <label className="config-field" htmlFor={eventNameId}>
                 <span>Event name</span>
                 <input
                   ref={nameInput}
-                  id="event-name"
+                  id={eventNameId}
                   value={config.name}
                   aria-invalid={validationVisible && !readiness.ready ? true : undefined}
-                  aria-describedby={validationVisible && !readiness.ready ? 'event-name-error' : 'event-name-help'}
+                  aria-describedby={validationVisible && !readiness.ready ? eventNameErrorId : eventNameHelpId}
                   onChange={(event) => update({ ...config, name: event.target.value })}
                 />
-                <small id="event-name-help">Shown in the room, event guide, and rehearsal results.</small>
-                {validationVisible && !readiness.ready ? <small className="config-field-error" id="event-name-error">Enter an event name before saving.</small> : null}
+                <small id={eventNameHelpId}>Shown in the room, event guide, and event-readiness evidence.</small>
+                {validationVisible && !readiness.ready ? <small className="config-field-error" id={eventNameErrorId}>Enter an event name before saving.</small> : null}
               </label>
             </div>
           </details>
@@ -265,10 +268,10 @@ export function ConfigEditor({
               <span className="config-section-status is-complete">Complete</span>
             </summary>
             <div className="config-section-content">
-              <label className="config-field" htmlFor="reply-tone">
+              <label className="config-field" htmlFor={replyToneId}>
                 <span>Reply tone</span>
                 <select
-                  id="reply-tone"
+                  id={replyToneId}
                   value={config.replyTone}
                   onChange={(event) => update({ ...config, replyTone: event.target.value as EventConfigView['replyTone'] })}
                 >
@@ -285,7 +288,7 @@ export function ConfigEditor({
         <aside className="config-summary" aria-label="Readiness summary">
           <article className="config-summary-card">
             <div className="config-summary-heading">
-              <div><span>Readiness</span><h2>{readiness.completedRequired} of {readiness.totalRequired} sections</h2></div>
+              <div><span>Settings completeness</span><h2>{readiness.completedRequired} of {readiness.totalRequired} sections</h2></div>
               <span className={`config-section-status ${readiness.ready ? 'is-complete' : 'is-blocked'}`}>{readiness.ready ? 'Ready' : 'Blocked'}</span>
             </div>
             <div className="config-progress" role="progressbar" aria-label="Configuration readiness" aria-valuemin={0} aria-valuemax={100} aria-valuenow={progress}>
@@ -296,7 +299,6 @@ export function ConfigEditor({
               <div><dt>Commerce guardrails</dt><dd className="is-complete">Configured</dd></div>
               <div><dt>Copilot behavior</dt><dd className="is-complete">Complete</dd></div>
             </dl>
-            <a className="button secondary config-full-width" href={rehearseHref}>Open Rehearse</a>
           </article>
 
           <article className="config-summary-card">
@@ -318,6 +320,8 @@ export function ConfigEditor({
         </aside>
       </div>
 
+      <EventReadinessPanel eventId={config.eventId} />
+
       <footer className="config-save-bar">
         <p>
           <strong>{dirtyCount === 0 ? 'No unsaved changes' : `${dirtyCount} unsaved ${dirtyCount === 1 ? 'change' : 'changes'}`}</strong>
@@ -326,9 +330,8 @@ export function ConfigEditor({
           </span>
         </p>
         <div>
-          <a className="button secondary" href={rehearseHref}>Run preflight</a>
           <button className="button primary" type="submit" disabled={saveState === 'saving' || dirtyCount === 0}>
-            {saveState === 'saving' ? 'Saving…' : 'Save event defaults'}
+            {saveState === 'saving' ? 'Saving…' : 'Save event settings'}
           </button>
         </div>
       </footer>
@@ -341,8 +344,22 @@ export function ConfigEditor({
  * /events/:eventId/config, and the saved guardrails derive the policy the
  * server-side action guard enforces — the toggle IS the policy.
  */
-export function ConfigTab() {
-  const eventId = browserEventId();
+export interface EventSettingsPanelProps {
+  eventId: string;
+  apiBaseUrl?: string;
+  embedded?: boolean;
+}
+
+/**
+ * Reusable current-event settings surface. The same component is mounted as a
+ * Studio dock tab and inside Event Manager once an event exists, so edits and
+ * readiness evidence cannot drift into parallel implementations.
+ */
+export function EventSettingsPanel({
+  eventId,
+  apiBaseUrl,
+  embedded = false,
+}: EventSettingsPanelProps) {
   const [config, setConfig] = useState<EventConfigView | null>(null);
   const [baseline, setBaseline] = useState<EventConfigView | null>(null);
   const [saveState, setSaveState] = useState<ConfigSaveState>('idle');
@@ -356,14 +373,14 @@ export function ConfigTab() {
   });
 
   const saveFallback = useCallback(async (input: EventConfigUpdate) => {
-    const response = await fetch(`${resolveApiBaseUrl()}/events/${encodeURIComponent(eventId)}/config`, {
+    const response = await fetch(`${resolveApiBaseUrl(apiBaseUrl)}/events/${encodeURIComponent(eventId)}/config`, {
       method: 'PUT',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify(input),
     });
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
     return (await response.json()) as EventConfigView;
-  }, [eventId]);
+  }, [apiBaseUrl, eventId]);
   const mutateConfig = useSyncMutate<EventConfigUpdate, EventConfigView>('event.updateConfig', saveFallback);
 
   useEffect(() => {
@@ -409,35 +426,53 @@ export function ConfigTab() {
 
   if (!config) {
     return (
-      <div className="tab-layout density-compact config-loading" role="status">
-        <TabHeader
-          eyebrow="Event configuration"
-          title="Settings"
-          copy="Every control explains its scope and consequence, with readiness tied to the same event rehearsal checks."
-        />
+      <div className={embedded ? 'event-settings-panel is-embedded config-loading' : 'tab-layout density-compact config-loading'} role="status">
+        {embedded ? (
+          <header className="event-settings-panel-heading">
+            <p className="eyebrow">Current event</p>
+            <h2>Event settings &amp; readiness</h2>
+            <p>Configure this event and verify the same policy and lineup before going live.</p>
+          </header>
+        ) : (
+          <TabHeader
+            eyebrow="Current event"
+            title="Event settings & readiness"
+            copy="Configure this event and verify its policy and reserved lineup in one place."
+          />
+        )}
         <p>Loading event settings…</p>
       </div>
     );
   }
 
-  const rehearseHref = tabHref('test', typeof window === 'undefined' ? '/' : window.location.href);
-
   return (
-    <div className="tab-layout density-compact">
-      <TabHeader
-        eyebrow="Event configuration"
-        title="Settings"
-        copy="Every control explains its scope and consequence, with readiness tied to the same event rehearsal checks."
-      />
+    <div className={embedded ? 'event-settings-panel is-embedded' : 'tab-layout density-compact'}>
+      {embedded ? (
+        <header className="event-settings-panel-heading">
+          <p className="eyebrow">Current event</p>
+          <h2>Event settings &amp; readiness</h2>
+          <p>Configure this event and verify the same policy and lineup before going live.</p>
+        </header>
+      ) : (
+        <TabHeader
+          eyebrow="Current event"
+          title="Event settings & readiness"
+          copy="Configure this event and verify its policy and reserved lineup in one place."
+        />
+      )}
       <ConfigEditor
         config={config}
         baseline={baseline}
         saveState={saveState}
         savedAt={savedAt}
-        rehearseHref={rehearseHref}
         onChange={updateConfig}
         onSave={() => void save()}
       />
     </div>
   );
+}
+
+/** Legacy direct surface kept for compatibility; navigation resolves config URLs to Studio. */
+export function ConfigTab() {
+  return <EventSettingsPanel eventId={browserEventId()} />;
 }
