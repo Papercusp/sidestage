@@ -14,6 +14,9 @@ import { streamLabel, useCopyState, useStreamSession } from './hooks';
 import { AuctionPanel } from './AuctionPanel';
 import { BuyerProductRail } from './BuyerProductRail';
 import { connectViewer, createEventRoom, type ViewerSession } from './streaming';
+import { EventThumbnail } from './event-creation/EventThumbnail';
+import { isRenderableThumbnailUrl } from './event-creation/thumbnail';
+import { fetchEventThumbnailUrl } from './events/api';
 
 export interface BuyerTabProps {
   eventId?: string;
@@ -22,6 +25,8 @@ export interface BuyerTabProps {
   stats?: BuyerStats;
   mediaBaseUrl?: string;
   origin?: string;
+  /** Supplied by tests/embeds; otherwise read from the event config. */
+  thumbnailUrl?: string;
 }
 
 /** A stable per-browser buyer identity, so holds and chat survive reloads. */
@@ -43,6 +48,7 @@ export function BuyerTab({
   stats: statsProp,
   mediaBaseUrl,
   origin,
+  thumbnailUrl: thumbnailUrlProp,
 }: BuyerTabProps) {
   // Live stats (P-111 — no dummy data): real presence + paid orders, polled.
   const [liveStats, setLiveStats] = useState<BuyerStats | null>(null);
@@ -86,6 +92,20 @@ export function BuyerTab({
     };
   }, [productsProp]);
   const products = productsProp ?? catalogProducts ?? [];
+  // The event thumbnail (P-014). Read once per event — it changes only when the
+  // seller re-uploads, so it does not share the stats poll.
+  const [fetchedThumbnailUrl, setFetchedThumbnailUrl] = useState<string | undefined>(undefined);
+  useEffect(() => {
+    if (thumbnailUrlProp) return;
+    let cancelled = false;
+    void fetchEventThumbnailUrl(eventId).then((url) => {
+      if (!cancelled) setFetchedThumbnailUrl(url);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [eventId, thumbnailUrlProp]);
+  const thumbnailUrl = thumbnailUrlProp ?? fetchedThumbnailUrl;
   const room = useMemo(() => createEventRoom(eventId, origin), [eventId, origin]);
   const shareUrl = useMemo(() => buildBuyerShareUrl(eventId, origin), [eventId, origin]);
   const [selectedProductId, setSelectedProductId] = useState<string | null>(null);
@@ -157,10 +177,13 @@ export function BuyerTab({
   return (
     <section className="buyer-tab density-roomy" id="buyer" aria-labelledby="buyer-title">
       <div className="buyer-heading">
-        <div>
-          <p className="eyebrow">Join the room</p>
-          <h2 id="buyer-title">{eventTitle}</h2>
-          <p className="muted">Watch together, ask questions, and keep the good finds moving.</p>
+        <div className="buyer-heading-identity">
+          <EventThumbnail url={thumbnailUrl} eventName={eventTitle} className="buyer-event-thumbnail" />
+          <div>
+            <p className="eyebrow">Join the room</p>
+            <h2 id="buyer-title">{eventTitle}</h2>
+            <p className="muted">Watch together, ask questions, and keep the good finds moving.</p>
+          </div>
         </div>
         <div className="buyer-heading-actions">
           <span className={`buyer-live-state buyer-live-state-${streamState}`}>
@@ -175,7 +198,18 @@ export function BuyerTab({
       <div className="buyer-layout">
         <div className="buyer-main-column">
           <div className="buyer-player-card">
-            <video ref={videoRef} className="buyer-player" controls playsInline aria-label={`${eventTitle} stream`} />
+            {/* The thumbnail doubles as the player poster, so the event has a
+                face before the stream connects instead of a black rectangle.
+                Guarded by the same allow-list as every other render: `poster`
+                takes a URL, so an unvetted value does not belong here either. */}
+            <video
+              ref={videoRef}
+              className="buyer-player"
+              controls
+              playsInline
+              poster={isRenderableThumbnailUrl(thumbnailUrl) ? thumbnailUrl : undefined}
+              aria-label={`${eventTitle} stream`}
+            />
             <div className="buyer-player-overlay">
               <span className="live-badge">{room.eventId}</span>
               <p>{streamState === 'error' ? streamError : 'The seller stream appears here when the room is live.'}</p>
