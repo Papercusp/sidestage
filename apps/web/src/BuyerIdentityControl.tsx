@@ -15,6 +15,11 @@ export interface BuyerIdentityControlProps {
   onImpersonate: (buyerId: string) => void;
 }
 
+function visibleDemoIdentity(userId: string): string {
+  const persona = userId.replace(/^(?:buyer|seller)-+/i, '');
+  return persona || userId;
+}
+
 /** D-013 demo-only identity switcher — deliberately no password or auth flow. */
 export function DemoIdentityControl({
   userId,
@@ -22,11 +27,11 @@ export function DemoIdentityControl({
   inputId = 'demo-user-id',
   label = 'Demo user',
 }: DemoIdentityControlProps) {
-  const [draft, setDraft] = useState(userId);
+  const visibleUserId = visibleDemoIdentity(userId);
+  const [draft, setDraft] = useState(visibleUserId);
   const [error, setError] = useState<string | null>(null);
-  const helpId = `${inputId}-help`;
 
-  useEffect(() => setDraft(userId), [userId]);
+  useEffect(() => setDraft(visibleUserId), [visibleUserId]);
 
   const submit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -44,7 +49,7 @@ export function DemoIdentityControl({
     <form className="demo-identity" onSubmit={submit} aria-label={`${label} impersonation`}>
       <div className="demo-identity-heading">
         <span>{label}</span>
-        <strong title={userId}>{userId}</strong>
+        <strong title={visibleUserId}>{visibleUserId}</strong>
       </div>
       <div className="demo-identity-row">
         <label className="sr-only" htmlFor={inputId}>User id</label>
@@ -55,12 +60,10 @@ export function DemoIdentityControl({
           placeholder="Enter any user id"
           autoComplete="off"
           spellCheck={false}
-          aria-describedby={helpId}
           aria-invalid={Boolean(error)}
         />
         <button className="button secondary" type="submit">Switch</button>
       </div>
-      <small id={helpId}>Demo only — any non-empty id, no password.</small>
       {error ? <span className="demo-identity-error" role="alert">{error}</span> : null}
     </form>
   );

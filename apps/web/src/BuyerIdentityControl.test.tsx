@@ -10,7 +10,7 @@ describe('DemoIdentityControl', () => {
   it('renders the shared seller switcher with a unique control id', () => {
     const markup = renderToStaticMarkup(
       <DemoIdentityControl
-        userId="demo-seller-27"
+        userId="seller-baf59833"
         onImpersonate={() => undefined}
         inputId="seller-demo-user-id"
         label="Seller demo user"
@@ -19,20 +19,23 @@ describe('DemoIdentityControl', () => {
 
     expect(markup).toContain('Seller demo user');
     expect(markup).toContain('id="seller-demo-user-id"');
-    expect(markup).toContain('value="demo-seller-27"');
+    expect(markup).toContain('<strong title="baf59833">baf59833</strong>');
+    expect(markup).toContain('value="baf59833"');
+    expect(markup).not.toContain('seller-baf59833');
     expect(markup).toContain('Enter any user id');
-    expect(markup).toContain('any non-empty id, no password');
+    expect(markup).not.toContain('Demo only — any non-empty id, no password.');
     expect(markup).toContain('>Switch</button>');
   });
 
   it('preserves the buyer compatibility wrapper', () => {
     const markup = renderToStaticMarkup(
-      <BuyerIdentityControl buyerId="demo-buyer-27" onImpersonate={() => undefined} />,
+      <BuyerIdentityControl buyerId="buyer-baf59833" onImpersonate={() => undefined} />,
     );
 
     expect(markup).toContain('Demo user');
     expect(markup).toContain('id="buyer-demo-user-id"');
-    expect(markup).toContain('value="demo-buyer-27"');
+    expect(markup).toContain('value="baf59833"');
+    expect(markup).not.toContain('buyer-baf59833');
   });
 
   it('lets the shared identity grid shrink inside a narrow shell column', () => {
