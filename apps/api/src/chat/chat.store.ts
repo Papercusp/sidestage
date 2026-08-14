@@ -1,6 +1,8 @@
 import { ConflictException } from '@nestjs/common';
 import type { ChatMessage, ChatPresence, TranscriptMoment } from './chat.service';
 
+export const CHAT_STORE = Symbol('CHAT_STORE');
+
 export interface ChatCursor {
   createdAt: string;
   id: string;

@@ -1,34 +1,39 @@
 import { Inject, Injectable, Module, type OnModuleInit } from '@nestjs/common';
+import type { Pool } from 'pg';
+import { AuctionModule } from '../auction/auction.module';
+import { DatabaseModule, PG_POOL } from '../db/database.module';
+import { PgChatStore } from '../db/pg-chat-store';
 import { SyncModule } from '../sync/sync.module';
 import { SyncQueryRegistry, type SyncQueryArgs } from '../sync/sync-query.registry';
 import { ChatController } from './chat.controller';
 import { ChatService } from './chat.service';
+import { CHAT_STORE, InMemoryChatStore, type ChatStore } from './chat.store';
 import { ConfiguredProductFocusClassifier } from './product-focus.classifier';
 
-function eventIdFrom(args: SyncQueryArgs): string {
-  return typeof args.eventId === 'string' ? args.eventId : '';
-}
+function eventIdFrom(args: SyncQueryArgs): string { return typeof args.eventId === 'string' ? args.eventId : ''; }
 
 @Injectable()
 export class ChatSyncQueries implements OnModuleInit {
-  constructor(
-    @Inject(ChatService) private readonly chat: ChatService,
-    @Inject(SyncQueryRegistry) private readonly queries: SyncQueryRegistry,
-  ) {}
+  constructor(@Inject(ChatService) private readonly chat: ChatService, @Inject(SyncQueryRegistry) private readonly queries: SyncQueryRegistry) {}
 
   onModuleInit(): void {
     this.queries.register('event.chat.messages', (args) => this.chat.getMessages(eventIdFrom(args)));
     this.queries.register('event.chat.transcript', (args) => this.chat.getTranscript(eventIdFrom(args)));
     this.queries.register('event.chat.presence', (args) => this.chat.getPresence(eventIdFrom(args)));
-    this.queries.register('event.chat.stats', (args) => [this.chat.getStats(eventIdFrom(args))]);
+    this.queries.register('event.chat.stats', async (args) => [await this.chat.getStats(eventIdFrom(args))]);
     this.queries.register('event.replay.chapters', (args) => this.chat.getReplayChapters(eventIdFrom(args)));
   }
 }
 
 @Module({
-  imports: [SyncModule],
+  imports: [AuctionModule, DatabaseModule, SyncModule],
   controllers: [ChatController],
-  providers: [ChatService, ChatSyncQueries, ConfiguredProductFocusClassifier],
-  exports: [ChatService],
+  providers: [
+    { provide: CHAT_STORE, inject: [PG_POOL], useFactory: (pool: Pool | null): ChatStore => pool ? new PgChatStore(pool) : new InMemoryChatStore() },
+    ChatService,
+    ChatSyncQueries,
+    ConfiguredProductFocusClassifier,
+  ],
+  exports: [ChatService, CHAT_STORE],
 })
 export class ChatModule {}

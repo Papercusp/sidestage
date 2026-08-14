@@ -42,6 +42,6 @@ export class AuctionSyncQueries implements OnModuleInit {
     AuctionService,
     AuctionSyncQueries,
   ],
-  exports: [AuctionService],
+  exports: [AuctionService, AuctionAccessService],
 })
 export class AuctionModule {}
