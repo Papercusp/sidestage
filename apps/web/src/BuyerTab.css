@@ -168,7 +168,7 @@
 
 .buyer-lower-grid {
   display: grid;
-  grid-template-columns: minmax(0, 1.45fr) minmax(18rem, 0.55fr);
+  grid-template-columns: minmax(0, 1fr);
   align-items: start;
   gap: var(--ss-gap);
   margin-top: var(--ss-gap);
@@ -252,13 +252,8 @@
     grid-template-columns: 1fr;
   }
 
-  .buyer-lower-grid[data-buyer-mode='shop'] .buyer-chat-card,
   .buyer-lower-grid[data-buyer-mode='chat'] .buyer-shop-panel {
     display: none;
-  }
-
-  .buyer-chat-card {
-    position: static;
   }
 
   .buyer-mobile-action {
