@@ -28,6 +28,7 @@ describe('Studio board selection', () => {
       'stage-status',
       'copilot',
       'transcript',
+      'event-chat',
       'on-deck',
       'run-of-show',
     ]);
