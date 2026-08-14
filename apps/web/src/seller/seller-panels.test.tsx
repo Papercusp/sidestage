@@ -92,7 +92,7 @@ describe('StageStatusPanel', () => {
 describe('OnDeckPanel', () => {
   it('renders the staged product with the on-deck heading', () => {
     const product = variantToSellerProduct(OFFLINE_FIXTURE[0], 0);
-    const markup = renderToStaticMarkup(<OnDeckPanel selectedProduct={product} />);
+    const markup = renderToStaticMarkup(<OnDeckPanel selectedProduct={product} eventId="demo-room" />);
     expect(markup).toContain('<section class="stage-panel" aria-labelledby="on-deck-title">');
     expect(markup).toContain(`<h3 id="on-deck-title">${product.name}</h3>`);
     expect(markup).toContain(`mini-product-mark tone-${product.tone}`);
@@ -101,7 +101,7 @@ describe('OnDeckPanel', () => {
   });
 
   it('keeps the on-deck heading id in the empty state so the landmark stays labelled', () => {
-    const markup = renderToStaticMarkup(<OnDeckPanel selectedProduct={null} />);
+    const markup = renderToStaticMarkup(<OnDeckPanel selectedProduct={null} eventId="demo-room" />);
     expect(markup).toContain('<section class="stage-panel" aria-labelledby="on-deck-title">');
     expect(markup).toContain('<h3 id="on-deck-title">Choose a product</h3>');
     expect(markup).toContain('class="empty-state"');

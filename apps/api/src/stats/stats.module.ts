@@ -2,6 +2,10 @@ import { Controller, Get, Inject, Module, Param } from '@nestjs/common';
 import type { Pool } from 'pg';
 import { ChatService } from '../chat/chat.service';
 import { ChatModule } from '../chat/chat.module';
+import { ActionModule } from '../actions/action.module';
+import { GuardedActionService } from '../actions/action.service';
+import { AuctionModule } from '../auction/auction.module';
+import { AuctionService } from '../auction/auction.service';
 import { DatabaseModule, PG_POOL } from '../db/database.module';
 
 export interface EventStats {
@@ -11,6 +15,26 @@ export interface EventStats {
   /** Paid checkout orders — the settled truth (auction wins settle here too). */
   itemsSold: number;
   totalRaisedCents: number;
+}
+
+export interface PricingHistory {
+  productId: string;
+  prices: Array<{ priceCents: number; soldQty: number; rejectedQty: number }>;
+  offers: Array<{
+    id: string;
+    buyerId: string;
+    priceCents: number;
+    quantity: number;
+    outcome: 'pending' | 'accepted' | 'rejected';
+  }>;
+  auctions: Array<{
+    id: string;
+    priceCents: number;
+    quantity: number;
+    outcome: 'active' | 'sold' | 'no-sale';
+    bidderId?: string;
+    closedAt?: string;
+  }>;
 }
 
 /**
@@ -23,6 +47,8 @@ export class StatsController {
   constructor(
     @Inject(ChatService) private readonly chat: ChatService,
     @Inject(PG_POOL) private readonly pool: Pool | null,
+    @Inject(GuardedActionService) private readonly actions: GuardedActionService,
+    @Inject(AuctionService) private readonly auctions: AuctionService,
   ) {}
 
   @Get(':eventId/stats')
@@ -41,10 +67,72 @@ export class StatsController {
     }
     return { eventId, viewers, itemsSold, totalRaisedCents };
   }
+
+
+  /** Real seller history for the active product; no fixture rows are invented. */
+  @Get(':eventId/products/:productId/pricing-history')
+  async pricingHistory(
+    @Param('eventId') eventId: string,
+    @Param('productId') productId: string,
+  ): Promise<PricingHistory> {
+    const priceRows = new Map<number, { priceCents: number; soldQty: number; rejectedQty: number }>();
+    if (this.pool) {
+      const result = await this.pool.query<{ price_cents: string; sold_qty: string; rejected_qty: string }>(
+        `SELECT (item->>'priceCents')::integer AS price_cents,
+                COALESCE(SUM((item->>'quantity')::integer) FILTER (WHERE status = 'paid'), 0) AS sold_qty,
+                COALESCE(SUM((item->>'quantity')::integer) FILTER (WHERE status = 'failed'), 0) AS rejected_qty
+         FROM checkout_order
+         CROSS JOIN LATERAL jsonb_array_elements(payload->'items') AS item
+         WHERE item->>'productId' = $1 AND status IN ('paid', 'failed')
+         GROUP BY (item->>'priceCents')::integer
+         ORDER BY price_cents DESC`,
+        [productId],
+      );
+      for (const row of result.rows) {
+        const priceCents = Number(row.price_cents);
+        priceRows.set(priceCents, {
+          priceCents,
+          soldQty: Number(row.sold_qty),
+          rejectedQty: Number(row.rejected_qty),
+        });
+      }
+    }
+
+    const offerById = new Map<string, PricingHistory['offers'][number]>();
+    for (const audit of this.actions.listAudit(eventId)) {
+      for (const offer of audit.after.offers) {
+        if (offer.productId !== productId) continue;
+        offerById.set(offer.id, {
+          id: offer.id,
+          buyerId: offer.buyerId,
+          priceCents: offer.priceCents,
+          quantity: offer.quantity,
+          outcome: offer.status === 'accepted'
+            ? 'accepted'
+            : offer.status === 'pending' ? 'pending' : 'rejected',
+        });
+      }
+    }
+
+    const auctionRows = await this.auctions.listByProduct(productId);
+    return {
+      productId,
+      prices: [...priceRows.values()],
+      offers: [...offerById.values()].reverse(),
+      auctions: auctionRows.map((auction) => ({
+        id: auction.id,
+        priceCents: auction.currentPriceCents,
+        quantity: auction.quantity,
+        outcome: auction.status === 'active' ? 'active' : auction.winnerOrder ? 'sold' : 'no-sale',
+        bidderId: auction.winnerOrder?.bidderId,
+        closedAt: auction.closedAt,
+      })),
+    };
+  }
 }
 
 @Module({
-  imports: [ChatModule, DatabaseModule],
+  imports: [ActionModule, AuctionModule, ChatModule, DatabaseModule],
   controllers: [StatsController],
 })
 export class StatsModule {}
