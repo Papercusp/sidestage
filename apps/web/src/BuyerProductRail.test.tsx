@@ -24,7 +24,7 @@ const PRODUCTS: BuyerProduct[] = [
 ];
 
 describe("BuyerProductRail", () => {
-  it("renders product, price, stock, and hold cells through the shared RichGrid contract", () => {
+  it("renders visual product cards with price, stock, and contextual hold actions", () => {
     const markup = renderToStaticMarkup(
       <BuyerProductRail
         products={PRODUCTS}
@@ -33,13 +33,15 @@ describe("BuyerProductRail", () => {
       />,
     );
 
-    expect(markup).toContain('data-rg-screen-grid="true"');
+    expect(markup).toContain('aria-label="Coming up"');
     expect(markup).toContain('data-product-id="espresso-new"');
     expect(markup).toContain("Barista Pro Espresso Machine");
     expect(markup).toContain("$499.99");
-    expect(markup).toContain("12 ready");
+    expect(markup).toContain("12 available");
     expect(markup).toContain("Held for you");
     expect(markup).toContain("Sold out");
+    expect(markup).toContain('aria-label="Hold Barista Pro Espresso Machine"');
+    expect(markup).not.toContain('data-rg-screen-grid="true"');
   });
 
   it("renders the rail empty state without inventing products", () => {
