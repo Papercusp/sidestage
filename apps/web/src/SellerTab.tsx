@@ -7,6 +7,7 @@ import { EventChat, resolveApiOrigin } from './EventChat';
 import { chatEventId, DEFAULT_EVENT_ID, DEFAULT_EVENT_TITLE, mediaBaseUrl } from './event-identity';
 import { useCopyState, useStreamSession } from './hooks';
 import { studioViewHref, useUrlStudioView, type StudioView } from './app-routing';
+import { InventoryPanel } from './InventoryPanel';
 import { SellerDock } from './SellerDock';
 import {
   SELLER_ACTIVE_DOCK_LAYOUT_NAME,
@@ -24,6 +25,12 @@ import type { CatalogProduct } from './seller-products';
 import { type TranscriptProductOption } from './TranscriptPane';
 import { connectPublisher, createEventRoom, type EventRoom, type PublisherSession } from './streaming';
 import './studio.css';
+
+export const STUDIO_VIEW_TABS = [
+  { id: 'active-event', label: 'Current event' },
+  { id: 'event-manager', label: 'Event manager' },
+  { id: 'inventory', label: 'Inventory' },
+] as const satisfies readonly { id: StudioView; label: string }[];
 
 export function studioBoardConfig(view: StudioView) {
   return view === 'active-event'
@@ -219,8 +226,9 @@ export function SellerTab({
     },
   };
 
-  const { layoutName, layoutSeed, resetEventName } = studioBoardConfig(studioView);
-  const hrefFor = (view: 'active-event' | 'event-manager') => studioViewHref(
+  const dockView = studioView === 'inventory' ? 'active-event' : studioView;
+  const { layoutName, layoutSeed, resetEventName } = studioBoardConfig(dockView);
+  const hrefFor = (view: StudioView) => studioViewHref(
     view,
     typeof window === 'undefined' ? '/' : window.location.href,
   );
@@ -233,10 +241,7 @@ export function SellerTab({
         copy="Your live context stays one glance away: what is on deck, what buyers are asking, and what the copilot can safely suggest."
       />
       <nav className="studio-subtabs" aria-label="Studio boards">
-        {([
-          ['active-event', 'Active Event'],
-          ['event-manager', 'Event Manager'],
-        ] as const).map(([view, label]) => (
+        {STUDIO_VIEW_TABS.map(({ id: view, label }) => (
           <a
             key={view}
             className="studio-subtab"
@@ -251,16 +256,20 @@ export function SellerTab({
           </a>
         ))}
       </nav>
-      <SellerDock
-        key={layoutName}
-        panels={panels}
-        registry={sellerPanelRegistry}
-        layoutName={layoutName}
-        layoutSeed={layoutSeed}
-        foregroundPanelId={studioView === 'event-manager' ? 'event-manager' : undefined}
-        resetEventName={resetEventName}
-        missingComponent={SellerDockMissingPanel}
-      />
+      {studioView === 'inventory' ? (
+        <InventoryPanel apiBaseUrl={import.meta.env.VITE_API_URL} />
+      ) : (
+        <SellerDock
+          key={layoutName}
+          panels={panels}
+          registry={sellerPanelRegistry}
+          layoutName={layoutName}
+          layoutSeed={layoutSeed}
+          foregroundPanelId={studioView === 'event-manager' ? 'event-manager' : undefined}
+          resetEventName={resetEventName}
+          missingComponent={SellerDockMissingPanel}
+        />
+      )}
     </div>
   );
 }
