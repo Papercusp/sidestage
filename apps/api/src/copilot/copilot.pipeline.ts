@@ -16,6 +16,7 @@ import type { AutomationDecision } from '../policies/policy.types';
 import { PolicyActionGuard, PolicyReplyGuard } from './guardrail';
 import { CopilotLatencyBudget } from './latency';
 import { mergeResearchIntoGroundingContext, type ParallelResearchFallback } from './research';
+import { sourceSupportsQuestion } from './copilot.relevance';
 
 export interface CopilotPipelineDependencies {
   retriever: GroundingRetriever;
@@ -235,7 +236,10 @@ export class GroundedCopilotPipeline {
       context,
       groundingPrompt: buildGroundingPrompt(context),
     });
-    const citations = validCitations(draft.citations, context);
+    const citations = validCitations(draft.citations, context).filter((citation) => (
+      sourceSupportsQuestion(citation, request, context)
+      || Boolean(draft.action && citation === `policy:${request.eventId}`)
+    ));
     const replyGuardrail = await this.replyGuard.evaluate({ reply: draft.reply, declaredTone: draft.tone }, context);
     const grounded = replyGuardrail.allowed && draft.reply.trim().length > 0 && citations.length > 0;
     const action = draft.action

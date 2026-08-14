@@ -1,16 +1,44 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { GuardedActionService } from '../actions/action.service';
+import type { ActionEventItem } from '../actions/action.types';
 import { CATALOG_SOURCE, type CatalogSource, type CatalogVariant } from '../catalog/catalog.types';
 import { ChatService, type TranscriptMoment } from '../chat/chat.service';
 import { EVENT_POLICY_RESOLVER, type EventPolicyResolver } from '../config/event-policy-resolver';
 import type {
   CatalogProductContext,
+  EventItemContext,
   GroundingContext,
   GroundingRetriever,
   GroundingSource,
   RetrievalRequest,
   TranscriptGroundingContext,
 } from './copilot.types';
+
+/**
+ * Event price/quantity remain event-scoped, while sellable availability is
+ * bounded by the current global catalog row. The action snapshot can further
+ * reduce that bound (for example, a pending targeted offer), but can never
+ * make stale stock appear larger than the live catalog authority.
+ */
+export function reconcileEventItemAvailability(
+  item: ActionEventItem,
+  variant: CatalogVariant | undefined,
+): EventItemContext {
+  const catalogAvailableQty = variant?.availableQty ?? 0;
+  return {
+    eventItemId: item.eventItemId,
+    productId: item.productId,
+    title: item.title,
+    description: item.description,
+    priceCents: item.priceCents,
+    availableQty: Math.max(0, Math.min(item.availableQty, item.quantity, catalogAvailableQty)),
+    attributes: {
+      ...item.attributes,
+      eventListedQty: item.quantity,
+      catalogAvailableQty,
+    },
+  };
+}
 
 function productFrom(variant: CatalogVariant): CatalogProductContext {
   return {
@@ -62,12 +90,14 @@ export class SideStageGroundingRetriever implements GroundingRetriever {
   ) {}
 
   async retrieve(request: RetrievalRequest): Promise<GroundingContext> {
-    const eventItems = this.actions.listItems(request.eventId);
-    const [page, policy, transcript] = await Promise.all([
+    const actionItems = this.actions.listItems(request.eventId);
+    const [variants, page, policy, transcript] = await Promise.all([
+      Promise.all(actionItems.map((item) => this.catalog.variant(item.productId))),
       this.catalog.search({ q: request.query, availability: 'in-stock', pageSize: request.limit }),
-      this.policies.resolve(request.eventId, eventItems),
+      this.policies.resolve(request.eventId, actionItems),
       this.chat.getTranscript(request.eventId),
     ]);
+    const eventItems = actionItems.map((item, index) => reconcileEventItemAvailability(item, variants[index]));
     const catalogProducts = page.rows.map(productFrom);
     const transcriptMoments = relevantTranscript(request.query, transcript);
     const sources: GroundingSource[] = [

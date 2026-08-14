@@ -1,5 +1,6 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
+import { ConfiguredCopilotReplyModel } from './copilot.model';
 import { buildGroundingPrompt, GroundedCopilotPipeline } from './copilot.pipeline';
 import type { CopilotPipelineDependencies } from './copilot.pipeline';
 import { CopilotLatencyBudget } from './latency';
@@ -84,6 +85,47 @@ describe('GroundedCopilotPipeline', () => {
     expect(response.grounding).toBe('insufficient-context');
     expect(response.reply).toContain("don't have enough verified");
     expect(response.citations).toEqual([]);
+  });
+
+  it('fails closed when a known citation does not cover the buyer question', async () => {
+    const pipeline = makePipeline({
+      reply: 'It includes a five-year warranty and free overnight shipping.',
+      citations: ['event-item:ei-1'],
+    });
+
+    const response = await pipeline.respond({
+      eventId: 'event-1',
+      message: 'Does the blue mug include a five-year warranty and free overnight shipping?',
+    });
+
+    expect(response.grounding).toBe('insufficient-context');
+    expect(response.citations).toEqual([]);
+    expect(response.reply).toContain("don't have enough verified");
+  });
+
+  it('keeps deterministic price/stock replies while refusing unsupported properties', async () => {
+    vi.stubEnv('OPENAI_API_KEY', '');
+    vi.stubEnv('SIDESTAGE_COPILOT_MODEL', '');
+    try {
+      const model = new ConfiguredCopilotReplyModel();
+      const supported = await model.generate({
+        event: { eventId: 'event-1', message: 'Is the blue mug in stock and how much is it?' },
+        context,
+        groundingPrompt: buildGroundingPrompt(context),
+      });
+      const unsupported = await model.generate({
+        event: { eventId: 'event-1', message: 'Does the blue mug include a five-year warranty?' },
+        context,
+        groundingPrompt: buildGroundingPrompt(context),
+      });
+
+      expect(supported).toMatchObject({ citations: ['event-item:ei-1'] });
+      expect(supported.reply).toContain('$15.00');
+      expect(supported.reply).toContain('4 currently available');
+      expect(unsupported).toMatchObject({ reply: '', citations: [], confidence: 0 });
+    } finally {
+      vi.unstubAllEnvs();
+    }
   });
 
   it('uses the seller policy ladder and never lets a request elevate it', async () => {

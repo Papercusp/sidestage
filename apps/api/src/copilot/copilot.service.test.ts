@@ -1,9 +1,11 @@
 import { describe, expect, it, vi } from 'vitest';
 import { GuardedActionService } from '../actions/action.service';
+import type { CatalogSource, CatalogVariant } from '../catalog/catalog.types';
 import { ChatService, type ChatMessage } from '../chat/chat.service';
+import type { EventPolicyResolver } from '../config/event-policy-resolver';
 import type { AutoResponderJudgeService } from '../judge/judge.service';
 import { SyncInvalidationService } from '../sync/sync-invalidation.service';
-import type { SideStageGroundingRetriever } from './copilot.grounding';
+import { SideStageGroundingRetriever } from './copilot.grounding';
 import type { GroundedCopilotPipeline } from './copilot.pipeline';
 import type { CopilotProposal, CopilotProposalStore } from './copilot.runtime.types';
 import { CopilotProposalService } from './copilot.service';
@@ -108,6 +110,45 @@ function setup(options: {
 }
 
 describe('CopilotProposalService', () => {
+  it('refreshes event availability from the catalog while preserving the event price', async () => {
+    let liveAvailableQty = 95;
+    const variant = (): CatalogVariant => ({
+      id: 'mug', groupId: 'mugs', title: 'Blue mug', brand: 'Kiln', productType: 'HOME',
+      sku: 'MUG-BLUE', condition: 'NEW', handlingDays: 1, priceCents: 1_800,
+      reservedQty: 5, availableQty: liveAvailableQty,
+    });
+    const catalog: CatalogSource = {
+      search: async () => ({ rows: [variant()], page: 1, pageSize: 8, total: 1, totalIsFloor: false }),
+      productTypes: async () => ['HOME'],
+      variant: async () => variant(),
+    };
+    const actions = new GuardedActionService();
+    actions.registerEvent('event-1', {
+      policy: context.policy,
+      items: [{
+        eventId: 'event-1', eventItemId: 'event-1:mug', productId: 'mug', title: 'Blue mug',
+        priceCents: 1_500, availableQty: 97, quantity: 97, attributes: { color: 'blue' },
+      }],
+    });
+    const retriever = new SideStageGroundingRetriever(
+      catalog,
+      actions,
+      new ChatService(new SyncInvalidationService()),
+      { resolve: async () => context.policy } as EventPolicyResolver,
+    );
+
+    const first = await retriever.retrieve({ eventId: 'event-1', query: 'Is the blue mug in stock?', limit: 8 });
+    liveAvailableQty = 91;
+    const second = await retriever.retrieve({ eventId: 'event-1', query: 'Is the blue mug in stock?', limit: 8 });
+
+    expect(first.eventItems[0]).toMatchObject({
+      priceCents: 1_500,
+      availableQty: 95,
+      attributes: { eventListedQty: 97, catalogAvailableQty: 95 },
+    });
+    expect(second.eventItems[0]).toMatchObject({ priceCents: 1_500, availableQty: 91 });
+  });
+
   it('persists one proposal per buyer message and invalidates the sync query', async () => {
     const runtime = setup();
     const events: Array<{ name: string; args?: Record<string, unknown> }> = [];

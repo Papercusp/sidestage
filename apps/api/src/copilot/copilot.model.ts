@@ -5,6 +5,7 @@ import type {
   ReplyGenerationRequest,
   ReplyModel,
 } from './copilot.types';
+import { firstRelevantSourceId } from './copilot.relevance';
 
 const ACTION_KINDS = new Set<CopilotActionKind>([
   'markdown', 'price-adjust', 'targeted-offer', 'push', 'swap', 'stock-adjust',
@@ -99,22 +100,30 @@ export class ConfiguredCopilotReplyModel implements ReplyModel {
   }
 
   private generateDeterministic(request: ReplyGenerationRequest): ModelDraft {
-    const item = request.context.eventItems[0];
-    const product = request.context.catalogProducts[0];
-    const transcript = request.context.transcriptMoments?.[0];
+    const eventSource = firstRelevantSourceId(request.event, request.context, 'event-item:');
+    const catalogSource = firstRelevantSourceId(request.event, request.context, 'catalog-product:');
+    const transcriptSource = firstRelevantSourceId(request.event, request.context, 'transcript:');
+    const item = eventSource
+      ? request.context.eventItems.find((candidate) => `event-item:${candidate.eventItemId}` === eventSource)
+      : undefined;
+    const product = catalogSource
+      ? request.context.catalogProducts.find((candidate) => `catalog-product:${candidate.productId}` === catalogSource)
+      : undefined;
+    const transcript = transcriptSource
+      ? request.context.transcriptMoments?.find((candidate) => `transcript:${candidate.transcriptId}` === transcriptSource)
+      : undefined;
     if (item) {
       return {
         reply: `Thanks for asking — ${item.title} is ${money(item.priceCents)}, with ${item.availableQty} currently available.`,
-        citations: [`event-item:${item.eventItemId}`],
+        citations: [eventSource!],
         confidence: 0.98,
         tone: request.context.policy.tone,
       };
     }
     if (product) {
-      const source = request.context.sources.find((candidate) => candidate.id === `catalog-product:${product.productId}`)?.id;
       return {
         reply: `Thanks for asking — I found ${product.title} in the verified catalog at ${money(product.priceCents)}.`,
-        citations: source ? [source] : [],
+        citations: [catalogSource!],
         confidence: 0.92,
         tone: request.context.policy.tone,
       };
@@ -122,7 +131,7 @@ export class ConfiguredCopilotReplyModel implements ReplyModel {
     if (transcript) {
       return {
         reply: `The host shared: “${transcript.text}”`,
-        citations: [`transcript:${transcript.transcriptId}`],
+        citations: [transcriptSource!],
         confidence: 0.9,
         tone: request.context.policy.tone,
       };
