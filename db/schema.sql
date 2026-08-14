@@ -969,6 +969,7 @@ CREATE TABLE IF NOT EXISTS system_test_run (
   actor_id text NOT NULL,
   actor_role text NOT NULL,
   requested_sha text NOT NULL,
+  event_id text,
   deployed_sha text,
   state text NOT NULL DEFAULT 'queued',
   blocked_reasons jsonb NOT NULL DEFAULT '[]'::jsonb,
@@ -986,6 +987,8 @@ CREATE TABLE IF NOT EXISTS system_test_run (
     CHECK (profile IN ('smoke', 'full', 'sandbox', 'load')),
   CONSTRAINT system_test_run_actor_role_known CHECK (actor_role IN ('operator', 'release')),
   CONSTRAINT system_test_run_requested_sha_format CHECK (requested_sha ~ '^[0-9a-f]{40}$'),
+  CONSTRAINT system_test_run_event_id_format
+    CHECK (event_id IS NULL OR event_id ~ '^[a-z0-9](?:[a-z0-9._-]{0,126}[a-z0-9])?$'),
   CONSTRAINT system_test_run_deployed_sha_format
     CHECK (deployed_sha IS NULL OR deployed_sha ~ '^[0-9a-f]{40}$'),
   CONSTRAINT system_test_run_state_known CHECK (state IN (
