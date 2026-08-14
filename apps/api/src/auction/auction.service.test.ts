@@ -225,11 +225,15 @@ describe('AuctionService', () => {
       'catalog.page',
       'event.auction.active',
       'event.auction.active',
+      'orders.byBuyer',
     ]);
     expect(published.filter(({ name }) => name === 'event.auction.active').map(({ args }) => args)).toEqual([
       { eventId: 'event-1' },
       { eventId: 'event-1' },
       { eventId: 'event-1' },
+    ]);
+    expect(published.filter(({ name }) => name === 'orders.byBuyer').map(({ args }) => args)).toEqual([
+      { buyerId: 'buyer-a' },
     ]);
   });
 

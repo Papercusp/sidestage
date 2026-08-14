@@ -1,4 +1,4 @@
-import { BadRequestException, Inject, Injectable } from '@nestjs/common';
+import { BadRequestException, Inject, Injectable, Optional } from '@nestjs/common';
 import { createHmac, randomUUID, timingSafeEqual } from 'node:crypto';
 import { CartService, type Cart } from '../cart/cart.service';
 import {
@@ -8,6 +8,7 @@ import {
   type NormalizedShippingAddress,
   type ShippingAddressInput,
 } from '../shipping/shipping.service';
+import { SyncInvalidationService } from '../sync/sync-invalidation.service';
 
 export const CHECKOUT_PAYMENT_PROVIDER = Symbol('CHECKOUT_PAYMENT_PROVIDER');
 export const ORDER_STORE = Symbol('ORDER_STORE');
@@ -196,6 +197,9 @@ export class CheckoutService {
     @Inject(ORDER_STORE) private readonly orders: OrderStore,
     @Inject(CartService) private readonly carts: CartService,
     @Inject(ShippingService) private readonly shipping: ShippingService,
+    @Optional()
+    @Inject(SyncInvalidationService)
+    private readonly syncInvalidations?: SyncInvalidationService,
   ) {}
 
   async createSession(input: CheckoutSessionInput): Promise<{ order: CheckoutOrder; session: PaymentSession }> {
@@ -251,6 +255,7 @@ export class CheckoutService {
       paymentSession: session,
     };
     await this.orders.set(order);
+    this.invalidateBuyerOrders(buyerId);
     return { order: this.cloneOrder(order), session: { ...session } };
   }
 
@@ -258,10 +263,12 @@ export class CheckoutService {
     const order = await this.orders.get(input.orderId);
     if (!order) throw new Error('Order not found');
     if (order.status === 'paid') return { order: this.cloneOrder(order), payment: { status: 'paid' } };
+    const previousStatus = order.status;
     const payment = await this.provider.confirmPayment({ orderId: order.id, sourceId: input.sourceId, amountCents: order.totalCents, currency: order.currency });
     if (payment.status === 'paid') order.status = 'paid';
     if (payment.status === 'failed') order.status = 'failed';
     await this.orders.set(order);
+    if (order.status !== previousStatus) this.invalidateBuyerOrders(order.buyerId);
     return { order: this.cloneOrder(order), payment };
   }
 
@@ -317,5 +324,9 @@ export class CheckoutService {
 
   private cloneOrder(order: CheckoutOrder): CheckoutOrder {
     return cloneCheckoutOrder(order);
+  }
+
+  private invalidateBuyerOrders(buyerId: string): void {
+    this.syncInvalidations?.invalidate('orders.byBuyer', { buyerId });
   }
 }

@@ -7,6 +7,7 @@ import {
   type ShippingAddressInput,
   type ShippingRateInput,
 } from '../shipping/shipping.service';
+import { SyncInvalidationService, type SyncInvalidation } from '../sync/sync-invalidation.service';
 import {
   CheckoutService,
   InMemoryOrderStore,
@@ -105,6 +106,24 @@ describe('CheckoutService', () => {
     const confirmation = await checkout.confirmPayment({ orderId: session.order.id, sourceId: 'cnon:card-nonce-ok' });
     expect(confirmation.payment.status).toBe('paid');
     expect(confirmation.order.status).toBe('paid');
+  });
+
+  it('invalidates only the affected buyer after order creation and payment status changes', async () => {
+    const carts = new CartService(new InMemoryCartStore());
+    const cart = await carts.addItem({ cartId: 'cart-live-orders', productId: 'p-2', title: 'Headphones', priceCents: 19999 });
+    const invalidations = new SyncInvalidationService();
+    const published: SyncInvalidation[] = [];
+    const subscription = invalidations.events().subscribe((event) => published.push(event));
+    const checkout = new CheckoutService(provider(), new InMemoryOrderStore(), carts, shipping(), invalidations);
+
+    const session = await checkout.createSession(input(cart.id, { buyerId: 'buyer-live', eventId: 'event-live' }));
+    await checkout.confirmPayment({ orderId: session.order.id, sourceId: 'cnon:card-nonce-ok' });
+    subscription.unsubscribe();
+
+    expect(published.filter(({ name }) => name === 'orders.byBuyer').map(({ args }) => args)).toEqual([
+      { buyerId: 'buyer-live' },
+      { buyerId: 'buyer-live' },
+    ]);
   });
 
   it('refreshes the same pending order when the buyer changes address or selected quote', async () => {

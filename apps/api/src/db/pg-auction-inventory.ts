@@ -24,6 +24,7 @@ export class PgAuctionInventory implements AuctionInventory {
   constructor(private readonly pool: Pool) {}
 
   async get(productId: string): Promise<AuctionInventorySnapshot | undefined> {
+    await this.pool.query('SELECT expire_inventory_reservations()');
     const result = await this.pool.query<VariantRow>(
       'SELECT id AS "productId", qty, reserved_qty AS "reservedQty", "availableQty" FROM storefront_product WHERE id = $1',
       [productId],
@@ -50,10 +51,11 @@ export class PgAuctionInventory implements AuctionInventory {
     return result.rows[0];
   }
 
-  async reserve(productId: string, quantity: number, source: InventoryHoldSource): Promise<boolean> {
+  async reserve(productId: string, quantity: number, source: InventoryHoldSource, expiresAt?: string): Promise<boolean> {
     if (!Number.isInteger(quantity) || quantity <= 0) throw new BadRequestException('quantity must be a positive integer');
     try {
-      await this.pool.query('SELECT reserve_inventory($1, $2, $3, $4)', [productId, source.kind, source.id, quantity]);
+      await this.pool.query('SELECT expire_inventory_reservations()');
+      await this.pool.query('SELECT reserve_inventory($1, $2, $3, $4, $5)', [productId, source.kind, source.id, quantity, expiresAt ?? null]);
       return true;
     } catch (error) {
       // reserve_inventory raises for a missing variant or insufficient stock;
@@ -69,5 +71,13 @@ export class PgAuctionInventory implements AuctionInventory {
       [source.kind, source.id, productId],
     );
     return result.rows[0]?.released ?? false;
+  }
+
+  async commit(productId: string, source: InventoryHoldSource): Promise<boolean> {
+    const result = await this.pool.query<{ committed: boolean }>(
+      'SELECT commit_inventory($1, $2, $3) AS committed',
+      [source.kind, source.id, productId],
+    );
+    return result.rows[0]?.committed ?? false;
   }
 }

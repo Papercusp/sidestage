@@ -477,6 +477,30 @@ BEGIN
 END;
 $$;
 
+-- Checkout converts an active cart hold into sold inventory. The expiry is
+-- cleared so the periodic/lazy expiry sweep can never return paid stock.
+CREATE OR REPLACE FUNCTION commit_inventory(
+  p_source_kind text,
+  p_source_id text,
+  p_variant_id text
+)
+RETURNS boolean
+LANGUAGE plpgsql
+AS $$
+DECLARE
+  v_updated integer;
+BEGIN
+  UPDATE inventory_reservation
+  SET state = 'committed', expires_at = NULL
+  WHERE source_kind = p_source_kind
+    AND source_id = p_source_id
+    AND variant_id = p_variant_id
+    AND state = 'held';
+  GET DIAGNOSTICS v_updated = ROW_COUNT;
+  RETURN v_updated > 0;
+END;
+$$;
+
 CREATE OR REPLACE FUNCTION expire_inventory_reservations()
 RETURNS integer
 LANGUAGE plpgsql

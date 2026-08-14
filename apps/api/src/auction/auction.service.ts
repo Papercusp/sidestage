@@ -30,16 +30,24 @@ export interface InventoryHoldSource {
 export interface AuctionInventory {
   get(productId: string): Promise<AuctionInventorySnapshot | undefined>;
   seed(productId: string, qty: number, reservedQty?: number): Promise<AuctionInventorySnapshot>;
-  reserve(productId: string, quantity: number, source: InventoryHoldSource): Promise<boolean>;
+  reserve(productId: string, quantity: number, source: InventoryHoldSource, expiresAt?: string): Promise<boolean>;
   release(productId: string, quantity: number, source: InventoryHoldSource): Promise<boolean>;
+  commit(productId: string, source: InventoryHoldSource): Promise<boolean>;
+}
+
+interface InMemoryInventoryHold {
+  quantity: number;
+  expiresAt?: string;
+  committed: boolean;
 }
 
 @Injectable()
 export class InMemoryAuctionInventory implements AuctionInventory {
   private readonly items = new Map<string, AuctionInventorySnapshot>();
-  private readonly holds = new Map<string, number>();
+  private readonly holds = new Map<string, InMemoryInventoryHold>();
 
   async get(productId: string): Promise<AuctionInventorySnapshot | undefined> {
+    this.expireHolds(productId);
     const item = this.items.get(productId);
     return item ? { ...item } : undefined;
   }
@@ -55,30 +63,57 @@ export class InMemoryAuctionInventory implements AuctionInventory {
     return { ...item };
   }
 
-  async reserve(productId: string, quantity: number, source: InventoryHoldSource): Promise<boolean> {
+  async reserve(productId: string, quantity: number, source: InventoryHoldSource, expiresAt?: string): Promise<boolean> {
     if (!Number.isInteger(quantity) || quantity <= 0) throw new BadRequestException('quantity must be a positive integer');
+    this.expireHolds(productId);
     const item = this.items.get(productId);
     if (!item) return false;
     const holdKey = this.holdKey(productId, source);
-    const previous = this.holds.get(holdKey) ?? 0;
+    const previousHold = this.holds.get(holdKey);
+    if (previousHold?.committed) return true;
+    const previous = previousHold?.quantity ?? 0;
     // Idempotent per source, like reserve_inventory(): re-reserving replaces the hold.
     if (item.availableQty + previous < quantity) return false;
     item.reservedQty += quantity - previous;
     item.availableQty = Math.max(0, item.qty - item.reservedQty);
-    this.holds.set(holdKey, quantity);
+    this.holds.set(holdKey, { quantity, expiresAt, committed: false });
     return true;
   }
 
   async release(productId: string, quantity: number, source: InventoryHoldSource): Promise<boolean> {
     if (!Number.isInteger(quantity) || quantity <= 0) throw new BadRequestException('quantity must be a positive integer');
+    this.expireHolds(productId);
     const item = this.items.get(productId);
     const holdKey = this.holdKey(productId, source);
-    const held = this.holds.get(holdKey) ?? 0;
-    if (!item || held === 0) return false;
-    item.reservedQty = Math.max(0, item.reservedQty - held);
+    const hold = this.holds.get(holdKey);
+    if (!item || !hold) return false;
+    item.reservedQty = Math.max(0, item.reservedQty - hold.quantity);
     item.availableQty = Math.max(0, item.qty - item.reservedQty);
     this.holds.delete(holdKey);
     return true;
+  }
+
+  async commit(productId: string, source: InventoryHoldSource): Promise<boolean> {
+    const hold = this.holds.get(this.holdKey(productId, source));
+    if (!hold) return false;
+    hold.committed = true;
+    hold.expiresAt = undefined;
+    return true;
+  }
+
+  private expireHolds(productId: string): void {
+    const now = Date.now();
+    for (const [key, hold] of this.holds) {
+      if (!key.endsWith(`:${productId}`) || hold.committed || !hold.expiresAt) continue;
+      const expiresAt = Date.parse(hold.expiresAt);
+      if (!Number.isFinite(expiresAt) || expiresAt > now) continue;
+      const item = this.items.get(productId);
+      if (item) {
+        item.reservedQty = Math.max(0, item.reservedQty - hold.quantity);
+        item.availableQty = Math.max(0, item.qty - item.reservedQty);
+      }
+      this.holds.delete(key);
+    }
   }
 
   private holdKey(productId: string, source: InventoryHoldSource): string {
@@ -361,6 +396,7 @@ export class AuctionService {
     };
     // The winner order owns the reservation and can later hand it to checkout.
     this.emitAuctionUpdate(auction);
+    this.syncInvalidations?.invalidate('orders.byBuyer', { buyerId: winner.bidderId });
   }
 
   private emitAuctionUpdate(auction: Auction, inventoryChanged = false): void {

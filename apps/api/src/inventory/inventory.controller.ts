@@ -15,6 +15,7 @@ import {
   type InventoryHoldSource,
 } from '../auction/auction.service';
 import { SyncInvalidationService } from '../sync/sync-invalidation.service';
+import { buyerHoldExpiresAt } from './hold-policy';
 
 interface HoldBody {
   quantity?: number;
@@ -51,11 +52,12 @@ export class InventoryController {
     const quantity = body.quantity ?? 1;
     if (!Number.isInteger(quantity) || quantity <= 0) throw new BadRequestException('quantity must be a positive integer');
     const source = readSource(body);
-    const held = await this.inventory.reserve(productId, quantity, source);
+    const expiresAt = source.kind === 'cart' ? buyerHoldExpiresAt() : undefined;
+    const held = await this.inventory.reserve(productId, quantity, source, expiresAt);
     if (!held) throw new ConflictException(`Insufficient available quantity for ${productId}`);
     const snapshot = await this.inventory.get(productId);
     this.publishInventoryChange(productId);
-    return { held: true, quantity, source, snapshot };
+    return { held: true, quantity, source, expiresAt, snapshot };
   }
 
   @Post(':productId/release')
