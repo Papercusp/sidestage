@@ -171,15 +171,18 @@
   bottom: auto;
 }
 
+.seller-stream-preview {
+  container-type: inline-size;
+}
+
 @media (max-width: 760px) {
   .live-transcript-overlay { right: .45rem; bottom: .45rem; left: .45rem; }
   .live-transcript-active { display: none; }
   .live-transcript-toolbar { gap: .35rem; }
-  .seller-stream-preview > .stream-video-overlay { max-width: 58%; }
 }
 
-@media (max-width: 560px) {
-  /* The mobile camera surface is also the seller's compact live console. Give
+@container (max-width: 32rem) {
+  /* A narrow camera surface is also the seller's compact live console. Give
      its status, audience chat, and captions distinct vertical bands instead of
      stacking all three absolute overlays into the legacy 220px video height. */
   .seller-stream-preview > .stream-video {
