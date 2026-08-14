@@ -63,6 +63,10 @@ describe('GuardedActionService', () => {
       { eventId: 'event-1' },
       { eventId: 'event-1' },
     ]);
+    expect(published.filter(({ name }) => name === 'event.pricingHistory').map(({ args }) => args)).toEqual([
+      { eventId: 'event-1', productId: 'mug' },
+      { eventId: 'event-1', productId: 'mug' },
+    ]);
   });
 
   it('applies a markdown, records before/after state, and rolls it back', async () => {
