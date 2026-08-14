@@ -24,8 +24,9 @@ export function memoryScopes(buyerId?: string | null): {
 /**
  * Split text into lowercase word tokens for lexical matching.
  *
- * Deliberately shared by the scorer and its tests so "why did this not match"
- * is answerable without reading the regex twice.
+ * Deliberately shared by catalog retrieval, memory retrieval, the scorer, and
+ * their tests so "why did this not match" is answerable without parallel
+ * tokenizers drifting apart.
  */
 export function memoryTokens(text: string): string[] {
   return text.toLowerCase().match(/[a-z0-9]+/g) ?? [];
