@@ -52,8 +52,20 @@ services:
       # it does not resolve DNS names. A hostname here makes Firefox discard
       # the candidate and leaves only Docker-private addresses in the answer.
       MTX_WEBRTCADDITIONALHOSTS: ${MEDIAMTX_PUBLIC_IP:?set to the server public IPv4 in .env.production}
+      # Keep direct UDP as the low-latency path, but give browsers on networks
+      # that block arbitrary UDP/high ports an authenticated TURN fallback.
+      # Traefik terminates TURNS on the existing media hostname/443 and sends
+      # the decrypted TURN/TCP stream to the `turn` service below.
+      MTX_WEBRTCICESERVERS2_0_URL: turns:media.${PUBLIC_HOSTNAME:-sidestage.buyrestart.com}:443?transport=tcp
+      MTX_WEBRTCICESERVERS2_0_USERNAME: AUTH_SECRET
+      MTX_WEBRTCICESERVERS2_0_PASSWORD: ${TURN_AUTH_SECRET:?set in .env.production}
+      # MediaMTX is on the same host as coturn and can reach its relay ports
+      # locally. Only browsers need to allocate through TURN.
+      MTX_WEBRTCICESERVERS2_0_CLIENTONLY: "yes"
     ports:
       - "8189:8189/udp"   # WebRTC ICE
+    depends_on:
+      - turn
     networks:
       - default
       - coolify
@@ -64,6 +76,44 @@ services:
       - traefik.http.routers.sidestage-media.entrypoints=https
       - traefik.http.routers.sidestage-media.tls.certresolver=letsencrypt
       - traefik.http.services.sidestage-media.loadbalancer.server.port=8889
+
+  turn:
+    image: coturn/coturn:4.15.0-r0
+    restart: unless-stopped
+    command:
+      - --listening-port=3478
+      - --no-udp
+      - --no-tls
+      - --no-dtls
+      - --fingerprint
+      - --use-auth-secret
+      - --static-auth-secret=${TURN_AUTH_SECRET:?set in .env.production}
+      - --realm=media.${PUBLIC_HOSTNAME:-sidestage.buyrestart.com}
+      - --external-ip=${MEDIAMTX_PUBLIC_IP:?set to the server public IPv4 in .env.production}
+      - --min-port=49160
+      - --max-port=49200
+      - --no-multicast-peers
+      - --stale-nonce=600
+      - --log-file=stdout
+    # Relay allocations stay authenticated. Publishing the bounded range lets
+    # MediaMTX reach browser relay candidates through the host's Docker NAT;
+    # the provider firewall can continue blocking these ports from the public
+    # internet because browsers use the TURNS/TCP control connection on 443.
+    ports:
+      - "49160-49200:49160-49200/udp"
+    networks:
+      - default
+      - coolify
+    labels:
+      - traefik.enable=true
+      - traefik.docker.network=coolify
+      # HTTPS advertises h2/http1 ALPN. TURN/TLS advertises neither, so this
+      # TCP router can share media.<host>:443 without stealing WHIP/WHEP HTTP.
+      - "traefik.tcp.routers.sidestage-turn.rule=HostSNI(`media.${PUBLIC_HOSTNAME:-sidestage.buyrestart.com}`) && !ALPN(`h2`) && !ALPN(`http/1.1`)"
+      - traefik.tcp.routers.sidestage-turn.entrypoints=https
+      - traefik.tcp.routers.sidestage-turn.tls=true
+      - traefik.tcp.routers.sidestage-turn.tls.certresolver=letsencrypt
+      - traefik.tcp.services.sidestage-turn.loadbalancer.server.port=3478
 
   api:
     # Tagged per-sha so a previous release stays recoverable after a rebuild
@@ -102,6 +152,8 @@ services:
       SQUARE_ACCESS_TOKEN: ${SQUARE_ACCESS_TOKEN:?set in .env.production}
       SQUARE_WEBHOOK_SIGNATURE_KEY: ${SQUARE_WEBHOOK_SIGNATURE_KEY:-}
       SQUARE_WEBHOOK_NOTIFICATION_URL: ${SQUARE_WEBHOOK_NOTIFICATION_URL:-}
+      SIDESTAGE_AUCTION_SELLER_TOKEN: ${SIDESTAGE_AUCTION_SELLER_TOKEN:?set in .env.production}
+      SIDESTAGE_AUCTION_SIGNING_SECRET: ${SIDESTAGE_AUCTION_SIGNING_SECRET:?set in .env.production}
     depends_on:
       postgres:
         condition: service_healthy

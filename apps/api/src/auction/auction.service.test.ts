@@ -79,6 +79,40 @@ describe('AuctionService', () => {
     });
   });
 
+  it('replays one guest idempotency key without duplicating the bid and rejects changed reuse', async () => {
+    const inventory = new InMemoryAuctionInventory();
+    await inventory.seed('product-1', 4);
+    const auctions = new AuctionService(inventory);
+    const started = await auctions.startAuction({
+      eventId: 'event-1',
+      eventItemId: 'item-1',
+      productId: 'product-1',
+      quantity: 1,
+      startingPriceCents: 1_000,
+    });
+    const bid = {
+      bidderId: 'guest_verified',
+      displayName: 'Ava',
+      amountCents: 1_200,
+      idempotencyKey: 'bid:req-1234',
+    };
+
+    await auctions.placeBid(started.id, bid);
+    await expect(auctions.placeBid(started.id, bid)).resolves.toMatchObject({
+      currentPriceCents: 1_200,
+      bids: [expect.objectContaining(bid)],
+    });
+    await expect(auctions.placeBid(started.id, { ...bid, amountCents: 1_300 })).rejects.toThrow(
+      /Idempotency key was already used for a different bid/,
+    );
+    await expect(auctions.placeBid(started.id, {
+      ...bid,
+      bidderId: 'guest_other',
+      amountCents: 1_300,
+    })).resolves.toMatchObject({ currentPriceCents: 1_300, bids: expect.any(Array) });
+    await expect(auctions.getAuction(started.id)).resolves.toMatchObject({ bids: [{ amountCents: 1_300 }, { amountCents: 1_200 }] });
+  });
+
   it('serves the closed auction to the buyer panel query, so the winner sees the result', async () => {
     // The regression this locks down is END-TO-END through the query the panel
     // actually reads. The panel's SOLD branch had passing prop-driven tests the

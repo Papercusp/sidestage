@@ -88,6 +88,32 @@ describe('PgAuctionStore transactional aggregate authority', () => {
     expect(harness.query.mock.calls.some(([sql]) => sql.includes('UPDATE auction_state'))).toBe(false);
   });
 
+  it('replays a persisted guest idempotency key under the aggregate row lock without another write', async () => {
+    const existingBid: AuctionBid = {
+      id: 'bid-original',
+      bidderId: 'guest_verified',
+      displayName: 'Ava',
+      amountCents: 1_400,
+      idempotencyKey: 'bid:req-1234',
+      createdAt: '2026-08-14T18:00:30.000Z',
+    };
+    const harness = transactionalPool((sql) => {
+      if (sql.includes('FROM auction_state') && sql.includes('FOR UPDATE')) {
+        return { rows: [{ payload: activeAuction({ currentPriceCents: 1_400, bids: [existingBid] }) }] };
+      }
+      return { rows: [] };
+    });
+    const store = new PgAuctionStore(harness.pool);
+
+    await expect(store.placeBid('auction-1', { ...existingBid, id: 'bid-retry' })).resolves.toMatchObject({
+      accepted: true,
+      changed: false,
+      auction: { bids: [{ id: 'bid-original', idempotencyKey: 'bid:req-1234' }] },
+    });
+    expect(harness.query.mock.calls.some(([sql]) => sql.includes('UPDATE auction_state'))).toBe(false);
+    expect(harness.query.mock.calls.map(([sql]) => sql.trim()).at(-1)).toBe('COMMIT');
+  });
+
   it('settles an expired auction transactionally before refusing a late bid', async () => {
     const expired = activeAuction({ endsAt: '2020-08-14T18:01:00.000Z' });
     const harness = transactionalPool((sql) => {

@@ -3,7 +3,16 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { SyncContext } from '@papercusp/sync';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { activeAuctionFromSyncRows, auctionPhase, AuctionPanel } from './AuctionPanel';
-import { activeAuctionUrl, auctionStreamUrl, parseAuctionEvent, parseBidDollars, secondsRemaining, suggestedBidCents, type BuyerAuction } from './auction';
+import {
+  activeAuctionUrl,
+  auctionStreamUrl,
+  parseAuctionEvent,
+  parseBidDollars,
+  placeAuctionBid,
+  secondsRemaining,
+  suggestedBidCents,
+  type BuyerAuction,
+} from './auction';
 
 const ACTIVE_AUCTION: BuyerAuction = {
   id: 'auction-1', eventId: 'sunday-drop', eventItemId: 'item-1', productId: 'stoneware-mug-matte-12oz', quantity: 1,
@@ -27,6 +36,38 @@ describe('buyer auction model', () => {
     expect(parseAuctionEvent(JSON.stringify({ name: 'event.auction.active', args: { eventId: 'sunday-drop' }, auction: ACTIVE_AUCTION, tsMs: 1 }))).toMatchObject({ id: 'auction-1', currentPriceCents: 2_400 });
     expect(parseAuctionEvent('{bad-json')).toBeUndefined();
     expect(secondsRemaining('2026-08-13T12:00:05.000Z',Date.parse('2026-08-13T12:00:00.100Z'))).toBe(5);
+  });
+
+  it('establishes a credentialed guest session and never sends client-authored bidder identity', async () => {
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ bidderId: 'guest_verified', expiresAt: '2099-01-01T00:00:00.000Z' }),
+      })
+      .mockResolvedValueOnce({ ok: true, json: async () => ACTIVE_AUCTION });
+    vi.stubGlobal('fetch', fetchMock);
+
+    await placeAuctionBid('auction /1', {
+      bidderId: 'guest_forged',
+      displayName: 'Ava',
+      amountCents: 2_500,
+      idempotencyKey: 'bid:req-1234',
+    }, 'https://sidestage.example/');
+
+    expect(fetchMock).toHaveBeenNthCalledWith(1, 'https://sidestage.example/auctions/access/guest', expect.objectContaining({
+      method: 'POST',
+      credentials: 'include',
+    }));
+    expect(fetchMock).toHaveBeenNthCalledWith(2, 'https://sidestage.example/auctions/auction%20%2F1/bids', expect.objectContaining({
+      method: 'POST',
+      credentials: 'include',
+      headers: {
+        'content-type': 'application/json',
+        'idempotency-key': 'bid:req-1234',
+      },
+      body: JSON.stringify({ displayName: 'Ava', amountCents: 2_500 }),
+    }));
+    expect(fetchMock.mock.calls[1]?.[1]?.body).not.toContain('guest_forged');
   });
 });
 
