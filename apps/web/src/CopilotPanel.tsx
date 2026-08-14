@@ -24,6 +24,7 @@ interface ScoutResponse {
   products: ProductCard[];
   cart: Cart;
   cartId: string;
+  latencyMs: number;
 }
 
 interface CheckoutResponse {
@@ -37,6 +38,21 @@ export interface CopilotPanelProps {
 }
 
 export type CopilotReplyReviewStatus = 'idle' | 'pending' | 'approved' | 'skipped';
+
+export const PRODUCT_RESEARCH_LATENCY_BUDGET_MS = 2_000;
+
+export function ProductResearchLatency({ latencyMs }: { latencyMs: number | null }) {
+  if (latencyMs === null) return null;
+  const withinBudget = latencyMs < PRODUCT_RESEARCH_LATENCY_BUDGET_MS;
+  return (
+    <p className="copilot-latency" role="status" aria-live="polite">
+      <span>Product research</span>
+      <strong className={withinBudget ? 'status-success' : 'status-warning'}>
+        {latencyMs}ms · {withinBudget ? 'within' : 'over'} the sub-2s budget
+      </strong>
+    </p>
+  );
+}
 
 export interface SellerReplyRequest {
   path: string;
@@ -130,6 +146,7 @@ export function CopilotPanel({ apiBaseUrl, eventId = browserEventId() }: Copilot
   const [products, setProducts] = useState<ProductCard[]>([]);
   const [cart, setCart] = useState<Cart>();
   const [checkout, setCheckout] = useState<CheckoutResponse>();
+  const [researchLatencyMs, setResearchLatencyMs] = useState<number | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string>();
 
@@ -155,6 +172,7 @@ export function CopilotPanel({ apiBaseUrl, eventId = browserEventId() }: Copilot
       setProducts(result.products);
       setReply(result.reply);
       setReplyDraft(result.reply);
+      setResearchLatencyMs(result.latencyMs);
       setReplyReviewStatus('pending');
       setEditingReply(false);
       setMessage('');
@@ -245,6 +263,7 @@ export function CopilotPanel({ apiBaseUrl, eventId = browserEventId() }: Copilot
           <button className="button primary" type="submit" disabled={busy || !message.trim()}>{busy ? 'Working…' : 'Ask'}</button>
         </div>
       </form>
+      <ProductResearchLatency latencyMs={researchLatencyMs} />
       {error ? <p className="copilot-error" role="alert">{error}</p> : null}
       {products.length > 0 ? (
         <div className="copilot-products" aria-label="Verified products">

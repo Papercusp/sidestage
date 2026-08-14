@@ -1,6 +1,6 @@
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
-import { CopilotReplyReview, sellerReplyRequest } from './CopilotPanel';
+import { CopilotReplyReview, ProductResearchLatency, sellerReplyRequest } from './CopilotPanel';
 
 describe('seller copilot reply review', () => {
   it('builds an approved reply as a real seller chat mutation', () => {
@@ -31,5 +31,15 @@ describe('seller copilot reply review', () => {
     expect(markup).toContain('Approve');
     expect(markup).toContain('Edit');
     expect(markup).toContain('Skip');
+  });
+
+  it('shows product-research latency against the sub-2s release budget', () => {
+    const withinBudget = renderToStaticMarkup(<ProductResearchLatency latencyMs={184} />);
+    const overBudget = renderToStaticMarkup(<ProductResearchLatency latencyMs={2_050} />);
+
+    expect(withinBudget).toContain('184ms · within the sub-2s budget');
+    expect(withinBudget).toContain('status-success');
+    expect(overBudget).toContain('2050ms · over the sub-2s budget');
+    expect(overBudget).toContain('status-warning');
   });
 });
