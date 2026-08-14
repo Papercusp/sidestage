@@ -1,15 +1,18 @@
-import { useEffect, useState } from 'react';
-import { EventSettingsPanel } from '../ConfigTab';
+import { useCallback, useEffect, useState } from 'react';
+import { useSyncMutate, useSyncQuery } from '@papercusp/sync';
+import { EventSettingsPanel, type EventConfigView } from '../ConfigTab';
 import EventCreationPanel from '../event-creation/EventCreationPanel';
 import type { EventCreationPayload } from '../event-creation/catalog';
 import {
   addItemsToSellerEvent,
   adjustSellerEventStock,
   executeSellerAction,
-  fetchSellerEvent,
   setupSellerEvent,
   startSellerAuction,
+  type SellerActionResult,
+  type SellerAuction,
   type SellerEventItem,
+  type SellerEventSetup,
 } from './api';
 import EventLineupGrid from './EventLineupGrid';
 import './event-manager.css';
@@ -27,6 +30,25 @@ function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : 'The seller event request failed.';
 }
 
+type AddItemsMutation = { eventId: string; payload: EventCreationPayload };
+type ExecuteActionMutation = {
+  eventId: string;
+  actorId: string;
+  action: Parameters<typeof executeSellerAction>[2];
+};
+type AdjustStockMutation = {
+  eventId: string;
+  actorId: string;
+  item: SellerEventItem;
+  quantity: number;
+};
+type StartAuctionMutation = {
+  eventId: string;
+  item: SellerEventItem;
+  quantity: number;
+  startingPriceCents: number;
+};
+
 export function EventManager({
   eventId,
   actorId,
@@ -35,51 +57,74 @@ export function EventManager({
   initialItems,
   onEventReady,
 }: EventManagerProps) {
-  const [name, setName] = useState(eventName);
-  const [items, setItems] = useState<SellerEventItem[]>(() => [...(initialItems ?? [])]);
-  const [loaded, setLoaded] = useState(initialItems !== undefined);
   const [pickerOpen, setPickerOpen] = useState((initialItems?.length ?? 0) === 0);
   const [busyProductId, setBusyProductId] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
 
-  const refresh = async (id = eventId) => {
-    const setup = await fetchSellerEvent(id, apiBaseUrl);
-    setName(setup.name);
-    setItems(setup.items);
-    setLoaded(true);
-    setPickerOpen(setup.items.length === 0);
-    return setup;
-  };
+  const configQuery = useSyncQuery<EventConfigView>({
+    queryName: 'event.config',
+    args: { eventId },
+    enabled: initialItems === undefined,
+    pollIntervalMs: 30_000,
+  });
+  const itemsQuery = useSyncQuery<SellerEventItem>({
+    queryName: 'event.actions.items',
+    args: { eventId },
+    enabled: initialItems === undefined,
+    pollIntervalMs: 10_000,
+  });
+  const name = configQuery.data?.[0]?.name ?? eventName;
+  const items = initialItems ?? itemsQuery.data ?? [];
+  const loaded = initialItems !== undefined || (!configQuery.loading && !itemsQuery.loading);
+  const readError = initialItems === undefined ? configQuery.error ?? itemsQuery.error : null;
+
+  const setupFallback = useCallback(
+    async (payload: EventCreationPayload) => setupSellerEvent(payload, apiBaseUrl),
+    [apiBaseUrl],
+  );
+  const mutateSetup = useSyncMutate<EventCreationPayload, SellerEventSetup>('event.setup', setupFallback);
+
+  const addItemsFallback = useCallback(
+    async ({ eventId: resolvedEventId, payload }: AddItemsMutation) => (
+      addItemsToSellerEvent(resolvedEventId, payload, apiBaseUrl)
+    ),
+    [apiBaseUrl],
+  );
+  const mutateAddItems = useSyncMutate<AddItemsMutation, SellerEventSetup>('event.addItems', addItemsFallback);
+
+  const actionFallback = useCallback(
+    async ({ eventId: resolvedEventId, actorId: resolvedActorId, action }: ExecuteActionMutation) => (
+      executeSellerAction(resolvedEventId, resolvedActorId, action, apiBaseUrl)
+    ),
+    [apiBaseUrl],
+  );
+  const mutateAction = useSyncMutate<ExecuteActionMutation, SellerActionResult>('event.executeAction', actionFallback);
+
+  const stockFallback = useCallback(
+    async ({ eventId: resolvedEventId, actorId: resolvedActorId, item, quantity }: AdjustStockMutation) => (
+      adjustSellerEventStock(resolvedEventId, resolvedActorId, item, quantity, apiBaseUrl)
+    ),
+    [apiBaseUrl],
+  );
+  const mutateStock = useSyncMutate<AdjustStockMutation, SellerActionResult>('event.adjustStock', stockFallback);
+
+  const auctionFallback = useCallback(
+    async ({ eventId: resolvedEventId, item, quantity, startingPriceCents }: StartAuctionMutation) => (
+      startSellerAuction(resolvedEventId, item, quantity, startingPriceCents, apiBaseUrl)
+    ),
+    [apiBaseUrl],
+  );
+  const mutateStartAuction = useSyncMutate<StartAuctionMutation, SellerAuction>('auction.start', auctionFallback);
 
   useEffect(() => {
-    if (initialItems !== undefined) return;
-    let cancelled = false;
-    setLoaded(false);
-    void fetchSellerEvent(eventId, apiBaseUrl)
-      .then((setup) => {
-        if (cancelled) return;
-        setName(setup.name);
-        setItems(setup.items);
-        setPickerOpen(setup.items.length === 0);
-        setLoaded(true);
-      })
-      .catch((error) => {
-        if (cancelled) return;
-        setItems([]);
-        setPickerOpen(true);
-        setMessage(errorMessage(error));
-        setLoaded(true);
-      });
-    return () => { cancelled = true; };
-  }, [apiBaseUrl, eventId, initialItems]);
+    if (loaded) setPickerOpen(items.length === 0);
+  }, [eventId, items.length, loaded]);
 
   const submitPicker = async (payload: EventCreationPayload) => {
     setMessage(null);
     const result = items.length
-      ? await addItemsToSellerEvent(eventId, payload, apiBaseUrl)
-      : await setupSellerEvent(payload, apiBaseUrl);
-    setName(result.name);
-    setItems(result.items);
+      ? await mutateAddItems({ eventId, payload })
+      : await mutateSetup(payload);
     setPickerOpen(false);
     setMessage(items.length ? 'Catalog items reserved and added to the live event.' : 'Event created and inventory reserved.');
     onEventReady?.(result.eventId, result.name);
@@ -94,7 +139,6 @@ export function EventManager({
     setMessage(null);
     try {
       await task();
-      await refresh();
       setMessage(success);
     } catch (error) {
       setMessage(errorMessage(error));
@@ -116,6 +160,7 @@ export function EventManager({
       </div>
 
       {!loaded ? <p className="event-manager-message" role="status">Loading verified event state…</p> : null}
+      {readError ? <p className="event-manager-message" role="status">{errorMessage(readError)}</p> : null}
 
       {loaded && pickerOpen ? (
         <EventCreationPanel
@@ -153,53 +198,69 @@ export function EventManager({
             busyProductId={busyProductId}
             onPush={(item) => void runAction(
               item.productId,
-              () => executeSellerAction(eventId, actorId, {
-                kind: 'push',
-                productId: item.productId,
-                reason: 'Seller pushed this verified item to the live stage',
-              }, apiBaseUrl),
+              () => mutateAction({
+                eventId,
+                actorId,
+                action: {
+                  kind: 'push',
+                  productId: item.productId,
+                  reason: 'Seller pushed this verified item to the live stage',
+                },
+              }),
               `${item.title} is now on stage.`,
             )}
             onSwap={(current, target) => void runAction(
               target.productId,
-              () => executeSellerAction(eventId, actorId, {
-                kind: 'swap',
-                productId: current.productId,
-                swapToProductId: target.productId,
-                reason: 'Seller swapped the next verified item onto the live stage',
-              }, apiBaseUrl),
+              () => mutateAction({
+                eventId,
+                actorId,
+                action: {
+                  kind: 'swap',
+                  productId: current.productId,
+                  swapToProductId: target.productId,
+                  reason: 'Seller swapped the next verified item onto the live stage',
+                },
+              }),
               `${target.title} replaced ${current.title} on stage.`,
             )}
             onMarkdown={(item, percent) => void runAction(
               item.productId,
-              () => executeSellerAction(eventId, actorId, {
-                kind: 'markdown',
-                productId: item.productId,
-                priceCents: Math.max(1, Math.round(item.priceCents * (1 - percent / 100))),
-                reason: `Seller applied a ${percent}% live-event markdown`,
-              }, apiBaseUrl),
+              () => mutateAction({
+                eventId,
+                actorId,
+                action: {
+                  kind: 'markdown',
+                  productId: item.productId,
+                  priceCents: Math.max(1, Math.round(item.priceCents * (1 - percent / 100))),
+                  reason: `Seller applied a ${percent}% live-event markdown`,
+                },
+              }),
               `${item.title} markdown passed the event guardrail.`,
             )}
             onStockAdjust={(item, quantity) => void runAction(
               item.productId,
-              () => adjustSellerEventStock(eventId, actorId, item, quantity, apiBaseUrl),
+              () => mutateStock({ eventId, actorId, item, quantity }),
               `${item.title} inventory reservation is now ${quantity}.`,
             )}
             onStartAuction={(item, quantity, startingPriceCents) => void runAction(
               item.productId,
-              () => startSellerAuction(eventId, item, quantity, startingPriceCents, apiBaseUrl),
+              () => mutateStartAuction({ eventId, item, quantity, startingPriceCents }),
               `${quantity} × ${item.title} auction started.`,
             )}
             onSendOffer={(item, buyerId, quantity, priceCents) => void runAction(
               item.productId,
-              () => executeSellerAction(eventId, actorId, {
-                kind: 'targeted-offer',
-                productId: item.productId,
-                buyerId,
-                quantity,
-                priceCents,
-                reason: `Seller sent ${buyerId} a quantity-aware targeted offer`,
-              }, apiBaseUrl),
+              () => mutateAction({
+                eventId,
+                actorId,
+                action: {
+                  kind: 'targeted-offer',
+                  productId: item.productId,
+                  buyerId,
+                  quantity,
+                  priceCents,
+                  reason: `Seller sent ${buyerId} a quantity-aware targeted offer`,
+                },
+              }),
               `${quantity} × ${item.title} offered to ${buyerId}.`,
             )}
           />

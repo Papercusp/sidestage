@@ -1,7 +1,9 @@
 import { renderToStaticMarkup } from 'react-dom/server';
-import { describe, expect, it } from 'vitest';
+import { SyncContext } from '@papercusp/sync';
+import { describe, expect, it, vi } from 'vitest';
 import {
   ConfigEditor,
+  EventSettingsPanel,
   configReadiness,
   countConfigChanges,
   eventConfigUpdate,
@@ -28,12 +30,34 @@ describe('ConfigTab sync mapping', () => {
     });
   });
 
-  it('keeps the existing safe offline defaults when the sync transport is unavailable', () => {
+  it('keeps safe fallback defaults for an explicit development demo', () => {
     expect(offlineEventConfig('event-offline')).toMatchObject({
       eventId: 'event-offline',
       replyTone: 'warm',
       guardrails: { priceChanges: true, inventoryClaims: true, buyerSensitive: true },
     });
+  });
+
+  it('alerts and withholds fabricated settings when the production source is unavailable', () => {
+    const useDataImpl = vi.fn(() => ({
+      data: [],
+      loading: false,
+      fetching: false,
+      transport: 'SSE',
+      invalidate: vi.fn(),
+      error: new Error('settings unavailable'),
+    }));
+
+    const html = renderToStaticMarkup(
+      <SyncContext.Provider value={{ transport: 'SSE', useDataImpl, prefetch: vi.fn() } as never}>
+        <EventSettingsPanel eventId="event-offline" allowDemoData={false} />
+      </SyncContext.Provider>,
+    );
+
+    expect(html).toContain('role="alert"');
+    expect(html).toContain('Event settings unavailable');
+    expect(html).toContain('No fallback configuration is shown');
+    expect(html).not.toContain('Sunday vintage drop');
   });
 
   it('counts only seller-owned persisted fields as unsaved changes', () => {

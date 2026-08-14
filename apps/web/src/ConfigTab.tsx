@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useId, useRef, useState, type FormEvent } from 'react';
 import { useSyncMutate, useSyncQuery } from '@papercusp/sync';
-import { resolveApiBaseUrl } from './catalog';
+import { catalogDemoDataEnabled, resolveApiBaseUrl } from './catalog';
 import { TabHeader } from './components/TabHeader';
 import { browserEventId } from './event-identity';
 import { EventReadinessPanel } from './EventReadinessPanel';
@@ -350,6 +350,8 @@ export interface EventSettingsPanelProps {
   eventId: string;
   apiBaseUrl?: string;
   embedded?: boolean;
+  /** Test/embed override; production builds default false via import.meta.env.DEV. */
+  allowDemoData?: boolean;
 }
 
 /**
@@ -361,6 +363,7 @@ export function EventSettingsPanel({
   eventId,
   apiBaseUrl,
   embedded = false,
+  allowDemoData = catalogDemoDataEnabled(),
 }: EventSettingsPanelProps) {
   const [config, setConfig] = useState<EventConfigView | null>(null);
   const [baseline, setBaseline] = useState<EventConfigView | null>(null);
@@ -396,6 +399,11 @@ export function EventSettingsPanel({
     }
     if (configQuery.error) {
       setSaveState('offline');
+      if (!allowDemoData) {
+        setConfig(null);
+        setBaseline(null);
+        return;
+      }
       setConfig((current) => {
         if (current) return current;
         const fallback = offlineEventConfig(eventId);
@@ -403,7 +411,7 @@ export function EventSettingsPanel({
         return fallback;
       });
     }
-  }, [configQuery.data, configQuery.error, eventId]);
+  }, [allowDemoData, configQuery.data, configQuery.error, eventId]);
 
   const updateConfig = (next: EventConfigView) => {
     setConfig(next);
@@ -425,6 +433,20 @@ export function EventSettingsPanel({
       setSaveState('error');
     }
   };
+
+  if (configQuery.error && !allowDemoData) {
+    return (
+      <div className={embedded ? 'event-settings-panel is-embedded' : 'tab-layout density-compact'}>
+        <div className="config-readiness-banner is-blocked" role="alert">
+          <span className="config-readiness-mark" aria-hidden="true">!</span>
+          <div>
+            <strong>Event settings unavailable</strong>
+            <p>No fallback configuration is shown because source data could not be loaded or persisted.</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   if (!config) {
     return (
