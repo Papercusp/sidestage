@@ -56,13 +56,14 @@ describe('Studio dock board seeds', () => {
     expect(placed).not.toContain('transcript');
   });
 
-  it('seeds Event Manager and run-of-show while settings live inside the selected event', () => {
+  it('seeds only Event Manager while Settings and Rehearse live inside the selected event', () => {
     const layout = sellerEventManagerDockDefaultLayout();
     const root = layout.root as AnyNode;
 
     expect(root.kind).toBe('tabs');
     expect(panelsIn(layout)).toEqual([...SELLER_MANAGER_PANEL_IDS]);
     expect(panelsIn(layout)).not.toContain('event-settings');
+    expect(panelsIn(layout)).not.toContain('run-of-show-planner');
     expect(root.activePanelId).toBe('event-manager');
   });
 
