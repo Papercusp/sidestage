@@ -7,6 +7,7 @@ import { SyncModule } from '../sync/sync.module';
 import { SyncQueryRegistry } from '../sync/sync-query.registry';
 import { rolePrincipal } from '../sync/sync-request-context';
 import { EventController } from './event.controller';
+import { EventOwnershipGuard } from './event-ownership.guard';
 import {
   EVENT_STORE,
   EventService,
@@ -55,6 +56,7 @@ export function eventStoreForPool(
   controllers: [EventController],
   providers: [
     EventService,
+    EventOwnershipGuard,
     EventSyncQueries,
     {
       provide: EVENT_STORE,
@@ -62,6 +64,6 @@ export function eventStoreForPool(
       useFactory: eventStoreForPool,
     },
   ],
-  exports: [EventService, EVENT_STORE],
+  exports: [EventService, EventOwnershipGuard, EVENT_STORE],
 })
 export class EventModule {}
