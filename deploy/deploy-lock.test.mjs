@@ -99,14 +99,23 @@ describe('SideStage production release single-flight', () => {
 
     expect(deploy).toMatch(/source "\$SCRIPT_DIR\/deploy-lock\.sh"/);
     expect(rollback).toMatch(/source "\$SCRIPT_DIR\/deploy-lock\.sh"/);
-    expect(deploy.indexOf('sidestage_acquire_release_lock')).toBeLessThan(
-      deploy.indexOf('rsync -az --delete'),
+    const deployLock = deploy.indexOf('sidestage_acquire_release_lock');
+    const deployMutation = deploy.indexOf('rsync -az --delete');
+    const rollbackLock = rollback.indexOf('sidestage_acquire_release_lock');
+    const rollbackMutation = rollback.indexOf(
+      '"${SSH[@]}" "cd $PROD_DIR && SIDESTAGE_SHA=$TARGET $COMPOSE up -d --no-build api web"',
     );
-    expect(rollback.indexOf('sidestage_acquire_release_lock')).toBeLessThan(
-      rollback.indexOf(
-        '"${SSH[@]}" "cd $PROD_DIR && SIDESTAGE_SHA=$TARGET $COMPOSE up -d --no-build api web"',
-      ),
-    );
+
+    // Prove every anchor exists before comparing its order. Without these
+    // checks, deleting the lock call makes indexOf return -1, and -1 remains
+    // "less than" the mutation index — exactly the regression this test is
+    // supposed to catch would leave it green.
+    expect(deployLock, 'deploy lock acquisition is missing').toBeGreaterThan(-1);
+    expect(deployMutation, 'deploy production mutation anchor is missing').toBeGreaterThan(-1);
+    expect(rollbackLock, 'rollback lock acquisition is missing').toBeGreaterThan(-1);
+    expect(rollbackMutation, 'rollback production mutation anchor is missing').toBeGreaterThan(-1);
+    expect(deployLock).toBeLessThan(deployMutation);
+    expect(rollbackLock).toBeLessThan(rollbackMutation);
   });
 
   it('keeps the parent deploy lock held across its automatic rollback', async () => {
