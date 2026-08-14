@@ -1,8 +1,8 @@
-import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import { useSyncMutate, useSyncQuery } from '@papercusp/sync';
 import { fetchCatalog } from './catalog';
 import { TabHeader } from './components/TabHeader';
-import { browserEventId, DEFAULT_EVENT_TITLE, mediaBaseUrl } from './event-identity';
+import { browserEventId, DEFAULT_EVENT_TITLE } from './event-identity';
 import { JUDGE_DIMENSIONS, dimensionLabel, runJudgeRehearsal, scorePercent, type JudgeReport } from './judge';
 import { simulateLoad, type LoadSimulationResult } from './load-simulator';
 import { RehearsalPanel } from './RehearsalPanel';
@@ -15,8 +15,10 @@ import {
   recordHistory,
   REHEARSAL_KINDS,
   REHEARSAL_LABELS,
+  runClientPreflight,
   runDressRehearsal,
   runRehearsal,
+  type ClientPreflightReport,
   type DressRehearsalVerdict,
   type PreflightReport,
   type RehearsalHistoryEntry,
@@ -33,7 +35,6 @@ interface PreflightCheck {
 const PREFLIGHT_PENDING: readonly PreflightCheck[] = [
   { label: 'Catalog connection', value: 'Checking…', tone: 'muted' },
   { label: 'Copilot grounding', value: 'Checking…', tone: 'muted' },
-  { label: 'Stream input', value: 'Checking…', tone: 'muted' },
   { label: 'Reply approval', value: 'Checking…', tone: 'muted' },
 ];
 
@@ -75,14 +76,7 @@ async function runPreflight(config: EventConfigRead | null, configUnavailable: b
 
   const [configCheck, approvalCheck] = configPreflightChecks(config, configUnavailable);
 
-  const hasMediaDevice = typeof navigator !== 'undefined' && Boolean(navigator.mediaDevices?.getUserMedia);
-  const streamCheck: PreflightCheck = {
-    label: 'Stream input',
-    value: mediaBaseUrl() ? (hasMediaDevice ? 'Media server configured' : 'No camera access') : 'Not configured',
-    tone: mediaBaseUrl() && hasMediaDevice ? 'success' : 'muted',
-  };
-
-  return [catalogCheck, configCheck, streamCheck, approvalCheck];
+  return [catalogCheck, configCheck, approvalCheck];
 }
 
 /** Written for the host: what this rehearsal is protecting them from. */
@@ -137,6 +131,35 @@ export function TestTab() {
   }, [eventId]);
   useEffect(() => { refreshServerPreflight(); }, [refreshServerPreflight]);
 
+  // ---- Client-side preflight (actual SSE/media/clock measurements) ------------
+  const [clientPreflight, setClientPreflight] = useState<ClientPreflightReport | null>(null);
+  const [clientPreflightError, setClientPreflightError] = useState<string | null>(null);
+  const [clientPreflightRunning, setClientPreflightRunning] = useState(false);
+  const clientProbeStarted = useRef(false);
+  const refreshClientPreflight = useCallback(() => {
+    setClientPreflightRunning(true);
+    setClientPreflightError(null);
+    void runClientPreflight(eventId)
+      .then(setClientPreflight)
+      .catch((error: unknown) => {
+        setClientPreflight(null);
+        setClientPreflightError(error instanceof Error ? error.message : 'The browser checks could not run.');
+      })
+      .finally(() => setClientPreflightRunning(false));
+  }, [eventId]);
+  useEffect(() => {
+    // React StrictMode replays effects in development. A readiness probe may
+    // prompt for camera/microphone access, so it must still run only once.
+    if (clientProbeStarted.current) return;
+    clientProbeStarted.current = true;
+    refreshClientPreflight();
+  }, [refreshClientPreflight]);
+
+  const refreshSetup = useCallback(() => {
+    refreshServerPreflight();
+    refreshClientPreflight();
+  }, [refreshClientPreflight, refreshServerPreflight]);
+
   // ---- Rehearsals -------------------------------------------------------------
   const [reports, setReports] = useState<RehearsalState>({});
   const [running, setRunning] = useState<RehearsalFlags>({});
@@ -173,18 +196,18 @@ export function TestTab() {
       const result = await runDressRehearsal();
       setVerdict(result);
       result.reports.forEach(absorb);
-      refreshServerPreflight();
+      refreshSetup();
     } catch (error) {
       setVerdict(null);
       setDressError(error instanceof Error ? error.message : 'The full rehearsal could not be reached.');
     } finally {
       setDressRunning(false);
     }
-  }, [absorb, refreshServerPreflight]);
+  }, [absorb, refreshSetup]);
 
   const readinessReport = useMemo(
-    () => buildReadinessReport({ eventId, preflight: serverPreflight, verdict }),
-    [eventId, serverPreflight, verdict],
+    () => buildReadinessReport({ eventId, preflight: serverPreflight, clientPreflight, verdict }),
+    [clientPreflight, eventId, serverPreflight, verdict],
   );
 
   const downloadReport = useCallback(() => {
@@ -269,13 +292,15 @@ export function TestTab() {
         <div className="panel-kicker">
           Setup check
           <span className="panel-status">
-            {serverPreflight
-              ? serverPreflight.ready ? 'No blockers'
-                : serverPreflight.blockers > 0 ? `${serverPreflight.blockers} blocking`
+            {serverPreflight && clientPreflight
+              ? serverPreflight.blockers + clientPreflight.blockers > 0
+                ? `${serverPreflight.blockers + clientPreflight.blockers} blocking`
+                : serverPreflight.unknowns + clientPreflight.unknowns > 0
                   // Not-ready with nothing blocking means something could not be
                   // measured. Saying "0 blocking" here would read as reassurance.
-                  : `${serverPreflight.unknowns} unverified`
-              : serverPreflightError ? 'Unavailable' : 'Checking…'}
+                  ? `${serverPreflight.unknowns + clientPreflight.unknowns} unverified`
+                  : 'No blockers'
+              : serverPreflightError || clientPreflightError ? 'Unavailable' : 'Checking…'}
           </span>
         </div>
         <h2 id="setup-check-title">Will your guardrails actually hold?</h2>
@@ -284,9 +309,10 @@ export function TestTab() {
           the part that decides whether the copilot can do its job, or is silently refused all night.
         </p>
         {serverPreflightError ? <p className="rehearsal-error" role="alert">{serverPreflightError}</p> : null}
-        {serverPreflight ? (
+        {clientPreflightError ? <p className="rehearsal-error" role="alert">{clientPreflightError}</p> : null}
+        {serverPreflight || clientPreflight ? (
           <div className="setup-check-list">
-            {serverPreflight.checks.map((check) => (
+            {serverPreflight?.checks.map((check) => (
               <div className={`setup-check setup-check-${check.status}`} key={check.id}>
                 <div className="setup-check-heading">
                   <strong>{check.label}</strong>
@@ -298,9 +324,24 @@ export function TestTab() {
                 {check.remedy ? <p className="setup-check-remedy">{check.remedy}</p> : null}
               </div>
             ))}
+            {clientPreflight?.checks.map((check) => (
+              <div className={`setup-check setup-check-${check.status}`} key={check.id}>
+                <div className="setup-check-heading">
+                  <strong>{check.label}</strong>
+                  <span className={check.status === 'ready' ? 'status-success' : check.status === 'blocker' ? 'status-danger' : 'status-warning'}>
+                    {check.status === 'ready' ? 'Ready' : check.status === 'blocker' ? 'Blocking' : check.status === 'warning' ? 'Heads up' : 'Unknown'}
+                  </span>
+                </div>
+                <p className="setup-check-expectation"><strong>Expected:</strong> {check.expectation}</p>
+                <p><strong>Observed:</strong> {check.observed}</p>
+                {check.remedy ? <p className="setup-check-remedy">{check.remedy}</p> : null}
+              </div>
+            ))}
           </div>
         ) : null}
-        <button className="button secondary" type="button" onClick={refreshServerPreflight}>Re-check setup</button>
+        <button className="button secondary" type="button" onClick={refreshSetup} disabled={clientPreflightRunning}>
+          {clientPreflightRunning ? 'Measuring browser + setup…' : 'Re-check setup'}
+        </button>
       </section>
 
       <section className="dress-rehearsal-panel" aria-labelledby="dress-title">

@@ -12,6 +12,7 @@ import {
   InMemoryEventConfigStore,
   PgEventConfigStore,
 } from './event-config.service';
+import { ConfigEventPolicyResolver, EVENT_POLICY_RESOLVER } from './event-policy-resolver';
 
 @Injectable()
 export class EventConfigSyncQueries implements OnModuleInit {
@@ -35,12 +36,14 @@ export class EventConfigSyncQueries implements OnModuleInit {
   providers: [
     EventConfigService,
     EventConfigSyncQueries,
+    ConfigEventPolicyResolver,
+    { provide: EVENT_POLICY_RESOLVER, useExisting: ConfigEventPolicyResolver },
     {
       provide: EVENT_CONFIG_STORE,
       inject: [PG_POOL],
       useFactory: (pool: Pool | null) => (pool ? new PgEventConfigStore(pool) : new InMemoryEventConfigStore()),
     },
   ],
-  exports: [EventConfigService],
+  exports: [EventConfigService, EVENT_POLICY_RESOLVER],
 })
 export class EventConfigModule {}
