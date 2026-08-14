@@ -5,6 +5,7 @@ import { createRoot } from 'react-dom/client';
 import { describe, expect, it, vi } from 'vitest';
 import {
   shouldUseMobileStudio,
+  sellerEventIdentity,
   STUDIO_VIEW_TABS,
   studioBoardConfig,
   useSellerDeepgramTokenProvider,
@@ -12,6 +13,7 @@ import {
 } from './SellerTab';
 import {
   isMobileStudioViewport,
+  nextStudioMobileMode,
   STUDIO_MOBILE_MEDIA_QUERY,
   STUDIO_MOBILE_MODES,
 } from './SellerMobileStudio';
@@ -41,6 +43,21 @@ describe('Studio board selection', () => {
       matches: query === STUDIO_MOBILE_MEDIA_QUERY,
     }))).toBe(true);
     expect(isMobileStudioViewport(() => ({ matches: false }))).toBe(false);
+  });
+
+  it('supports automatic roving selection across the mobile Studio tablist', () => {
+    expect(nextStudioMobileMode('stage', 'ArrowRight')).toBe('lineup');
+    expect(nextStudioMobileMode('stage', 'ArrowLeft')).toBe('copilot');
+    expect(nextStudioMobileMode('copilot', 'Home')).toBe('stage');
+    expect(nextStudioMobileMode('stage', 'End')).toBe('copilot');
+    expect(nextStudioMobileMode('lineup', 'Enter')).toBeNull();
+  });
+
+  it('keeps a selected event id and authoritative title in one identity update', () => {
+    expect(sellerEventIdentity('event-42', 'Friday camera drop')).toEqual({
+      eventId: 'event-42',
+      eventTitle: 'Friday camera drop',
+    });
   });
 
   it('keeps Inventory and Event Manager selected on mobile reloads', () => {

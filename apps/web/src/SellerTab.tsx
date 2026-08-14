@@ -58,6 +58,19 @@ export function shouldUseMobileStudio(view: StudioView, mobileViewport: boolean)
   return mobileViewport && view === 'active-event';
 }
 
+export interface SellerEventIdentity {
+  eventId: string;
+  eventTitle: string;
+}
+
+/** Keep the selected room id and its authoritative directory/config title atomic. */
+export function sellerEventIdentity(eventId: string, eventTitle?: string): SellerEventIdentity {
+  return {
+    eventId,
+    eventTitle: eventTitle?.trim() || DEFAULT_EVENT_TITLE,
+  };
+}
+
 export interface TranscriptMomentMutationInput {
   text: string;
   startMs?: number;
@@ -129,7 +142,9 @@ export function SellerTab({
   transcriptProducts: readonly TranscriptProductOption[];
   onActiveProductChange: (productId: string | null) => void;
 }) {
-  const [eventId, setEventId] = useState(DEFAULT_EVENT_ID);
+  const [{ eventId, eventTitle }, setEventIdentity] = useState(() => (
+    sellerEventIdentity(DEFAULT_EVENT_ID, DEFAULT_EVENT_TITLE)
+  ));
   const [room, setRoom] = useState<EventRoom | null>(null);
   const [runOfShowLog, setRunOfShowLog] = useState(emptyStageLog);
   const stream = useStreamSession<PublisherSession>();
@@ -220,15 +235,20 @@ export function SellerTab({
     role: 'seller',
     userId,
     displayName: userId,
-    eventTitle: DEFAULT_EVENT_TITLE,
+    eventTitle,
     apiBaseUrl: import.meta.env.VITE_API_URL,
   };
 
   const panels: SellerDockPanelContextValue = {
     'stage-status': {
-      eventTitle: DEFAULT_EVENT_TITLE,
+      eventTitle,
       eventId,
-      onEventIdChange: setEventId,
+      onEventIdChange: (nextEventId) => setEventIdentity((current) => (
+        sellerEventIdentity(
+          nextEventId,
+          nextEventId === current.eventId ? current.eventTitle : DEFAULT_EVENT_TITLE,
+        )
+      )),
       roomEventId: room?.eventId ?? null,
       streamState: stream.streamState,
       streamError: stream.streamError,
@@ -253,9 +273,11 @@ export function SellerTab({
       eventId,
       actorId: userId,
       sellerName: userId,
-      eventName: DEFAULT_EVENT_TITLE,
+      eventName: eventTitle,
       apiBaseUrl: import.meta.env.VITE_API_URL,
-      onEventReady: (nextEventId: string) => setEventId(nextEventId),
+      onEventReady: (nextEventId: string, nextEventTitle: string) => {
+        setEventIdentity(sellerEventIdentity(nextEventId, nextEventTitle));
+      },
     },
     'run-of-show': {
       eventId,
