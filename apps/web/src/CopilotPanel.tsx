@@ -1,256 +1,289 @@
 import { type FormEvent, useCallback, useState } from 'react';
-import { useSyncMutate } from '@papercusp/sync';
-import type { BuyerProduct } from './buyer';
-import { useBuyerCheckout } from './BuyerCheckout';
+import { useSyncMutate, useSyncQuery } from '@papercusp/sync';
 import { browserEventId } from './event-identity';
-import { resolveApiOrigin, useEventChatSender, type EventChatMessageInput } from './EventChat';
+import { resolveApiOrigin } from './EventChat';
 
-interface ProductCard {
-  productId: string;
-  title: string;
-  description: string;
-  priceCents: number;
-  availableQty: number;
-  imageUrl?: string;
-  attributes: Record<string, string | number | boolean>;
+export type CopilotProposalStatus = 'pending' | 'approved' | 'skipped' | 'blocked' | 'executed';
+
+interface CopilotSource {
+  id: string;
+  kind: 'event-item' | 'catalog-product' | 'web-research' | 'transcript' | 'policy';
+  label: string;
 }
 
-interface ScoutResponse {
+interface CopilotAction {
+  proposal: {
+    kind: string;
+    productId: string;
+    quantity?: number;
+    priceCents?: number;
+    buyerId?: string;
+    swapToProductId?: string;
+    reason: string;
+  };
+  disposition: 'suggested' | 'awaiting-confirmation' | 'executed' | 'blocked';
+  guardrail: { allowed: boolean; explanation?: string };
+}
+
+export interface CopilotProposal {
+  id: string;
+  eventId: string;
+  question: {
+    buyerId: string;
+    buyerName: string;
+    text: string;
+    createdAt: string;
+  };
   reply: string;
-  products: ProductCard[];
-  cartId: string;
-  latencyMs: number;
+  citations: string[];
+  context: { sources: CopilotSource[] };
+  action?: CopilotAction;
+  status: CopilotProposalStatus;
+  error?: string;
+  decision?: { sentMessageId?: string; auditId?: string };
+  createdAt: string;
+}
+
+interface ProposalMutation {
+  proposalId: string;
+  actorId: string;
+  reply?: string;
+}
+
+interface CreateTurnMutation {
+  eventId: string;
+  message: string;
+  actorId: string;
 }
 
 export interface CopilotPanelProps {
   apiBaseUrl?: string;
   eventId?: string;
+  actorId?: string;
 }
 
-export type CopilotReplyReviewStatus = 'idle' | 'pending' | 'approved' | 'skipped';
-
-export const PRODUCT_RESEARCH_LATENCY_BUDGET_MS = 2_000;
-
-export function ProductResearchLatency({ latencyMs }: { latencyMs: number | null }) {
-  if (latencyMs === null) return null;
-  const withinBudget = latencyMs < PRODUCT_RESEARCH_LATENCY_BUDGET_MS;
-  return (
-    <p className="copilot-latency" role="status" aria-live="polite">
-      <span>Product research</span>
-      <strong className={withinBudget ? 'status-success' : 'status-warning'}>
-        {latencyMs}ms · {withinBudget ? 'within' : 'over'} the sub-2s budget
-      </strong>
-    </p>
-  );
+async function mutateProposal<T>(apiOrigin: string, path: string, body: object): Promise<T> {
+  const response = await fetch(`${apiOrigin}${path}`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  const payload = await response.json() as T & { message?: string };
+  if (!response.ok) throw new Error(payload.message ?? `Request failed (${response.status})`);
+  return payload;
 }
 
-/** Build the shared EventChat mutation input used by an approved copilot reply. */
-export function sellerReplyInput(text: string): EventChatMessageInput {
-  return {
-    userId: 'seller-copilot-review',
-    displayName: 'Host',
-    role: 'seller',
-    text: text.trim(),
-  };
+export function citedSources(proposal: CopilotProposal): CopilotSource[] {
+  const cited = new Set(proposal.citations);
+  return proposal.context.sources.filter((source) => cited.has(source.id));
 }
 
-export function copilotProductToBuyerProduct(product: ProductCard): BuyerProduct {
-  return {
-    id: product.productId,
-    title: product.title,
-    subtitle: product.description,
-    priceCents: product.priceCents,
-    availableQty: product.availableQty,
-    imageUrl: product.imageUrl,
-  };
+function actionLabel(action: CopilotAction['proposal']): string {
+  const kind = action.kind.replaceAll('-', ' ');
+  if (action.priceCents !== undefined) {
+    const price = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' })
+      .format(action.priceCents / 100);
+    return `${kind} · ${price}`;
+  }
+  if (action.quantity !== undefined) return `${kind} · ${action.quantity} unit${action.quantity === 1 ? '' : 's'}`;
+  return kind;
 }
 
-export interface CopilotReplyReviewProps {
+export interface CopilotProposalCardProps {
+  proposal: CopilotProposal;
   draft: string;
-  editing: boolean;
-  status: Exclude<CopilotReplyReviewStatus, 'idle'>;
   busy?: boolean;
-  onDraftChange: (draft: string) => void;
-  onEdit: () => void;
+  onDraftChange: (value: string) => void;
   onApprove: () => void;
   onSkip: () => void;
+  onConfirmAction: () => void;
 }
 
-/** Seller review card shared by the generated, edited, sent, and skipped states. */
-export function CopilotReplyReview({
+export function CopilotProposalCard({
+  proposal,
   draft,
-  editing,
-  status,
   busy = false,
   onDraftChange,
-  onEdit,
   onApprove,
   onSkip,
-}: CopilotReplyReviewProps) {
-  const pending = status === 'pending';
+  onConfirmAction,
+}: CopilotProposalCardProps) {
+  const sources = citedSources(proposal);
+  const replyReviewable = (proposal.status === 'pending' || proposal.status === 'executed')
+    && !proposal.decision?.sentMessageId;
+  const actionReviewable = Boolean(
+    proposal.action
+    && (proposal.status === 'pending' || proposal.status === 'approved')
+    && !proposal.decision?.auditId
+    && proposal.action.disposition !== 'blocked'
+    && proposal.action.disposition !== 'executed',
+  );
+
   return (
-    <article className={`copilot-review-card copilot-review-${status}`} aria-label="Copilot reply review" data-copilot-reply-review="true">
-      <div className="copilot-review-heading">
+    <article className={`copilot-proposal copilot-review-${proposal.status}`} data-copilot-proposal={proposal.id}>
+      <header className="copilot-review-heading">
         <div>
-          <p className="panel-kicker">Suggested seller reply</p>
-          <strong>{pending ? 'Review before it reaches the room' : status === 'approved' ? 'Reply sent to the room' : 'Reply skipped'}</strong>
+          <p className="panel-kicker">{proposal.question.buyerName}</p>
+          <strong>{proposal.question.text}</strong>
         </div>
-        <span className="copilot-review-status">{status}</span>
-      </div>
-      {editing && pending ? (
+        <span className="copilot-review-status">{proposal.status}</span>
+      </header>
+
+      {proposal.status === 'blocked' ? (
+        <p className="copilot-blocked" role="alert">{proposal.error ?? 'This draft is blocked until verified facts are available.'}</p>
+      ) : replyReviewable ? (
         <label className="copilot-reply-editor">
-          <span>Edit reply</span>
-          <textarea aria-label="Seller reply draft" value={draft} onChange={(event) => onDraftChange(event.target.value)} />
+          <span>Seller reply</span>
+          <textarea aria-label={`Reply to ${proposal.question.buyerName}`} value={draft} onChange={(event) => onDraftChange(event.target.value)} />
         </label>
-      ) : <p className="copilot-review-copy">{draft}</p>}
-      {pending ? (
-        <div className="copilot-review-actions" aria-label="Copilot reply actions">
-          <button className="button primary" type="button" disabled={busy || !draft.trim()} onClick={onApprove}>Approve</button>
-          <button className="button secondary" type="button" disabled={busy} onClick={onEdit}>{editing ? 'Editing' : 'Edit'}</button>
-          <button className="button tertiary" type="button" disabled={busy} onClick={onSkip}>Skip</button>
-        </div>
       ) : (
-        <p className="copilot-review-result" role="status">
-          {status === 'approved' ? 'Approved reply posted as the seller in live event chat.' : 'Suggestion dismissed without sending a message.'}
-        </p>
+        <p className="copilot-review-copy">{proposal.reply}</p>
       )}
+
+      <div className="copilot-grounding" aria-label="Verified grounding">
+        <span>Grounded by</span>
+        {sources.length > 0 ? sources.map((source) => (
+          <span className="copilot-source" key={source.id} title={source.id}>{source.label}</span>
+        )) : <span className="copilot-source copilot-source-missing">No verified citation</span>}
+      </div>
+
+      {proposal.action ? (
+        <div className={`copilot-action copilot-action-${proposal.action.disposition}`}>
+          <div>
+            <span>Guarded action</span>
+            <strong>{actionLabel(proposal.action.proposal)}</strong>
+            <small>{proposal.action.proposal.reason}</small>
+          </div>
+          {actionReviewable ? (
+            <button className="button secondary" type="button" disabled={busy} onClick={onConfirmAction}>Confirm action</button>
+          ) : null}
+          {proposal.action.disposition === 'blocked' ? (
+            <p>{proposal.action.guardrail.explanation ?? 'Seller policy blocked this action.'}</p>
+          ) : null}
+          {proposal.decision?.auditId ? <small>Executed with audit {proposal.decision.auditId}</small> : null}
+        </div>
+      ) : null}
+
+      {replyReviewable || proposal.status === 'pending' ? (
+        <div className="copilot-review-actions" aria-label="Copilot proposal actions">
+          {replyReviewable ? (
+            <button className="button primary" type="button" disabled={busy || !draft.trim()} onClick={onApprove}>Approve reply</button>
+          ) : null}
+          {proposal.status === 'pending' ? (
+            <button className="button tertiary" type="button" disabled={busy} onClick={onSkip}>Skip</button>
+          ) : null}
+        </div>
+      ) : null}
+      {proposal.decision?.sentMessageId ? <p className="copilot-review-result" role="status">Reply sent to live event chat.</p> : null}
     </article>
   );
 }
 
-const money = (cents: number) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(cents / 100);
-
-/**
- * Small browser adapter for the P-004 contracts. The live-selling tabs can
- * compose this panel without owning cart state or payment-provider details.
- */
-export function CopilotPanel({ apiBaseUrl, eventId = browserEventId() }: CopilotPanelProps) {
+/** Seller-side review queue for event-grounded Copilot proposals. */
+export function CopilotPanel({
+  apiBaseUrl,
+  eventId = browserEventId(),
+  actorId = 'seller-copilot-review',
+}: CopilotPanelProps) {
   const apiOrigin = resolveApiOrigin(apiBaseUrl);
-  const buyerCheckout = useBuyerCheckout();
-  const sendChatMessage = useEventChatSender({ eventId, apiBaseUrl });
+  const proposals = useSyncQuery<CopilotProposal>({
+    queryName: 'event.copilot.proposals',
+    args: { eventId },
+  });
   const [message, setMessage] = useState('');
-  const [reply, setReply] = useState('Ask about a product in the verified catalog.');
-  const [replyDraft, setReplyDraft] = useState('');
-  const [replyReviewStatus, setReplyReviewStatus] = useState<CopilotReplyReviewStatus>('idle');
-  const [editingReply, setEditingReply] = useState(false);
-  const [products, setProducts] = useState<ProductCard[]>([]);
-  const [researchLatencyMs, setResearchLatencyMs] = useState<number | null>(null);
-  const [busy, setBusy] = useState(false);
+  const [drafts, setDrafts] = useState<Record<string, string>>({});
+  const [busyId, setBusyId] = useState<string>();
   const [error, setError] = useState<string>();
 
-  const scoutFallback = useCallback(async (input: { message: string; cartId?: string; eventId: string }) => {
-    const path = '/scout/chat';
-    const init: RequestInit = { method: 'POST', body: JSON.stringify(input) };
-    const response = await fetch(`${apiOrigin}${path}`, { ...init, headers: { 'content-type': 'application/json', ...init.headers } });
-    const payload = await response.json() as ScoutResponse & { message?: string };
-    if (!response.ok) throw new Error(payload.message ?? `Request failed (${response.status})`);
-    return payload;
-  }, [apiOrigin]);
-  const requestScout = useSyncMutate<
-    { message: string; cartId?: string; eventId: string },
-    ScoutResponse
-  >('scout.chat', scoutFallback);
+  const createFallback = useCallback((input: CreateTurnMutation) => mutateProposal<CopilotProposal>(
+    apiOrigin,
+    `/copilot/events/${encodeURIComponent(input.eventId)}/turns`,
+    { message: input.message, buyerId: input.actorId, buyerName: 'Seller research' },
+  ), [apiOrigin]);
+  const approveFallback = useCallback((input: ProposalMutation) => mutateProposal<CopilotProposal>(
+    apiOrigin,
+    `/copilot/proposals/${encodeURIComponent(input.proposalId)}/approve`,
+    { actorId: input.actorId, reply: input.reply },
+  ), [apiOrigin]);
+  const skipFallback = useCallback((input: ProposalMutation) => mutateProposal<CopilotProposal>(
+    apiOrigin,
+    `/copilot/proposals/${encodeURIComponent(input.proposalId)}/skip`,
+    { actorId: input.actorId },
+  ), [apiOrigin]);
+  const actionFallback = useCallback((input: ProposalMutation) => mutateProposal<CopilotProposal>(
+    apiOrigin,
+    `/copilot/proposals/${encodeURIComponent(input.proposalId)}/confirm-action`,
+    { actorId: input.actorId },
+  ), [apiOrigin]);
+  const createTurn = useSyncMutate<CreateTurnMutation, CopilotProposal>('copilot.createTurn', createFallback);
+  const approve = useSyncMutate<ProposalMutation, CopilotProposal>('copilot.approve', approveFallback);
+  const skip = useSyncMutate<ProposalMutation, CopilotProposal>('copilot.skip', skipFallback);
+  const confirmAction = useSyncMutate<ProposalMutation, CopilotProposal>('copilot.confirmAction', actionFallback);
 
-  async function ask(event: FormEvent) {
+  const run = useCallback(async (id: string, operation: () => Promise<unknown>) => {
+    setBusyId(id);
+    setError(undefined);
+    try {
+      await operation();
+      proposals.invalidate();
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : 'Copilot review failed');
+    } finally {
+      setBusyId(undefined);
+    }
+  }, [proposals]);
+
+  async function submit(event: FormEvent) {
     event.preventDefault();
-    if (!message.trim() || busy) return;
-    setBusy(true);
-    setError(undefined);
-    try {
-      const result = await requestScout({ message, cartId: buyerCheckout?.cartId, eventId });
-      buyerCheckout?.adoptCartId(result.cartId);
-      setProducts(result.products);
-      setReply(result.reply);
-      setReplyDraft(result.reply);
-      setResearchLatencyMs(result.latencyMs);
-      setReplyReviewStatus('pending');
-      setEditingReply(false);
+    const next = message.trim();
+    if (!next || busyId) return;
+    await run('create', async () => {
+      await createTurn({ eventId, message: next, actorId });
       setMessage('');
-    } catch (caught) {
-      setError(caught instanceof Error ? caught.message : 'Unable to reach the copilot');
-    } finally {
-      setBusy(false);
-    }
+    });
   }
 
-  async function approveReply() {
-    if (!replyDraft.trim() || busy || replyReviewStatus !== 'pending') return;
-    setBusy(true);
-    setError(undefined);
-    try {
-      await sendChatMessage(sellerReplyInput(replyDraft));
-      setReplyReviewStatus('approved');
-      setEditingReply(false);
-    } catch (caught) {
-      setError(caught instanceof Error ? caught.message : 'Unable to send the approved seller reply');
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function addToCart(product: ProductCard) {
-    setBusy(true);
-    setError(undefined);
-    try {
-      if (!buyerCheckout) throw new Error('Buyer checkout is unavailable');
-      await buyerCheckout.holdProduct(copilotProductToBuyerProduct(product));
-    } catch (caught) {
-      setError(caught instanceof Error ? caught.message : 'Unable to update cart');
-    } finally {
-      setBusy(false);
-    }
-  }
-
+  const rows = proposals.data ?? [];
   return (
     <section className="copilot-panel" aria-label="Seller copilot">
       <div className="copilot-panel-heading">
         <div>
-          <p className="eyebrow">Verified catalog copilot</p>
-          <h2>Find it, pin it, sell it.</h2>
+          <p className="eyebrow">Grounded seller copilot</p>
+          <h2>Review before it reaches the room.</h2>
         </div>
-        <span className="live-badge">SQUARE SANDBOX</span>
+        <span className="live-badge">{rows.filter((proposal) => proposal.status === 'pending').length} PENDING</span>
       </div>
-      {replyReviewStatus === 'idle' ? <p className="copilot-reply" role="status">{reply}</p> : (
-        <CopilotReplyReview
-          draft={replyDraft}
-          editing={editingReply}
-          status={replyReviewStatus}
-          busy={busy}
-          onDraftChange={setReplyDraft}
-          onEdit={() => setEditingReply(true)}
-          onApprove={() => void approveReply()}
-          onSkip={() => {
-            setReplyReviewStatus('skipped');
-            setEditingReply(false);
-          }}
-        />
-      )}
-      <form className="copilot-form" onSubmit={ask}>
-        <label htmlFor="copilot-message">Ask about the catalog</label>
+
+      <form className="copilot-form" onSubmit={(event) => void submit(event)}>
+        <label htmlFor="copilot-message">Research a buyer question</label>
         <div className="copilot-input-row">
-          <input id="copilot-message" value={message} onChange={(event) => setMessage(event.target.value)} placeholder="Try “wireless headphones”" />
-          <button className="button primary" type="submit" disabled={busy || !message.trim()}>{busy ? 'Working…' : 'Ask'}</button>
+          <input id="copilot-message" value={message} onChange={(event) => setMessage(event.target.value)} placeholder="Ask using live event facts" />
+          <button className="button primary" type="submit" disabled={Boolean(busyId) || !message.trim()}>{busyId === 'create' ? 'Grounding…' : 'Prepare'}</button>
         </div>
       </form>
-      <ProductResearchLatency latencyMs={researchLatencyMs} />
+
       {error ? <p className="copilot-error" role="alert">{error}</p> : null}
-      {products.length > 0 ? (
-        <div className="copilot-products" aria-label="Verified products">
-          {products.map((product) => (
-            <article className="copilot-product" key={product.productId}>
-              {product.imageUrl ? <img src={product.imageUrl} alt="" /> : <div className="copilot-product-placeholder" aria-hidden="true" />}
-              <div className="copilot-product-copy"><h3>{product.title}</h3><p>{product.description}</p><strong>{money(product.priceCents)}</strong><small>{product.availableQty} available</small></div>
-              <button className="button secondary" type="button" onClick={() => void addToCart(product)} disabled={busy}>Add</button>
-            </article>
-          ))}
-        </div>
-      ) : null}
-      {buyerCheckout?.heldItemCount ? (
-        <div className="copilot-cart">
-          <span>Held cart · {buyerCheckout.heldItemCount} item(s)</span>
-          <button className="button secondary" type="button" onClick={buyerCheckout.openHeldItems} disabled={busy}>Open checkout</button>
-        </div>
-      ) : null}
+      {proposals.error ? <p className="copilot-error" role="alert">Unable to load proposals. <button type="button" onClick={proposals.invalidate}>Try again</button></p> : null}
+      {proposals.loading && rows.length === 0 ? <p className="copilot-empty" role="status">Loading grounded proposals…</p> : null}
+      {!proposals.loading && rows.length === 0 ? <p className="copilot-empty">Buyer questions will appear here for seller review.</p> : null}
+
+      <div className="copilot-proposal-list" aria-label="Copilot proposal queue">
+        {rows.map((proposal) => {
+          const draft = drafts[proposal.id] ?? proposal.reply;
+          return (
+            <CopilotProposalCard
+              key={proposal.id}
+              proposal={proposal}
+              draft={draft}
+              busy={busyId === proposal.id}
+              onDraftChange={(value) => setDrafts((current) => ({ ...current, [proposal.id]: value }))}
+              onApprove={() => void run(proposal.id, () => approve({ proposalId: proposal.id, actorId, reply: draft }))}
+              onSkip={() => void run(proposal.id, () => skip({ proposalId: proposal.id, actorId }))}
+              onConfirmAction={() => void run(proposal.id, () => confirmAction({ proposalId: proposal.id, actorId }))}
+            />
+          );
+        })}
+      </div>
     </section>
   );
 }
