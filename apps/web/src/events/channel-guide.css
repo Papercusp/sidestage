@@ -18,7 +18,7 @@
 .channel-guide-scrim {
   position: absolute;
   inset: 0;
-  background: rgb(0 0 0 / 38%);
+  background: var(--scrim);
   animation: channel-guide-fade 140ms ease-out;
 }
 
