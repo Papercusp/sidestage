@@ -23,6 +23,7 @@ import { ReplayChapters } from './ReplayChapters';
 import { DemoIdentityControl } from './BuyerIdentityControl';
 import { type BuyerCheckoutActions, useBuyerCheckout } from './BuyerCheckout';
 import { useDemoIdentity } from './buyer-identity';
+import { VideoChatOverlay } from './VideoChatOverlay';
 import './BuyerTab.css';
 
 export interface BuyerTabProps {
@@ -182,7 +183,7 @@ export function BuyerTab({
   // D-013: this is deliberately an auth-free demo identity. Every buyer-side
   // action consumes the same persisted id, and the Orders tab imports the same
   // hook rather than inventing a second notion of "current user".
-  const { userId, impersonate } = useDemoIdentity();
+  const { userId, impersonate } = useDemoIdentity('buyer');
   const buyerCheckout = useBuyerCheckout();
   const heldProductIds = buyerCheckout?.heldProductIds ?? [];
   const heldProductIdSet = useMemo(() => new Set(heldProductIds), [heldProductIds]);
@@ -339,6 +340,25 @@ export function BuyerTab({
               </button>
             )}
           </div>
+          <VideoChatOverlay
+            className="buyer-video-chat-overlay"
+            open={buyerMode === 'chat'}
+            onOpenChange={(open) => setBuyerMode(open ? 'chat' : 'shop')}
+          >
+            <div aria-label="Event chat">
+              <EventChat
+                eventId={eventId}
+                role="buyer"
+                userId={userId}
+                displayName={userId}
+                eventTitle={resolvedTitle}
+                apiBaseUrl={resolveApiBaseUrl()}
+              />
+              <p className="buyer-share-note">
+                Share this room: <button type="button" onClick={copyShareUrl}>{shareUrl}</button>
+              </p>
+            </div>
+          </VideoChatOverlay>
         </div>
 
         <article
@@ -442,17 +462,6 @@ export function BuyerTab({
           </div>
         </div>
 
-        <aside className="buyer-chat-card" aria-label="Event chat">
-          <EventChat
-            eventId={eventId}
-            role="buyer"
-            userId={userId}
-            displayName={userId}
-            eventTitle={resolvedTitle}
-            apiBaseUrl={resolveApiBaseUrl()}
-          />
-          <p className="buyer-share-note">Share this room: <button type="button" onClick={copyShareUrl}>{shareUrl}</button></p>
-        </aside>
       </div>
 
       {currentProduct ? (
