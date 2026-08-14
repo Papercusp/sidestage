@@ -34,6 +34,14 @@ export interface ScoutReplyRequest {
   products: readonly ProductCard[];
   cart: Cart;
   eventId?: string;
+  /**
+   * What this buyer has said before, recalled from long-term memory (P-012).
+   *
+   * ALWAYS present, and EMPTY is the normal case — a guest, a cold buyer, or a
+   * degraded memory store all yield `[]`. A reply model must therefore treat
+   * memories as decoration it can ignore, never as an input it requires.
+   */
+  memories?: readonly ScoutMemory[];
 }
 
 export interface ScoutReplyModel {
@@ -72,6 +80,16 @@ export type ScoutStreamEvent =
 
 /** The tool name emitted before the catalog lookup (maps to a client status line). */
 export const SCOUT_TOOL_SEARCH_CATALOG = 'search_catalog';
+
+/**
+ * The tool name emitted before the cart read (P-012).
+ *
+ * Restart's scout reaches its cart over HTTP because the cart lives in another
+ * service; SideStage's `CartService` is in THIS Nest app, so the tool is a
+ * direct call rather than a proxy. The wire event is identical either way,
+ * which is the point: the drawer shows the same status line.
+ */
+export const SCOUT_TOOL_GET_CART = 'get_cart';
 
 /**
  * One turn as posted to `POST /scout/chat/stream`.
