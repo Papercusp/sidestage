@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
 import {
@@ -11,6 +12,8 @@ import {
 } from './App';
 import { OFFLINE_FIXTURE } from './catalog';
 import { ProductCard } from './components/ProductCard';
+
+const stylesCss = readFileSync(new URL('./styles.css', import.meta.url), 'utf8');
 
 describe('SideStage tab state', () => {
   it('defaults to Buyer and accepts query or path URL state', () => {
@@ -55,6 +58,14 @@ describe('P-005 product card and shell', () => {
     expect(markup).toContain('Live chat');
     expect(markup).toContain('Message the room');
     expect(markup).toContain('Share event');
+  });
+
+  it('keeps the shared paper shell and keyboard-control baseline tokenized', () => {
+    expect(stylesCss).toMatch(/--content-max:\s*80rem/);
+    expect(stylesCss).toMatch(/\.topbar-inner\s*\{[^}]*grid-template-columns:\s*auto minmax\(0, 1fr\) auto/);
+    expect(stylesCss).toMatch(/\.nav-cluster\s*\{[^}]*background:\s*color-mix\(/);
+    expect(stylesCss).toMatch(/\.button\s*\{[^}]*min-height:\s*2\.5rem/);
+    expect(stylesCss).toMatch(/:where\(a, button, input, select, textarea\):focus-visible/);
   });
 });
 
