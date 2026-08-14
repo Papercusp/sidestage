@@ -1,6 +1,13 @@
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
-import { App, getTabFromUrl, tabHref, TestTab, variantToSellerProduct } from './App';
+import {
+  App,
+  appLayoutForTab,
+  getTabFromUrl,
+  tabHref,
+  TestTab,
+  variantToSellerProduct,
+} from './App';
 import { OFFLINE_FIXTURE } from './catalog';
 import { ProductCard } from './components/ProductCard';
 
@@ -38,6 +45,22 @@ describe('P-005 product card and shell', () => {
     expect(markup).toContain('Live chat');
     expect(markup).toContain('Message the room');
     expect(markup).toContain('Share event');
+  });
+});
+
+describe('Seller workbench shell', () => {
+  it('gives only Seller the edge-to-edge shell and removes its page footer', () => {
+    expect(appLayoutForTab('seller')).toEqual({
+      shellClassName: 'app-shell app-shell--seller',
+      contentClassName: 'content content-seller',
+      showFooter: false,
+    });
+
+    expect(appLayoutForTab('buyer')).toEqual({
+      shellClassName: 'app-shell',
+      contentClassName: 'content',
+      showFooter: true,
+    });
   });
 });
 
