@@ -403,7 +403,7 @@ export function AuctionPanel({
                 ? leadingBid
                   ? `${isLeading ? 'You' : leadingBid.displayName ?? 'A buyer'} had the last bid at ${formatBuyerPrice(leadingBid.amountCents)}—confirming the result.`
                   : 'Bidding closed without a bid.'
-                : isLeading
+                : isLeading && leadingBid
                   ? `You’re leading at ${formatBuyerPrice(leadingBid.amountCents)}.`
                   : leadingBid ? `${leadingBid.displayName ?? 'A buyer'} leads at ${formatBuyerPrice(leadingBid.amountCents)}.` : `Opening bid is ${formatBuyerPrice(auction.startingPriceCents)}.`}
           </div>
