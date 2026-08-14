@@ -34,7 +34,6 @@ describe('Studio board selection', () => {
     expect(STUDIO_MOBILE_MODES).toEqual([
       { id: 'stage', label: 'Stage' },
       { id: 'lineup', label: 'Lineup' },
-      { id: 'chat', label: 'Chat' },
       { id: 'copilot', label: 'Copilot' },
     ]);
     expect(isMobileStudioViewport((query) => ({
@@ -65,7 +64,6 @@ describe('Studio board selection', () => {
     expect(panelIds(config.layoutSeed)).toEqual([
       'stage-status',
       'copilot',
-      'event-chat',
       'run-of-show',
     ]);
   });
