@@ -81,6 +81,15 @@ export const POSTGRES_SURFACES = {
   policy_outbox_event: pg('policy_outbox_event', ['seller-owned', 'operational'], 'seller owner', [], ['event.executeAction'], 'P-019/P-020'),
   policy_idempotency: pg('policy_idempotency', ['seller-owned', 'operational'], 'seller owner and idempotency key', [], ['event.executeAction'], 'P-019/P-020'),
   event: pg('event', ['public', 'seller-owned'], 'seller owner; explicitly published public projection', ['events.guide', 'events.mine', 'event.stats'], ['event.setup'], 'P-017/P-019'),
+  system_test_run: pg('system_test_run', ['operational'], 'authorized operator or release principal', [], [], 'P-020'),
+  system_test_suite: pg('system_test_suite', ['operational'], 'parent test-run authority', [], [], 'P-020'),
+  system_test_case: pg('system_test_case', ['operational'], 'parent test-run authority', [], [], 'P-020'),
+  system_test_artifact: pg('system_test_artifact', ['operational'], 'parent test-run authority; redacted evidence only', [], [], 'P-020'),
+  system_test_environment: pg('system_test_environment', ['operational'], 'parent test-run authority', [], [], 'P-020'),
+  system_test_transition: pg('system_test_transition', ['operational'], 'parent test-run authority; append-only lifecycle', [], [], 'P-020'),
+  system_test_cancellation: pg('system_test_cancellation', ['operational'], 'authorized operator or release principal', [], [], 'P-020'),
+  system_test_retention: pg('system_test_retention', ['operational'], 'parent test-run authority', [], [], 'P-020'),
+  system_test_cleanup: pg('system_test_cleanup', ['operational'], 'authorized cleanup worker scoped to one test run', [], [], 'P-020'),
 } as const satisfies Record<string, PostgresSurface>;
 
 export interface NamedSurface extends SurfaceContract {
