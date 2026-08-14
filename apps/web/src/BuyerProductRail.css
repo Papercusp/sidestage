@@ -3,7 +3,7 @@
   overflow: hidden;
   border: 1px solid var(--border);
   border-radius: 0.75rem;
-  background: rgba(7, 17, 34, 0.3);
+  background: var(--surface-sunken);
 }
 
 .buyer-product-rail [role="row"] {
@@ -13,7 +13,7 @@
 }
 
 .buyer-product-rail [role="row"]:hover {
-  background: rgba(98, 216, 255, 0.075) !important;
+  background: color-mix(in srgb, var(--brand-red) 7.5%, transparent) !important;
 }
 
 .buyer-product-rail .buyer-rail-row-sold-out {
@@ -35,16 +35,16 @@
   height: 3.25rem;
   overflow: hidden;
   place-items: center;
-  border: 1px solid rgba(155, 191, 235, 0.18);
+  border: 1px solid var(--border);
   border-radius: 0.65rem;
-  color: var(--accent);
+  color: var(--red-text);
   background:
     radial-gradient(
       circle at 50% 42%,
-      rgba(98, 216, 255, 0.25),
+      color-mix(in srgb, var(--brand-red) 25%, transparent),
       transparent 50%
     ),
-    rgba(4, 13, 28, 0.3);
+    var(--surface-sunken);
 }
 
 .buyer-rail-art > span:not(.buyer-product-badge) {
@@ -99,7 +99,7 @@
 }
 
 .buyer-rail-price del {
-  color: #7188a9;
+  color: var(--muted);
   font-size: 0.66rem;
 }
 
@@ -115,12 +115,12 @@
 
 .buyer-rail-stock.available {
   color: var(--success);
-  background: rgba(116, 224, 173, 0.1);
+  background: color-mix(in srgb, var(--success) 10%, transparent);
 }
 
 .buyer-rail-stock.sold-out {
-  color: var(--amber);
-  background: rgba(246, 199, 111, 0.1);
+  color: var(--yellow-text);
+  background: color-mix(in srgb, var(--brand-yellow) 10%, transparent);
 }
 
 .buyer-rail-action {

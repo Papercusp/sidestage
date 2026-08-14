@@ -126,8 +126,15 @@ export function BuyerProductRail({
         className:
           row.availableQty <= 0 ? "buyer-rail-row-sold-out" : undefined,
       })}
+      // Read the row fills from the theme rather than naming colours here: RichGrid takes a
+      // CSS colour string, and a var() reference is one, so the R3 "Ticket" tokens (D-002 —
+      // styles.css :root is the single source of colour) resolve at paint time on the grid's
+      // own element. These were the retired dark theme's cyan-on-navy pair, which rendered as
+      // a navy band across the cream page.
       getRowBg={(_product, _rowIndex, selected) =>
-        selected ? "rgba(98, 216, 255, .1)" : "rgba(7, 17, 34, .3)"
+        selected
+          ? "color-mix(in srgb, var(--brand-red) 10%, transparent)"
+          : "var(--surface-sunken)"
       }
       selectedRowIds={
         selectedProductId ? new Set([selectedProductId]) : new Set()
