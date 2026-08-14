@@ -18,6 +18,7 @@ import { EventThumbnail } from './event-creation/EventThumbnail';
 import { isRenderableThumbnailUrl } from './event-creation/thumbnail';
 import { fetchEventGuide, fetchEventThumbnailUrl, type GuideEvent } from './events/api';
 import { ChannelGuide } from './events/ChannelGuide';
+import { ReplayChapters } from './ReplayChapters';
 
 export interface BuyerTabProps {
   eventId?: string;
@@ -306,6 +307,8 @@ export function BuyerTab({
               )}
             </div>
           </div>
+
+          <ReplayChapters eventId={eventId} videoRef={videoRef} apiBaseUrl={resolveApiBaseUrl()} />
 
           <div className="buyer-stats" aria-label="Event stats">
             <div><strong>{stats.viewers}</strong><span>watching</span></div>
