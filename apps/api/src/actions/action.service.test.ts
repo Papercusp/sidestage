@@ -4,6 +4,8 @@ import type { ActionEventItem } from './action.types';
 import type { CopilotPolicy } from '../copilot/copilot.types';
 import { withDerivedPriceFloors } from '../config/event-config.service';
 import { SyncInvalidationService, type SyncInvalidation } from '../sync/sync-invalidation.service';
+import { SyncQueryRegistry } from '../sync/sync-query.registry';
+import { ActionSyncQueries } from './action.module';
 
 const policy: CopilotPolicy = {
   automationLevel: 'auto',
@@ -32,6 +34,37 @@ function service(): GuardedActionService {
 }
 
 describe('GuardedActionService', () => {
+  it('registers the seller lineup as the event.actions.items named query', async () => {
+    const actions = service();
+    const queries = new SyncQueryRegistry();
+    new ActionSyncQueries(actions, queries).onModuleInit();
+
+    await expect(queries.resolve('event.actions.items', { eventId: 'event-1' })).resolves.toEqual([
+      expect.objectContaining({ eventId: 'event-1', productId: 'mug' }),
+    ]);
+  });
+
+  it('invalidates the event-scoped lineup after registration, action, and rollback writes', async () => {
+    const invalidations = new SyncInvalidationService();
+    const published: SyncInvalidation[] = [];
+    const subscription = invalidations.events().subscribe((event) => published.push(event));
+    const actions = new GuardedActionService(null, invalidations);
+    actions.registerEvent('event-1', { policy, items: [item] });
+    const applied = await actions.apply({
+      eventId: 'event-1',
+      actorId: 'seller-1',
+      action: { kind: 'markdown', productId: 'mug', priceCents: 1_200, reason: 'Live markdown' },
+    });
+    await actions.rollback(applied.auditId, 'seller-1');
+    subscription.unsubscribe();
+
+    expect(published.filter(({ name }) => name === 'event.actions.items').map(({ args }) => args)).toEqual([
+      { eventId: 'event-1' },
+      { eventId: 'event-1' },
+      { eventId: 'event-1' },
+    ]);
+  });
+
   it('applies a markdown, records before/after state, and rolls it back', async () => {
     const actions = service();
     const applied = await actions.apply({

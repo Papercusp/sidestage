@@ -131,7 +131,9 @@ export class GuardedActionService implements ActionExecutor {
       const normalized = this.normalizeItem(eventId, item);
       this.items.set(itemKey(eventId, normalized.productId), normalized);
     }
-    return this.listItems(eventId);
+    const items = this.listItems(eventId);
+    this.invalidateEventItems(eventId);
+    return items;
   }
 
   listItems(eventIdInput: string): ActionEventItem[] {
@@ -261,6 +263,7 @@ export class GuardedActionService implements ActionExecutor {
     this.items.set(itemKey(eventId, current.productId), afterItem);
     const after = this.snapshot(eventId, afterItem);
     const audit = this.recordAudit({ eventId, actorId, action, before, after, offer });
+    this.invalidateEventItems(eventId);
     if (offer) this.invalidateBuyerOrders(offer.buyerId);
     return { auditId: audit.id, status: 'executed', state: cloneItem(afterItem), offer: offer && cloneOffer(offer) };
   }
@@ -305,6 +308,7 @@ export class GuardedActionService implements ActionExecutor {
       auditKind: 'rollback',
     });
     original.rolledBackAt = rollbackAudit.createdAt;
+    this.invalidateEventItems(original.eventId);
     if (original.buyerId) this.invalidateBuyerOrders(original.buyerId);
     return {
       auditId: rollbackAudit.id,
@@ -316,6 +320,10 @@ export class GuardedActionService implements ActionExecutor {
 
   private invalidateBuyerOrders(buyerId: string): void {
     this.syncInvalidations?.invalidate('orders.byBuyer', { buyerId });
+  }
+
+  private invalidateEventItems(eventId: string): void {
+    this.syncInvalidations?.invalidate('event.actions.items', { eventId });
   }
 
   private normalizeItem(eventId: string, item: ActionEventItem): ActionEventItem {

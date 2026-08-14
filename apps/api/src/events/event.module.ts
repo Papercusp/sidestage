@@ -1,12 +1,18 @@
 import { Inject, Injectable, Module, type OnModuleInit } from '@nestjs/common';
 import type { Pool } from 'pg';
 import { ChatModule } from '../chat/chat.module';
-import { DatabaseModule, PG_POOL } from '../db/database.module';
+import { DatabaseModule, PG_POOL, demoDataEnabled } from '../db/database.module';
 import { PgEventStore } from '../db/pg-event-store';
 import { SyncModule } from '../sync/sync.module';
 import { SyncQueryRegistry } from '../sync/sync-query.registry';
 import { EventController } from './event.controller';
-import { EVENT_STORE, EventService, InMemoryEventStore } from './event.service';
+import {
+  EVENT_STORE,
+  EventService,
+  InMemoryEventStore,
+  UnavailableEventStore,
+  type EventStore,
+} from './event.service';
 
 @Injectable()
 export class EventSyncQueries implements OnModuleInit {
@@ -18,6 +24,14 @@ export class EventSyncQueries implements OnModuleInit {
   onModuleInit(): void {
     this.queries.register('events.guide', () => this.events.listForGuide());
   }
+}
+
+export function eventStoreForPool(
+  pool: Pool | null,
+  env: NodeJS.ProcessEnv = process.env,
+): EventStore {
+  if (pool) return new PgEventStore(pool);
+  return demoDataEnabled(env) ? new InMemoryEventStore() : new UnavailableEventStore();
 }
 
 /**
@@ -39,7 +53,7 @@ export class EventSyncQueries implements OnModuleInit {
     {
       provide: EVENT_STORE,
       inject: [PG_POOL],
-      useFactory: (pool: Pool | null) => (pool ? new PgEventStore(pool) : new InMemoryEventStore()),
+      useFactory: eventStoreForPool,
     },
   ],
   exports: [EventService],

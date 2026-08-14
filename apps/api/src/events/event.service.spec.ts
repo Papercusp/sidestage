@@ -1,12 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import { ChatService } from '../chat/chat.service';
 import { SyncQueryRegistry } from '../sync/sync-query.registry';
-import { EventSyncQueries } from './event.module';
+import { EventSyncQueries, eventStoreForPool } from './event.module';
 import {
   compareForGuide,
   demoEventRecords,
   EventService,
   InMemoryEventStore,
+  UnavailableEventStore,
   isEventStatus,
   statusRank,
   type EventRecord,
@@ -163,6 +164,27 @@ describe('event directory (P-118 / D-019)', () => {
     for (const event of upcoming) {
       expect(Date.parse(event.startsAt as string)).toBeGreaterThan(now.getTime());
     }
+  });
+});
+
+describe('event source selection', () => {
+  it('seeds demo events only in development or explicit memory mode', () => {
+    expect(eventStoreForPool(null, { NODE_ENV: 'development' })).toBeInstanceOf(InMemoryEventStore);
+    expect(eventStoreForPool(null, { NODE_ENV: 'production', DATA_BACKEND: 'memory' }))
+      .toBeInstanceOf(InMemoryEventStore);
+  });
+
+  it('rejects reads and writes instead of fabricating events when production storage is unavailable', async () => {
+    const store = eventStoreForPool(null, { NODE_ENV: 'production', DATA_BACKEND: 'auto' });
+
+    expect(store).toBeInstanceOf(UnavailableEventStore);
+    await expect(store.listBuyerVisible()).rejects.toThrow('durable event storage is not connected');
+    await expect(store.publish({
+      eventId: 'synthetic-event',
+      title: 'Synthetic event',
+      sellerId: 'seller-test',
+      sellerName: 'Test seller',
+    })).rejects.toThrow('durable event storage is not connected');
   });
 });
 
