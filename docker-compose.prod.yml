@@ -173,6 +173,28 @@ services:
       - traefik.http.routers.sidestage-api.tls.certresolver=letsencrypt
       - traefik.http.services.sidestage-api.loadbalancer.server.port=3100
 
+  # Trusted queue consumer. It shares only the durable run ledger with the
+  # public API and is never attached to Traefik or exposed on a host port.
+  system-test-worker:
+    image: sidestage-api:${SIDESTAGE_SHA:-latest}
+    command: ["node", "apps/api/dist/system-tests/acceptance-worker.js"]
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      SIDESTAGE_SHA: ${SIDESTAGE_SHA:-unknown}
+      ACCEPTANCE_WORKER_PORT: 3101
+      SYSTEM_TEST_DATABASE_URL: postgresql://${POSTGRES_USER:-sidestage}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-sidestage}
+      SYSTEM_TEST_MAX_CONCURRENT_RUNS: 1
+      SYSTEM_TEST_MAX_ATTEMPTS: 2
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3101/healthz').then(r=>{if(!r.ok)process.exit(1)})"]
+      interval: 5s
+      timeout: 2s
+      retries: 20
+
   web:
     # See the api service: per-sha tag keeps the previous release recoverable.
     image: sidestage-web:${SIDESTAGE_SHA:-latest}
