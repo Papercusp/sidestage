@@ -43,6 +43,14 @@
   --warning: #A66A00;            /* dark amber — must NOT read as brand yellow */
   --danger: #A61B10;             /* darker crimson; outlined treatment, never CTA fill */
 
+  /* Elevation. A named token so panel/dock chrome never inlines a shadow
+     colour — retheme D-002: "a component needing a color that has no token
+     gets a new named token". The value is the shadow .stage-panel already
+     used, unchanged, so introducing the token is a pure refactor with no
+     visual change; the retheme sweep can retune elevation here in ONE place
+     instead of in every rule that hardcodes rgb(0 0 0 / 17%). */
+  --shadow-float: 0 18px 50px rgb(0 0 0 / 17%);
+
   /* Live video stays theatrical: dark inset on the light page (D-004) */
   --video-inset-bg: #10131a;
   --thumb-grad-a: #F3E2CC;       /* placeholder thumb gradient */
