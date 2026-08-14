@@ -18,11 +18,11 @@ export interface ChannelGuideProps {
 }
 
 /**
- * The persistent "What's on" Channel Guide drawer (P-118 / D-019).
+ * The persistent "What's on" Channel Guide sidebar (P-118 / D-019).
  *
- * The app shell mounts one fixed drawer across every page. It overlays the
- * viewport instead of reserving layout width, while the transparent layer lets
- * the rest of the page remain visible and interactive.
+ * The guide is the leftmost child of the shared app grid, so it stays mounted
+ * across every page, always occupies layout space, and never obscures content.
+ * At narrow widths the grid stacks this landmark rather than restoring a drawer.
  *
  * Every colour comes from the R3 :root tokens (D-004). No hex literal appears
  * in this component or its stylesheet.
@@ -39,16 +39,15 @@ export function ChannelGuide({
   const clock = now ?? new Date();
 
   return (
-    <div className="channel-guide-layer">
-      <aside className="channel-guide-panel" aria-labelledby="channel-guide-title">
-        <header className="channel-guide-header">
-          <div>
-            <p className="channel-guide-eyebrow">What&rsquo;s on</p>
-            <h2 className="channel-guide-title" id="channel-guide-title">Every live room</h2>
-          </div>
-        </header>
+    <aside className="channel-guide-panel" aria-labelledby="channel-guide-title">
+      <header className="channel-guide-header">
+        <div>
+          <p className="channel-guide-eyebrow">What&rsquo;s on</p>
+          <h2 className="channel-guide-title" id="channel-guide-title">Every live room</h2>
+        </div>
+      </header>
 
-        <div className="channel-guide-body">
+      <div className="channel-guide-body">
           {loading ? <p className="channel-guide-note">Loading events…</p> : null}
 
           {/* An unreadable directory is stated as such. Falling through to the
@@ -120,9 +119,8 @@ export function ChannelGuide({
                 </section>
               ))
             : null}
-        </div>
-      </aside>
-    </div>
+      </div>
+    </aside>
   );
 }
 

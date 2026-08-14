@@ -70,8 +70,9 @@ describe('P-005 product card and shell', () => {
     expect(markup).toContain('Live chat');
     expect(markup).toContain('Message the room');
     expect(markup).toContain('Share room');
-    expect(markup).toContain('class="channel-guide-layer"');
+    expect(markup).toContain('class="app-site-column"');
     expect(markup).toContain('class="channel-guide-panel"');
+    expect(markup.indexOf('class="channel-guide-panel"')).toBeLessThan(markup.indexOf('class="topbar"'));
     expect(markup.indexOf('class="channel-guide-panel"')).toBeLessThan(markup.indexOf('id="buyer"'));
   });
 
@@ -81,7 +82,8 @@ describe('P-005 product card and shell', () => {
     expect(stylesCss).toMatch(/\.nav-cluster\s*\{[^}]*background:\s*color-mix\(/);
     expect(stylesCss).toMatch(/\.button\s*\{[^}]*min-height:\s*2\.5rem/);
     expect(stylesCss).toMatch(/:where\(a, button, input, select, textarea\):focus-visible/);
-    expect(stylesCss).not.toContain('.app-content-layout');
+    expect(stylesCss).toMatch(/\.app-shell\s*\{[^}]*grid-template-columns:\s*var\(--channel-guide-width\) minmax\(0, 1fr\)/);
+    expect(stylesCss).toMatch(/\.app-site-column\s*\{[^}]*min-width:\s*0/);
   });
 });
 
