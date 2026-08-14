@@ -51,7 +51,7 @@ describe('RunOfShowPanelView', () => {
     expect(html).toContain('1:05');
     expect(html).toContain('5:00');
     // Next-up is a suggestion with a one-tap action, not an auto-stage (D-001).
-    expect(html).toContain('Next up');
+    expect(html).toContain('>Next<');
     expect(html).toContain('Beacon Mug');
     expect(html).toContain('Take live');
     // The former On Deck content now lives inside the one active timeline card.

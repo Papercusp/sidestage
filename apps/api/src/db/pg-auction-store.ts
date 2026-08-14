@@ -155,6 +155,15 @@ export class PgAuctionStore implements AuctionStore {
   async placeBid(id: string, bid: AuctionBid): Promise<AuctionBidResult> {
     return this.transaction(async (client) => {
       const auction = await this.lockAuction(client, id);
+      const replay = bid.idempotencyKey
+        ? auction.bids.find((candidate) => candidate.bidderId === bid.bidderId && candidate.idempotencyKey === bid.idempotencyKey)
+        : undefined;
+      if (replay) {
+        if (replay.amountCents !== bid.amountCents || replay.displayName !== bid.displayName) {
+          throw new ConflictException('Idempotency key was already used for a different bid');
+        }
+        return { auction: cloneAuction(auction), accepted: true, changed: false, inventoryChanged: false };
+      }
       if (auction.status !== 'active') {
         return { auction, accepted: false, changed: false, inventoryChanged: false };
       }

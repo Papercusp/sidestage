@@ -1,0 +1,206 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <title>SideStage Studio · Event navigation concepts</title>
+  <link rel="stylesheet" href="../sidestage-page-redesign-2026-08-14/mockups/shared.css">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <a class="skip-link" href="#comparison">Skip to concepts</a>
+  <header class="app-header">
+    <div class="app-header-inner">
+      <a class="brand" href="#comparison" aria-label="SideStage home">
+        <span class="brand-mark" aria-hidden="true">S</span>
+        <span class="brand-copy"><strong>SideStage</strong><small>Live commerce studio</small></span>
+      </a>
+      <nav class="primary-nav" aria-label="SideStage pages">
+        <span class="nav-cluster"><a class="nav-link" href="#comparison">Watch</a><a class="nav-link" href="#comparison">Orders</a></span>
+        <span class="nav-cluster"><a class="nav-link" aria-current="page" href="#comparison">Studio</a><a class="nav-link" href="#comparison">Releases</a><a class="nav-link" href="#comparison">Tests</a></span>
+      </nav>
+      <div class="header-actions"><span class="status live">Preview</span><span class="avatar" aria-label="Signed in as Avi">AV</span></div>
+    </div>
+  </header>
+
+  <main id="comparison" class="comparison-shell">
+    <header class="study-head">
+      <div>
+        <span class="page-kicker">Studio information architecture study</span>
+        <h1>Where should sellers find their events?</h1>
+        <p>Three preview-only directions for adding a seller-owned event list without disturbing the live control room. Compare hierarchy, density, and migration cost.</p>
+      </div>
+      <div class="study-meta" aria-label="Study status"><span class="badge red">3 concepts</span><span class="badge">Responsive</span><span class="badge">No product changes</span></div>
+    </header>
+
+    <section class="concept-picker card" aria-labelledby="concept-picker-title">
+      <div class="concept-picker-copy"><span class="eyebrow">Compare directions</span><h2 id="concept-picker-title">Choose a navigation model</h2></div>
+      <div class="concept-tabs" role="tablist" aria-label="Event navigation concepts">
+        <button id="concept-tab-four" class="concept-tab" type="button" role="tab" aria-selected="true" aria-controls="concept-four-tabs" data-concept="four-tabs">
+          <span class="concept-number">01</span><span><strong>Four Studio tabs</strong><small>Recommended · clearest lifecycle</small></span>
+        </button>
+        <button id="concept-tab-hub" class="concept-tab" type="button" role="tab" aria-selected="false" aria-controls="concept-events-hub" tabindex="-1" data-concept="events-hub">
+          <span class="concept-number">02</span><span><strong>Events hub</strong><small>Consolidated · calmer chrome</small></span>
+        </button>
+        <button id="concept-tab-manager" class="concept-tab" type="button" role="tab" aria-selected="false" aria-controls="concept-event-manager" tabindex="-1" data-concept="event-manager">
+          <span class="concept-number">03</span><span><strong>Event Manager</strong><small>Smallest change · lowest migration</small></span>
+        </button>
+      </div>
+    </section>
+
+    <section id="concept-four-tabs" class="concept-panel" role="tabpanel" aria-labelledby="concept-tab-four" data-concept-panel="four-tabs">
+      <div class="concept-summary">
+        <div><span class="recommendation">Recommended</span><h2>Make each event lifecycle job a peer</h2><p><strong>Inventory</strong> supplies products, <strong>Create Event</strong> starts a draft, <strong>Events</strong> owns the list, and <strong>Active Event</strong> runs the room.</p></div>
+        <dl class="concept-facts"><div><dt>Best at</dt><dd>Findability</dd></div><div><dt>Trade-off</dt><dd>One more tab</dd></div><div><dt>Migration</dt><dd>Moderate</dd></div></dl>
+      </div>
+      <article class="studio-frame" aria-label="Four Studio tabs mockup">
+        <header class="studio-frame-head"><div><span class="eyebrow">Seller view / stage control</span><h3>Keep the room moving.</h3><p>Plan, find, and run every event from one predictable lifecycle.</p></div><button class="button" type="button" data-action="Reset layout">Reset layout</button></header>
+        <nav class="studio-ia" role="tablist" aria-label="Four-tab Studio navigation">
+          <button type="button" role="tab" aria-selected="false" data-preview-tab>Inventory</button>
+          <button type="button" role="tab" aria-selected="false" data-preview-tab>Create Event</button>
+          <button type="button" role="tab" aria-selected="true" data-preview-tab>Events <span class="nav-count">4</span></button>
+          <button type="button" role="tab" aria-selected="false" data-preview-tab>Active Event <span class="live-dot" aria-label="Live now"></span></button>
+        </nav>
+        <div class="workspace-panel">
+          <div class="workspace-head"><div><span class="eyebrow">Seller events</span><h3>Events</h3><p>Find every draft, scheduled room, live show, and replay you own.</p></div><button class="button primary" type="button" data-action="Create event">Create event</button></div>
+          <div class="event-toolbar">
+            <label class="search-field"><span class="sr-only">Search events</span><span aria-hidden="true">⌕</span><input type="search" placeholder="Search events" data-event-search="four-tabs"></label>
+            <label class="filter-field"><span class="sr-only">Filter by status</span><select aria-label="Filter by status"><option>All statuses</option><option>Draft</option><option>Scheduled</option><option>Live</option><option>Ended</option></select></label>
+            <div class="view-toggle" role="group" aria-label="Event list view"><button type="button" aria-pressed="true">List</button><button type="button" aria-pressed="false">Calendar</button></div>
+          </div>
+          <div class="table-shell">
+            <table class="event-table">
+              <thead><tr><th scope="col">Event</th><th scope="col">Status</th><th scope="col">Starts</th><th scope="col">Lineup</th><th scope="col">Sales</th><th scope="col"><span class="sr-only">Actions</span></th></tr></thead>
+              <tbody data-event-list="four-tabs">
+                <tr data-searchable="studio finds august drop tonight live">
+                  <td data-label="Event"><button class="event-name" type="button" data-action="Open Studio Finds"><span class="event-mark">SF</span><span><strong>Studio Finds: August drop</strong><small>Updated 3 min ago · Public room</small></span></button></td>
+                  <td data-label="Status"><span class="status live">Live</span></td><td data-label="Starts"><strong>Now</strong><small>42 min elapsed</small></td><td data-label="Lineup"><strong>8 items</strong><small>5 remaining</small></td><td data-label="Sales"><strong>$1,284</strong><small>18 orders</small></td><td data-label="Action"><button class="button primary small" type="button" data-action="Open live room">Open live room</button></td>
+                </tr>
+                <tr data-searchable="home objects preview tomorrow scheduled">
+                  <td data-label="Event"><button class="event-name" type="button" data-action="Open Home Objects"><span class="event-mark gold">HO</span><span><strong>Home Objects preview</strong><small>Updated 26 min ago · Public room</small></span></button></td>
+                  <td data-label="Status"><span class="status warning">Scheduled</span></td><td data-label="Starts"><strong>Tomorrow</strong><small>7:00 PM</small></td><td data-label="Lineup"><strong>12 items</strong><small>Ready</small></td><td data-label="Sales"><strong>—</strong><small>Not started</small></td><td data-label="Action"><button class="button small" type="button" data-action="Manage Home Objects">Manage</button></td>
+                </tr>
+                <tr data-searchable="archive edit vol 2 friday draft">
+                  <td data-label="Event"><button class="event-name" type="button" data-action="Open Archive Edit"><span class="event-mark ink">AE</span><span><strong>Archive Edit · Vol. 2</strong><small>Updated yesterday · Unlisted</small></span></button></td>
+                  <td data-label="Status"><span class="status">Draft</span></td><td data-label="Starts"><strong>Fri, Aug 21</strong><small>8:30 PM</small></td><td data-label="Lineup"><strong>5 items</strong><small>3 need details</small></td><td data-label="Sales"><strong>—</strong><small>Not started</small></td><td data-label="Action"><button class="button small" type="button" data-action="Continue Archive Edit">Continue setup</button></td>
+                </tr>
+                <tr data-searchable="summer sample sale ended replay">
+                  <td data-label="Event"><button class="event-name" type="button" data-action="Open Summer Sample Sale"><span class="event-mark green">SS</span><span><strong>Summer sample sale</strong><small>Ended Aug 8 · Replay published</small></span></button></td>
+                  <td data-label="Status"><span class="status pass">Ended</span></td><td data-label="Starts"><strong>Aug 8</strong><small>61 min</small></td><td data-label="Lineup"><strong>10 items</strong><small>Complete</small></td><td data-label="Sales"><strong>$2,904</strong><small>37 orders</small></td><td data-label="Action"><button class="button small" type="button" data-action="View results">View results</button></td>
+                </tr>
+              </tbody>
+            </table>
+            <p class="empty-state" hidden data-empty="four-tabs">No events match this search.</p>
+          </div>
+          <footer class="list-foot"><span><strong data-result-count="four-tabs">4</strong> seller-owned events</span><button class="button ghost small" type="button" data-action="Load older events">Load older events</button></footer>
+        </div>
+      </article>
+    </section>
+
+    <section id="concept-events-hub" class="concept-panel" role="tabpanel" aria-labelledby="concept-tab-hub" data-concept-panel="events-hub" hidden>
+      <div class="concept-summary">
+        <div><span class="recommendation neutral">Consolidated</span><h2>Give “Events” one front door</h2><p>Creation becomes the primary action inside <strong>Events</strong>; the global Studio bar stays at three destinations.</p></div>
+        <dl class="concept-facts"><div><dt>Best at</dt><dd>Calm chrome</dd></div><div><dt>Trade-off</dt><dd>Create is less explicit</dd></div><div><dt>Migration</dt><dd>Moderate</dd></div></dl>
+      </div>
+      <article class="studio-frame" aria-label="Consolidated Events hub mockup">
+        <header class="studio-frame-head"><div><span class="eyebrow">Seller view / stage control</span><h3>Keep the room moving.</h3><p>All event planning begins from one compact hub.</p></div><button class="button" type="button" data-action="Reset layout">Reset layout</button></header>
+        <nav class="studio-ia" role="tablist" aria-label="Consolidated Studio navigation">
+          <button type="button" role="tab" aria-selected="false" data-preview-tab>Inventory</button>
+          <button type="button" role="tab" aria-selected="true" data-preview-tab>Events <span class="nav-count">4</span></button>
+          <button type="button" role="tab" aria-selected="false" data-preview-tab>Active Event <span class="live-dot" aria-label="Live now"></span></button>
+        </nav>
+        <div class="workspace-panel">
+          <div class="workspace-head"><div><span class="eyebrow">Seller events</span><h3>Events</h3><p>Start something new or pick up exactly where you left off.</p></div><button class="button primary" type="button" data-action="Start new event">New event</button></div>
+          <div class="metric-strip" aria-label="Event summary">
+            <div><span class="metric-symbol live-symbol" aria-hidden="true"></span><small>Live now</small><strong>1</strong><em>18 orders</em></div>
+            <div><span class="metric-symbol scheduled-symbol" aria-hidden="true"></span><small>Upcoming</small><strong>2</strong><em>17 reserved items</em></div>
+            <div><span class="metric-symbol draft-symbol" aria-hidden="true"></span><small>Needs work</small><strong>1</strong><em>3 missing details</em></div>
+            <div><span class="metric-symbol sales-symbol" aria-hidden="true">$</span><small>30-day sales</small><strong>$8.4k</strong><em>94 orders</em></div>
+          </div>
+          <div class="hub-controls">
+            <div class="segment-row" role="tablist" aria-label="Event time range"><button class="active" type="button" role="tab" aria-selected="true">Current</button><button type="button" role="tab" aria-selected="false">Past</button></div>
+            <label class="search-field compact"><span class="sr-only">Search current events</span><span aria-hidden="true">⌕</span><input type="search" placeholder="Search" data-event-search="events-hub"></label>
+          </div>
+          <div class="hub-list" data-event-list="events-hub">
+            <article class="hub-event live-event" data-searchable="studio finds august drop live now"><div class="hub-date"><strong>NOW</strong><small>42m</small></div><div class="hub-event-copy"><div class="meta-row"><span class="status live">Live</span><span>Public room</span></div><h4>Studio Finds: August drop</h4><p>Weekender is on stage · 5 lineup items remain</p></div><div class="hub-event-stats"><span><small>Orders</small><strong>18</strong></span><span><small>Sales</small><strong>$1,284</strong></span></div><button class="button primary small" type="button" data-action="Open live room">Open room</button></article>
+            <article class="hub-event" data-searchable="home objects preview tomorrow scheduled"><div class="hub-date"><strong>15</strong><small>Aug · 7 PM</small></div><div class="hub-event-copy"><div class="meta-row"><span class="status warning">Scheduled</span><span>Public room</span></div><h4>Home Objects preview</h4><p>12 reserved items · Ready to rehearse</p></div><div class="hub-event-stats"><span><small>Reminders</small><strong>86</strong></span><span><small>Lineup</small><strong>12</strong></span></div><button class="button small" type="button" data-action="Manage Home Objects">Manage</button></article>
+            <article class="hub-event" data-searchable="archive edit vol 2 draft friday"><div class="hub-date"><strong>21</strong><small>Aug · 8:30</small></div><div class="hub-event-copy"><div class="meta-row"><span class="status">Draft</span><span>Unlisted</span></div><h4>Archive Edit · Vol. 2</h4><p>5 reserved items · 3 need details</p></div><div class="hub-event-stats"><span><small>Progress</small><strong>54%</strong></span><span><small>Lineup</small><strong>5</strong></span></div><button class="button small" type="button" data-action="Continue Archive Edit">Continue</button></article>
+          </div>
+          <p class="empty-state" hidden data-empty="events-hub">No current events match this search.</p>
+          <footer class="list-foot"><span><strong data-result-count="events-hub">3</strong> current events</span><button class="button ghost small" type="button" data-action="View event archive">View event archive</button></footer>
+        </div>
+      </article>
+    </section>
+
+    <section id="concept-event-manager" class="concept-panel" role="tabpanel" aria-labelledby="concept-tab-manager" data-concept-panel="event-manager" hidden>
+      <div class="concept-summary">
+        <div><span class="recommendation low-change">Smallest change</span><h2>Expand the existing Event Manager</h2><p>Keep today’s three Studio tabs and introduce a local <strong>My events / Create event</strong> switch inside Event Manager.</p></div>
+        <dl class="concept-facts"><div><dt>Best at</dt><dd>Fast migration</dd></div><div><dt>Trade-off</dt><dd>Nested navigation</dd></div><div><dt>Migration</dt><dd>Low</dd></div></dl>
+      </div>
+      <article class="studio-frame" aria-label="Expanded Event Manager mockup">
+        <header class="studio-frame-head"><div><span class="eyebrow">Seller view / stage control</span><h3>Keep the room moving.</h3><p>The current Studio information architecture remains intact.</p></div><button class="button" type="button" data-action="Reset layout">Reset layout</button></header>
+        <nav class="studio-ia" role="tablist" aria-label="Current Studio navigation">
+          <button type="button" role="tab" aria-selected="false" data-preview-tab>Inventory</button>
+          <button type="button" role="tab" aria-selected="true" data-preview-tab>Event Manager</button>
+          <button type="button" role="tab" aria-selected="false" data-preview-tab>Active Event <span class="live-dot" aria-label="Live now"></span></button>
+        </nav>
+        <div class="workspace-panel">
+          <div class="workspace-head manager-head">
+            <div><span class="eyebrow">Seller workspace · event setup</span><h3>Event Manager</h3><p>Choose an event to manage, or create one from real catalog inventory.</p></div>
+            <div class="manager-switch" role="tablist" aria-label="Event Manager view">
+              <button id="manager-list-tab" class="active" type="button" role="tab" aria-selected="true" aria-controls="manager-list-pane" data-manager-view="list">My events <span class="nav-count">4</span></button>
+              <button id="manager-create-tab" type="button" role="tab" aria-selected="false" aria-controls="manager-create-pane" data-manager-view="create">Create event</button>
+            </div>
+          </div>
+          <div id="manager-list-pane" class="manager-layout" role="tabpanel" aria-labelledby="manager-list-tab" data-manager-pane="list">
+            <aside class="manager-rail" aria-label="My events">
+              <div class="manager-rail-head"><div><span class="eyebrow">My events</span><strong>4 total</strong></div><button class="icon-action" type="button" aria-label="Create event" data-manager-create>＋</button></div>
+              <label class="search-field rail-search"><span class="sr-only">Search my events</span><span aria-hidden="true">⌕</span><input type="search" placeholder="Search events" data-event-search="event-manager"></label>
+              <div class="manager-event-list" data-event-list="event-manager">
+                <button class="manager-event selected" type="button" data-searchable="studio finds august drop live" data-manager-event="Studio Finds: August drop"><span class="event-mark">SF</span><span><strong>Studio Finds: August drop</strong><small>Live now · 8 items</small></span><span class="status live">Live</span></button>
+                <button class="manager-event" type="button" data-searchable="home objects preview scheduled" data-manager-event="Home Objects preview"><span class="event-mark gold">HO</span><span><strong>Home Objects preview</strong><small>Tomorrow · 12 items</small></span><span class="status warning">Soon</span></button>
+                <button class="manager-event" type="button" data-searchable="archive edit vol 2 draft" data-manager-event="Archive Edit · Vol. 2"><span class="event-mark ink">AE</span><span><strong>Archive Edit · Vol. 2</strong><small>Draft · 5 items</small></span><span class="status">Draft</span></button>
+                <button class="manager-event" type="button" data-searchable="summer sample sale ended" data-manager-event="Summer sample sale"><span class="event-mark green">SS</span><span><strong>Summer sample sale</strong><small>Ended Aug 8 · 10 items</small></span><span class="status pass">Ended</span></button>
+              </div>
+              <p class="empty-state rail-empty" hidden data-empty="event-manager">No events match this search.</p>
+              <div class="rail-foot"><span><strong data-result-count="event-manager">4</strong> events</span><button class="button ghost small" type="button" data-action="Load older events">Older</button></div>
+            </aside>
+            <section class="manager-detail" aria-live="polite">
+              <div class="detail-heading"><div><div class="meta-row"><span class="status live">Live</span><span>Public room</span><span>Updated 3 min ago</span></div><h4 data-detail-title>Studio Finds: August drop</h4><p data-detail-copy>Eight reserved products · five still in the live lineup</p></div><button class="button primary" type="button" data-action="Open active event">Open active event</button></div>
+              <div class="guardrail-note"><span aria-hidden="true">⌁</span><div><strong>Guarded seller actions are live</strong><p>Price floors, verified inventory, audit, and rollback stay enforced server-side.</p></div></div>
+              <div class="detail-toolbar"><div><small>Event lineup</small><strong>8 reserved items</strong></div><button class="button" type="button" data-action="Add inventory">Add inventory</button></div>
+              <div class="lineup-preview" aria-label="Selected event lineup">
+                <div><span class="lineup-index">01</span><span class="event-mark">W</span><span><strong>Hand-finished weekender</strong><small>$148 · 4 remaining</small></span><span class="badge red">On stage</span></div>
+                <div><span class="lineup-index">02</span><span class="event-mark gold">C</span><span><strong>Studio brass catchall</strong><small>$58 · 20 reserved</small></span><span class="badge yellow">Next</span></div>
+                <div><span class="lineup-index">03</span><span class="event-mark ink">T</span><span><strong>Archive textile study</strong><small>$92 · 7 reserved</small></span><button class="button small" type="button" data-action="Manage textile item">Manage</button></div>
+              </div>
+            </section>
+          </div>
+          <section id="manager-create-pane" class="create-preview" role="tabpanel" aria-labelledby="manager-create-tab" data-manager-pane="create" hidden>
+            <div class="create-preview-copy"><span class="eyebrow">New event</span><h4>Build the live lineup.</h4><p>Name the event, choose its schedule, then reserve real catalog inventory.</p></div>
+            <form class="create-grid" onsubmit="return false">
+              <label class="field"><span>Event name</span><input placeholder="e.g. Friday archive drop"></label>
+              <label class="field"><span>Starts at</span><input type="datetime-local" value="2026-08-21T20:30"></label>
+              <label class="field"><span>Visibility</span><select><option>Public room</option><option>Unlisted link</option></select></label>
+              <div class="create-actions"><button class="button" type="button" data-manager-list>Cancel</button><button class="button primary" type="button" data-action="Continue to inventory">Continue to inventory</button></div>
+            </form>
+          </section>
+        </div>
+      </article>
+    </section>
+
+    <section class="decision-card card" aria-labelledby="decision-title">
+      <div><span class="eyebrow">Decision aid</span><h2 id="decision-title">The choice is mostly about hierarchy</h2><p>All three can share one event-list component and the same service contracts. The visible difference is where sellers form their mental model.</p></div>
+      <div class="decision-grid" role="list">
+        <article class="decision-option recommended" role="listitem"><span>01</span><h3>Four tabs</h3><p>Best when “create,” “find,” and “run” are distinct frequent jobs.</p><strong>Recommended</strong></article>
+        <article class="decision-option" role="listitem"><span>02</span><h3>Events hub</h3><p>Best when the top bar must stay compact and creation is occasional.</p><strong>Balanced</strong></article>
+        <article class="decision-option" role="listitem"><span>03</span><h3>Event Manager</h3><p>Best when minimizing routing and migration work outweighs clarity.</p><strong>Lowest change</strong></article>
+      </div>
+    </section>
+    <footer class="prototype-foot"><span>Preview-only design study · SideStage Studio · 14 Aug 2026</span><span>Existing cream / paper / ink / red / yellow / green tokens</span></footer>
+  </main>
+  <div class="toast" role="status" aria-live="polite" aria-atomic="true" hidden></div>
+  <script src="app.js"></script>
+</body>
+</html>

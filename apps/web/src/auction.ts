@@ -28,6 +28,13 @@ export interface BuyerAuction {
     totalCents: number;
     status: 'pending';
   };
+  /** Server-derived identity for the viewer making this request. */
+  viewerBidderId?: string;
+}
+
+export interface AuctionGuestSession {
+  bidderId: string;
+  expiresAt: string;
 }
 
 export interface AuctionEventPayload {
@@ -53,6 +60,10 @@ export function auctionStreamUrl(eventId: string, apiBaseUrl?: string): string {
 
 export function auctionBidUrl(auctionId: string, apiBaseUrl?: string): string {
   return `${resolveAuctionApiOrigin(apiBaseUrl)}/auctions/${encodeURIComponent(auctionId)}/bids`;
+}
+
+export function auctionGuestAccessUrl(apiBaseUrl?: string): string {
+  return `${resolveAuctionApiOrigin(apiBaseUrl)}/auctions/access/guest`;
 }
 
 export function parseBidDollars(value: string): number | null {
@@ -103,17 +114,41 @@ async function requestJson<T>(url: string, init?: RequestInit): Promise<T> {
   return response.json() as Promise<T>;
 }
 
+let guestSessionPromise: Promise<AuctionGuestSession> | null = null;
+
+/**
+ * Establishes anonymous continuity without accepting identity from the page.
+ * The API authors a signed HttpOnly cookie; JavaScript receives only the
+ * public bidder id needed to render "You won" correctly.
+ */
+export function getAuctionGuestSession(apiBaseUrl?: string): Promise<AuctionGuestSession> {
+  if (!guestSessionPromise) {
+    guestSessionPromise = requestJson<AuctionGuestSession>(auctionGuestAccessUrl(apiBaseUrl), {
+      method: 'POST',
+      credentials: 'include',
+    }).catch((error) => {
+      guestSessionPromise = null;
+      throw error;
+    });
+  }
+  return guestSessionPromise;
+}
+
 export function fetchActiveAuction(eventId: string, apiBaseUrl?: string): Promise<BuyerAuction | null> {
   return requestJson<BuyerAuction | null>(activeAuctionUrl(eventId, apiBaseUrl));
 }
 
 export function placeAuctionBid(
   auctionId: string,
-  input: { bidderId: string; displayName?: string; amountCents: number },
+  input: { bidderId?: string; displayName?: string; amountCents: number; idempotencyKey: string },
   apiBaseUrl?: string,
 ): Promise<BuyerAuction> {
-  return requestJson<BuyerAuction>(auctionBidUrl(auctionId, apiBaseUrl), {
+  return getAuctionGuestSession(apiBaseUrl).then(() => requestJson<BuyerAuction>(auctionBidUrl(auctionId, apiBaseUrl), {
     method: 'POST',
-    body: JSON.stringify(input),
-  });
+    credentials: 'include',
+    headers: { 'idempotency-key': input.idempotencyKey },
+    // bidderId is intentionally omitted: the server derives it from the
+    // signed guest cookie and cannot be widened by a forged request body.
+    body: JSON.stringify({ displayName: input.displayName, amountCents: input.amountCents }),
+  }));
 }
