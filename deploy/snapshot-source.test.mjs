@@ -4,7 +4,10 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 
-const helper = path.resolve('deploy/snapshot-source.sh');
+// Anchored to THIS FILE, not process.cwd(): vitest runs from the repo root and
+// from apps/api here, and a cwd-relative resolve made this file go red purely
+// because of where the runner was started (EI-20431188762724365).
+const helper = path.join(path.dirname(fileURLToPath(import.meta.url)), 'snapshot-source.sh');
 const temporaryRoots = [];
 
 function run(command, args, cwd) {

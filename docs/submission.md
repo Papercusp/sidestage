@@ -130,8 +130,12 @@ reviewable in one clean clone. The mapping and data policy are documented in
 
 ## Known limits disclosed to reviewers
 
-- The public deploy/live URL is not available yet because the separate P-027
-  infrastructure item is blocked; this packet does not imply that a URL exists.
+- The public instance at <https://sidestage.buyrestart.com> is live and serves
+  the real catalog. It is a single-box deployment (one Hetzner host, Docker
+  Compose behind Traefik) with no redundancy or autoscaling: it is a reviewable
+  demo, not a high-availability service. Releases are pinned per-commit and a
+  previous release can be restored with `./deploy/rollback.sh`; a failed health
+  check rolls the deploy back automatically.
 - The default demo can be explored without Docker, but persistence, search, and
   WHIP/WHEP media require the corresponding local services.
 - The Config surface currently demonstrates the policy controls; its preview
