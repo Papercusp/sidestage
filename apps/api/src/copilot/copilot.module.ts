@@ -6,6 +6,8 @@ import { CatalogModule } from '../catalog/catalog.module';
 import { ChatModule } from '../chat/chat.module';
 import { ChatService, isBuyerQuestion } from '../chat/chat.service';
 import { EventConfigModule } from '../config/event-config.module';
+import { EventModule } from '../events/event.module';
+import { EventOwnershipGuard } from '../events/event-ownership.guard';
 import { DatabaseModule, PG_POOL } from '../db/database.module';
 import { JudgeModule } from '../judge/judge.module';
 import { SyncModule } from '../sync/sync.module';
@@ -23,11 +25,13 @@ export class CopilotSyncQueries implements OnModuleInit {
   constructor(
     @Inject(CopilotProposalService) private readonly copilot: CopilotProposalService,
     @Inject(SyncQueryRegistry) private readonly queries: SyncQueryRegistry,
+    @Inject(EventOwnershipGuard) private readonly ownership: EventOwnershipGuard,
   ) {}
 
   onModuleInit(): void {
-    this.queries.register('event.copilot.proposals', (args) => {
+    this.queries.register('event.copilot.proposals', async (args, context) => {
       const eventId = typeof args.eventId === 'string' ? args.eventId : '';
+      await this.ownership.requireOwned(eventId, context.principal);
       return this.copilot.list(eventId);
     });
   }
@@ -55,7 +59,7 @@ export class BuyerQuestionCopilotSubscriber implements OnModuleInit, OnModuleDes
 }
 
 @Module({
-  imports: [DatabaseModule, SyncModule, ChatModule, CatalogModule, EventConfigModule, ActionModule, JudgeModule],
+  imports: [DatabaseModule, SyncModule, ChatModule, CatalogModule, EventConfigModule, EventModule, ActionModule, JudgeModule],
   controllers: [CopilotController],
   providers: [
     SideStageGroundingRetriever,

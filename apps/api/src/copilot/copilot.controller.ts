@@ -1,4 +1,6 @@
-import { Body, Controller, Get, Inject, Param, Post } from '@nestjs/common';
+import { Body, Controller, Get, Headers, Inject, Param, Post } from '@nestjs/common';
+import { EventOwnershipGuard } from '../events/event-ownership.guard';
+import { DEMO_PRINCIPAL_HEADER } from '../sync/sync-request-context';
 import { CopilotProposalService } from './copilot.service';
 import type {
   ConfirmCopilotActionInput,
@@ -8,30 +10,67 @@ import type {
 
 @Controller('copilot')
 export class CopilotController {
-  constructor(@Inject(CopilotProposalService) private readonly copilot: CopilotProposalService) {}
+  constructor(
+    @Inject(CopilotProposalService) private readonly copilot: CopilotProposalService,
+    @Inject(EventOwnershipGuard) private readonly ownership: EventOwnershipGuard,
+  ) {}
 
   @Get('events/:eventId/proposals')
-  list(@Param('eventId') eventId: string) {
+  async list(
+    @Param('eventId') eventId: string,
+    @Headers(DEMO_PRINCIPAL_HEADER) principalHeader?: string,
+  ) {
+    await this.ownership.requireOwned(eventId, principalHeader);
     return this.copilot.list(eventId);
   }
 
   @Post('events/:eventId/turns')
-  create(@Param('eventId') eventId: string, @Body() body: CreateCopilotTurnInput) {
+  async create(
+    @Param('eventId') eventId: string,
+    @Body() body: CreateCopilotTurnInput,
+    @Headers(DEMO_PRINCIPAL_HEADER) principalHeader?: string,
+  ) {
+    await this.ownership.requireOwned(eventId, principalHeader);
     return this.copilot.createManual(eventId, body ?? { message: '' });
   }
 
   @Post('proposals/:proposalId/approve')
-  approve(@Param('proposalId') proposalId: string, @Body() body: ReviewCopilotReplyInput) {
-    return this.copilot.approve(proposalId, body ?? {});
+  async approve(
+    @Param('proposalId') proposalId: string,
+    @Body() body: ReviewCopilotReplyInput,
+    @Headers(DEMO_PRINCIPAL_HEADER) principalHeader?: string,
+  ) {
+    const sellerId = await this.requireOwnedProposal(proposalId, principalHeader);
+    return this.copilot.approve(proposalId, { ...(body ?? {}), actorId: sellerId });
   }
 
   @Post('proposals/:proposalId/skip')
-  skip(@Param('proposalId') proposalId: string, @Body() body: ReviewCopilotReplyInput) {
-    return this.copilot.skip(proposalId, body ?? {});
+  async skip(
+    @Param('proposalId') proposalId: string,
+    @Body() body: ReviewCopilotReplyInput,
+    @Headers(DEMO_PRINCIPAL_HEADER) principalHeader?: string,
+  ) {
+    const sellerId = await this.requireOwnedProposal(proposalId, principalHeader);
+    return this.copilot.skip(proposalId, { ...(body ?? {}), actorId: sellerId });
   }
 
   @Post('proposals/:proposalId/confirm-action')
-  confirmAction(@Param('proposalId') proposalId: string, @Body() body: ConfirmCopilotActionInput) {
-    return this.copilot.confirmAction(proposalId, body ?? {});
+  async confirmAction(
+    @Param('proposalId') proposalId: string,
+    @Body() body: ConfirmCopilotActionInput,
+    @Headers(DEMO_PRINCIPAL_HEADER) principalHeader?: string,
+  ) {
+    const sellerId = await this.requireOwnedProposal(proposalId, principalHeader);
+    return this.copilot.confirmAction(proposalId, { ...(body ?? {}), actorId: sellerId });
+  }
+
+  private async requireOwnedProposal(
+    proposalId: string,
+    principalHeader: string | undefined,
+  ): Promise<string> {
+    const sellerId = this.ownership.sellerId(principalHeader);
+    const proposal = await this.copilot.find(proposalId);
+    await this.ownership.requireOwnedForSeller(proposal?.eventId, sellerId);
+    return sellerId;
   }
 }

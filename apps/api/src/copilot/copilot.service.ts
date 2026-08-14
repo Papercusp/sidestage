@@ -70,6 +70,11 @@ export class CopilotProposalService {
     return this.store.list(eventId);
   }
 
+  /** Lookup seam used only to owner-check secondary proposal identifiers. */
+  find(id: string): Promise<CopilotProposal | undefined> {
+    return this.store.get(id);
+  }
+
   async createFromChat(message: ChatMessage): Promise<CopilotProposal> {
     return this.generate({
       id: message.id,
