@@ -45,6 +45,34 @@ SSH=(ssh -i "$PROD_SSH_KEY" -o ConnectTimeout=10 "root@$PROD_HOST")
 
 say() { echo "==> $*"; }
 
+# health_probe <sha> -- echo the /healthz body from the first leg that answers,
+# and set HEALTH_LEG to which leg that was ("public" | "container" | "none").
+#
+# ORDER MATTERS. The PUBLIC url is the real contract: it exercises DNS + TLS +
+# Traefik + the app, and its body carries the sha the running image was built
+# from, so ONE probe satisfies both the health gate and the sha verification.
+# It runs from the DEPLOY HOST (no ssh) precisely so it tests the path a real
+# user takes. The container-exec leg is a LAST RESORT: it proves only that the
+# process is alive inside its own namespace and cannot see a broken ingress,
+# which is most of what a deploy can break -- so falling back to it is REPORTED,
+# never silent.
+HEALTH_LEG=none
+health_probe() {
+  local target_sha="$1" body
+  if body="$(curl -sf --max-time 6 "$HEALTH_URL" 2>/dev/null)"; then
+    HEALTH_LEG=public
+    printf '%s' "$body"
+    return 0
+  fi
+  if body="$("${SSH[@]}" "cd $PROD_DIR && SIDESTAGE_SHA=$target_sha $COMPOSE exec -T api node -e 'fetch(\"http://127.0.0.1:3100/healthz\").then(r=>{if(!r.ok)process.exit(1);return r.text()}).then(t=>process.stdout.write(t)).catch(()=>process.exit(1))'" 2>/dev/null)"; then
+    HEALTH_LEG=container
+    printf '%s' "$body"
+    return 0
+  fi
+  HEALTH_LEG=none
+  return 1
+}
+
 SNAPSHOT_DIR="$(mktemp -d "${TMPDIR:-/tmp}/sidestage-deploy.XXXXXX")"
 trap 'rm -rf -- "$SNAPSHOT_DIR"' EXIT INT TERM
 bash "$SCRIPT_DIR/snapshot-source.sh" "$PWD" "$SNAPSHOT_DIR"
@@ -96,6 +124,13 @@ say "Checking .env.production exists on prod"
 say "Validating required production configuration"
 "${SSH[@]}" "cd $PROD_DIR && SIDESTAGE_SHA=config-check $COMPOSE config --quiet"
 
+# Existing Postgres volumes do not replay /docker-entrypoint-initdb.d when the
+# schema file changes. Apply the repository's idempotent schema before building
+# or replacing either application container, so a DDL failure leaves the known-
+# good release running and the API cannot crash-loop on a missing new table.
+say "Applying idempotent production schema"
+"${SSH[@]}" "cd $PROD_DIR && SIDESTAGE_COMPOSE_FILE=docker-compose.prod.yml SIDESTAGE_COMPOSE_ENV_FILE=.env.production bash scripts/db-apply.sh"
+
 SHA="$(git rev-parse HEAD)"
 # Capture what is live BEFORE we overwrite anything, so a failed health check
 # has somewhere to roll back TO.
@@ -111,14 +146,14 @@ say "Build + up on prod (SIDESTAGE_SHA=${SHA:0:7}, previous=${PREV_SHA:0:7})"
 
 say "Health check"
 healthy=false
+HEALTH_BODY=""
 for attempt in $(seq 1 20); do
-  if "${SSH[@]}" "curl -sf --max-time 4 http://127.0.0.1:3100/healthz -H 'Host: sidestage'" >/dev/null 2>&1; then
-    say "API healthy via host loopback (attempt $attempt)"
-    healthy=true
-    break
-  fi
-  if "${SSH[@]}" "cd $PROD_DIR && SIDESTAGE_SHA=$SHA $COMPOSE exec -T api node -e 'fetch(\"http://127.0.0.1:3100/healthz\").then(r=>{if(!r.ok)throw 0})'" >/dev/null 2>&1; then
-    say "API healthy via container fallback (attempt $attempt)"
+  if HEALTH_BODY="$(health_probe "$SHA")"; then
+    say "API healthy via $HEALTH_LEG leg (attempt $attempt)"
+    if [[ "$HEALTH_LEG" != public ]]; then
+      echo "WARN: $HEALTH_URL did not answer; health was confirmed only INSIDE the" >&2
+      echo "      container. DNS/TLS/Traefik ingress is NOT verified by this run." >&2
+    fi
     healthy=true
     break
   fi
@@ -140,7 +175,36 @@ if ! $healthy; then
   exit 4
 fi
 
-say "Recording deployed sha (health check passed)"
+# VERIFY BEFORE RECORDING -- the same principle the health gate above follows:
+# never write a sha into .deployed-sha that we have not proven prod is serving.
+# Until 2026-08-14 this ran AFTER the record step and read a host-loopback port
+# that is never published, so `served` was unconditionally empty and the check
+# ALWAYS took a WARN branch whose text pre-excused its own failure ("Expected on
+# the first deploy after the sha-reporting change"). It was vacuous on every run
+# it ever made, while printing a benign-looking message.
+say "Verifying /healthz reports the sha we just shipped"
+served=""
+sha_ok=false
+for attempt in $(seq 1 5); do
+  if served="$(health_probe "$SHA")" && [[ "$served" == *"$SHA"* ]]; then
+    sha_ok=true
+    break
+  fi
+  sleep 3
+done
+
+if ! $sha_ok; then
+  echo "ERROR: prod does not report the sha just deployed." >&2
+  echo "       expected: $SHA" >&2
+  echo "       /healthz (leg: $HEALTH_LEG) returned: ${served:-<no response>}" >&2
+  echo "       $DEPLOYED_SHA_FILE was left at ${PREV_SHA:0:7} -- it still names the" >&2
+  echo "       last sha prod was PROVEN to serve. Investigate before rolling back:" >&2
+  echo "         curl -s $HEALTH_URL" >&2
+  exit 5
+fi
+say "OK: /healthz (leg: $HEALTH_LEG) reports ${SHA:0:7}"
+
+say "Recording deployed sha (health check + sha verification passed)"
 "${SSH[@]}" "
   set -e
   cd $PROD_DIR
@@ -150,11 +214,4 @@ say "Recording deployed sha (health check passed)"
   printf '%s' $SHA > $DEPLOYED_SHA_FILE
 "
 
-say "Verifying /healthz reports the sha we just shipped"
-served="$("${SSH[@]}" "curl -sf --max-time 4 http://127.0.0.1:3100/healthz -H 'Host: sidestage'" 2>/dev/null || true)"
-case "$served" in
-  *"$SHA"*) say "OK: /healthz reports ${SHA:0:7}" ;;
-  *) echo "WARN: /healthz did not report $SHA (got: ${served:-<no response>}). Expected on the first deploy after the sha-reporting change." >&2 ;;
-esac
-
-say "Done. Public: https://\$PUBLIC_HOSTNAME (Traefik routes once DNS resolves)."
+say "Done. Public: https://$PUBLIC_HOSTNAME (verified serving ${SHA:0:7} via $HEALTH_LEG leg)."

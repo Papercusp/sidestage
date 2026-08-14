@@ -73,9 +73,11 @@ services:
       args:
         SIDESTAGE_SHA: ${SIDESTAGE_SHA:-unknown}
     restart: unless-stopped
-    ports:
-      # Deploy health probes run on the host; keep the API private to loopback.
-      - "127.0.0.1:3100:3100"
+    # DELIBERATELY no `ports:` -- the api is EXPOSED but never PUBLISHED to the
+    # host. Traefik reaches container port 3100 over the `coolify` network (see
+    # the traefik.* labels below), so publishing it would add host surface the
+    # architecture does not need. A deploy health probe must therefore use the
+    # PUBLIC url, not a host loopback port; see deploy/deploy.sh's health_probe.
     environment:
       NODE_ENV: production
       API_PREFIX: api
