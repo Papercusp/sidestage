@@ -1,0 +1,83 @@
+/*
+ * Seller dock chrome (P-007).
+ *
+ * D-003: the FRAME is the only new thing — components mount unchanged inside
+ * the panels. Every colour here resolves to a styles.css :root token (the R3
+ * "Ticket" retheme set). There are deliberately NO hardcoded hexes in this
+ * file: P-003's stray-hex sweep and the retheme's token-first rule both bind
+ * here, so a future retheme moves this dock by editing tokens alone.
+ *
+ * Chrome lives in its own stylesheet rather than in styles.css so the dock can
+ * be restyled without contending for that high-traffic shared file. P-011's
+ * retheme pass owns this file.
+ *
+ * `--dv-*` are dockview's own theming variables; this block is the single seam
+ * that maps them onto SideStage tokens.
+ */
+
+.seller-dock-theme {
+  /* Surfaces */
+  --dv-group-view-background-color: var(--surface);
+  --dv-tabs-and-actions-container-background-color: var(--bg);
+  --dv-activegroup-visiblepanel-tab-background-color: var(--surface);
+  --dv-activegroup-hiddenpanel-tab-background-color: var(--bg);
+  --dv-inactivegroup-visiblepanel-tab-background-color: var(--surface);
+  --dv-inactivegroup-hiddenpanel-tab-background-color: var(--bg);
+
+  /* Tab text: active reads as body text, idle as muted. */
+  --dv-activegroup-visiblepanel-tab-color: var(--text);
+  --dv-activegroup-hiddenpanel-tab-color: var(--muted);
+  --dv-inactivegroup-visiblepanel-tab-color: var(--muted);
+  --dv-inactivegroup-hiddenpanel-tab-color: var(--muted);
+
+  /* Separators, sashes and drag affordances ride the brand accent. */
+  --dv-separator-border: var(--border);
+  --dv-tab-divider-color: var(--border);
+  --dv-active-sash-color: var(--accent);
+  --dv-drag-over-background-color: var(--surface-raised);
+  --dv-drag-over-border: 2px solid var(--accent);
+  --dv-paneview-active-outline-color: var(--accent);
+
+  /* Icons / hover affordances. */
+  --dv-icon-hover-background-color: var(--bg);
+  --dv-floating-box-shadow: 0 18px 50px rgb(0 0 0 / 17%);
+
+  /* Match the grid's gutter so the dock reads at the same rhythm. */
+  --dv-tabs-container-height: var(--ss-control-h);
+
+  height: 100%;
+  min-height: 0;
+  font-size: var(--ss-font);
+}
+
+/*
+ * The dock fills the space the .seller-grid used to occupy. `min-height: 0` on
+ * both the host and its flex parents is load-bearing: dockview measures its own
+ * container, and a flex child defaults to min-height:auto, which lets the
+ * content push the container taller every measure pass instead of letting it
+ * shrink — the classic "dock grows without bound / scrollbars never settle"
+ * failure.
+ */
+.seller-dock-host {
+  min-height: 0;
+  height: clamp(560px, 72vh, 900px);
+  margin-top: var(--ss-section-gap);
+  border: 1px solid var(--border);
+  border-radius: 0.9rem;
+  overflow: hidden;
+  background: var(--surface);
+}
+
+/* Panel body padding matches .stage-panel so content keeps its rhythm. */
+.seller-dock-panel {
+  height: 100%;
+  overflow: auto;
+  padding: var(--ss-pad);
+}
+
+/* Fallback shown when a layout names a panel this build cannot render. */
+.seller-dock-missing {
+  padding: var(--ss-pad);
+  color: var(--muted);
+  font-size: var(--ss-font);
+}

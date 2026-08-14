@@ -18,6 +18,15 @@ export type ReplyTone = 'warm' | 'playful' | 'minimal';
 export interface EventConfig {
   eventId: string;
   name: string;
+  /**
+   * Thumbnail shown for this event in buyer-facing listings. Either a `data:`
+   * URL (a seller upload, inlined — SideStage has no object store; the
+   * "media base" is MediaMTX, a live-video endpoint that stores nothing) or an
+   * ordinary `https:` URL. One field for both so no renderer branches on
+   * provenance, and so moving to real object storage later changes only what
+   * the uploader produces. Absent means the caller renders its placeholder.
+   */
+  thumbnailUrl?: string;
   replyTone: ReplyTone;
   guardrails: EventGuardrails;
   updatedAt: string;
@@ -73,6 +82,17 @@ export function defaultEventConfig(eventId: string): EventConfig {
 
 const REPLY_TONES = new Set<ReplyTone>(['warm', 'playful', 'minimal']);
 
+/** Raster image types accepted for an event thumbnail. SVG is excluded on purpose: it can carry script. */
+const ALLOWED_THUMBNAIL_MEDIA_TYPES: readonly string[] = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
+
+/**
+ * Character cap on a stored thumbnail URL. The uploader bounds the RAW file at
+ * 512KB; base64 inflates by ~4/3, so ~700K characters is that same bound
+ * expressed in what actually lands in the jsonb payload. This is the check that
+ * stops an oversized data URL from bloating every read of the event config.
+ */
+const MAX_THUMBNAIL_URL_CHARS = 700_000;
+
 /**
  * The guardrail toggle IS the policy (P-105): the saved config derives the
  * CopilotPolicy the action guard enforces. Price guardrail ON keeps markdowns
@@ -104,9 +124,15 @@ export class EventConfigService {
   async save(eventId: string, input: Partial<Omit<EventConfig, 'eventId' | 'updatedAt'>>): Promise<EventConfig> {
     const id = this.readEventId(eventId);
     const current = await this.get(id);
+    // `thumbnailUrl` is tri-state on the way in: absent => keep what is stored,
+    // explicit null/'' => clear it, a string => validate and replace. Without
+    // the null case a seller could never REMOVE a thumbnail once set, because
+    // `input.x ?? current.x` reads every falsy clear as "unchanged".
+    const thumbnailInput = 'thumbnailUrl' in input ? input.thumbnailUrl : current.thumbnailUrl;
     const next: EventConfig = {
       eventId: id,
       name: this.readName(input.name ?? current.name),
+      thumbnailUrl: this.readThumbnailUrl(thumbnailInput),
       replyTone: this.readTone(input.replyTone ?? current.replyTone),
       guardrails: {
         priceChanges: input.guardrails?.priceChanges ?? current.guardrails.priceChanges,
@@ -131,6 +157,34 @@ export class EventConfigService {
     const name = value.trim();
     if (!name || name.length > 120) throw new BadRequestException('name is required and must be 120 characters or fewer');
     return name;
+  }
+
+  /**
+   * Validate a thumbnail URL server-side.
+   *
+   * This deliberately RE-IMPLEMENTS the browser's check rather than sharing it.
+   * The client-side validator in apps/web guides the seller; this one is a
+   * trust boundary, and a trust boundary that imports its rule from the thing
+   * it distrusts is not one. The value ends up in an `<img src>` for every
+   * buyer, so the scheme check is an ALLOW-list: only `data:` URLs of a known
+   * raster image type, or http(s). `data:image/svg+xml` and `data:text/html`
+   * are script-bearing and are excluded here, not merely discouraged.
+   */
+  private readThumbnailUrl(value: unknown): string | undefined {
+    if (value === undefined || value === null) return undefined;
+    if (typeof value !== 'string') throw new BadRequestException('thumbnailUrl must be a string');
+    const url = value.trim();
+    if (!url) return undefined;
+    if (url.length > MAX_THUMBNAIL_URL_CHARS) {
+      throw new BadRequestException(
+        `thumbnailUrl must be ${MAX_THUMBNAIL_URL_CHARS} characters or fewer (an image around 512KB once base64-encoded)`,
+      );
+    }
+    const isDataImage = ALLOWED_THUMBNAIL_MEDIA_TYPES.some((type) => url.startsWith(`data:${type};base64,`));
+    if (isDataImage || /^https?:\/\/\S+$/i.test(url)) return url;
+    throw new BadRequestException(
+      'thumbnailUrl must be an http(s) URL or a base64 data URL of a JPEG, PNG, WebP, or GIF image',
+    );
   }
 
   private readTone(value: string): ReplyTone {
