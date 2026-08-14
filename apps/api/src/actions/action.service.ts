@@ -1,10 +1,13 @@
 import {
   BadRequestException,
   ConflictException,
+  Inject,
   Injectable,
   NotFoundException,
+  Optional,
 } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
+import { EVENT_POLICY_RESOLVER, type EventPolicyResolver } from '../config/event-policy-resolver';
 import { PolicyActionGuard } from '../copilot/guardrail';
 import type { ActionExecutor, CopilotActionProposal, CopilotPolicy } from '../copilot/copilot.types';
 import type {
@@ -106,6 +109,17 @@ export class GuardedActionService implements ActionExecutor {
   private readonly audits = new Map<string, ActionAuditRecord>();
   private readonly auditOrder: string[] = [];
 
+  /**
+   * WI-38673: when the config-backed resolver is wired (the production DI
+   * graph), the Config tab's guardrail toggles / a published seller policy are
+   * AUTHORITATIVE at the moment of enforcement — the policy a register caller
+   * supplied is only the fallback for resolver-less instances (rehearsals,
+   * unit tests), so an HTTP caller cannot bring its own policy to the guard.
+   */
+  constructor(
+    @Optional() @Inject(EVENT_POLICY_RESOLVER) private readonly policyResolver: EventPolicyResolver | null = null,
+  ) {}
+
   registerEvent(eventIdInput: string, input: RegisterActionEventInput): ActionEventItem[] {
     const eventId = assertText(eventIdInput, 'eventId');
     if (!input || !Array.isArray(input.items)) throw new BadRequestException('items are required');
@@ -157,14 +171,28 @@ export class GuardedActionService implements ActionExecutor {
     return result;
   }
 
+  /**
+   * The policy the guard enforces (WI-38673). With a resolver present it is
+   * resolved from the saved event config / published seller policy at the
+   * moment of enforcement, with per-product floors derived from the event's
+   * verified item prices; the registered policy is only the resolver-less
+   * fallback.
+   */
+  private async resolveEnforcementPolicy(eventId: string, registered: CopilotPolicy): Promise<CopilotPolicy> {
+    if (!this.policyResolver) return registered;
+    const items = this.listItems(eventId).map((item) => ({ productId: item.productId, priceCents: item.priceCents }));
+    return this.policyResolver.resolve(eventId, items);
+  }
+
   async apply(input: ApplyActionInput): Promise<ActionExecutionResult> {
     const eventId = assertText(input?.eventId, 'eventId');
     const actorId = assertText(input?.actorId, 'actorId');
     const action = this.normalizeAction(input?.action);
     const current = this.items.get(itemKey(eventId, action.productId));
     if (!current) throw new NotFoundException(`Event item ${action.productId} was not found`);
-    const policy = this.policies.get(eventId);
-    if (!policy) throw new NotFoundException(`Event ${eventId} was not registered`);
+    const registered = this.policies.get(eventId);
+    if (!registered) throw new NotFoundException(`Event ${eventId} was not registered`);
+    const policy = await this.resolveEnforcementPolicy(eventId, registered);
 
     const context = this.guardContext(eventId, policy, current);
     // P-014's shared guard treats quantity as a targeted-offer-only field. A
