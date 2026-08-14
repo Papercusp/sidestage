@@ -375,6 +375,79 @@
   }
 }
 
+.event-thumbnail-field {
+  display: grid;
+  gap: .4rem;
+  color: var(--muted);
+  font-size: .7rem;
+  font-weight: 650;
+  letter-spacing: .05em;
+  text-transform: uppercase;
+}
+
+.event-thumbnail-picker {
+  display: flex;
+  gap: .7rem;
+  align-items: center;
+}
+
+.event-thumbnail-preview {
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  flex: 0 0 auto;
+  width: 4rem;
+  height: 4rem;
+  border: 1px solid var(--border);
+  border-radius: .6rem;
+  background: rgba(7, 17, 34, .55);
+}
+
+.event-thumbnail-preview img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.event-thumbnail-placeholder {
+  color: var(--muted);
+  font-size: 1.5rem;
+  opacity: .55;
+}
+
+.event-thumbnail-actions {
+  display: flex;
+  gap: .4rem;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+/* The file input itself is never shown — the <label> IS the button, so the
+   control keeps native keyboard + screen-reader behaviour without the
+   unstyleable default "Choose file" widget. */
+.event-thumbnail-choose {
+  cursor: pointer;
+}
+
+.event-thumbnail-choose input[type='file'] {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.event-thumbnail-status {
+  color: var(--muted);
+  font-size: .68rem;
+  font-weight: 500;
+  letter-spacing: .02em;
+  text-transform: none;
+}
+
 @media (max-width: 560px) {
   .event-creation {
     padding: 1rem;

@@ -223,7 +223,14 @@ export async function setupSellerEvent(
   const eventId = sellerEventId(payload.name);
   await requestJson(
     eventUrl(`/events/${encodeURIComponent(eventId)}/config`, apiBaseUrl),
-    { method: 'PUT', body: JSON.stringify({ name: payload.name }) },
+    {
+      method: 'PUT',
+      // `thumbnailUrl` is tri-state server-side (absent keeps, null/'' clears,
+      // a string replaces). JSON.stringify DROPS an undefined value, so an
+      // event created without a thumbnail sends `{name}` exactly as before —
+      // the absent case reaches the API as absent, not as a null that clears.
+      body: JSON.stringify({ name: payload.name, thumbnailUrl: payload.thumbnailUrl }),
+    },
   );
   return reserveAndRegister(eventId, payload, apiBaseUrl);
 }

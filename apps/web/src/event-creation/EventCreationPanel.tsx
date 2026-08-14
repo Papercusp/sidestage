@@ -12,6 +12,11 @@ import {
   type EventItemDraft,
 } from './catalog';
 import { InventoryPickerGrid } from './InventoryPickerGrid';
+import {
+  ALLOWED_THUMBNAIL_TYPES,
+  isRenderableThumbnailUrl,
+  readThumbnailFile,
+} from './thumbnail';
 import './event-creation.css';
 
 export interface EventCreationPanelProps {
@@ -45,6 +50,10 @@ export function EventCreationPanel({
   const [drafts, setDrafts] = useState<Record<string, EventItemDraft>>({});
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [thumbnailUrl, setThumbnailUrl] = useState<string | null>(null);
+  const [thumbnailName, setThumbnailName] = useState<string | null>(null);
+  const [thumbnailError, setThumbnailError] = useState<string | null>(null);
+  const [readingThumbnail, setReadingThumbnail] = useState(false);
 
   // No catalog prop → the ONE product source (P-102): server-side search over
   // the real catalog. A supplied prop (tests, embedding) keeps the local path.
@@ -118,8 +127,35 @@ export function EventCreationPanel({
     }));
   };
 
+  // The input is reset to '' after every pick so choosing the SAME file twice
+  // (having removed it in between) still fires a change event.
+  const handleThumbnailPick = async (input: HTMLInputElement) => {
+    const file = input.files?.[0];
+    input.value = '';
+    if (!file) return;
+    setThumbnailError(null);
+    setReadingThumbnail(true);
+    try {
+      const read = await readThumbnailFile(file);
+      if (!read.ok) {
+        setThumbnailError(read.error);
+        return;
+      }
+      setThumbnailUrl(read.dataUrl);
+      setThumbnailName(file.name);
+    } finally {
+      setReadingThumbnail(false);
+    }
+  };
+
+  const clearThumbnail = () => {
+    setThumbnailUrl(null);
+    setThumbnailName(null);
+    setThumbnailError(null);
+  };
+
   const handleCreate = async () => {
-    const payload = createEventPayload(eventName, selectedDrafts);
+    const payload = createEventPayload(eventName, selectedDrafts, thumbnailUrl ?? undefined);
     if (!payload) {
       setError(selectedDrafts.length === 0 ? 'Select at least one in-stock item.' : 'Add an event name to continue.');
       return;
@@ -130,6 +166,7 @@ export function EventCreationPanel({
       await onCreateEvent?.(payload);
       setSelectedRowIds(new Set());
       setDrafts({});
+      clearThumbnail();
     } catch (submitError) {
       setError(submitError instanceof Error ? submitError.message : 'The event could not be saved.');
     } finally {
@@ -159,6 +196,44 @@ export function EventCreationPanel({
             readOnly={eventNameReadOnly}
           />
         </label>
+        <div className="event-thumbnail-field">
+          <span id="event-thumbnail-label">Event thumbnail</span>
+          <div className="event-thumbnail-picker">
+            <div className="event-thumbnail-preview" aria-hidden={!thumbnailUrl}>
+              {thumbnailUrl && isRenderableThumbnailUrl(thumbnailUrl) ? (
+                <img src={thumbnailUrl} alt={`Thumbnail for ${eventName.trim() || 'this event'}`} />
+              ) : (
+                // The same placeholder glyph the buyer side falls back to, so a
+                // seller sees exactly what a missing thumbnail will look like.
+                <span className="event-thumbnail-placeholder" aria-hidden="true">◍</span>
+              )}
+            </div>
+            <div className="event-thumbnail-actions">
+              <label className="button tertiary event-thumbnail-choose">
+                {thumbnailUrl ? 'Replace image' : 'Upload image'}
+                <input
+                  type="file"
+                  aria-labelledby="event-thumbnail-label"
+                  accept={ALLOWED_THUMBNAIL_TYPES.join(',')}
+                  disabled={readingThumbnail || submitting}
+                  onChange={(event) => void handleThumbnailPick(event.currentTarget)}
+                />
+              </label>
+              {thumbnailUrl ? (
+                <button className="button tertiary" type="button" onClick={clearThumbnail} disabled={submitting}>
+                  Remove
+                </button>
+              ) : null}
+              <span className="event-thumbnail-status">
+                {readingThumbnail
+                  ? 'Reading image…'
+                  : thumbnailName ?? 'JPEG, PNG, WebP, or GIF · up to 512KB'}
+              </span>
+            </div>
+          </div>
+          {thumbnailError ? <p className="event-form-error" role="alert">{thumbnailError}</p> : null}
+        </div>
+
         <div className="event-selection-summary" aria-live="polite">
           <strong>{selectedRows.length}</strong> selected
           <span>·</span>

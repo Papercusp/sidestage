@@ -56,6 +56,60 @@ describe('seller event API orchestration', () => {
     expect(calls.some((call) => call.url.endsWith('/inventory/mug/hold'))).toBe(true);
   });
 
+  it('sends the thumbnail on the config PUT, and omits the key when there is none', async () => {
+    const configBodies: string[] = [];
+    const stub = () => vi.stubGlobal('fetch', vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
+      const url = String(input);
+      if (url.endsWith('/events/sunday-drop/config') && init?.method === 'PUT') {
+        configBodies.push(String(init.body));
+        return json({ ok: true });
+      }
+      if (url.endsWith('/events/sunday-drop/config')) {
+        return json({
+          eventId: 'sunday-drop',
+          name: 'Sunday drop',
+          policy: {
+            automationLevel: 'confirm',
+            allowAutoActions: false,
+            priceFloorCentsByProduct: {},
+            maxMarkdownPercent: 20,
+            blockedActionKinds: [],
+            tone: 'warm',
+          },
+        });
+      }
+      if (url.endsWith('/catalog/variants/mug')) {
+        return json({
+          id: 'mug', groupId: 'mugs', title: 'Aurora mug', brand: 'Northstar',
+          productType: 'HOME', sku: 'MUG-1', condition: 'NEW', handlingDays: 2,
+          priceCents: 2_000, availableQty: 5,
+        });
+      }
+      if (url.endsWith('/inventory/mug/hold')) return json({ held: true });
+      if (url.endsWith('/actions/events/sunday-drop/register')) {
+        const body = JSON.parse(String(init?.body)) as { items: SellerEventItem[] };
+        return json({ items: body.items });
+      }
+      throw new Error(`Unexpected URL ${url}`);
+    }));
+
+    const items = [{ catalogId: 'mug', groupId: 'mugs', eventPriceCents: 1_500, quantityLimit: 3 }];
+    const thumbnailUrl = 'data:image/png;base64,iVBORw0KGgo=';
+
+    stub();
+    await setupSellerEvent({ name: 'Sunday drop', thumbnailUrl, items });
+    expect(JSON.parse(configBodies[0])).toEqual({ name: 'Sunday drop', thumbnailUrl });
+
+    vi.unstubAllGlobals();
+    stub();
+    await setupSellerEvent({ name: 'Sunday drop', items });
+    // The KEY must be absent, not null: the API reads absent as "keep" and null
+    // as "clear", so a null here would wipe a thumbnail on any later re-setup.
+    const withoutThumbnail = JSON.parse(configBodies[1]) as Record<string, unknown>;
+    expect(withoutThumbnail).toEqual({ name: 'Sunday drop' });
+    expect('thumbnailUrl' in withoutThumbnail).toBe(false);
+  });
+
   it('updates the durable event reservation before the guarded stock action', async () => {
     const urls: string[] = [];
     vi.stubGlobal('fetch', vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
