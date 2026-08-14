@@ -21,6 +21,28 @@ interface SeededVariant {
   optionSignature: string;
 }
 
+interface EventDemoManifestRow {
+  productNumber: number;
+  title: string;
+  productType: string;
+  brand: string;
+  basePriceCents: number;
+}
+
+function eventDemoManifest(sql: string): EventDemoManifestRow[] {
+  const section = sql.match(
+    /-- BEGIN EVENT_DEMO_MANIFEST[\s\S]*?\n([\s\S]*?)-- END EVENT_DEMO_MANIFEST/,
+  )?.[1] ?? '';
+  const row = /^\s*\((\d+),\s*'([^']+)',\s*'([^']+)',\s*'([^']+)',\s*(\d+)\)[,;]?$/gm;
+  return [...section.matchAll(row)].map((match) => ({
+    productNumber: Number(match[1]),
+    title: match[2],
+    productType: match[3],
+    brand: match[4],
+    basePriceCents: Number(match[5]),
+  }));
+}
+
 /**
  * The demo variant rows as db/seed/demo.sql itself declares them. Only the
  * `demo-` ids: the same INSERT also seeds the hoodie/mug/tote rows that exist
@@ -163,5 +185,25 @@ describe('DEMO_CATALOG_FIXTURE tracks db/seed/demo.sql', () => {
     // The assertion the real test makes — here it must NOT hold.
     expect(parsed.map((row) => row.optionSignature))
       .not.toEqual(DEMO_CATALOG_FIXTURE.map((v) => `color=${slugify(v.color ?? '')}`));
+  });
+});
+
+describe('the curated Event Manager seed', () => {
+  const manifest = eventDemoManifest(DEMO_SQL);
+
+  it('authors exactly 50 distinct product groups numbered without gaps', () => {
+    expect(manifest.map((row) => row.productNumber)).toEqual(
+      Array.from({ length: 50 }, (_, index) => index + 1),
+    );
+    expect(new Set(manifest.map((row) => row.title)).size).toBe(50);
+    expect(manifest.every((row) => row.productType && row.brand && row.basePriceCents > 0)).toBe(true);
+  });
+
+  it('derives four variants per group and pins the executable database invariants', () => {
+    expect(DEMO_SQL).toContain('CROSS JOIN generate_series(1, 4)');
+    expect(DEMO_SQL).toContain('expected 50 groups / 200 variants');
+    expect(DEMO_SQL).toContain('expected 20 / 15 / 15');
+    expect(DEMO_SQL).toContain('expected 140 color / 120 size');
+    expect(DEMO_SQL).toContain('each group must have four variants');
   });
 });

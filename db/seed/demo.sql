@@ -240,6 +240,449 @@ VALUES
 ON CONFLICT (variant_id, axis_id) DO UPDATE SET
   value_id = EXCLUDED.value_id;
 
+-- ── Curated Event Manager catalog (50 groups / exactly 200 variants) ────────
+-- The million-row Restart import is useful for production search, but it is a
+-- poor event-creation demo: almost every row has no normalized color/size axis.
+-- Keep that corpus intact and tag this deliberately small collection instead.
+-- PgCatalogSource scopes its default Event Manager reads to this marker.
+--
+-- The compact manifest is the authored data. Everything repetitive — ids,
+-- options, images, stock, dimensions, axes, values and 260 normalized option
+-- mappings — is derived set-wise so the declared 50 × 4 shape cannot drift.
+CREATE TEMP TABLE event_demo_manifest (
+  product_number integer PRIMARY KEY,
+  title text NOT NULL,
+  product_type text NOT NULL,
+  brand text NOT NULL,
+  base_price_cents integer NOT NULL
+) ON COMMIT DROP;
+
+-- BEGIN EVENT_DEMO_MANIFEST (catalog.fixture.test.ts counts these source rows)
+INSERT INTO event_demo_manifest (product_number, title, product_type, brand, base_price_cents)
+VALUES
+  (1, 'Harbor Kettle', 'KITCHEN', 'Hearthline', 7400),
+  (2, 'Cloud ANC Headphones', 'AUDIO', 'Northstar Audio', 19900),
+  (3, 'Arc Table Lamp', 'HOME', 'Field & Form', 12800),
+  (4, 'Daily Pour Carafe', 'KITCHEN', 'BrewHaus', 4600),
+  (5, 'Woven Market Tote', 'BAGS', 'SideStage Studio', 4200),
+  (6, 'Pocket Power Bank', 'TECH', 'Relay Works', 5900),
+  (7, 'Cloud Knit Throw', 'HOME', 'Common Thread', 8800),
+  (8, 'Flow Yoga Mat', 'FITNESS', 'North Loop', 6400),
+  (9, 'Travel Vanity Case', 'BEAUTY', 'Morrow', 7600),
+  (10, 'Focus Desk Tray', 'OFFICE', 'Field Office', 3900),
+  (11, 'Stoneware Planter', 'HOME', 'Kiln & Coast', 5200),
+  (12, 'Weekender Toaster', 'KITCHEN', 'Hearthline', 9800),
+  (13, 'Pocket Bluetooth Speaker', 'AUDIO', 'Northstar Audio', 8900),
+  (14, 'Studio Sunglasses', 'ACCESSORIES', 'Morrow', 6800),
+  (15, 'Linen Cushion Cover', 'HOME', 'Common Thread', 3400),
+  (16, 'Click Wireless Mouse', 'TECH', 'Relay Works', 4900),
+  (17, 'Insulated Lunch Jar', 'KITCHEN', 'Trail Table', 4400),
+  (18, 'Everyday Card Wallet', 'ACCESSORIES', 'Atelier June', 5600),
+  (19, 'Bedside Alarm Clock', 'HOME', 'Field & Form', 7200),
+  (20, 'Steel Water Bottle', 'FITNESS', 'North Loop', 3800),
+  (21, 'Linen Hoodie', 'APPAREL', 'SideStage Studio', 6800),
+  (22, 'Ribbed Crew Tee', 'APPAREL', 'Common Thread', 3200),
+  (23, 'Court Low Sneaker', 'FOOTWEAR', 'North Loop', 11000),
+  (24, 'Canvas Chore Jacket', 'APPAREL', 'Workshop Union', 13800),
+  (25, 'Sunday Lounge Pant', 'APPAREL', 'Soft Hours', 7200),
+  (26, 'Classic Leather Belt', 'ACCESSORIES', 'Atelier June', 5800),
+  (27, 'Merino Base Layer', 'APPAREL', 'North Loop', 8400),
+  (28, 'Trail Knit Runner', 'FOOTWEAR', 'North Loop', 12400),
+  (29, 'Relaxed Oxford Shirt', 'APPAREL', 'Common Thread', 7600),
+  (30, 'Utility Cargo Short', 'APPAREL', 'Workshop Union', 6900),
+  (31, 'Studio Apron', 'APPAREL', 'Hearthline', 5400),
+  (32, 'Training Grip Glove', 'FITNESS', 'North Loop', 3600),
+  (33, 'Everyday Sock Set', 'APPAREL', 'Soft Hours', 2800),
+  (34, 'Packable Rain Shell', 'APPAREL', 'Trail Table', 11800),
+  (35, 'Felt Brim Hat', 'ACCESSORIES', 'Atelier June', 6400),
+  (36, 'Coastal Wrap Dress', 'APPAREL', 'Atelier June', 14800),
+  (37, 'Washed Denim Jacket', 'APPAREL', 'Blue Loom', 15600),
+  (38, 'Harbor Deck Shoe', 'FOOTWEAR', 'North Loop', 12000),
+  (39, 'Soft Terry Sweatshirt', 'APPAREL', 'Soft Hours', 7800),
+  (40, 'Tailored Work Trouser', 'APPAREL', 'Workshop Union', 11200),
+  (41, 'Alpine Puffer Vest', 'APPAREL', 'Trail Table', 13200),
+  (42, 'Ribbed Knit Dress', 'APPAREL', 'Common Thread', 9800),
+  (43, 'City Chelsea Boot', 'FOOTWEAR', 'Atelier June', 17800),
+  (44, 'Camp Collar Shirt', 'APPAREL', 'Blue Loom', 7200),
+  (45, 'Quilted House Robe', 'APPAREL', 'Soft Hours', 10800),
+  (46, 'Studio Training Short', 'FITNESS', 'North Loop', 6200),
+  (47, 'Heritage Rugby Top', 'APPAREL', 'Workshop Union', 8800),
+  (48, 'Lightweight Field Parka', 'APPAREL', 'Trail Table', 16400),
+  (49, 'Pleated Midi Skirt', 'APPAREL', 'Atelier June', 9400),
+  (50, 'Brushed Flannel Overshirt', 'APPAREL', 'Blue Loom', 10200);
+-- END EVENT_DEMO_MANIFEST
+
+CREATE TEMP TABLE event_demo_color_palette (
+  position integer PRIMARY KEY,
+  slug text NOT NULL,
+  label text NOT NULL,
+  swatch text NOT NULL
+) ON COMMIT DROP;
+
+INSERT INTO event_demo_color_palette (position, slug, label, swatch)
+VALUES
+  (0, 'cream', 'Cream', '#eee4d2'),
+  (1, 'ember', 'Ember', '#bd4f3f'),
+  (2, 'ocean', 'Ocean', '#426b8a'),
+  (3, 'sage', 'Sage', '#78906f'),
+  (4, 'sand', 'Sand', '#d9c7a9'),
+  (5, 'plum', 'Plum', '#785a78'),
+  (6, 'clay', 'Clay', '#b86f52'),
+  (7, 'midnight', 'Midnight', '#202533');
+
+CREATE TEMP TABLE event_demo_variants ON COMMIT DROP AS
+SELECT
+  manifest.product_number,
+  manifest.title,
+  manifest.product_type,
+  manifest.brand,
+  manifest.base_price_cents,
+  format('event-demo-%s', to_char(manifest.product_number, 'FM00')) AS group_id,
+  variant.variant_number,
+  format('event-demo-%s-v%s', to_char(manifest.product_number, 'FM00'), variant.variant_number) AS variant_id,
+  palette.slug AS color_slug,
+  palette.label AS color_label,
+  palette.swatch AS color_swatch,
+  CASE
+    WHEN manifest.product_number BETWEEN 21 AND 35
+      THEN (ARRAY['small', 'medium', 'large', 'extra-large'])[variant.variant_number]
+    WHEN manifest.product_number >= 36
+      THEN (ARRAY['small', 'medium'])[1 + mod(variant.variant_number - 1, 2)]
+  END AS size_slug,
+  CASE
+    WHEN manifest.product_number BETWEEN 21 AND 35
+      THEN (ARRAY['Small', 'Medium', 'Large', 'Extra Large'])[variant.variant_number]
+    WHEN manifest.product_number >= 36
+      THEN (ARRAY['Small', 'Medium'])[1 + mod(variant.variant_number - 1, 2)]
+  END AS size_label
+FROM event_demo_manifest AS manifest
+CROSS JOIN generate_series(1, 4) AS variant(variant_number)
+LEFT JOIN event_demo_color_palette AS palette
+  ON palette.position = CASE
+    WHEN manifest.product_number <= 20
+      THEN mod(manifest.product_number + variant.variant_number - 1, 8)
+    WHEN manifest.product_number >= 36 AND variant.variant_number <= 2 THEN 7
+    WHEN manifest.product_number >= 36 THEN 4
+  END;
+
+-- Remove only stale rows from this explicitly tagged demo collection. Expected
+-- variant ids are upserted below, so their live reserved_qty is preserved.
+DELETE FROM storefront_product AS variant
+USING product_catalog AS catalog
+WHERE catalog.properties->>'sidestageCollection' = 'event-demo-200'
+  AND variant.group_id = catalog.group_id
+  AND variant.region = catalog.region
+  AND NOT EXISTS (
+    SELECT 1 FROM event_demo_variants AS expected
+    WHERE expected.variant_id = variant.id
+  );
+
+DELETE FROM product_catalog AS catalog
+WHERE catalog.properties->>'sidestageCollection' = 'event-demo-200'
+  AND NOT EXISTS (
+    SELECT 1 FROM event_demo_variants AS expected
+    WHERE expected.group_id = catalog.group_id
+  );
+
+INSERT INTO product_catalog (
+  group_id, region, product_type, title, description, brand, manufacturer,
+  identifiers, properties, images, bullets, weight, dimensions, updated_at
+)
+SELECT
+  format('event-demo-%s', to_char(product_number, 'FM00')),
+  'US',
+  product_type,
+  title,
+  format('A seller-ready %s curated for the SideStage Event Manager demo.', lower(title)),
+  brand,
+  brand,
+  jsonb_build_object('mpn', format('EVENT_DEMO_%s', to_char(product_number, 'FM00'))),
+  jsonb_build_object(
+    'variantMode', CASE
+      WHEN product_number <= 20 THEN 'color'
+      WHEN product_number <= 35 THEN 'size'
+      ELSE 'color-size'
+    END,
+    'productNumber', product_number,
+    'sidestageCollection', 'event-demo-200'
+  ),
+  jsonb_build_array(jsonb_build_object(
+    'url', format(
+      'https://placehold.co/800x800/eee4d2/2a211c/png?text=%s',
+      replace(title, ' ', '+')
+    ),
+    'alt', title,
+    'isPrimary', true
+  )),
+  jsonb_build_array(
+    'Four live-sale variants',
+    'Normalized catalog options',
+    'Demo inventory included'
+  ),
+  jsonb_build_object('value', 0.8 + 0.2 * mod(product_number, 7), 'unit', 'kg'),
+  jsonb_build_object(
+    'length', 24 + mod(product_number, 12),
+    'width', 18 + mod(product_number, 8),
+    'height', 6 + mod(product_number, 10),
+    'unit', 'cm'
+  ),
+  now()
+FROM event_demo_manifest
+ON CONFLICT (group_id, region) DO UPDATE SET
+  product_type = EXCLUDED.product_type,
+  title = EXCLUDED.title,
+  description = EXCLUDED.description,
+  brand = EXCLUDED.brand,
+  manufacturer = EXCLUDED.manufacturer,
+  identifiers = EXCLUDED.identifiers,
+  properties = EXCLUDED.properties,
+  images = EXCLUDED.images,
+  bullets = EXCLUDED.bullets,
+  weight = EXCLUDED.weight,
+  dimensions = EXCLUDED.dimensions,
+  updated_at = now();
+
+-- Now that all expected group ids carry the collection marker, remove any
+-- unexpected variant previously left under one of them.
+DELETE FROM storefront_product AS variant
+USING event_demo_manifest AS manifest
+WHERE variant.group_id = format('event-demo-%s', to_char(manifest.product_number, 'FM00'))
+  AND variant.region = 'US'
+  AND NOT EXISTS (
+    SELECT 1 FROM event_demo_variants AS expected
+    WHERE expected.variant_id = variant.id
+  );
+
+INSERT INTO storefront_product (
+  id, slug, region, sku, price_cents, active, group_id, condition, handling,
+  option_signature, variant_images, qty
+)
+SELECT
+  variant_id,
+  variant_id,
+  'US',
+  format('SS-DEMO-%s-V%s', to_char(product_number, 'FM00'), variant_number),
+  base_price_cents + (variant_number - 1) * 200,
+  true,
+  group_id,
+  'NEW',
+  2,
+  concat_ws('|',
+    CASE WHEN color_slug IS NOT NULL THEN 'color=' || color_slug END,
+    CASE WHEN size_slug IS NOT NULL THEN 'size=' || size_slug END
+  ),
+  jsonb_build_array(jsonb_build_object(
+    'url', format(
+      'https://placehold.co/640x640/%s/2a211c/png?text=%s',
+      replace(coalesce(color_swatch, '#eee4d2'), '#', ''),
+      concat_ws('+',
+        replace(title, ' ', '+'),
+        replace(color_label, ' ', '+'),
+        replace(size_label, ' ', '+')
+      )
+    ),
+    'alt', title || ' — ' || concat_ws(', ', color_label, size_label),
+    'isPrimary', true
+  )),
+  CASE
+    WHEN mod((product_number - 1) * 4 + variant_number, 19) = 15 THEN 0
+    ELSE 5 + mod(product_number + variant_number, 17)
+  END
+FROM event_demo_variants
+ON CONFLICT (id) DO UPDATE SET
+  slug = EXCLUDED.slug,
+  region = EXCLUDED.region,
+  sku = EXCLUDED.sku,
+  price_cents = EXCLUDED.price_cents,
+  active = EXCLUDED.active,
+  group_id = EXCLUDED.group_id,
+  condition = EXCLUDED.condition,
+  handling = EXCLUDED.handling,
+  option_signature = EXCLUDED.option_signature,
+  variant_images = EXCLUDED.variant_images,
+  qty = EXCLUDED.qty,
+  updated_at = now();
+
+CREATE TEMP TABLE event_demo_axes ON COMMIT DROP AS
+SELECT
+  format('event-demo-%s-color', to_char(product_number, 'FM00')) AS id,
+  format('event-demo-%s', to_char(product_number, 'FM00')) AS group_id,
+  'color'::text AS slug,
+  'Color'::text AS label,
+  0 AS position
+FROM event_demo_manifest
+WHERE product_number <= 20 OR product_number >= 36
+UNION ALL
+SELECT
+  format('event-demo-%s-size', to_char(product_number, 'FM00')),
+  format('event-demo-%s', to_char(product_number, 'FM00')),
+  'size',
+  'Size',
+  CASE WHEN product_number >= 36 THEN 1 ELSE 0 END
+FROM event_demo_manifest
+WHERE product_number >= 21;
+
+DELETE FROM product_option_axes AS axis
+USING event_demo_manifest AS manifest
+WHERE axis.group_id = format('event-demo-%s', to_char(manifest.product_number, 'FM00'))
+  AND axis.region = 'US'
+  AND NOT EXISTS (
+    SELECT 1 FROM event_demo_axes AS expected WHERE expected.id = axis.id
+  );
+
+INSERT INTO product_option_axes (id, group_id, region, slug, label, position, required)
+SELECT id, group_id, 'US', slug, label, position, true
+FROM event_demo_axes
+ON CONFLICT (id) DO UPDATE SET
+  group_id = EXCLUDED.group_id,
+  region = EXCLUDED.region,
+  slug = EXCLUDED.slug,
+  label = EXCLUDED.label,
+  position = EXCLUDED.position,
+  required = EXCLUDED.required;
+
+CREATE TEMP TABLE event_demo_option_values ON COMMIT DROP AS
+SELECT
+  group_id || '-color-' || color_slug AS id,
+  group_id || '-color' AS axis_id,
+  color_slug AS slug,
+  min(color_label) AS label,
+  (dense_rank() OVER (PARTITION BY group_id ORDER BY color_slug) - 1)::integer AS position,
+  jsonb_build_object('swatch', min(color_swatch)) AS metadata
+FROM event_demo_variants
+WHERE color_slug IS NOT NULL
+GROUP BY product_number, group_id, color_slug
+UNION ALL
+SELECT
+  group_id || '-size-' || size_slug,
+  group_id || '-size',
+  size_slug,
+  min(size_label),
+  CASE
+    WHEN product_number <= 35 THEN min(variant_number) - 1
+    WHEN size_slug = 'small' THEN 0
+    ELSE 1
+  END,
+  '{}'::jsonb
+FROM event_demo_variants
+WHERE size_slug IS NOT NULL
+GROUP BY product_number, group_id, size_slug;
+
+DELETE FROM product_option_values AS option_value
+USING event_demo_axes AS axis
+WHERE option_value.axis_id = axis.id
+  AND NOT EXISTS (
+    SELECT 1 FROM event_demo_option_values AS expected
+    WHERE expected.id = option_value.id
+  );
+
+INSERT INTO product_option_values (id, axis_id, slug, label, position, metadata)
+SELECT id, axis_id, slug, label, position, metadata
+FROM event_demo_option_values
+ON CONFLICT (id) DO UPDATE SET
+  axis_id = EXCLUDED.axis_id,
+  slug = EXCLUDED.slug,
+  label = EXCLUDED.label,
+  position = EXCLUDED.position,
+  metadata = EXCLUDED.metadata;
+
+CREATE TEMP TABLE event_demo_option_mappings ON COMMIT DROP AS
+SELECT
+  variant_id,
+  group_id || '-color' AS axis_id,
+  group_id || '-color-' || color_slug AS value_id
+FROM event_demo_variants
+WHERE color_slug IS NOT NULL
+UNION ALL
+SELECT
+  variant_id,
+  group_id || '-size',
+  group_id || '-size-' || size_slug
+FROM event_demo_variants
+WHERE size_slug IS NOT NULL;
+
+DELETE FROM storefront_product_option AS selected
+USING event_demo_variants AS variant
+WHERE selected.variant_id = variant.variant_id
+  AND NOT EXISTS (
+    SELECT 1 FROM event_demo_option_mappings AS expected
+    WHERE expected.variant_id = selected.variant_id
+      AND expected.axis_id = selected.axis_id
+  );
+
+INSERT INTO storefront_product_option (variant_id, axis_id, value_id)
+SELECT variant_id, axis_id, value_id
+FROM event_demo_option_mappings
+ON CONFLICT (variant_id, axis_id) DO UPDATE SET
+  value_id = EXCLUDED.value_id;
+
+-- Fail the seed transaction instead of silently publishing a partial catalog.
+DO $$
+DECLARE
+  group_count integer;
+  variant_count integer;
+  color_group_count integer;
+  size_group_count integer;
+  combined_group_count integer;
+  color_assignment_count integer;
+  size_assignment_count integer;
+BEGIN
+  SELECT
+    count(*),
+    count(*) FILTER (WHERE properties->>'variantMode' = 'color'),
+    count(*) FILTER (WHERE properties->>'variantMode' = 'size'),
+    count(*) FILTER (WHERE properties->>'variantMode' = 'color-size')
+  INTO group_count, color_group_count, size_group_count, combined_group_count
+  FROM product_catalog
+  WHERE properties->>'sidestageCollection' = 'event-demo-200';
+
+  SELECT count(*)
+  INTO variant_count
+  FROM storefront_product AS variant
+  JOIN product_catalog AS catalog
+    ON catalog.group_id = variant.group_id AND catalog.region = variant.region
+  WHERE catalog.properties->>'sidestageCollection' = 'event-demo-200';
+
+  SELECT
+    count(*) FILTER (WHERE axis.slug = 'color'),
+    count(*) FILTER (WHERE axis.slug = 'size')
+  INTO color_assignment_count, size_assignment_count
+  FROM storefront_product_option AS selected
+  JOIN storefront_product AS variant ON variant.id = selected.variant_id
+  JOIN product_catalog AS catalog
+    ON catalog.group_id = variant.group_id AND catalog.region = variant.region
+  JOIN product_option_axes AS axis ON axis.id = selected.axis_id
+  WHERE catalog.properties->>'sidestageCollection' = 'event-demo-200';
+
+  IF group_count <> 50 OR variant_count <> 200 THEN
+    RAISE EXCEPTION
+      'event-demo-200 invariant failed: expected 50 groups / 200 variants, got % / %',
+      group_count, variant_count;
+  END IF;
+  IF color_group_count <> 20 OR size_group_count <> 15 OR combined_group_count <> 15 THEN
+    RAISE EXCEPTION
+      'event-demo-200 mode split failed: expected 20 / 15 / 15, got % / % / %',
+      color_group_count, size_group_count, combined_group_count;
+  END IF;
+  IF color_assignment_count <> 140 OR size_assignment_count <> 120 THEN
+    RAISE EXCEPTION
+      'event-demo-200 option mapping failed: expected 140 color / 120 size, got % / %',
+      color_assignment_count, size_assignment_count;
+  END IF;
+  IF EXISTS (
+    SELECT 1
+    FROM storefront_product AS variant
+    JOIN product_catalog AS catalog
+      ON catalog.group_id = variant.group_id AND catalog.region = variant.region
+    WHERE catalog.properties->>'sidestageCollection' = 'event-demo-200'
+    GROUP BY catalog.group_id
+    HAVING count(*) <> 4
+  ) THEN
+    RAISE EXCEPTION 'event-demo-200 per-group invariant failed: each group must have four variants';
+  END IF;
+END;
+$$;
+
 -- ── Event directory (P-118 / D-019) ──────────────────────────────────────────
 -- The "What's on" Channel Guide groups by state, so the demo set covers all
 -- three buyer-visible states plus a draft that must NOT appear — the draft row

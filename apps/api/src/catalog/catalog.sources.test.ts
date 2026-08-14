@@ -47,9 +47,10 @@ describe('PgCatalogSource', () => {
   });
 
   it('scopes default reads to the curated collection and projects both option axes', async () => {
-    const poolQuery = vi.fn()
-      .mockResolvedValueOnce({ rows: [{ n: '200' }] })
-      .mockResolvedValueOnce({ rows: [{
+    const observedParams: unknown[][] = [];
+    const responses = [
+      { rows: [{ n: '200' }] },
+      { rows: [{
         id: 'event-demo-36-v2',
         groupId: 'event-demo-36',
         title: 'Coastal Wrap Dress',
@@ -66,19 +67,28 @@ describe('PgCatalogSource', () => {
         description: null,
         weight: null,
         dimensions: null,
-      }] });
+      }] },
+    ];
+    let responseIndex = 0;
+    const poolQuery = vi.fn(async (_query: string, params: unknown[]) => {
+      // PgCatalogSource awaits the count before reusing its local params array.
+      // Snapshot here because a spy's call record intentionally retains the
+      // array reference and would otherwise observe the later push/pop state.
+      observedParams.push([...params]);
+      return responses[responseIndex++];
+    });
     const source = new PgCatalogSource({ query: poolQuery } as unknown as Pool);
 
     const page = await source.search({ page: 1, pageSize: 50 });
 
     expect(page.total).toBe(200);
     expect(page.rows[0]).toMatchObject({ color: 'Midnight', size: 'Medium' });
-    const [countSql, countParams] = poolQuery.mock.calls[0] as [string, unknown[]];
-    const [rowsSql, rowsParams] = poolQuery.mock.calls[1] as [string, unknown[]];
+    const [countSql] = poolQuery.mock.calls[0] as [string, unknown[]];
+    const [rowsSql] = poolQuery.mock.calls[1] as [string, unknown[]];
     expect(countSql).toContain("properties->>'sidestageCollection' = $1");
-    expect(countParams).toEqual([EVENT_DEMO_COLLECTION, 10_001]);
+    expect(observedParams[0]).toEqual([EVENT_DEMO_COLLECTION, 10_001]);
     expect(rowsSql).toContain("axis.slug = 'color'");
     expect(rowsSql).toContain("axis.slug = 'size'");
-    expect(rowsParams).toEqual([EVENT_DEMO_COLLECTION, 50, 0]);
+    expect(observedParams[1]).toEqual([EVENT_DEMO_COLLECTION, 50, 0]);
   });
 });
