@@ -86,7 +86,7 @@ describe('EventManager', () => {
 
     expect(markup).toContain('Build the live lineup.');
     expect(markup).toContain('Create event');
-    expect(markup).toContain('source-tracked event reservations');
+    expect(markup).toContain('reservation-backed quantity for every item');
     expect(markup).not.toContain('Event settings &amp; readiness');
   });
 });
