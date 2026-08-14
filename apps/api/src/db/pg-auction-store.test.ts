@@ -88,6 +88,35 @@ describe('PgAuctionStore transactional aggregate authority', () => {
     expect(harness.query.mock.calls.some(([sql]) => sql.includes('UPDATE auction_state'))).toBe(false);
   });
 
+  it('settles an expired auction transactionally before refusing a late bid', async () => {
+    const expired = activeAuction({ endsAt: '2020-08-14T18:01:00.000Z' });
+    const harness = transactionalPool((sql) => {
+      if (sql.includes('FROM auction_state') && sql.includes('FOR UPDATE')) {
+        return { rows: [{ payload: expired }] };
+      }
+      if (sql.includes('release_inventory')) return { rows: [{ released: true }] };
+      return { rows: [] };
+    });
+    const store = new PgAuctionStore(harness.pool);
+
+    await expect(store.placeBid('auction-1', {
+      id: 'bid-too-late',
+      bidderId: 'buyer-a',
+      amountCents: 2_000,
+      createdAt: '2026-08-14T18:02:00.000Z',
+    })).resolves.toMatchObject({
+      accepted: false,
+      changed: true,
+      inventoryChanged: true,
+      auction: { status: 'closed', winnerOrder: undefined },
+    });
+    const statements = harness.query.mock.calls.map(([sql]) => sql.replace(/\s+/g, ' ').trim());
+    expect(statements.findIndex((sql) => sql.includes('release_inventory'))).toBeLessThan(
+      statements.findIndex((sql) => sql.startsWith('UPDATE auction_state')),
+    );
+    expect(statements.at(-1)).toBe('COMMIT');
+  });
+
   it('closes to a persisted winner order while retaining the winning inventory hold', async () => {
     const auction = activeAuction({
       currentPriceCents: 1_600,
