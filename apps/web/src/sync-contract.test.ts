@@ -34,8 +34,9 @@ const legacyAccessBudget = {
   'seller/RunOfShowPanel.tsx': { 'polling-timer': 1 },
   'ConfigTab.tsx': { fetch: 1 },
   'CopilotPanel.tsx': { fetch: 1 },
-  'EventChat.tsx': { fetch: 2 },
-  'SellerTab.tsx': { fetch: 1 },
+  // One shared transport remains for named chat mutation REST fallbacks. Chat
+  // components themselves are forbidden from owning direct fetch paths.
+  'chat-api.ts': { fetch: 1 },
   'auction.ts': { fetch: 1 },
   'buyer-checkout-api.ts': { fetch: 1 },
   'catalog.ts': { fetch: 2 },
@@ -88,6 +89,8 @@ describe('SideStage web sync contract', () => {
     const checkout = readFileSync(path.join(sourceRoot, 'BuyerCheckout.tsx'), 'utf8');
     const copilot = readFileSync(path.join(sourceRoot, 'CopilotPanel.tsx'), 'utf8');
     const chat = readFileSync(path.join(sourceRoot, 'EventChat.tsx'), 'utf8');
+    const seller = readFileSync(path.join(sourceRoot, 'SellerTab.tsx'), 'utf8');
+    const transcription = readFileSync(path.join(sourceRoot, 'transcription.ts'), 'utf8');
     const app = readFileSync(path.join(sourceRoot, 'App.tsx'), 'utf8');
 
     expect(checkout).toContain("queryName: 'cart.byId'");
@@ -107,7 +110,14 @@ describe('SideStage web sync contract', () => {
     expect(copilot).not.toContain("'/cart/items'");
     expect(copilot).not.toContain("'/checkout/sessions'");
     expect(chat).toContain("'chat.sendMessage'");
+    expect(chat).toContain("'chat.touchPresence'");
+    expect(chat).toContain("'chat.leavePresence'");
     expect(chat).toContain('const sendMessage = useEventChatSender({ eventId, apiBaseUrl })');
+    expect(chat).not.toMatch(/\bfetch\s*\(/);
+    expect(seller).toContain("'chat.addTranscriptMoment'");
+    expect(seller).toContain('useTranscriptMomentRecorder({');
+    expect(seller).not.toMatch(/\bfetch\s*\(/);
+    expect(transcription).toContain('const socket = factory(buildDeepgramUrl(');
 
     const provider = app.indexOf('<BuyerCheckoutProvider');
     expect(provider).toBeGreaterThan(-1);
