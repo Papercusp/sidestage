@@ -138,7 +138,7 @@
     margin: 0 0 20px;
     display: flex; flex-wrap: wrap; gap: 40px; justify-content: center;
   }
-  section.screen { margin: 0 0 64px; }
+  section.block { margin: 0 0 64px; }
 
   /* ─── DEVICE FRAMES ─── */
   .device { display: flex; flex-direction: column; align-items: center; gap: 12px; }
@@ -151,12 +151,14 @@
   .frame.ios     { border-radius: 46px; }
   .frame.android { border-radius: 30px; padding: 9px; }
   .screen {
-    position: relative; width: 320px; height: 668px; overflow: hidden;
+    position: relative; width: 320px; overflow: hidden;
     background: var(--app-bg); background-image: var(--app-wash);
     color: var(--app-ink); display: flex; flex-direction: column;
   }
-  .frame.ios .screen     { border-radius: 36px; font-family: var(--ios); }
-  .frame.android .screen { border-radius: 22px; font-family: var(--droid); }
+  /* heights are the real logical aspect ratios at 320px wide:
+     iPhone 15 Pro 393×852 → 694 · Pixel 8 412×915 → 711 */
+  .frame.ios .screen     { height: 694px; border-radius: 36px; font-family: var(--ios); }
+  .frame.android .screen { height: 711px; border-radius: 22px; font-family: var(--droid); }
 
   /* status bars */
   .sb { display: flex; align-items: center; justify-content: space-between;
@@ -176,7 +178,7 @@
   /* app bar */
   .appbar {
     display: flex; align-items: center; justify-content: space-between;
-    padding: 6px 16px 10px; flex: none;
+    padding: 4px 16px 7px; flex: none;
   }
   .brand { display: flex; align-items: center; gap: 8px; font-weight: 700; font-size: 15.5px; letter-spacing: -.01em; }
   .mark {
@@ -190,16 +192,16 @@
   .body { flex: 1; overflow: hidden; padding: 0 16px; }
   .app-eyebrow {
     font-size: 9.5px; font-weight: 700; letter-spacing: .13em; text-transform: uppercase;
-    color: var(--app-accent); margin: 6px 0 5px;
+    color: var(--app-accent); margin: 4px 0 4px;
   }
-  .app-h1 { font-size: 21px; font-weight: 800; letter-spacing: -.025em; margin: 0 0 4px; line-height: 1.1; }
+  .app-h1 { font-size: 20px; font-weight: 800; letter-spacing: -.025em; margin: 0 0 3px; line-height: 1.08; }
   .app-h1.big { font-size: 40px; letter-spacing: -.04em; line-height: .96; margin: 2px 0 8px; }
-  .app-sub { font-size: 11.5px; color: var(--app-muted); margin: 0 0 12px; line-height: 1.4; }
+  .app-sub { font-size: 11px; color: var(--app-muted); margin: 0 0 8px; line-height: 1.35; }
 
   .stage {
-    background: var(--app-stage); border-radius: 10px; height: 116px;
-    display: flex; flex-direction: column; justify-content: flex-end; padding: 9px;
-    margin-bottom: 10px;
+    background: var(--app-stage); border-radius: 10px; height: 70px;
+    display: flex; flex-direction: column; justify-content: flex-end; padding: 8px;
+    margin-bottom: 6px;
   }
   .stage-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
   .stage-label { font-size: 10px; color: #EFE4D6; font-weight: 600; }
@@ -209,10 +211,10 @@
     border: none; border-radius: 7px; padding: 7px 10px; white-space: nowrap;
   }
 
-  .stats { display: grid; grid-template-columns: repeat(3,1fr); gap: 7px; margin-bottom: 10px; }
+  .stats { display: grid; grid-template-columns: repeat(3,1fr); gap: 7px; margin-bottom: 8px; }
   .stat {
     background: var(--app-surface); border: 1px solid var(--app-border);
-    border-radius: 8px; padding: 7px 9px;
+    border-radius: 8px; padding: 6px 9px;
   }
   .stat b { display: block; font-size: 14px; font-weight: 750; letter-spacing: -.02em; }
   .stat span { font-size: 8.5px; color: var(--app-muted); }
@@ -220,7 +222,7 @@
   .roombar {
     display: flex; align-items: center; justify-content: space-between;
     background: var(--app-surface); border: 1px solid var(--app-border);
-    border-radius: 8px; padding: 8px 10px; margin-bottom: 10px;
+    border-radius: 8px; padding: 6px 10px; margin-bottom: 7px;
   }
   .roombar-l { display: flex; align-items: center; gap: 6px; font-size: 9.5px; font-weight: 700;
                letter-spacing: .08em; text-transform: uppercase; color: var(--app-muted); }
@@ -231,7 +233,7 @@
 
   .card {
     background: var(--app-surface); border: 1px solid var(--app-border);
-    border-radius: 10px; padding: 11px; margin-bottom: 12px;
+    border-radius: 10px; padding: 9px; margin-bottom: 7px;
   }
   .card-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; }
   .pill-poll {
@@ -239,17 +241,17 @@
     border: 1px solid var(--app-border); border-radius: 999px; padding: 3px 8px; white-space: nowrap;
   }
   .empty-inner {
-    border: 1px dashed var(--app-border); border-radius: 8px; padding: 10px; margin-top: 9px;
+    border: 1px dashed var(--app-border); border-radius: 8px; padding: 7px; margin-top: 6px;
   }
   .empty-inner b { font-size: 11.5px; }
   .empty-inner p { font-size: 9.5px; color: var(--app-muted); margin: 3px 0 0; }
 
-  .rowhead { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 7px; }
+  .rowhead { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 5px; }
   .rowhead b { font-size: 17px; font-weight: 800; letter-spacing: -.025em; }
   .rowhead span { font-size: 9.5px; color: var(--app-muted); }
 
   .prod {
-    display: flex; align-items: center; gap: 9px; padding: 8px 0;
+    display: flex; align-items: center; gap: 9px; padding: 5px 0;
     border-top: 1px solid var(--app-border);
   }
   .thumb {
@@ -403,7 +405,7 @@
   </div>
 
   <!-- ══════════ SCREEN 1 — BUYER ══════════ -->
-  <section class="screen">
+  <section class="block">
     <h2 class="section">Screen 01</h2>
     <h3 class="screen-title">Buyer — the live room</h3>
     <p class="screen-note">
@@ -649,7 +651,7 @@
   </section>
 
   <!-- ══════════ SCREEN 2 — ORDERS ══════════ -->
-  <section class="screen">
+  <section class="block">
     <h2 class="section">Screen 02</h2>
     <h3 class="screen-title">Orders — buyer history</h3>
     <p class="screen-note">
@@ -796,7 +798,7 @@
   </section>
 
   <!-- ══════════ DELTAS ══════════ -->
-  <section class="screen">
+  <section class="block">
     <h2 class="section">Reference</h2>
     <h3 class="screen-title">The eight platform deltas</h3>
     <p class="screen-note">
@@ -823,7 +825,7 @@
   </section>
 
   <!-- ══════════ QUESTIONS ══════════ -->
-  <section class="screen">
+  <section class="block">
     <h2 class="section">Before the fleets build</h2>
     <h3 class="screen-title">Three calls I made that are yours to confirm</h3>
     <p class="screen-note">
