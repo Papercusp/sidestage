@@ -67,7 +67,6 @@ describe('Studio board selection', () => {
       'copilot',
       'transcript',
       'event-chat',
-      'on-deck',
       'run-of-show',
     ]);
   });
