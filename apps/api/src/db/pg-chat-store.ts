@@ -1,0 +1,208 @@
+import { ConflictException } from '@nestjs/common';
+import type { Pool, PoolClient } from 'pg';
+import type { ChatMessage, ChatPresence, TranscriptMoment } from '../chat/chat.service';
+import type { AppendMessageResult, ChatCursor, ChatMessagePage, ChatStore } from '../chat/chat.store';
+
+interface MessageRow {
+  id: string;
+  event_id: string;
+  user_id: string;
+  display_name: string;
+  role: 'buyer' | 'seller';
+  text: string;
+  grounding: ChatMessage['grounding'] | string | null;
+  client_request_id: string | null;
+  created_at: Date | string;
+}
+
+interface TranscriptRow {
+  id: string;
+  text: string;
+  start_ms: number | null;
+  end_ms: number | null;
+  product_id: string | null;
+  product_title: string | null;
+}
+
+interface PresenceRow {
+  user_id: string;
+  display_name: string;
+  role: 'buyer' | 'seller';
+  last_seen_at: Date | string;
+}
+
+export class PgChatStore implements ChatStore {
+  constructor(private readonly pool: Pool) {}
+
+  async listMessages(eventId: string, limit: number, before?: ChatCursor): Promise<ChatMessagePage> {
+    const result = await this.pool.query<MessageRow>(
+      `SELECT id, event_id, user_id, display_name, role, text, grounding, client_request_id, created_at
+         FROM chat_message
+        WHERE event_id = $1 AND moderated_at IS NULL
+          AND ($2::timestamptz IS NULL OR (created_at, id) < ($2::timestamptz, $3::text))
+        ORDER BY created_at DESC, id DESC
+        LIMIT $4`,
+      [eventId, before?.createdAt ?? null, before?.id ?? '', limit + 1],
+    );
+    const newestFirst = result.rows.map(toMessage);
+    const hasOlder = newestFirst.length > limit;
+    if (hasOlder) newestFirst.pop();
+    const items = newestFirst.reverse();
+    return {
+      items,
+      ...(hasOlder && items[0] ? { nextCursor: { createdAt: items[0].createdAt, id: items[0].id } } : {}),
+    };
+  }
+
+  async appendMessage(message: ChatMessage): Promise<AppendMessageResult> {
+    return this.transaction(async (client) => {
+      const inserted = await client.query<MessageRow>(
+        `INSERT INTO chat_message
+           (id, event_id, user_id, display_name, role, text, grounding, client_request_id, created_at)
+         VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb, $8, $9)
+         ON CONFLICT (event_id, user_id, client_request_id)
+           WHERE client_request_id IS NOT NULL DO NOTHING
+         RETURNING id, event_id, user_id, display_name, role, text, grounding, client_request_id, created_at`,
+        [message.id, message.eventId, message.userId, message.displayName, message.role, message.text,
+          message.grounding ? JSON.stringify(message.grounding) : null, message.clientRequestId ?? null, message.createdAt],
+      );
+      let persisted = inserted.rows[0] ? toMessage(inserted.rows[0]) : undefined;
+      if (!persisted && message.clientRequestId) {
+        const replay = await client.query<MessageRow>(
+          `SELECT id, event_id, user_id, display_name, role, text, grounding, client_request_id, created_at
+             FROM chat_message
+            WHERE event_id = $1 AND user_id = $2 AND client_request_id = $3
+            FOR UPDATE`,
+          [message.eventId, message.userId, message.clientRequestId],
+        );
+        persisted = replay.rows[0] ? toMessage(replay.rows[0]) : undefined;
+        if (!persisted) throw new Error('Idempotent chat insert neither created nor recovered a row');
+        if (!sameMutation(persisted, message)) throw new ConflictException('Idempotency key was already used for a different message');
+      }
+      if (!persisted) throw new Error('Chat message was not persisted');
+      if (inserted.rows.length > 0) {
+        await this.upsertPresence(client, message.eventId, {
+          userId: message.userId, displayName: message.displayName, role: message.role, lastSeenAt: message.createdAt,
+        });
+      }
+      return { message: persisted, created: inserted.rows.length > 0 };
+    });
+  }
+
+  async listTranscript(eventId: string, limit: number): Promise<TranscriptMoment[]> {
+    const result = await this.pool.query<TranscriptRow>(
+      `SELECT id, text, start_ms, end_ms, product_id, product_title
+         FROM chat_transcript_moment WHERE event_id = $1
+        ORDER BY created_at DESC, id DESC LIMIT $2`,
+      [eventId, limit],
+    );
+    return result.rows.reverse().map(toTranscript);
+  }
+
+  async appendTranscript(eventId: string, moment: TranscriptMoment): Promise<TranscriptMoment> {
+    const result = await this.pool.query<TranscriptRow>(
+      `INSERT INTO chat_transcript_moment
+         (id, event_id, text, start_ms, end_ms, product_id, product_title)
+       VALUES ($1, $2, $3, $4, $5, $6, $7)
+       RETURNING id, text, start_ms, end_ms, product_id, product_title`,
+      [moment.id, eventId, moment.text, moment.startMs ?? null, moment.endMs ?? null,
+        moment.productId ?? null, moment.productTitle ?? null],
+    );
+    return toTranscript(result.rows[0]);
+  }
+
+  async listPresence(eventId: string, cutoffIso: string): Promise<ChatPresence[]> {
+    await this.pool.query('DELETE FROM chat_presence WHERE event_id = $1 AND last_seen_at < $2', [eventId, cutoffIso]);
+    const result = await this.pool.query<PresenceRow>(
+      `SELECT user_id, display_name, role, last_seen_at
+         FROM chat_presence WHERE event_id = $1 ORDER BY user_id`,
+      [eventId],
+    );
+    return result.rows.map(toPresence);
+  }
+
+  async touchPresence(eventId: string, presence: ChatPresence): Promise<ChatPresence> {
+    return this.upsertPresence(this.pool, eventId, presence);
+  }
+
+  async removePresence(eventId: string, userId: string): Promise<boolean> {
+    const result = await this.pool.query('DELETE FROM chat_presence WHERE event_id = $1 AND user_id = $2', [eventId, userId]);
+    return (result.rowCount ?? 0) > 0;
+  }
+
+  async countMessages(eventId: string): Promise<number> {
+    const result = await this.pool.query<{ count: string }>(
+      'SELECT count(*)::text AS count FROM chat_message WHERE event_id = $1 AND moderated_at IS NULL', [eventId],
+    );
+    return Number(result.rows[0]?.count ?? 0);
+  }
+
+  async moderateMessage(eventId: string, messageId: string, moderatorId: string, reason: string): Promise<boolean> {
+    const result = await this.pool.query(
+      `UPDATE chat_message SET moderated_at = now(), moderated_by = $3, moderation_reason = $4
+        WHERE event_id = $1 AND id = $2 AND moderated_at IS NULL`,
+      [eventId, messageId, moderatorId, reason],
+    );
+    return (result.rowCount ?? 0) > 0;
+  }
+
+  private async upsertPresence(queryable: Pick<Pool | PoolClient, 'query'>, eventId: string, presence: ChatPresence): Promise<ChatPresence> {
+    const result = await queryable.query<PresenceRow>(
+      `INSERT INTO chat_presence (event_id, user_id, display_name, role, last_seen_at)
+       VALUES ($1, $2, $3, $4, $5)
+       ON CONFLICT (event_id, user_id) DO UPDATE
+         SET display_name = EXCLUDED.display_name, role = EXCLUDED.role, last_seen_at = EXCLUDED.last_seen_at
+       RETURNING user_id, display_name, role, last_seen_at`,
+      [eventId, presence.userId, presence.displayName, presence.role, presence.lastSeenAt],
+    );
+    return toPresence(result.rows[0]);
+  }
+
+  private async transaction<T>(operation: (client: PoolClient) => Promise<T>): Promise<T> {
+    const client = await this.pool.connect();
+    try {
+      await client.query('BEGIN');
+      const result = await operation(client);
+      await client.query('COMMIT');
+      return result;
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      client.release();
+    }
+  }
+}
+
+function iso(value: Date | string): string {
+  return value instanceof Date ? value.toISOString() : String(value);
+}
+
+function toMessage(row: MessageRow): ChatMessage {
+  const grounding = typeof row.grounding === 'string' ? JSON.parse(row.grounding) as ChatMessage['grounding'] : row.grounding;
+  return {
+    id: row.id, eventId: row.event_id, userId: row.user_id, displayName: row.display_name,
+    role: row.role, text: row.text, createdAt: iso(row.created_at),
+    ...(grounding ? { grounding } : {}),
+    ...(row.client_request_id ? { clientRequestId: row.client_request_id } : {}),
+  };
+}
+
+function toTranscript(row: TranscriptRow): TranscriptMoment {
+  return {
+    id: row.id, text: row.text,
+    ...(row.start_ms === null ? {} : { startMs: Number(row.start_ms) }),
+    ...(row.end_ms === null ? {} : { endMs: Number(row.end_ms) }),
+    ...(row.product_id === null ? {} : { productId: row.product_id }),
+    ...(row.product_title === null ? {} : { productTitle: row.product_title }),
+  };
+}
+
+function toPresence(row: PresenceRow): ChatPresence {
+  return { userId: row.user_id, displayName: row.display_name, role: row.role, lastSeenAt: iso(row.last_seen_at) };
+}
+
+function sameMutation(left: ChatMessage, right: ChatMessage): boolean {
+  return left.displayName === right.displayName && left.role === right.role && left.text === right.text
+    && JSON.stringify(left.grounding ?? null) === JSON.stringify(right.grounding ?? null);
+}
