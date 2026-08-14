@@ -1,10 +1,13 @@
 const env = import.meta.env as Record<string, string | undefined>;
 
-/** Store links for the mobile apps. Configure via Vite env at build time;
- * blank/absent renders the badge in an accessible "coming soon" state so the
- * buttons can ship ahead of the store listings. */
-const DEFAULT_IOS_URL = (env.VITE_IOS_APP_URL ?? '').trim();
-const DEFAULT_ANDROID_URL = (env.VITE_ANDROID_APP_URL ?? '').trim();
+/** Stable install-file stubs keep the navbar controls as real links before the
+ * signed mobile artifacts exist. Deployments can replace either URL at build
+ * time without changing the component or its placement. */
+export const IOS_INSTALL_STUB_URL = '/downloads/sidestage-ios.ipa';
+export const ANDROID_INSTALL_STUB_URL = '/downloads/sidestage-android.apk';
+
+const DEFAULT_IOS_URL = (env.VITE_IOS_APP_URL ?? '').trim() || IOS_INSTALL_STUB_URL;
+const DEFAULT_ANDROID_URL = (env.VITE_ANDROID_APP_URL ?? '').trim() || ANDROID_INSTALL_STUB_URL;
 
 type AppDownloadButtonsProps = {
   iosUrl?: string;
@@ -18,35 +21,19 @@ type BadgeProps = {
 };
 
 function AppBadge({ href, platform, storeName }: BadgeProps) {
-  const live = href.length > 0;
-  const body = (
-    <>
-      <span className="app-badge-hint">{live ? 'Download on' : 'Coming soon'}</span>
-      <span className="app-badge-name">{storeName}</span>
-    </>
-  );
-  if (!live) {
-    return (
-      <span
-        className="app-badge is-soon"
-        aria-disabled="true"
-        title={`The SideStage ${platform === 'ios' ? 'iPhone' : 'Android'} app is coming soon`}
-        data-platform={platform}
-      >
-        {body}
-      </span>
-    );
-  }
+  const downloadName = platform === 'ios' ? 'sidestage-ios.ipa' : 'sidestage-android.apk';
   return (
     <a
       className="app-badge"
       href={href}
-      target="_blank"
-      rel="noreferrer"
-      aria-label={`Download the SideStage ${platform === 'ios' ? 'iPhone' : 'Android'} app on ${storeName}`}
+      download={downloadName}
+      aria-label={`Download the SideStage ${platform === 'ios' ? 'iPhone' : 'Android'} install file — ${storeName}`}
       data-platform={platform}
     >
-      {body}
+      <>
+        <span className="app-badge-hint">Download {platform === 'ios' ? 'iOS' : 'Android'}</span>
+        <span className="app-badge-name">{storeName}</span>
+      </>
     </a>
   );
 }
@@ -55,10 +42,13 @@ export function AppDownloadButtons({
   iosUrl = DEFAULT_IOS_URL,
   androidUrl = DEFAULT_ANDROID_URL,
 }: AppDownloadButtonsProps) {
+  const resolvedIosUrl = iosUrl.trim() || IOS_INSTALL_STUB_URL;
+  const resolvedAndroidUrl = androidUrl.trim() || ANDROID_INSTALL_STUB_URL;
+
   return (
     <div className="app-badges" aria-label="Get the SideStage app">
-      <AppBadge href={iosUrl} platform="ios" storeName="App Store" />
-      <AppBadge href={androidUrl} platform="android" storeName="Google Play" />
+      <AppBadge href={resolvedIosUrl} platform="ios" storeName="App Store" />
+      <AppBadge href={resolvedAndroidUrl} platform="android" storeName="Google Play" />
     </div>
   );
 }
