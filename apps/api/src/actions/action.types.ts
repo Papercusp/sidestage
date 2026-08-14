@@ -72,6 +72,8 @@ export interface ApplyActionInput {
   eventId: string;
   actorId: string;
   action: GuardedActionProposal;
+  /** Stable mutation key used to return the first audited result on retries. */
+  clientRequestId?: string;
 }
 
 export interface RegisterActionEventInput {
