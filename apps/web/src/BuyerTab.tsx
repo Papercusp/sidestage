@@ -27,7 +27,11 @@ import type { GuideEvent } from './events/api';
 import { ReplayChapters } from './ReplayChapters';
 import { type BuyerCheckoutActions, useBuyerCheckout } from './BuyerCheckout';
 import { useDemoIdentity } from './buyer-identity';
-import { VideoChatOverlay } from './VideoChatOverlay';
+import {
+  remoteTranscriptPresentation,
+  VideoEngagementOverlay,
+  type EventTranscriptMoment,
+} from './VideoEngagementOverlay';
 import './BuyerTab.css';
 
 export interface BuyerTabProps {
@@ -112,6 +116,15 @@ export function BuyerTab({
     pollIntervalMs: 15_000,
   });
   const stats = statsProp ?? buyerStatsFromSyncRows(statsQuery.data) ?? EMPTY_BUYER_STATS;
+  const transcriptQuery = useSyncQuery<EventTranscriptMoment>({
+    queryName: 'event.chat.transcript',
+    args: { eventId },
+    pollIntervalMs: 5_000,
+  });
+  const transcript = useMemo(
+    () => remoteTranscriptPresentation(transcriptQuery.data ?? [], transcriptQuery.error),
+    [transcriptQuery.data, transcriptQuery.error],
+  );
   // The event's product rail comes from the ONE catalog source (P-102): the
   // API read model when reachable; explicit development builds may use the
   // shared fixture, while production source loss renders no inventory.
@@ -273,21 +286,23 @@ export function BuyerTab({
               </button>
             )}
           </div>
-          <VideoChatOverlay
-            className="buyer-video-chat-overlay"
-            open={buyerMode === 'chat'}
-            onOpenChange={(open) => setBuyerMode(open ? 'chat' : 'shop')}
-          >
-            <EventChat
-              eventId={eventId}
-              role="buyer"
-              userId={userId}
-              displayName={userId}
-              eventTitle={resolvedTitle}
-              surface="audience-overlay"
-              apiBaseUrl={resolveApiBaseUrl()}
-            />
-          </VideoChatOverlay>
+          <VideoEngagementOverlay
+            className="buyer-video-engagement-overlay"
+            chat={(
+              <EventChat
+                eventId={eventId}
+                role="buyer"
+                userId={userId}
+                displayName={userId}
+                eventTitle={resolvedTitle}
+                surface="audience-overlay"
+                apiBaseUrl={resolveApiBaseUrl()}
+              />
+            )}
+            transcript={transcript}
+            chatOpen={buyerMode === 'chat'}
+            onChatOpenChange={(open) => setBuyerMode(open ? 'chat' : 'shop')}
+          />
         </div>
 
         <article
