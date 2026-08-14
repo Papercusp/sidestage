@@ -243,11 +243,6 @@ export function BuyerTab({
           <button className="button secondary" type="button" onClick={copyShareUrl}>
             {copyState === 'copied' ? 'Link copied' : copyState === 'failed' ? 'Copy failed' : 'Share room'}
           </button>
-          {buyerCheckout ? (
-            <button className="button secondary buyer-held-items-button" type="button" onClick={buyerCheckout.openHeldItems}>
-              Held items <span aria-label={`${buyerCheckout.heldItemCount} held items`}>{buyerCheckout.heldItemCount}</span>
-            </button>
-          ) : null}
         </div>
       </header>
 

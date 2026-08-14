@@ -69,6 +69,8 @@ describe('P-005 product card and shell', () => {
     expect(markup).toContain('id="global-demo-user-id"');
     expect(markup).not.toContain('Seller demo user');
     expect(markup.indexOf('data-platform="android"')).toBeLessThan(markup.indexOf('Demo user impersonation'));
+    expect(markup.match(/class="button secondary topbar-held-items"/g)).toHaveLength(1);
+    expect(markup).not.toContain('buyer-held-items-button');
     expect(markup.indexOf('Held items')).toBeLessThan(markup.indexOf('Ready for your next event'));
     expect(markup).toContain('Now selling');
     expect(markup).toContain('Event products');
