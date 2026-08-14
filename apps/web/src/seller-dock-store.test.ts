@@ -14,6 +14,7 @@ import {
   SELLER_DOCK_STORAGE_PREFIX,
   createSellerDockStore,
   foregroundSellerDockPanel,
+  migrateSellerActiveEventLayout,
   requestSellerDockLayoutReset,
   sellerDockStorageKey,
 } from './seller-dock-store';
@@ -44,6 +45,16 @@ function installFakeLocalStorage(): Map<string, string> {
   };
   Object.defineProperty(globalThis, 'localStorage', { value: fake, configurable: true, writable: true });
   return backing;
+}
+
+function layoutPanelIds(layout: LayoutDoc): string[] {
+  const visit = (node: LayoutDoc['root']): string[] => node.kind === 'tabs'
+    ? node.panels.map((panel) => panel.id)
+    : node.children.flatMap(visit);
+  return [
+    ...visit(layout.root),
+    ...(layout.floating ?? []).flatMap((group) => group.panels.map((panel) => panel.id)),
+  ];
 }
 
 const KEY = sellerDockStorageKey();
@@ -95,6 +106,30 @@ describe('createSellerDockStore — round trip', () => {
 
     expect((reloaded.layoutJson as LayoutDoc).root).toEqual(moved.root);
     expect(reloaded.layoutJson).not.toEqual(sellerDockDefaultLayout());
+  });
+
+  it('migrates the retired On Deck pane out of a saved Active Event layout', async () => {
+    const legacy = sellerDockDefaultLayout();
+    const root = legacy.root as Extract<LayoutDoc['root'], { kind: 'group' }>;
+    const rail = root.children.find((node) => node.id === 'seller-active-rail') as Extract<LayoutDoc['root'], { kind: 'group' }>;
+    rail.children.splice(1, 0, {
+      kind: 'tabs',
+      id: 'on-deck-group',
+      activePanelId: 'on-deck',
+      panels: [{ id: 'on-deck', type: 'on-deck', title: 'On deck' }],
+      size: 300,
+    });
+
+    expect(layoutPanelIds(legacy)).toContain('on-deck');
+    await createSellerDockStore().save(SELLER_DOCK_LAYOUT_NAME, legacy);
+    const migrated = await createSellerDockStore().load(SELLER_DOCK_LAYOUT_NAME);
+
+    expect(layoutPanelIds(migrated.layoutJson as LayoutDoc)).not.toContain('on-deck');
+    expect(layoutPanelIds(migrated.layoutJson as LayoutDoc)).toContain('run-of-show');
+    expect(layoutPanelIds(migrateSellerActiveEventLayout(migrated.layoutJson as LayoutDoc))).toEqual(
+      layoutPanelIds(migrated.layoutJson as LayoutDoc),
+    );
+    expect(JSON.parse(store.get(KEY)!).layoutJson).toEqual(migrated.layoutJson);
   });
 
   it('foregrounds the route panel while preserving the saved manager geometry', async () => {

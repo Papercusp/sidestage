@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useState, type FormEvent } from 'react';
 import { useSyncMutate, useSyncQuery } from '@papercusp/sync';
 import { EventSettingsPanel, type EventConfigView } from '../ConfigTab';
 import EventCreationPanel from '../event-creation/EventCreationPanel';
@@ -7,8 +7,11 @@ import {
   addItemsToSellerEvent,
   adjustSellerEventStock,
   executeSellerAction,
+  readSellerAuctionToken,
+  rememberSellerAuctionToken,
   setupSellerEvent,
   startSellerAuction,
+  verifySellerAuctionAccess,
   type SellerActionResult,
   type SellerAuction,
   type SellerEventItem,
@@ -60,6 +63,9 @@ export function EventManager({
   const [pickerOpen, setPickerOpen] = useState((initialItems?.length ?? 0) === 0);
   const [busyProductId, setBusyProductId] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
+  const [sellerAuctionToken, setSellerAuctionToken] = useState(() => readSellerAuctionToken() ?? '');
+  const [sellerAccessDraft, setSellerAccessDraft] = useState('');
+  const [sellerAccessBusy, setSellerAccessBusy] = useState(false);
 
   const configQuery = useSyncQuery<EventConfigView>({
     queryName: 'event.config',
@@ -110,9 +116,9 @@ export function EventManager({
 
   const auctionFallback = useCallback(
     async ({ eventId: resolvedEventId, item, quantity, startingPriceCents }: StartAuctionMutation) => (
-      startSellerAuction(resolvedEventId, item, quantity, startingPriceCents, apiBaseUrl)
+      startSellerAuction(resolvedEventId, item, quantity, startingPriceCents, apiBaseUrl, sellerAuctionToken || undefined)
     ),
-    [apiBaseUrl],
+    [apiBaseUrl, sellerAuctionToken],
   );
   const mutateStartAuction = useSyncMutate<StartAuctionMutation, SellerAuction>('auction.start', auctionFallback);
 
@@ -144,6 +150,25 @@ export function EventManager({
       setMessage(errorMessage(error));
     } finally {
       setBusyProductId(null);
+    }
+  };
+
+  const unlockAuctionWrites = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const token = sellerAccessDraft.trim();
+    if (!token) return;
+    setSellerAccessBusy(true);
+    setMessage(null);
+    try {
+      await verifySellerAuctionAccess(token, apiBaseUrl);
+      rememberSellerAuctionToken(token);
+      setSellerAuctionToken(token);
+      setSellerAccessDraft('');
+      setMessage('Seller auction writes unlocked for this browser session.');
+    } catch (error) {
+      setMessage(errorMessage(error));
+    } finally {
+      setSellerAccessBusy(false);
     }
   };
 
@@ -184,6 +209,27 @@ export function EventManager({
               <small>Price floors, markdown limits, verified inventory, audit, and rollback are enforced server-side.</small>
             </span>
           </div>
+          <form className="event-auction-access" onSubmit={(event) => void unlockAuctionWrites(event)}>
+            <div>
+              <strong>{sellerAuctionToken ? 'Auction writes unlocked' : 'Unlock auction writes'}</strong>
+              <small>Start and close require the server-configured seller credential. It stays in this browser session only.</small>
+            </div>
+            {!sellerAuctionToken ? (
+              <div className="event-auction-access-controls">
+                <label htmlFor="seller-auction-access">Seller credential</label>
+                <input
+                  id="seller-auction-access"
+                  type="password"
+                  autoComplete="current-password"
+                  value={sellerAccessDraft}
+                  onChange={(event) => setSellerAccessDraft(event.target.value)}
+                />
+                <button className="button secondary" type="submit" disabled={sellerAccessBusy || !sellerAccessDraft.trim()}>
+                  {sellerAccessBusy ? 'Checking…' : 'Unlock'}
+                </button>
+              </div>
+            ) : null}
+          </form>
           <div className="event-manager-queue-heading">
             <div>
               <p className="eyebrow">Event queue</p>
