@@ -49,7 +49,8 @@ function makeCase(overrides: Partial<Parameters<AutoResponderJudgeService['run']
 
 describe('AutoResponderJudgeService', () => {
   it('passes a grounded, policy-safe, price-correct, warm reply', async () => {
-    const report = await new AutoResponderJudgeService(new DeterministicReplyJudgeModel()).run({
+    const service = new AutoResponderJudgeService(new DeterministicReplyJudgeModel());
+    const report = await service.run({
       cases: [makeCase()],
     });
 
@@ -60,6 +61,7 @@ describe('AutoResponderJudgeService', () => {
       'price-correctness': { score: 1, passed: true },
       tone: { score: 1, passed: true },
     });
+    expect(service.latest()).toBe(report);
   });
 
   it('fails unsupported citations, incorrect price, and tone mismatch', async () => {

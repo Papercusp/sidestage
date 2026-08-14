@@ -138,7 +138,13 @@ function emptyDimension(dimension: JudgeDimension): JudgeDimensionScore {
 
 @Injectable()
 export class AutoResponderJudgeService {
+  private latestReport: JudgeReport | null = null;
+
   constructor(@Inject(JUDGE_MODEL) private readonly model: ReplyJudgeModel) {}
+
+  latest(): JudgeReport | null {
+    return this.latestReport;
+  }
 
   async run(input: JudgeRunRequest): Promise<JudgeReport> {
     const cases = Array.isArray(input?.cases) ? input.cases : [];
@@ -177,7 +183,7 @@ export class AutoResponderJudgeService {
     const passedCases = results.filter((result) => result.passed).length;
     const overallScore = results.reduce((sum, result) => sum + result.overallScore, 0) / results.length;
 
-    return {
+    const report: JudgeReport = {
       runId: randomUUID(),
       totalCases: results.length,
       passedCases,
@@ -188,5 +194,7 @@ export class AutoResponderJudgeService {
       cases: results,
       latencyMs: Math.max(0, Date.now() - started),
     };
+    this.latestReport = report;
+    return report;
   }
 }
