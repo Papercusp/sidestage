@@ -1,5 +1,6 @@
-import { useCallback, useEffect, useId, useRef, useState } from 'react';
-import { fetchPreflight, type PreflightReport } from './rehearsals';
+import { useCallback, useId } from 'react';
+import { useSyncQuery } from '@papercusp/sync';
+import type { PreflightReport } from './rehearsals';
 
 export interface EventReadinessViewProps {
   eventId: string;
@@ -82,44 +83,24 @@ export function EventReadinessView({
 
 export function EventReadinessPanel({
   eventId,
-  apiBaseUrl,
 }: {
   eventId: string;
-  apiBaseUrl?: string;
 }) {
-  const [report, setReport] = useState<PreflightReport | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const requestId = useRef(0);
-
-  const run = useCallback(async () => {
-    const currentRequest = ++requestId.current;
-    setLoading(true);
-    setError(null);
-    try {
-      const nextReport = await fetchPreflight(eventId, apiBaseUrl);
-      if (requestId.current === currentRequest) setReport(nextReport);
-    } catch (cause) {
-      if (requestId.current !== currentRequest) return;
-      setReport(null);
-      setError(cause instanceof Error ? cause.message : 'Event preflight could not be reached.');
-    } finally {
-      if (requestId.current === currentRequest) setLoading(false);
-    }
-  }, [apiBaseUrl, eventId]);
-
-  useEffect(() => {
-    void run();
-    return () => { requestId.current += 1; };
-  }, [run]);
+  const query = useSyncQuery<PreflightReport>({
+    queryName: 'rehearsal.preflight',
+    args: { eventId },
+    pollIntervalMs: 30_000,
+  });
+  const report = query.data?.[0] ?? null;
+  const run = useCallback(() => query.invalidate(), [query.invalidate]);
 
   return (
     <EventReadinessView
       eventId={eventId}
       report={report}
-      loading={loading}
-      error={error}
-      onRun={() => void run()}
+      loading={Boolean(query.loading || query.fetching)}
+      error={query.error?.message ?? null}
+      onRun={run}
     />
   );
 }

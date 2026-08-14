@@ -88,11 +88,20 @@ export function SystemTestsTab() {
     setHistory(recordHistory(SYSTEM_TEST_HISTORY_ID, report));
   }, []);
 
+  const runRehearsalFallback = useCallback(
+    async (kind: RehearsalKind) => runRehearsal(kind),
+    [],
+  );
+  const mutateRehearsal = useSyncMutate<RehearsalKind, RehearsalReport>(
+    'rehearsal.run',
+    runRehearsalFallback,
+  );
+
   const runOne = useCallback(async (kind: RehearsalKind) => {
     setRunning((current) => ({ ...current, [kind]: true }));
     setErrors((current) => ({ ...current, [kind]: undefined }));
     try {
-      absorb(await runRehearsal(kind));
+      absorb(await mutateRehearsal(kind));
     } catch (cause) {
       setErrors((current) => ({
         ...current,
@@ -101,7 +110,7 @@ export function SystemTestsTab() {
     } finally {
       setRunning((current) => ({ ...current, [kind]: false }));
     }
-  }, [absorb]);
+  }, [absorb, mutateRehearsal]);
 
   const [users, setUsers] = useState('3');
   const [messagesPerSecond, setMessagesPerSecond] = useState('2');

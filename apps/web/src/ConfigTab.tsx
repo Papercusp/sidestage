@@ -322,7 +322,7 @@ export function ConfigEditor({
         </aside>
       </div>
 
-      <EventReadinessPanel eventId={config.eventId} apiBaseUrl={apiBaseUrl} />
+      <EventReadinessPanel eventId={config.eventId} />
 
       <footer className="config-save-bar">
         <p>
