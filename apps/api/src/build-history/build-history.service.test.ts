@@ -12,7 +12,7 @@ function toolResponse(data: unknown): Response {
 
 describe('BuildHistoryService', () => {
   it('groups completed work items under SideStage plans through projected read tools', async () => {
-    const fetchImpl = vi.fn(async (input: string | URL | Request) => {
+    const fetchMock = vi.fn(async (input: string | URL | Request) => {
       const url = new URL(String(input));
       if (url.pathname.endsWith('/plans/list')) return toolResponse({ plans: [
         { slug: 'sidestage-checkout', title: 'SideStage checkout', status: 'active', updated: '2026-08-14T01:00:00Z' },
@@ -24,7 +24,8 @@ describe('BuildHistoryService', () => {
         terminalCompletionEvidence: { testsRun: 'npm test', testResult: 'passed' },
         completionAuthority: 'committed',
       }]);
-    }) as unknown as typeof fetch;
+    });
+    const fetchImpl = fetchMock as unknown as typeof fetch;
 
     const history = await fetchBuildHistory({
       baseUrl: 'http://operator.test:3070', workspace: 'papercusp-workspace', harness: 'papercusp',
@@ -35,8 +36,8 @@ describe('BuildHistoryService', () => {
       slug: 'sidestage-checkout',
       completedItems: [expect.objectContaining({ id: 'WI-42', completionAuthority: 'committed' })],
     })]);
-    expect(fetchImpl).toHaveBeenCalledTimes(2);
-    expect(new URL(String(fetchImpl.mock.calls[0]?.[0])).searchParams.get('role')).toBe('operator');
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(new URL(String(fetchMock.mock.calls[0]?.[0])).searchParams.get('role')).toBe('operator');
   });
 
   it('registers the aggregate on the shared sync query surface', async () => {
