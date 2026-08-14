@@ -17,6 +17,7 @@
     "@nestjs/core": "^11.1.6",
     "@nestjs/platform-express": "^11.1.29",
     "@papercusp/sse": "*",
+    "@papercusp/sync": "*",
     "@papercusp/system-test-contract": "*",
     "@papercusp/typesense": "*",
     "pg": "^8.23.0",

@@ -3,6 +3,7 @@ import { createRoot } from 'react-dom/client';
 import { SyncProvider } from '@papercusp/sync';
 import { App } from './App';
 import { resolveApiBaseUrl } from './catalog';
+import { useDemoIdentity } from './buyer-identity';
 import './styles.css';
 // Maps the shared drawer libs' public --cd-*/--sc-* tokens onto SideStage's own
 // palette. Imported AFTER styles.css because it references those tokens by name
@@ -18,15 +19,23 @@ applyGridTheme();
 
 const syncEndpoint = `${resolveApiBaseUrl()}/sync`;
 
-createRoot(document.getElementById('root')!).render(
-  <StrictMode>
+function SideStageSyncRoot() {
+  const { userId } = useDemoIdentity();
+  return (
     <SyncProvider
       syncType="SSE"
+      userId={userId}
       restEndpoint={syncEndpoint}
       endpointOverride={`${syncEndpoint}/sse`}
       pollIntervalMs={10_000}
     >
       <App />
     </SyncProvider>
+  );
+}
+
+createRoot(document.getElementById('root')!).render(
+  <StrictMode>
+    <SideStageSyncRoot />
   </StrictMode>,
 );

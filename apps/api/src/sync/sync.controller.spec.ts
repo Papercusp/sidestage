@@ -50,6 +50,23 @@ describe('SyncController', () => {
     });
   });
 
+  it('passes the canonical demo principal to every named query in a batch', async () => {
+    const { controller, queries } = createSync();
+    queries.register('identity.current', (_args, context) => [{ principal: context.principal }]);
+
+    await expect(controller.restQueryBatch({
+      queries: [{ name: 'identity.current' }],
+    }, '  demo-alice  ')).resolves.toMatchObject({
+      results: [{ rows: [{ principal: 'demo-alice' }] }],
+    });
+
+    await expect(controller.restQueryBatch({
+      queries: [{ name: 'identity.current' }],
+    })).resolves.toMatchObject({
+      results: [{ rows: [{ principal: null }] }],
+    });
+  });
+
   it('turns handler failures into per-query errors', async () => {
     const { controller, queries } = createSync();
     queries.register('event.stats', () => {
@@ -84,6 +101,37 @@ describe('SyncController', () => {
         type: 'invalidate',
         data: JSON.stringify(published),
       });
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('delivers targeted SSE invalidations only to the matching demo principal', async () => {
+    vi.useFakeTimers();
+    try {
+      const { controller, invalidations } = createSync();
+      const aliceEvent = firstValueFrom(
+        controller.syncEvents(undefined, 'demo-alice').pipe(
+          filter((event) => event.type === 'invalidate'),
+          take(1),
+        ),
+      );
+      const bobEvent = firstValueFrom(
+        controller.syncEvents(undefined, 'demo-bob').pipe(
+          filter((event) => event.type === 'invalidate'),
+          take(1),
+        ),
+      );
+
+      const bobOnly = invalidations.invalidate(
+        'orders.byBuyer',
+        { scope: 'mine' },
+        { principal: 'demo-bob' },
+      );
+      const global = invalidations.invalidate('events.guide');
+
+      await expect(bobEvent).resolves.toMatchObject({ data: JSON.stringify(bobOnly) });
+      await expect(aliceEvent).resolves.toMatchObject({ data: JSON.stringify(global) });
     } finally {
       vi.useRealTimers();
     }

@@ -1,8 +1,13 @@
 import { Injectable } from '@nestjs/common';
+import type { DemoPrincipal } from '@papercusp/sync/principal';
 
 export type SyncQueryArgs = Record<string, unknown>;
+export interface SyncRequestContext {
+  principal: DemoPrincipal;
+}
 export type SyncQueryHandler = (
   args: SyncQueryArgs,
+  context: SyncRequestContext,
 ) => unknown[] | Promise<unknown[]>;
 
 /**
@@ -35,11 +40,15 @@ export class SyncQueryRegistry {
     return this.handlers.has(name);
   }
 
-  async resolve(name: string, args: SyncQueryArgs): Promise<unknown[]> {
+  async resolve(
+    name: string,
+    args: SyncQueryArgs,
+    context: SyncRequestContext = { principal: null },
+  ): Promise<unknown[]> {
     const handler = this.handlers.get(name);
     if (!handler) throw new Error(`unknown sync query: ${name || '<empty>'}`);
 
-    const rows = await handler(args);
+    const rows = await handler(args, context);
     if (!Array.isArray(rows)) {
       throw new Error(`sync query must return an array: ${name}`);
     }
