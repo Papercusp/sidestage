@@ -65,7 +65,6 @@ describe('Studio board selection', () => {
     expect(panelIds(config.layoutSeed)).toEqual([
       'stage-status',
       'copilot',
-      'transcript',
       'event-chat',
       'run-of-show',
     ]);
