@@ -65,6 +65,8 @@ describe("InventoryPickerGrid", () => {
     expect(markup).toContain("12 ready");
     expect(markup).toContain("catalog-row-unavailable");
     expect(markup).toContain("Sold out");
+    expect(markup).toContain("minmax(180px, 2.4fr)");
+    expect(markup).toContain("minmax(150px, 1.5fr)");
   });
 
   it("shows the colour as the variant axis, falling back to the imported grade", () => {

@@ -57,7 +57,10 @@ export function InventoryPickerGrid({
         key: "product",
         header: "Product",
         headerText: "Product",
-        width: 2.4,
+        // Preserve a readable product track when the seller dock is narrow.
+        // RichGrid owns horizontal overflow, so collapsing this to a bare fr
+        // track only makes the text disappear without saving any scroll.
+        width: "minmax(180px, 2.4fr)",
         toCopyText: (row) => `${row.title} — ${row.brand}`,
         render: ({ row }) => <ProductCell row={row} />,
       },
@@ -65,7 +68,9 @@ export function InventoryPickerGrid({
         key: "variant",
         header: "Variant",
         headerText: "Variant",
-        width: 1.5,
+        // Color and size are the decision-making axis for these rows. Keep
+        // enough width for both labels on phone-sized dock panes.
+        width: "minmax(150px, 1.5fr)",
         toCopyText: (row) => `${row.sku} · ${variantAxisLabel(row)}`,
         render: ({ row }) => (
           <div className="event-variant-cell">

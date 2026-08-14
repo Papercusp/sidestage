@@ -533,7 +533,23 @@
 
 @media (max-width: 560px) {
   .event-creation {
+    min-width: 0;
+    width: 100%;
     padding: 1rem;
+  }
+
+  .event-creation-toolbar-action {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .event-creation-toolbar-action > span {
+    white-space: normal;
+  }
+
+  .event-creation-toolbar .button {
+    width: 100%;
+    padding-inline: .5rem;
   }
 
   .event-filters {
