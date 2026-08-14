@@ -6,7 +6,7 @@ export const PALETTE = [
   // values are declared as named tokens (--video-inset-bg / --on-video*), so they
   // satisfy D-002 and are not drift.
   '#10131A', '#F7F0E7', '#BCAE9F', '#343B47', '#1B2029', '#FF7A6B',
-  '#F3E2CC', '#E8D3BC',
+  '#F3E2CC', '#E8D3BC', '#FFFDF9',
 ];
 
 /** In-page audit. Returns contrast failures, palette drift, and D-003 collisions. */
@@ -62,12 +62,25 @@ export const audit = (paletteHexes) => {
   for (const el of Array.from(document.querySelectorAll('body *'))) {
     if (!visible(el)) continue;
     const cs = getComputedStyle(el);
+    const inputType = String(el.getAttribute?.('type') ?? '').toLowerCase();
+    const usesNativeAccent = (el.tagName === 'INPUT' && ['checkbox', 'radio', 'range'].includes(inputType))
+      || el.tagName === 'PROGRESS';
 
     if (['INPUT'].includes(el.tagName) && ['checkbox', 'radio', 'range'].includes(el.getAttribute('type'))) {
       if (cs.accentColor === 'auto') accentAuto.push(label(el));
     }
 
     for (const prop of ['color', 'backgroundColor', 'borderTopColor', 'borderBottomColor', 'borderLeftColor', 'borderRightColor']) {
+      // Native accent-painted controls expose a UA-default `color` even though
+      // it does not paint the widget. Treat their real accentColor separately.
+      if (prop === 'color' && usesNativeAccent) continue;
+
+      // Browsers still compute border colours for sides that are not painted.
+      // Reporting those values creates drift noise for border:none / 0-width UI.
+      const borderSide = prop.match(/^border(Top|Bottom|Left|Right)Color$/)?.[1];
+      if (borderSide
+        && (cs[`border${borderSide}Style`] === 'none' || px(cs[`border${borderSide}Width`]) === 0)) continue;
+
       const c = parse(cs[prop]);
       if (!c || c.a === 0) continue;
       const h = hex(c);
