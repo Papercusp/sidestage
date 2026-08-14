@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { FormEvent } from 'react';
 import { useSyncMutate, useSyncQuery } from '@papercusp/sync';
+import { requestChatJson } from './chat-api';
 import { MESSAGE_IMPORTANCE_ORDER, triageMessages, type MessageImportance, type TriagedMessage } from './message-triage';
 
 export type EventChatRole = 'buyer' | 'seller';
@@ -46,6 +47,12 @@ export interface EventChatMessageInput {
   text: string;
 }
 
+export interface EventChatPresenceInput {
+  userId: string;
+  displayName: string;
+  role: EventChatRole;
+}
+
 type QueueView = 'focused' | 'all';
 
 export interface EventChatProps {
@@ -70,26 +77,6 @@ export function syncEndpointFor(apiBaseUrl?: string): string {
   return `${resolveApiOrigin(apiBaseUrl)}/sync`;
 }
 
-async function requestJson<T>(url: string, init: RequestInit): Promise<T> {
-  const response = await fetch(url, {
-    ...init,
-    headers: {
-      'content-type': 'application/json',
-      ...init.headers,
-    },
-  });
-  if (!response.ok) {
-    let detail = '';
-    try {
-      detail = await response.text();
-    } catch {
-      // Keep the transport status when a proxy closes without a body.
-    }
-    throw new Error(`Chat request failed (${response.status})${detail ? `: ${detail}` : ''}`);
-  }
-  return response.json() as Promise<T>;
-}
-
 /** The one chat write seam shared by the room composer and seller copilot. */
 export function useEventChatSender({
   eventId,
@@ -97,7 +84,7 @@ export function useEventChatSender({
 }: Pick<EventChatProps, 'eventId' | 'apiBaseUrl'>) {
   const apiOrigin = resolveApiOrigin(apiBaseUrl);
   const fallback = useCallback(async (input: EventChatMessageInput) => {
-    return requestJson<EventChatMessage>(`${apiOrigin}/chat/events/${encodeURIComponent(eventId)}/messages`, {
+    return requestChatJson<EventChatMessage>(`${apiOrigin}/chat/events/${encodeURIComponent(eventId)}/messages`, {
       method: 'POST',
       body: JSON.stringify(input),
     });
@@ -147,19 +134,35 @@ function EventChatSurface({
   const [queueView, setQueueView] = useState<QueueView>(role === 'seller' ? 'focused' : 'all');
 
   const sendMessage = useEventChatSender({ eventId, apiBaseUrl });
+  const touchPresenceFallback = useCallback((input: EventChatPresenceInput) => (
+    requestChatJson<EventChatPresence>(`${apiOrigin}/chat/events/${encodeURIComponent(eventId)}/presence`, {
+      method: 'POST',
+      body: JSON.stringify(input),
+    })
+  ), [apiOrigin, eventId]);
+  const leavePresenceFallback = useCallback(({ userId: leavingUserId }: { userId: string }) => (
+    requestChatJson<{ ok: true }>(
+      `${apiOrigin}/chat/events/${encodeURIComponent(eventId)}/presence/${encodeURIComponent(leavingUserId)}`,
+      { method: 'DELETE' },
+    )
+  ), [apiOrigin, eventId]);
+  const touchPresence = useSyncMutate<EventChatPresenceInput, EventChatPresence>(
+    'chat.touchPresence',
+    touchPresenceFallback,
+  );
+  const leavePresence = useSyncMutate<{ userId: string }, { ok: true }>(
+    'chat.leavePresence',
+    leavePresenceFallback,
+  );
 
   useEffect(() => {
     let stopped = false;
     let timer: ReturnType<typeof setTimeout> | null = null;
-    const presenceUrl = `${apiOrigin}/chat/events/${encodeURIComponent(eventId)}/presence`;
     const input = { userId, displayName, role };
 
     const touch = async () => {
       try {
-        await requestJson<EventChatPresence>(presenceUrl, {
-          method: 'POST',
-          body: JSON.stringify(input),
-        });
+        await touchPresence(input);
         if (!stopped) setPresenceError(null);
       } catch (error) {
         if (!stopped) setPresenceError(error instanceof Error ? error.message : 'Presence is unavailable.');
@@ -172,9 +175,9 @@ function EventChatSurface({
     return () => {
       stopped = true;
       if (timer) clearTimeout(timer);
-      void fetch(`${presenceUrl}/${encodeURIComponent(userId)}`, { method: 'DELETE' }).catch(() => undefined);
+      void leavePresence({ userId }).catch(() => undefined);
     };
-  }, [apiOrigin, displayName, eventId, role, userId]);
+  }, [displayName, eventId, leavePresence, role, touchPresence, userId]);
 
   const remoteMessages = messagesQuery.data ?? [];
   const messages = useMemo(() => {

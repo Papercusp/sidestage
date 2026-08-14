@@ -1,5 +1,9 @@
+/** @vitest-environment jsdom */
+
+import { act } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
-import { describe, expect, it } from 'vitest';
+import { createRoot } from 'react-dom/client';
+import { describe, expect, it, vi } from 'vitest';
 import { EventChat, resolveApiOrigin, syncEndpointFor } from './EventChat';
 
 describe('EventChat', () => {
@@ -42,5 +46,61 @@ describe('EventChat', () => {
     expect(markup).toContain('Message triage');
     expect(markup).toContain('Focused');
     expect(markup).toContain('All');
+  });
+
+  it('keeps presence heartbeat and leave behavior through the REST fallbacks', async () => {
+    const calls: Array<{ url: string; init?: RequestInit }> = [];
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      calls.push({ url: String(input), init });
+      return {
+        ok: true,
+        status: 200,
+        json: async () => init?.method === 'DELETE'
+          ? { ok: true }
+          : { userId: 'buyer-1', displayName: 'Maya', role: 'buyer', lastSeenAt: new Date().toISOString() },
+        text: async () => '',
+      } as Response;
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
+    const container = document.createElement('div');
+    const root = createRoot(container);
+
+    try {
+      await act(async () => {
+        root.render(
+          <EventChat
+            eventId="sunday drop"
+            role="buyer"
+            userId="buyer/1"
+            displayName="Maya"
+            apiBaseUrl="https://sidestage.example/"
+          />,
+        );
+        await Promise.resolve();
+        await Promise.resolve();
+      });
+
+      expect(calls[0]).toMatchObject({
+        url: 'https://sidestage.example/chat/events/sunday%20drop/presence',
+        init: { method: 'POST' },
+      });
+      expect(JSON.parse(String(calls[0]?.init?.body))).toEqual({
+        userId: 'buyer/1', displayName: 'Maya', role: 'buyer',
+      });
+
+      await act(async () => {
+        root.unmount();
+        await Promise.resolve();
+        await Promise.resolve();
+      });
+      expect(calls.at(-1)).toMatchObject({
+        url: 'https://sidestage.example/chat/events/sunday%20drop/presence/buyer%2F1',
+        init: { method: 'DELETE' },
+      });
+    } finally {
+      vi.unstubAllGlobals();
+      delete (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT;
+    }
   });
 });
