@@ -174,7 +174,10 @@ export function summarizeBuildHistory(
 ): BuildHistorySummary {
   const allItems = plans.flatMap((plan) => plan.completedItems.map((item) => ({ item, plan })));
   const verifiedItems = allItems
-    .filter(({ item }) => Boolean(item.completionAuthority || item.completionEvidence))
+    .filter(({ item }) => Boolean(
+      item.completionAuthority
+      || (item.completionEvidence && Object.keys(item.completionEvidence).length > 0),
+    ))
     .sort((left, right) => (
       (timestamp(right.item.completedAt) ?? 0) - (timestamp(left.item.completedAt) ?? 0)
     ));
@@ -410,7 +413,7 @@ function BuildHistoryMetrics({ plans, now }: { plans: readonly BuildHistoryPlan[
         <div className="build-metric">
           <span>Completed this week</span>
           <strong>{summary.completedThisWeek}</strong>
-          <small>Evidence-backed ledger entries</small>
+          <small>Completed work-item records</small>
         </div>
         <div className="build-metric">
           <span>Active plans</span>
@@ -464,9 +467,9 @@ export function BuildHistoryList({
   }, now), [plans, deferredSearch, status, date, kind, now]);
   const matchedSlugs = new Set(matchedPlans.map((plan) => plan.slug));
   const retainedOpenPlans = plans.filter((plan) => openPlans.has(plan.slug) && !matchedSlugs.has(plan.slug));
-  const displayedPlans = [...matchedPlans.slice(0, planLimit), ...retainedOpenPlans.filter(
-    (plan) => !matchedPlans.slice(0, planLimit).includes(plan),
-  )];
+  const pagedPlans = matchedPlans.slice(0, planLimit);
+  const preservedOpenPlans = plans.filter((plan) => openPlans.has(plan.slug) && !pagedPlans.includes(plan));
+  const displayedPlans = [...pagedPlans, ...preservedOpenPlans];
 
   useEffect(() => {
     if (!initialTarget || typeof document === 'undefined') return;
