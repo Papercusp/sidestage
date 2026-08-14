@@ -39,18 +39,17 @@ function child(root: AnyNode, id: string): AnyNode {
 }
 
 describe('Studio dock board seeds', () => {
-  it('embeds audience chat in video while keeping Seller management chat docked', () => {
+  it('keeps transcript and Event Chat inside Live console instead of default dock panes', () => {
     const layout = sellerActiveEventDockDefaultLayout();
     const placed = panelsIn(layout);
 
     expect(placed).toEqual([
       'stage-status',
       'copilot',
-      'event-chat',
       'run-of-show',
     ]);
     expect(new Set(placed)).toEqual(new Set(SELLER_ACTIVE_PANEL_IDS));
-    expect(placed).toContain('event-chat');
+    expect(placed).not.toContain('event-chat');
     expect(placed).not.toContain('event-manager');
     expect(placed).not.toContain('event-settings');
     expect(placed).not.toContain('on-deck');

@@ -4,8 +4,8 @@ import type { LayoutDoc, PanelInstance, TabStrip } from '@papercusp/dock-workben
  * Default dock layout for the Seller tab (P-007).
  *
  * The Live console owns camera, audience chat, captions, and transcript history
- * as one persistent surface. The rail therefore contains only the seller chat
- * and run-of-show tools; transcription is not an independently dockable panel.
+ * as one persistent surface. The rail therefore contains only run-of-show;
+ * neither chat nor transcription is an independently dockable default panel.
  * Sizes are nominal ratios consumed by dock-workbench serialization.
  */
 
@@ -44,11 +44,10 @@ export const SELLER_PANEL_TITLES: Readonly<Record<SellerPanelId, string>> = {
   'run-of-show-planner': 'Run of show',
 };
 
-/** Panels on the default Active Event board. Audience chat is embedded; management remains docked. */
+/** Panels on the default Active Event board. Chat and transcript are embedded in Live console. */
 export const SELLER_ACTIVE_PANEL_IDS = [
   'stage-status',
   'copilot',
-  'event-chat',
   'run-of-show',
 ] as const satisfies readonly SellerPanelId[];
 
@@ -112,10 +111,7 @@ export function sellerActiveEventDockDefaultLayout(): LayoutDoc {
           id: 'seller-active-rail',
           direction: 'col',
           size: 380,
-          children: [
-            solo('event-chat', 450),
-            solo('run-of-show', 550),
-          ],
+          children: [solo('run-of-show', 1000)],
         },
       ],
     },
