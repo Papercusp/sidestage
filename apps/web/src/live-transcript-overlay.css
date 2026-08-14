@@ -50,6 +50,7 @@
   display: flex;
   min-width: 0;
   align-items: center;
+  flex-wrap: wrap;
   gap: .55rem;
   border-top: 1px solid color-mix(in srgb, var(--on-video) 18%, transparent);
   padding: .36rem .45rem .36rem .6rem;
@@ -218,5 +219,22 @@
 
   .seller-stream-preview .seller-video-chat-overlay {
     top: 7.5rem;
+  }
+
+  /* A split desktop rail can leave less horizontal room than a phone. Stack
+     the two disclosure controls instead of clipping either one. */
+  .live-transcript-toolbar {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .live-transcript-state {
+    justify-content: center;
+  }
+
+  .live-transcript-history-toggle,
+  .live-transcript-toolbar > .video-engagement-chat-toggle {
+    width: 100%;
+    min-width: 0;
   }
 }
