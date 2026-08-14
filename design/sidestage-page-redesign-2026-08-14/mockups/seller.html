@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Seller studio — SideStage concept</title><link rel="stylesheet" href="shared.css"></head>
+<body>
+  <a class="skip-link" href="#main">Skip to studio</a>
+  <header class="app-header"><div class="app-header-inner">
+    <a class="brand" href="buyer.html"><span class="brand-mark">S</span><span class="brand-copy"><strong>SideStage</strong><small>Live commerce</small></span></a>
+    <nav class="primary-nav" aria-label="SideStage pages"><span class="nav-cluster"><a class="nav-link" href="buyer.html">Watch</a><a class="nav-link" href="orders.html">Orders</a></span><span class="nav-cluster"><a class="nav-link" aria-current="page" href="seller.html">Studio</a><a class="nav-link" href="build-history.html">Releases</a><a class="nav-link" href="config.html">Settings</a><a class="nav-link" href="test.html">Rehearse</a></span></nav>
+    <div class="header-actions"><button class="button small">Customize view</button><span class="avatar">NK</span></div>
+  </div></header>
+
+  <main class="shell" id="main">
+    <header class="page-head"><div><span class="page-kicker">Seller control room</span><h1>Tonight’s live drop</h1><p>A calm run-of-show for the current stage, next item, room demand, and safest next move.</p></div><div class="head-actions"><span class="segmented" role="tablist" aria-label="Studio mode"><button class="segment" role="tab" aria-selected="false">Prepare</button><button class="segment active" role="tab" aria-selected="true">Live</button></span></div></header>
+
+    <section class="studio-statusbar" aria-label="Broadcast status">
+      <span class="status live">On air · 42:18</span>
+      <div class="meta-row"><span><strong>238</strong> viewers</span><span><strong>18</strong> holds</span><span><strong>97%</strong> stream health</span><span>Current: Weekender</span></div>
+      <button class="button yellow small">End item &amp; advance</button>
+    </section>
+
+    <div class="segmented mode-switch" role="tablist" aria-label="Studio panel">
+      <button class="segment active" role="tab" aria-selected="true" data-studio-target="stage">Stage</button><button class="segment" role="tab" aria-selected="false" data-studio-target="lineup">Lineup</button><button class="segment" role="tab" aria-selected="false" data-studio-target="chat">Chat</button><button class="segment" role="tab" aria-selected="false" data-studio-target="copilot">Copilot</button>
+    </div>
+
+    <section class="studio-grid">
+      <article class="card stage-panel active" data-studio-panel="stage">
+        <div class="card-header"><div><span class="eyebrow">Live stage</span><h2>Hand-finished weekender</h2></div><div class="button-row"><button class="button small">Mute</button><button class="button small">Camera</button></div></div>
+        <div class="media-placeholder" style="min-height:360px;margin-top:12px"><div class="media-content"><span class="play">●</span><strong>Program preview</strong><small>Camera 1 · Captions live</small></div></div>
+        <div class="banner warning" style="margin-top:12px"><span class="banner-mark">!</span><div><strong>One unanswered buyer question</strong><p>“Will a 15-inch laptop fit?” has been waiting 46 seconds.</p></div><button class="button small">Open chat</button></div>
+        <div class="button-row" style="margin-top:12px"><button class="button primary">Pin product detail</button><button class="button">Mark sold out</button><button class="button ghost">Add 2 minutes</button></div>
+      </article>
+
+      <aside class="card lineup-card" data-studio-panel="lineup">
+        <div class="card-header"><div><span class="eyebrow">Run of show</span><h2>Lineup</h2></div><button class="button small">Edit</button></div>
+        <div class="lineup-list">
+          <div class="lineup-item active"><span class="lineup-index">NOW</span><div><strong>Hand-finished weekender</strong><small>$148 · 4 left · 18 holds</small></div><span class="status live">Live</span></div>
+          <div class="lineup-item"><span class="lineup-index">02</span><div><strong>Studio brass catchall</strong><small>$58 · 20 available</small></div><span class="badge yellow">Next</span></div>
+          <div class="lineup-item"><span class="lineup-index">03</span><div><strong>Canvas utility tote</strong><small>$74 · 7 available</small></div><span class="badge">+08m</span></div>
+          <div class="lineup-item"><span class="lineup-index">04</span><div><strong>Archive jacket auction</strong><small>Starting at $120</small></div><span class="badge red">Auction</span></div>
+        </div>
+        <button class="button" style="width:100%;margin-top:10px">+ Add item to lineup</button>
+      </aside>
+    </section>
+
+    <section class="card activity-strip" data-studio-panel="chat">
+      <div class="activity-head"><div class="tab-row" role="tablist" aria-label="Activity"><button class="tab active" role="tab" aria-selected="true">Priority chat <span class="badge red">3</span></button><button class="tab" role="tab" aria-selected="false">Transcript</button><button class="tab" role="tab" aria-selected="false">Copilot <span class="badge yellow">2</span></button></div><span class="meta-row">Auto-priority on</span></div>
+      <div class="activity-body"><div class="chat-list" style="grid-template-columns:repeat(3,minmax(0,1fr))"><div class="chat-item"><span class="avatar-dot">AM</span><div><strong>Product question · 46s</strong><p>Will a 15-inch laptop fit?</p></div></div><div class="chat-item"><span class="avatar-dot" style="background:var(--yellow);color:var(--ink)">RS</span><div><strong>Purchase signal · 22s</strong><p>Can you show the inside pocket?</p></div></div><div class="chat-item"><span class="avatar-dot" style="background:var(--green)">JL</span><div><strong>Fulfillment · 8s</strong><p>Does this ship to Canada?</p></div></div></div></div>
+    </section>
+    <section class="card activity-strip" data-studio-panel="copilot" style="display:none"><div class="activity-body"><div class="banner success"><span class="banner-mark">✦</span><div><strong>Copilot suggests a close</strong><p>“Four remain, and I’ll include the dust bag for anyone who checks out before the next item.”</p></div><button class="button small">Use cue</button></div></div></section>
+
+    <footer class="mockup-note"><span>Responsive concept · Seller control room · 2026-08-14</span><nav class="review-links" aria-label="Review mockups"><a href="buyer.html">Buyer</a><a href="orders.html">Orders</a><a aria-current="page" href="seller.html">Seller</a><a href="build-history.html">Build history</a><a href="config.html">Config</a><a href="test.html">Test</a></nav></footer>
+  </main>
+  <div class="mobile-sticky"><div><strong style="display:block;font-size:11px">Weekender · 4 left</strong><span style="font-size:10px;color:var(--muted)">Studio brass catchall is next</span></div><button class="button yellow small">Next item</button></div>
+  <script>
+    document.querySelectorAll('[data-studio-target]').forEach((button) => button.addEventListener('click', () => {
+      document.querySelectorAll('[data-studio-target]').forEach((item) => { item.classList.toggle('active', item === button); item.setAttribute('aria-selected', String(item === button)); });
+      document.querySelectorAll('[data-studio-panel]').forEach((panel) => { panel.classList.toggle('active', panel.dataset.studioPanel === button.dataset.studioTarget); if (innerWidth <= 760) panel.style.display = panel.dataset.studioPanel === button.dataset.studioTarget ? 'block' : 'none'; });
+    }));
+  </script>
+</body>
+</html>

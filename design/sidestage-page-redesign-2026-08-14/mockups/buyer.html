@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Buyer room — SideStage concept</title>
+  <link rel="stylesheet" href="shared.css">
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to room</a>
+  <header class="app-header">
+    <div class="app-header-inner">
+      <a class="brand" href="buyer.html"><span class="brand-mark">S</span><span class="brand-copy"><strong>SideStage</strong><small>Live commerce</small></span></a>
+      <nav class="primary-nav" aria-label="SideStage pages">
+        <span class="nav-cluster"><a class="nav-link" aria-current="page" href="buyer.html">Watch</a><a class="nav-link" href="orders.html">Orders</a></span>
+        <span class="nav-cluster"><a class="nav-link" href="seller.html">Studio</a><a class="nav-link" href="build-history.html">Releases</a><a class="nav-link" href="config.html">Settings</a><a class="nav-link" href="test.html">Rehearse</a></span>
+      </nav>
+      <div class="header-actions"><button class="button small">Share room</button><span class="avatar" aria-label="Account: Maya">MK</span></div>
+    </div>
+  </header>
+
+  <main class="shell" id="main">
+    <div class="room-top">
+      <div class="room-title"><span class="status live">Live</span><div><h2>Studio Finds: August drop</h2><div class="meta-row"><span><strong>238</strong> watching</span><span>Hosted by Nia K.</span><span>42 min remaining</span></div></div></div>
+      <div class="button-row"><button class="button small">Room guide</button><button class="button small">Share</button></div>
+    </div>
+
+    <section class="buyer-stage" aria-label="Live video and current offer">
+      <div class="media-placeholder" role="img" aria-label="Live video stage showing a leather weekender bag">
+        <div class="media-content"><span class="play" aria-hidden="true">▶</span><strong>Live from Brooklyn</strong><small>Captions on · 1080p</small></div>
+      </div>
+      <article class="card now-selling">
+        <div class="card-header"><div><span class="eyebrow">Now selling</span><h2>Hand-finished weekender</h2></div><span class="badge yellow">4 left</span></div>
+        <div class="product-art" aria-hidden="true">W</div>
+        <div class="meta-row"><span class="price">$148</span><span>Free U.S. shipping</span></div>
+        <p style="margin:0;color:var(--muted);font-size:11px;line-height:1.45">Vegetable-tanned leather, brass hardware, and the exact scuff Nia just showed at 19:42.</p>
+        <button class="button primary" type="button">Hold this weekender · $148</button>
+        <div class="meta-row"><span>12-minute hold</span><span>Easy returns</span><span>Secure checkout</span></div>
+      </article>
+    </section>
+
+    <div class="segmented mode-switch" role="tablist" aria-label="Buyer mobile view">
+      <button class="segment active" role="tab" aria-selected="true" data-buyer-mode="shop">Shop</button>
+      <button class="segment" role="tab" aria-selected="false" data-buyer-mode="chat">Chat <span class="badge red">6</span></button>
+    </div>
+
+    <div class="buy-grid" data-mode="shop">
+      <section class="product-zone">
+        <div class="section-head"><div><h2>Coming up</h2><p>Three items remain in tonight’s drop.</p></div><button class="button ghost small">View all 8 items →</button></div>
+        <div class="product-grid">
+          <article class="product-card"><div class="product-art" aria-hidden="true">01</div><div class="meta-row"><span class="badge yellow">Next</span><span>in ~4 min</span></div><h3>Studio brass catchall</h3><p>One-piece cast brass · edition of 20</p><div class="card-header"><span class="price">$58</span><button class="button small">Remind me</button></div></article>
+          <article class="product-card"><div class="product-art" aria-hidden="true">02</div><div class="meta-row"><span class="badge">Later</span><span>7 available</span></div><h3>Canvas utility tote</h3><p>Natural canvas · reinforced handles</p><div class="card-header"><span class="price">$74</span><button class="button small">Preview</button></div></article>
+          <article class="product-card"><div class="product-art" aria-hidden="true">03</div><div class="meta-row"><span class="badge red">Auction</span><span>opens last</span></div><h3>One-off archive jacket</h3><p>Sample piece · size medium</p><div class="card-header"><span class="price">$120+</span><button class="button small">Follow</button></div></article>
+        </div>
+        <div class="banner success" style="margin-top:14px"><span class="banner-mark">✓</span><div><strong>Your order from last week shipped</strong><p>The olive field bag arrives Friday. Track it from Orders.</p></div><a class="button small" href="orders.html">Track order</a></div>
+      </section>
+
+      <aside class="card companion" aria-label="Live chat">
+        <div class="card-header"><div><h2>Room chat</h2><p>238 watching · host replies pinned</p></div><span class="status live">Open</span></div>
+        <div class="chat-list" style="margin-top:12px">
+          <div class="chat-item"><span class="avatar-dot">NK</span><div><strong>Nia · Host</strong><p>The zipper is YKK and I’ll show the inside pocket next.</p></div></div>
+          <div class="chat-item"><span class="avatar-dot" style="background:var(--yellow);color:var(--ink)">AM</span><div><strong>Amara</strong><p>Will a 15-inch laptop fit?</p></div></div>
+          <div class="chat-item"><span class="avatar-dot" style="background:var(--green)">JL</span><div><strong>Jon</strong><p>The leather looks even better on video.</p></div></div>
+          <div class="chat-item"><span class="avatar-dot">NK</span><div><strong>Nia · Host</strong><p>Yes — 15-inch fits with room for a charger.</p></div></div>
+        </div>
+        <form class="field" style="margin-top:12px" onsubmit="event.preventDefault()"><label for="chat">Ask about this item</label><div class="button-row" style="flex-wrap:nowrap"><input class="input" id="chat" placeholder="Write a message…"><button class="button primary" type="submit">Send</button></div></form>
+      </aside>
+    </div>
+
+    <footer class="mockup-note"><span>Responsive concept · Buyer room · 2026-08-14</span><nav class="review-links" aria-label="Review mockups"><a aria-current="page" href="buyer.html">Buyer</a><a href="orders.html">Orders</a><a href="seller.html">Seller</a><a href="build-history.html">Build history</a><a href="config.html">Config</a><a href="test.html">Test</a></nav></footer>
+  </main>
+  <div class="mobile-sticky"><div><strong style="display:block;font-size:11px">Hand-finished weekender</strong><span style="font-size:10px;color:var(--muted)">$148 · 4 left</span></div><button class="button primary small">Hold item</button></div>
+  <script>
+    const buyerGrid = document.querySelector('.buy-grid');
+    document.querySelectorAll('[data-buyer-mode]').forEach((button) => button.addEventListener('click', () => {
+      document.querySelectorAll('[data-buyer-mode]').forEach((item) => { item.classList.toggle('active', item === button); item.setAttribute('aria-selected', String(item === button)); });
+      buyerGrid.dataset.mode = button.dataset.buyerMode;
+    }));
+  </script>
+</body>
+</html>

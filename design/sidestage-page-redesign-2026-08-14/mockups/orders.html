@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Orders — SideStage concept</title><link rel="stylesheet" href="shared.css"></head>
+<body>
+  <a class="skip-link" href="#main">Skip to orders</a>
+  <header class="app-header"><div class="app-header-inner">
+    <a class="brand" href="buyer.html"><span class="brand-mark">S</span><span class="brand-copy"><strong>SideStage</strong><small>Live commerce</small></span></a>
+    <nav class="primary-nav" aria-label="SideStage pages"><span class="nav-cluster"><a class="nav-link" href="buyer.html">Watch</a><a class="nav-link" aria-current="page" href="orders.html">Orders</a></span><span class="nav-cluster"><a class="nav-link" href="seller.html">Studio</a><a class="nav-link" href="build-history.html">Releases</a><a class="nav-link" href="config.html">Settings</a><a class="nav-link" href="test.html">Rehearse</a></span></nav>
+    <div class="header-actions"><button class="button small">Refresh</button><span class="avatar">MK</span></div>
+  </div></header>
+
+  <main class="shell" id="main">
+    <header class="page-head"><div><span class="page-kicker">Purchase timeline</span><h1>Your orders</h1><p>Everything you bought live, with the next fulfillment step and the moment that made it yours.</p></div><div class="head-actions"><a class="button primary" href="buyer.html">Continue shopping</a></div></header>
+
+    <section class="metric-grid" aria-label="Order summary">
+      <div class="metric"><small>Orders</small><strong>4</strong><span>Across 3 live events</span></div><div class="metric"><small>Total spend</small><strong>$364</strong><span>Before tax and shipping</span></div><div class="metric"><small>Needs action</small><strong style="color:var(--red-dark)">1</strong><span>Confirm shipping address</span></div><div class="metric"><small>In progress</small><strong>2</strong><span>One arrives Friday</span></div>
+    </section>
+
+    <section class="order-toolbar" aria-label="Order controls">
+      <div class="search-wrap"><label class="skip-link" for="order-search">Search orders</label><input class="input" id="order-search" placeholder="Search item, event, or order ID"></div>
+      <div class="segmented" role="tablist" aria-label="Order status"><button class="segment active" role="tab" aria-selected="true">All</button><button class="segment" role="tab" aria-selected="false">Needs action</button><button class="segment" role="tab" aria-selected="false">In progress</button><button class="segment" role="tab" aria-selected="false">Completed</button></div>
+      <select class="select" aria-label="Sort orders"><option>Newest first</option><option>Oldest first</option></select>
+    </section>
+
+    <div class="order-list">
+      <article class="card order-card">
+        <div class="order-summary"><div class="order-thumb">W</div><div class="order-title"><div class="meta-row"><span class="status warning">Needs action</span><span>Order SS-1048</span></div><h2 style="margin-top:7px">Hand-finished weekender</h2><p>Studio Finds: August drop · Buy now · Today at 8:19 PM</p></div><div class="order-total"><strong>$148.00</strong><small>Paid</small></div><button class="button primary">Confirm address</button></div>
+        <div class="order-detail"><div class="banner warning"><span class="banner-mark">!</span><div><strong>Confirm the apartment number by tomorrow</strong><p>Your payment is secure. The seller will ship as soon as the address is confirmed.</p></div><button class="button small">Review address</button></div><div class="timeline" aria-label="Order progress"><div class="timeline-step done">Purchased<br><strong>Today · 8:19 PM</strong></div><div class="timeline-step active">Address check<br><strong>Waiting on you</strong></div><div class="timeline-step">Ships<br><strong>Within 2 days</strong></div><div class="timeline-step">Delivered<br><strong>Estimate Friday</strong></div></div></div>
+      </article>
+
+      <article class="card order-card"><div class="order-summary"><div class="order-thumb" style="background:var(--green-soft);color:var(--green)">F</div><div class="order-title"><div class="meta-row"><span class="status shipped">Shipped</span><span>Order SS-1031</span></div><h2 style="margin-top:7px">Olive field bag</h2><p>Field Notes live · Private offer · August 8 at 7:32 PM</p></div><div class="order-total"><strong>$96.00</strong><small>Paid</small></div><button class="button">Track package</button></div><div class="order-detail"><div class="timeline"><div class="timeline-step done">Purchased<br><strong>Aug 8</strong></div><div class="timeline-step done">Packed<br><strong>Aug 9</strong></div><div class="timeline-step active">In transit<br><strong>Brooklyn, NY</strong></div><div class="timeline-step">Delivered<br><strong>Friday</strong></div></div><div class="button-row" style="margin-top:10px"><button class="button ghost small">Watch purchase moment · 00:42</button><button class="button ghost small">Get help</button></div></div></article>
+
+      <article class="card order-card"><div class="order-summary"><div class="order-thumb" style="background:var(--red-soft);color:var(--red-dark)">A</div><div class="order-title"><div class="meta-row"><span class="status ready">Delivered</span><span>Order SS-0998</span></div><h2 style="margin-top:7px">Archive print no. 12</h2><p>Print room closeout · Auction win · July 29 at 9:04 PM</p></div><div class="order-total"><strong>$120.00</strong><small>Paid</small></div><button class="button">View receipt</button></div><div class="order-detail"><div class="button-row"><button class="button ghost small">Watch winning moment · 01:06</button><button class="button ghost small">Buy from seller again</button><button class="button ghost small">Get help</button></div></div></article>
+    </div>
+
+    <footer class="mockup-note"><span>Responsive concept · Orders · 2026-08-14</span><nav class="review-links" aria-label="Review mockups"><a href="buyer.html">Buyer</a><a aria-current="page" href="orders.html">Orders</a><a href="seller.html">Seller</a><a href="build-history.html">Build history</a><a href="config.html">Config</a><a href="test.html">Test</a></nav></footer>
+  </main>
+  <script>
+    document.querySelectorAll('[aria-label="Order status"] .segment').forEach((button) => button.addEventListener('click', () => { document.querySelectorAll('[aria-label="Order status"] .segment').forEach((item) => { item.classList.toggle('active', item === button); item.setAttribute('aria-selected', String(item === button)); }); }));
+  </script>
+</body>
+</html>
