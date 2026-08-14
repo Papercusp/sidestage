@@ -15,6 +15,7 @@
     "@papercusp/sse": "*",
     "@papercusp/sync": "*",
     "@rocicorp/zero": "^1.3.0",
+    "dockview": "^6.6.1",
     "react": "^19.1.0",
     "react-dom": "^19.1.0"
   },
