@@ -520,10 +520,13 @@ a.app-badge:hover { transform: translateY(-1px); border-color: color-mix(in srgb
 .replay-chapters button > span:last-child { display: grid; gap: .2rem; min-width: 0; }
 .replay-chapters strong { font-size: .8rem; }
 .replay-chapters small { overflow: hidden; color: var(--muted); font-size: .68rem; line-height: 1.35; text-overflow: ellipsis; white-space: nowrap; }
-.buyer-stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: .65rem; margin-top: .8rem; }
-.buyer-stats > div { display: flex; flex-direction: column; gap: .25rem; padding: .75rem .85rem; border: 1px solid var(--border); border-radius: .65rem; background: var(--surface-glass); }
-.buyer-stats strong { font-size: 1rem; }
-.buyer-stats span { color: var(--muted); font-size: .68rem; }
+/* P-109b: one quiet metadata row, not three equal-weight metric cards. The
+   card chrome competed with the buying action for space above the fold
+   (design report, Buyer §"Recommended design" 3). Mirrors the mockup's
+   .meta-row: muted row, value carried by <strong>. */
+.buyer-stats { display: flex; flex-wrap: wrap; align-items: center; gap: .4rem 1.1rem; margin-top: .8rem; color: var(--muted); font-size: .72rem; }
+.buyer-stats > span { display: inline-flex; align-items: baseline; gap: .3rem; }
+.buyer-stats strong { color: var(--text); font-size: .82rem; font-weight: 700; }
 .buyer-products-heading { display: flex; align-items: flex-end; justify-content: space-between; gap: 1rem; margin: 2rem 0 .8rem; }
 .buyer-products-heading .eyebrow { margin-bottom: .45rem; }
 .buyer-products-heading h3 { margin: 0; font-size: 1.2rem; letter-spacing: -.03em; }
@@ -630,4 +633,4 @@ a.app-badge:hover { transform: translateY(-1px); border-color: color-mix(in srgb
 @media (max-width: 800px) { .rehearsal-summary { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 @media (max-width: 560px) { .rehearsal-summary { grid-template-columns: 1fr; } .rehearsal-case-heading, .setup-check-heading { flex-direction: column; gap: .3rem; } .dress-rehearsal-actions .button { width: 100%; } }
 @media (max-width: 800px) { .buyer-heading { align-items: flex-start; flex-direction: column; } .buyer-heading-actions { justify-content: flex-start; } .buyer-layout { grid-template-columns: 1fr; } .buyer-chat-card { position: static; } }
-@media (max-width: 560px) { .buyer-product-card { grid-template-columns: 100px minmax(0, 1fr); } .buyer-product-copy { padding: .75rem; } .buyer-player { min-height: 220px; } .buyer-player-overlay { right: .6rem; bottom: .6rem; left: .6rem; align-items: flex-start; flex-wrap: wrap; } .buyer-player-overlay p { flex: 1 0 100%; } .buyer-stats { gap: .45rem; } .buyer-stats > div { padding: .6rem; } .buyer-chat-form { flex-direction: column; } .buyer-chat-form .button { width: 100%; } }
+@media (max-width: 560px) { .buyer-product-card { grid-template-columns: 100px minmax(0, 1fr); } .buyer-product-copy { padding: .75rem; } .buyer-player { min-height: 220px; } .buyer-player-overlay { right: .6rem; bottom: .6rem; left: .6rem; align-items: flex-start; flex-wrap: wrap; } .buyer-player-overlay p { flex: 1 0 100%; } .buyer-stats { gap: .3rem .8rem; } .buyer-chat-form { flex-direction: column; } .buyer-chat-form .button { width: 100%; } }
