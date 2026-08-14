@@ -15,6 +15,7 @@ import './event-manager.css';
 
 export interface EventManagerProps {
   eventId: string;
+  actorId: string;
   eventName?: string;
   apiBaseUrl?: string;
   initialItems?: readonly SellerEventItem[];
@@ -27,6 +28,7 @@ function errorMessage(error: unknown): string {
 
 export function EventManager({
   eventId,
+  actorId,
   eventName = 'Seller event',
   apiBaseUrl,
   initialItems,
@@ -150,7 +152,7 @@ export function EventManager({
             busyProductId={busyProductId}
             onPush={(item) => void runAction(
               item.productId,
-              () => executeSellerAction(eventId, {
+              () => executeSellerAction(eventId, actorId, {
                 kind: 'push',
                 productId: item.productId,
                 reason: 'Seller pushed this verified item to the live stage',
@@ -159,7 +161,7 @@ export function EventManager({
             )}
             onSwap={(current, target) => void runAction(
               target.productId,
-              () => executeSellerAction(eventId, {
+              () => executeSellerAction(eventId, actorId, {
                 kind: 'swap',
                 productId: current.productId,
                 swapToProductId: target.productId,
@@ -169,7 +171,7 @@ export function EventManager({
             )}
             onMarkdown={(item, percent) => void runAction(
               item.productId,
-              () => executeSellerAction(eventId, {
+              () => executeSellerAction(eventId, actorId, {
                 kind: 'markdown',
                 productId: item.productId,
                 priceCents: Math.max(1, Math.round(item.priceCents * (1 - percent / 100))),
@@ -179,7 +181,7 @@ export function EventManager({
             )}
             onStockAdjust={(item, quantity) => void runAction(
               item.productId,
-              () => adjustSellerEventStock(eventId, item, quantity, apiBaseUrl),
+              () => adjustSellerEventStock(eventId, actorId, item, quantity, apiBaseUrl),
               `${item.title} inventory reservation is now ${quantity}.`,
             )}
             onStartAuction={(item, quantity, startingPriceCents) => void runAction(
@@ -189,7 +191,7 @@ export function EventManager({
             )}
             onSendOffer={(item, buyerId, quantity, priceCents) => void runAction(
               item.productId,
-              () => executeSellerAction(eventId, {
+              () => executeSellerAction(eventId, actorId, {
                 kind: 'targeted-offer',
                 productId: item.productId,
                 buyerId,

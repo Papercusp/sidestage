@@ -18,7 +18,7 @@ const ITEMS: SellerEventItem[] = [{
 describe('EventManager', () => {
   it('renders the real guarded lineup through RichGrid', () => {
     const markup = renderToStaticMarkup(
-      <EventManager eventId="sunday-drop" eventName="Sunday drop" initialItems={ITEMS} />,
+      <EventManager actorId="seller-27" eventId="sunday-drop" eventName="Sunday drop" initialItems={ITEMS} />,
     );
 
     expect(markup).toContain('Sunday drop');
@@ -36,7 +36,7 @@ describe('EventManager', () => {
 
   it('renders the reservation-backed setup picker for an empty event', () => {
     const markup = renderToStaticMarkup(
-      <EventManager eventId="new-event" eventName="New event" initialItems={[]} />,
+      <EventManager actorId="seller-27" eventId="new-event" eventName="New event" initialItems={[]} />,
     );
 
     expect(markup).toContain('Build the live lineup.');

@@ -117,14 +117,18 @@ describe('seller event API orchestration', () => {
       urls.push(url);
       if (url.endsWith('/inventory/mug/hold')) return json({ held: true });
       if (url.endsWith('/actions/events/drop/execute')) {
-        const body = JSON.parse(String(init?.body)) as { action: { quantity: number } };
+        const body = JSON.parse(String(init?.body)) as {
+          actorId: string;
+          action: { quantity: number };
+        };
+        expect(body.actorId).toBe('seller-stock-27');
         expect(body.action.quantity).toBe(2);
         return json({ auditId: 'audit-1', status: 'executed', state: { ...ITEM, quantity: 2 } });
       }
       throw new Error(`Unexpected URL ${url}`);
     }));
 
-    const result = await adjustSellerEventStock('drop', ITEM, 2);
+    const result = await adjustSellerEventStock('drop', 'seller-stock-27', ITEM, 2);
     expect(result.state.quantity).toBe(2);
     expect(urls).toEqual([
       'http://localhost:3100/inventory/mug/hold',
@@ -145,7 +149,7 @@ describe('seller event API orchestration', () => {
       }
       if (url.endsWith('/actions/events/drop/execute')) {
         expect(body).toMatchObject({
-          actorId: 'seller-demo',
+          actorId: 'seller-offer-27',
           action: { kind: 'targeted-offer', productId: 'mug', buyerId: 'buyer-7', quantity: 2, priceCents: 1_200 },
         });
         return json({
@@ -157,7 +161,7 @@ describe('seller event API orchestration', () => {
     }));
 
     const auction = await startSellerAuction('drop', ITEM, 3, 1_100);
-    const offer = await executeSellerAction('drop', {
+    const offer = await executeSellerAction('drop', 'seller-offer-27', {
       kind: 'targeted-offer', productId: 'mug', buyerId: 'buyer-7', quantity: 2,
       priceCents: 1_200, reason: 'Quantity-aware offer',
     });
