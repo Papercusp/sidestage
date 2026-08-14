@@ -18,4 +18,11 @@ describe('@papercusp/typesense runtime package', () => {
       default: './dist/index.js',
     });
   });
+
+  it('gives the production index enough file descriptors for bulk imports', () => {
+    const compose = readFileSync(resolve(__dirname, '../../../docker-compose.prod.yml'), 'utf8');
+    const typesenseService = compose.match(/\n  typesense:\n([\s\S]*?)(?=\n  [a-z][\w-]*:\n)/)?.[1];
+
+    expect(typesenseService).toMatch(/\n    ulimits:\n      nofile:\n        soft: 65536\n        hard: 65536\n/);
+  });
 });
