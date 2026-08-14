@@ -1,4 +1,5 @@
 import { resolveApiBaseUrl } from './catalog';
+import { requestJson } from './events/api';
 
 export interface InventoryRestockMutation {
   productId: string;
@@ -22,17 +23,11 @@ export async function restockInventory(
   input: InventoryRestockMutation,
   apiBaseUrl?: string,
 ): Promise<InventoryRestockResult> {
-  const response = await fetch(
+  return requestJson<InventoryRestockResult>(
     `${resolveApiBaseUrl(apiBaseUrl)}/inventory/${encodeURIComponent(input.productId)}/restock`,
     {
       method: 'POST',
-      headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ quantity: input.quantity, priceCents: input.priceCents }),
     },
   );
-  if (!response.ok) {
-    const body = await response.json().catch(() => null) as { message?: unknown } | null;
-    throw new Error(typeof body?.message === 'string' ? body.message : `Inventory update failed: HTTP ${response.status}`);
-  }
-  return (await response.json()) as InventoryRestockResult;
 }

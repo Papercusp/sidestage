@@ -91,6 +91,8 @@ describe('SideStage web sync contract', () => {
     const chat = readFileSync(path.join(sourceRoot, 'EventChat.tsx'), 'utf8');
     const seller = readFileSync(path.join(sourceRoot, 'SellerTab.tsx'), 'utf8');
     const transcription = readFileSync(path.join(sourceRoot, 'transcription.ts'), 'utf8');
+    const inventoryPanel = readFileSync(path.join(sourceRoot, 'InventoryPanel.tsx'), 'utf8');
+    const inventoryApi = readFileSync(path.join(sourceRoot, 'inventory-api.ts'), 'utf8');
     const app = readFileSync(path.join(sourceRoot, 'App.tsx'), 'utf8');
 
     expect(checkout).toContain("queryName: 'cart.byId'");
@@ -117,6 +119,10 @@ describe('SideStage web sync contract', () => {
     expect(seller).toContain("'chat.addTranscriptMoment'");
     expect(seller).toContain('useTranscriptMomentRecorder({');
     expect(seller).not.toMatch(/\bfetch\s*\(/);
+    expect(inventoryPanel).toContain("'inventory.restock'");
+    expect(inventoryPanel).toContain('useSyncMutate');
+    expect(inventoryApi).toContain('requestJson');
+    expect(inventoryApi).not.toMatch(/\bfetch\s*\(/);
     expect(transcription).toContain('const socket = factory(buildDeepgramUrl(');
 
     const provider = app.indexOf('<BuyerCheckoutProvider');
