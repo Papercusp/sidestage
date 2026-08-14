@@ -85,11 +85,59 @@ describe('PgCatalogSource', () => {
     expect(page.rows[0]).toMatchObject({ color: 'Midnight', size: 'Medium' });
     const [countSql] = poolQuery.mock.calls[0] as [string, unknown[]];
     const [rowsSql] = poolQuery.mock.calls[1] as [string, unknown[]];
-    expect(countSql).toContain("properties->>'sidestageCollection' = $1");
+    expect(countSql).toContain(
+      "c.properties @> jsonb_build_object('sidestageCollection', $1::text)",
+    );
+    expect(countSql).not.toContain("properties->>'sidestageCollection'");
     expect(observedParams[0]).toEqual([EVENT_DEMO_COLLECTION, 10_001]);
     expect(rowsSql).toContain("axis.slug = 'color'");
     expect(rowsSql).toContain("axis.slug = 'size'");
     expect(observedParams[1]).toEqual([EVENT_DEMO_COLLECTION, 50, 0]);
+  });
+
+  it('uses the GIN-compatible collection predicate for every curated read', async () => {
+    const poolQuery = vi.fn().mockResolvedValue({ rows: [] });
+    const source = new PgCatalogSource({ query: poolQuery } as unknown as Pool);
+
+    await source.productTypes();
+    await source.variant('event-demo-36-v2');
+
+    const [typesSql, typesParams] = poolQuery.mock.calls[0] as [string, unknown[]];
+    const [variantSql, variantParams] = poolQuery.mock.calls[1] as [string, unknown[]];
+    expect(typesSql).toContain(
+      "properties @> jsonb_build_object('sidestageCollection', $2::text)",
+    );
+    expect(typesParams).toEqual([40, EVENT_DEMO_COLLECTION]);
+    expect(variantSql).toContain(
+      "c.properties @> jsonb_build_object('sidestageCollection', $2::text)",
+    );
+    expect(variantParams).toEqual(['event-demo-36-v2', EVENT_DEMO_COLLECTION]);
+    expect(`${typesSql}\n${variantSql}`).not.toContain("properties->>'sidestageCollection'");
+  });
+
+  it('omits the collection predicate and parameter for intentionally unscoped reads', async () => {
+    const observedParams: unknown[][] = [];
+    const poolQuery = vi.fn(async (_query: string, params: unknown[]) => {
+      observedParams.push([...params]);
+      return { rows: [] };
+    });
+    const source = new PgCatalogSource({ query: poolQuery } as unknown as Pool, '');
+
+    await source.search({ page: 1, pageSize: 50 });
+    await source.productTypes();
+    await source.variant('any-variant');
+
+    const calls = poolQuery.mock.calls as [string, unknown[]][];
+    expect(calls).toHaveLength(4);
+    for (const [sql] of calls) {
+      expect(sql).not.toContain('sidestageCollection');
+    }
+    expect(observedParams).toEqual([
+      [10_001],
+      [50, 0],
+      [40],
+      ['any-variant'],
+    ]);
   });
 });
 

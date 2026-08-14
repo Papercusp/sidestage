@@ -46,6 +46,16 @@ export function normalizeQuery(query: CatalogQuery): Required<CatalogQuery> {
   };
 }
 
+function collectionPredicate(
+  collection: string,
+  params: unknown[],
+  propertiesColumn = 'c.properties',
+): string | null {
+  if (!collection) return null;
+  params.push(collection);
+  return `${propertiesColumn} @> jsonb_build_object('sidestageCollection', $${params.length}::text)`;
+}
+
 /**
  * The one variant projection, shared by all three reads so a column added here
  * cannot reach two of them and silently skip the third.
@@ -195,11 +205,10 @@ export class PgCatalogSource implements CatalogSource {
 
   private async runSearch(query: CatalogQuery, qClause: string | null): Promise<CatalogPage> {
     const { q, productType, availability, page, pageSize } = normalizeQuery(query);
-    const where: string[] = [
-      'v.active',
-      `($1 = '' OR c.properties->>'sidestageCollection' = $1)`,
-    ];
-    const params: unknown[] = [this.collection];
+    const where: string[] = ['v.active'];
+    const params: unknown[] = [];
+    const collectionWhere = collectionPredicate(this.collection, params);
+    if (collectionWhere) where.push(collectionWhere);
 
     if (q && qClause) {
       params.push(q);
@@ -241,23 +250,27 @@ export class PgCatalogSource implements CatalogSource {
   }
 
   async productTypes(limit = 40): Promise<string[]> {
+    const params: unknown[] = [Math.min(200, Math.max(1, limit))];
+    const collectionWhere = collectionPredicate(this.collection, params, 'properties');
     const result = await this.pool.query<{ productType: string }>(
       `SELECT product_type AS "productType" FROM product_catalog
-       WHERE ($2 = '' OR properties->>'sidestageCollection' = $2)
+       ${collectionWhere ? `WHERE ${collectionWhere}` : ''}
        GROUP BY product_type ORDER BY count(*) DESC LIMIT $1`,
-      [Math.min(200, Math.max(1, limit)), this.collection],
+      params,
     );
     return result.rows.map((row) => row.productType);
   }
 
   async variant(id: string): Promise<CatalogVariant | undefined> {
+    const params: unknown[] = [id];
+    const collectionWhere = collectionPredicate(this.collection, params);
     const result = await this.pool.query<VariantRow>(
       `SELECT ${VARIANT_COLUMNS}
        FROM storefront_product v
        LEFT JOIN product_catalog c ON c.group_id = v.group_id AND c.region = v.region
        WHERE v.id = $1
-         AND ($2 = '' OR c.properties->>'sidestageCollection' = $2)`,
-      [id, this.collection],
+         ${collectionWhere ? `AND ${collectionWhere}` : ''}`,
+      params,
     );
     const row = result.rows[0];
     return row ? rowToVariant(row) : undefined;
