@@ -1,6 +1,8 @@
 import { Global, Logger, Module } from '@nestjs/common';
 import { Pool } from 'pg';
 
+import { REQUIRED_TABLES, assertSchemaCurrent } from './schema-guard';
+
 /**
  * PG_POOL resolves to a connected pg Pool, or null when Postgres is not
  * reachable. Every store seam (auction inventory, cart, orders, catalog)
@@ -38,8 +40,6 @@ export async function createPoolOrNull(
   const pool = new Pool({ connectionString: url, max: 10, connectionTimeoutMillis: 2_000 });
   try {
     await pool.query('SELECT 1');
-    logger.log(`Postgres reachable — durable stores active (${url.replace(/:[^:@/]+@/, ':***@')}).`);
-    return pool;
   } catch (error) {
     await pool.end().catch(() => undefined);
     const message = error instanceof Error ? error.message : String(error);
@@ -49,6 +49,25 @@ export async function createPoolOrNull(
     logger.warn(`Postgres unreachable (${message}) — falling back to in-memory stores. Run: docker compose up -d`);
     return null;
   }
+
+  // REACHABLE IS NOT USABLE. db/schema.sql is init-only, so an existing volume can
+  // be missing tables the code queries. This check sits OUTSIDE the probe's catch
+  // on purpose: drift is fatal in every mode, never a fallback. Routing it into
+  // the branch above would silently demote a database that holds real rows to the
+  // in-memory stores — stranding that data, and re-hiding exactly the failure this
+  // guard exists to surface.
+  try {
+    await assertSchemaCurrent(pool);
+  } catch (error) {
+    await pool.end().catch(() => undefined);
+    throw error;
+  }
+
+  logger.log(
+    `Postgres reachable — durable stores active (${url.replace(/:[^:@/]+@/, ':***@')}), ` +
+      `schema OK (${REQUIRED_TABLES.length}/${REQUIRED_TABLES.length} tables).`,
+  );
+  return pool;
 }
 
 @Global()

@@ -217,3 +217,147 @@
   outline: 2px solid var(--accent);
   outline-offset: 2px;
 }
+
+/*
+ * Whole-board resize frame (P-015).
+ *
+ * Owner: "the full width and height of the entire board should also be
+ * resizeable, not just the individual components." The frame wraps
+ * .seller-dock-host and paints the drag affordances; SellerDockBoard.tsx owns
+ * the geometry.
+ *
+ * NOTE what is NOT here: any default width or height. The unsized board is
+ * .seller-dock-host's own `clamp(560px, 72vh, 900px)` box, and the frame only
+ * carries dimensions once the user has dragged (an inline style from the
+ * component). Restating the default here would create a second place for it to
+ * live, and the two would drift.
+ */
+.seller-dock-board {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  /*
+   * A persisted width is clamped to the container when it is applied, but a
+   * board saved in a wide window and reopened in a narrow one would still
+   * overflow. This is the backstop for that case — the board gives way rather
+   * than pushing a horizontal scrollbar onto the whole seller tab.
+   */
+  max-width: 100%;
+}
+
+/*
+ * The host fills whatever the frame is. `flex: 1 1 auto` (not `height: 100%`)
+ * because when the frame is UNSIZED it has no height to be a percentage of:
+ * the host's own clamp becomes the flex basis and therefore the frame's height,
+ * which is exactly the pre-P-015 box. Once the frame is sized, the host flexes
+ * to it. One rule, both states.
+ */
+.seller-dock-board > .seller-dock-host {
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.seller-dock-board-handle {
+  position: absolute;
+  z-index: 2;
+  background: transparent;
+  /*
+   * Without this, a touch drag on a handle is claimed by the browser's own
+   * scrolling before pointermove ever reaches the component, and the board
+   * simply refuses to resize on a touch device.
+   */
+  touch-action: none;
+}
+
+.seller-dock-board-handle--e {
+  top: 0;
+  bottom: 0;
+  right: 0;
+  width: 6px;
+  cursor: ew-resize;
+}
+
+.seller-dock-board-handle--s {
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 6px;
+  cursor: ns-resize;
+}
+
+/* Above the edges so the shared corner drives both axes, not just one. */
+.seller-dock-board-handle--se {
+  right: 0;
+  bottom: 0;
+  width: 14px;
+  height: 14px;
+  cursor: nwse-resize;
+  z-index: 3;
+}
+
+/*
+ * The idle grip.
+ *
+ * Given a colour at REST, for the same reason --dv-sash-color is above: an
+ * affordance that only appears once you are already dragging it cannot be
+ * discovered. The hairline reads as a seam in the border token; the accent is
+ * reserved for hover, focus and the active drag.
+ */
+.seller-dock-board-handle::after {
+  content: '';
+  position: absolute;
+  background: var(--border);
+  border-radius: 999px;
+  transition: background var(--dv-transition-duration);
+}
+
+.seller-dock-board-handle--e::after {
+  top: 50%;
+  right: 1px;
+  width: 2px;
+  height: 28px;
+  transform: translateY(-50%);
+}
+
+.seller-dock-board-handle--s::after {
+  left: 50%;
+  bottom: 1px;
+  width: 28px;
+  height: 2px;
+  transform: translateX(-50%);
+}
+
+.seller-dock-board-handle--se::after {
+  right: 2px;
+  bottom: 2px;
+  width: 8px;
+  height: 8px;
+  border-radius: 0.15rem;
+}
+
+.seller-dock-board-handle:hover::after,
+.seller-dock-board-handle:focus-visible::after {
+  background: var(--accent);
+}
+
+/* Only the handle actually being dragged lights up. */
+.seller-dock-board[data-resizing='x'] .seller-dock-board-handle--e::after,
+.seller-dock-board[data-resizing='y'] .seller-dock-board-handle--s::after,
+.seller-dock-board[data-resizing='xy'] .seller-dock-board-handle--se::after {
+  background: var(--accent);
+}
+
+/*
+ * A drag that crosses the dock would otherwise select panel text under the
+ * pointer, which both looks broken and steals the drag on some browsers.
+ */
+.seller-dock-board[data-resizing] {
+  user-select: none;
+}
+
+/* Matches the tab/reset focus treatment above (P-011): inside, not outset. */
+.seller-dock-board-handle:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
