@@ -5,9 +5,9 @@
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "start": "node dist/main.js",
-    "start:dev": "npm run build --workspace @papercusp/sse && npm run build --workspace @papercusp/typesense && tsx watch --exclude '../../node_modules/**' src/main.ts",
+    "start:dev": "npm run build --workspace @papercusp/system-test-contract && npm run build --workspace @papercusp/sse && npm run build --workspace @papercusp/typesense && tsx watch --exclude '../../node_modules/**' src/main.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "pretest": "npm run build --workspace @papercusp/sse && npm run build --workspace @papercusp/typesense",
+    "pretest": "npm run build --workspace @papercusp/system-test-contract && npm run build --workspace @papercusp/sse && npm run build --workspace @papercusp/typesense",
     "test": "vitest run --project sidestage-node",
     "test:file": "vitest run",
     "clean": "rm -rf dist"
@@ -17,6 +17,7 @@
     "@nestjs/core": "^11.1.6",
     "@nestjs/platform-express": "^11.1.29",
     "@papercusp/sse": "*",
+    "@papercusp/system-test-contract": "*",
     "@papercusp/typesense": "*",
     "pg": "^8.23.0",
     "reflect-metadata": "^0.2.2",

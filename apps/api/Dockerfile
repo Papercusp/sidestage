@@ -3,6 +3,7 @@ FROM node:20-alpine AS build
 WORKDIR /app
 COPY . .
 RUN npm ci --no-audit --no-fund \
+  && npm run build --workspace @papercusp/system-test-contract \
   && npm run build --workspace @papercusp/sse \
   && npm run build --workspace @papercusp/typesense \
   && npm run build --workspace @papercusp/sidestage-api \
@@ -14,6 +15,8 @@ ENV NODE_ENV=production
 COPY --from=build /app/node_modules ./node_modules
 COPY --from=build /app/apps/api/dist ./apps/api/dist
 COPY --from=build /app/apps/api/package.json ./apps/api/package.json
+COPY --from=build /app/libs/system-test-contract/dist ./libs/system-test-contract/dist
+COPY --from=build /app/libs/system-test-contract/package.json ./libs/system-test-contract/package.json
 COPY --from=build /app/libs/sse/dist ./libs/sse/dist
 COPY --from=build /app/libs/sse/package.json ./libs/sse/package.json
 COPY --from=build /app/libs/typesense/dist ./libs/typesense/dist
