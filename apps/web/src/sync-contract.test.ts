@@ -132,6 +132,21 @@ describe('SideStage web sync contract', () => {
     expect(pricingHistory).not.toMatch(/\bfetch\s*\(/);
   });
 
+  it('keeps auction and build history on one live-query authority with retry only on errors', () => {
+    const auction = readFileSync(path.join(sourceRoot, 'AuctionPanel.tsx'), 'utf8');
+    const buildHistory = readFileSync(path.join(sourceRoot, 'BuildHistoryTab.tsx'), 'utf8');
+
+    expect(auction).toContain("queryName: 'event.auction.active'");
+    expect(auction).not.toContain('fetchActiveAuction');
+    expect(auction).not.toContain('setAuction(');
+    expect(auction).not.toContain('refreshFromRest');
+    expect(auction).toContain('Try again');
+
+    expect(buildHistory).toContain("queryName: 'build.history'");
+    expect(buildHistory).not.toContain('Refresh history');
+    expect(buildHistory).toContain('Try again');
+  });
+
   it('routes rehearsal reads and commands through named sync seams while preserving measurement transports', () => {
     const testTab = readFileSync(path.join(sourceRoot, 'TestTab.tsx'), 'utf8');
     const systemTests = readFileSync(path.join(sourceRoot, 'SystemTestsTab.tsx'), 'utf8');
