@@ -1,4 +1,4 @@
-import { FormEvent, useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 
 import {
   availableBuyerProducts,
@@ -19,6 +19,8 @@ import { isRenderableThumbnailUrl } from './event-creation/thumbnail';
 import { fetchEventGuide, fetchEventThumbnailUrl, type GuideEvent } from './events/api';
 import { ChannelGuide } from './events/ChannelGuide';
 import { ReplayChapters } from './ReplayChapters';
+import { BuyerIdentityControl } from './BuyerIdentityControl';
+import { useBuyerIdentity } from './buyer-identity';
 
 export interface BuyerTabProps {
   eventId?: string;
@@ -38,18 +40,6 @@ export interface BuyerTabProps {
   /** Supplied by tests; otherwise fetched from GET /events. */
   guideEvents?: readonly GuideEvent[];
 }
-
-/** A stable per-browser buyer identity, so holds and chat survive reloads. */
-function buyerSessionId(): string {
-  if (typeof window === 'undefined') return 'buyer-server-render';
-  const key = 'sidestage-buyer-id';
-  const existing = window.localStorage.getItem(key);
-  if (existing) return existing;
-  const created = `buyer-${crypto.randomUUID().slice(0, 8)}`;
-  window.localStorage.setItem(key, created);
-  return created;
-}
-
 
 export function BuyerTab({
   eventId = DEFAULT_EVENT_ID,
@@ -177,7 +167,10 @@ export function BuyerTab({
   const stream = useStreamSession<ViewerSession>();
   const { streamState, setStreamState, streamError, session, videoRef } = stream;
   const { copyState, copy } = useCopyState();
-  const buyerId = useMemo(buyerSessionId, []);
+  // D-013: this is deliberately an auth-free demo identity. Every buyer-side
+  // action consumes the same persisted id, and the Orders tab imports the same
+  // hook rather than inventing a second notion of "current user".
+  const { buyerId, impersonate } = useBuyerIdentity();
 
   useEffect(() => {
     return () => stream.stop();
@@ -249,6 +242,7 @@ export function BuyerTab({
           </div>
         </div>
         <div className="buyer-heading-actions">
+          <BuyerIdentityControl buyerId={buyerId} onImpersonate={impersonate} />
           {/* D-019: the "What's on" trigger. It carries the live-room count so
               the guide advertises what is happening without being opened. */}
           <button
@@ -316,7 +310,13 @@ export function BuyerTab({
             <div><strong>{formatBuyerPrice(stats.totalRaisedCents)}</strong><span>raised</span></div>
           </div>
 
-          <AuctionPanel eventId={eventId} products={products} apiBaseUrl={import.meta.env.VITE_API_URL} />
+          <AuctionPanel
+            eventId={eventId}
+            products={products}
+            bidderId={buyerId}
+            displayName={buyerId}
+            apiBaseUrl={import.meta.env.VITE_API_URL}
+          />
 
           <div className="buyer-products-heading">
             <div>
@@ -345,7 +345,7 @@ export function BuyerTab({
             eventId={eventId}
             role="buyer"
             userId={buyerId}
-            displayName="You"
+            displayName={buyerId}
             eventTitle={eventTitle}
             apiBaseUrl={resolveApiBaseUrl()}
           />

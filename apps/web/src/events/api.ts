@@ -1,7 +1,7 @@
 import { resolveApiBaseUrl, type CatalogVariant } from '../catalog';
 import type { EventCreationPayload } from '../event-creation/catalog';
 
-export type SellerActionKind = 'markdown' | 'push' | 'swap' | 'stock-adjust';
+export type SellerActionKind = 'markdown' | 'targeted-offer' | 'push' | 'swap' | 'stock-adjust';
 
 export interface SellerEventItem {
   eventId: string;
@@ -36,6 +36,29 @@ export interface SellerActionResult {
   auditId: string;
   status: 'executed';
   state: SellerEventItem;
+  offer?: {
+    id: string;
+    eventId: string;
+    eventItemId: string;
+    productId: string;
+    buyerId: string;
+    priceCents: number;
+    quantity: number;
+    status: 'pending' | 'accepted' | 'expired' | 'cancelled';
+  };
+}
+
+export interface SellerAuction {
+  id: string;
+  eventId: string;
+  eventItemId: string;
+  productId: string;
+  quantity: number;
+  startingPriceCents: number;
+  currentPriceCents: number;
+  status: 'active' | 'closed';
+  startedAt: string;
+  endsAt: string;
 }
 
 interface EventConfigResponse {
@@ -49,6 +72,7 @@ interface EventConfigResponse {
 interface ActionProposal {
   kind: SellerActionKind;
   productId: string;
+  buyerId?: string;
   quantity?: number;
   priceCents?: number;
   swapToProductId?: string;
@@ -312,6 +336,26 @@ export async function executeSellerAction(
       body: JSON.stringify({ actorId: 'seller-demo', action }),
     },
   );
+}
+
+export async function startSellerAuction(
+  eventId: string,
+  item: SellerEventItem,
+  quantity: number,
+  startingPriceCents: number,
+  apiBaseUrl?: string,
+): Promise<SellerAuction> {
+  return requestJson<SellerAuction>(eventUrl('/auctions/start', apiBaseUrl), {
+    method: 'POST',
+    body: JSON.stringify({
+      eventId,
+      eventItemId: item.eventItemId,
+      productId: item.productId,
+      quantity,
+      startingPriceCents,
+      availableQty: item.availableQty,
+    }),
+  });
 }
 
 export async function adjustSellerEventStock(
