@@ -171,6 +171,8 @@ export interface AuctionBid {
   displayName?: string;
   amountCents: number;
   createdAt: string;
+  /** Stable per verified buyer + request; persisted with the aggregate. */
+  idempotencyKey?: string;
 }
 
 export interface AuctionWinnerOrder {
@@ -245,6 +247,7 @@ export interface PlaceBidInput {
   bidderId: string;
   displayName?: string;
   amountCents: number;
+  idempotencyKey?: string;
 }
 
 export interface AuctionSseEvent {
@@ -255,6 +258,8 @@ export interface AuctionSseEvent {
 
 const DEFAULT_DURATION_SEC = 60;
 const MAX_DURATION_SEC = 86_400;
+export const MAX_AUCTION_AMOUNT_CENTS = 100_000_000;
+export const MAX_AUCTION_QUANTITY = 10_000;
 
 @Injectable()
 export class AuctionService {
@@ -295,7 +300,7 @@ export class AuctionService {
       if (current?.status === 'active') throw new ConflictException(`Event ${eventId} already has an active auction`);
     }
 
-    const quantity = this.readPositiveInt(input.quantity, 'quantity');
+    const quantity = this.readPositiveInt(input.quantity, 'quantity', MAX_AUCTION_QUANTITY);
     const startingPriceCents = this.readMoney(input.startingPriceCents, 'startingPriceCents');
     const durationSec = input.durationSec ?? DEFAULT_DURATION_SEC;
     if (!Number.isInteger(durationSec) || durationSec < 1 || durationSec > MAX_DURATION_SEC) {
@@ -419,12 +424,16 @@ export class AuctionService {
     const resolvedId = this.readId(id, 'auctionId');
     const bidderId = this.readId(input.bidderId, 'bidderId');
     const amountCents = this.readMoney(input.amountCents, 'amountCents');
+    const idempotencyKey = input.idempotencyKey === undefined
+      ? undefined
+      : this.readIdempotencyKey(input.idempotencyKey);
     const bid: AuctionBid = {
       id: `bid_${randomUUID()}`,
       bidderId,
       displayName: this.readOptionalName(input.displayName),
       amountCents,
       createdAt: new Date().toISOString(),
+      ...(idempotencyKey ? { idempotencyKey } : {}),
     };
     if (this.store) {
       const result = await this.store.placeBid(resolvedId, bid);
@@ -437,6 +446,8 @@ export class AuctionService {
     }
 
     const auction = this.requireAuction(resolvedId);
+    const replay = this.findBidReplay(auction, bid);
+    if (replay) return this.cloneAuction(auction);
     if (auction.status === 'active' && Date.now() >= Date.parse(auction.endsAt)) await this.closeInternal(auction);
     if (auction.status !== 'active') throw new ConflictException('Auction is closed');
     if (amountCents <= auction.currentPriceCents) {
@@ -587,8 +598,10 @@ export class AuctionService {
     return id;
   }
 
-  private readPositiveInt(value: number, field: string): number {
-    if (!Number.isInteger(value) || value <= 0) throw new BadRequestException(`${field} must be a positive integer`);
+  private readPositiveInt(value: number, field: string, max = Number.MAX_SAFE_INTEGER): number {
+    if (!Number.isInteger(value) || value <= 0 || value > max) {
+      throw new BadRequestException(`${field} must be a positive integer no greater than ${max}`);
+    }
     return value;
   }
 
@@ -598,8 +611,28 @@ export class AuctionService {
   }
 
   private readMoney(value: number, field: string): number {
-    if (!Number.isInteger(value) || value < 1) throw new BadRequestException(`${field} must be a positive integer in cents`);
+    if (!Number.isInteger(value) || value < 1 || value > MAX_AUCTION_AMOUNT_CENTS) {
+      throw new BadRequestException(`${field} must be a positive integer no greater than ${MAX_AUCTION_AMOUNT_CENTS} cents`);
+    }
     return value;
+  }
+
+  private readIdempotencyKey(value: string): string {
+    const key = this.readId(value, 'idempotencyKey');
+    if (!/^[A-Za-z0-9._:-]{8,128}$/.test(key)) throw new BadRequestException('idempotencyKey must be 8–128 URL-safe characters');
+    return key;
+  }
+
+  private findBidReplay(auction: Auction, bid: AuctionBid): AuctionBid | undefined {
+    if (!bid.idempotencyKey) return undefined;
+    const existing = auction.bids.find((candidate) => (
+      candidate.bidderId === bid.bidderId && candidate.idempotencyKey === bid.idempotencyKey
+    ));
+    if (!existing) return undefined;
+    if (existing.amountCents !== bid.amountCents || existing.displayName !== bid.displayName) {
+      throw new ConflictException('Idempotency key was already used for a different bid');
+    }
+    return existing;
   }
 
   private readOptionalName(value: unknown): string | undefined {
