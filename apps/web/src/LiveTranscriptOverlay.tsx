@@ -117,7 +117,7 @@ export function TranscriptOverlayView({ transcript, toolbarActions }: Transcript
             onClick={() => transcript.onStageProduct?.(transcript.suggestedProduct!.id)}
           >
             <span aria-hidden="true">✦</span>
-            <span>Stage {transcript.suggestedProduct.label}</span>
+            <span>Make {transcript.suggestedProduct.label} active</span>
             {transcript.suggestedProduct.price ? <strong>{transcript.suggestedProduct.price}</strong> : null}
           </button>
           <button type="button" className="live-transcript-dismiss" onClick={transcript.onDismissSuggestion} aria-label="Dismiss product mention">×</button>

@@ -8,13 +8,20 @@ import {
   type TranscriptionSession,
   type TranscriptionState,
 } from './transcription';
+import {
+  detectTranscriptProductFocus,
+  findTranscriptProductMention,
+  normalizeTranscriptFocusText,
+  PRODUCT_FOCUS_CONFIDENCE_FLOOR,
+  PRODUCT_SUGGESTION_DISMISS_COOLDOWN_MS,
+  PRODUCT_SUGGESTION_TTL_MS,
+  transcriptFocusWindow,
+  type TranscriptProductFocusClassifier,
+  type TranscriptProductOption,
+} from './transcript-product-focus';
 
-export interface TranscriptProductOption {
-  id: string;
-  label: string;
-  price?: string;
-  aliases?: readonly string[];
-}
+export { findTranscriptProductMention } from './transcript-product-focus';
+export type { TranscriptProductOption } from './transcript-product-focus';
 
 export interface UseLiveTranscriptOptions extends Omit<
   TranscriptionOptions,
@@ -28,6 +35,8 @@ export interface UseLiveTranscriptOptions extends Omit<
   activeProductId: string | null;
   onActiveProductChange: (productId: string | null) => void;
   onFinalSegment?: (segment: TranscriptSegment) => void | Promise<void>;
+  /** Optional catalog-grounded semantic fallback for unresolved finalized context. */
+  classifyProductFocus?: TranscriptProductFocusClassifier;
 }
 
 export interface LiveTranscriptController {
@@ -38,6 +47,9 @@ export interface LiveTranscriptController {
   error: string | null;
   activeProduct: TranscriptProductOption | null;
   suggestedProduct: TranscriptProductOption | null;
+  suggestionConfidence?: number | null;
+  suggestionEvidenceSegmentIds?: readonly string[];
+  suggestionExpiresAt?: number | null;
   stageProduct: (productId: string) => void;
   dismissSuggestion: () => void;
 }
@@ -45,24 +57,6 @@ export interface LiveTranscriptController {
 const EMPTY_PRODUCTS: readonly TranscriptProductOption[] = [];
 const MAX_VISIBLE_TRANSCRIPT_SEGMENTS = 200;
 const STAGE_CONFIRMATIONS = new Set(['confirm', 'yes', 'stage it', 'do it', 'make active']);
-
-function normalizeMentionText(value: string): string {
-  return value.toLocaleLowerCase().replace(/[^a-z0-9]+/g, ' ').trim().replace(/\s+/g, ' ');
-}
-
-/** Find the first catalog item explicitly named in a final transcript segment. */
-export function findTranscriptProductMention(
-  text: string,
-  products: readonly TranscriptProductOption[],
-): TranscriptProductOption | null {
-  const normalizedText = ` ${normalizeMentionText(text)} `;
-  if (normalizedText.trim().length === 0) return null;
-
-  return products.find((product) => [product.label, ...(product.aliases ?? [])].some((term) => {
-    const normalizedTerm = normalizeMentionText(term);
-    return normalizedTerm.length >= 2 && normalizedText.includes(` ${normalizedTerm} `);
-  })) ?? null;
-}
 
 export type TranscriptStageIntent =
   | { kind: 'propose'; product: TranscriptProductOption }
@@ -74,10 +68,11 @@ export function resolveTranscriptStageIntent(
   text: string,
   products: readonly TranscriptProductOption[],
   pendingProduct: TranscriptProductOption | null,
+  activeProductId: string | null = null,
 ): TranscriptStageIntent {
   const mention = findTranscriptProductMention(text, products);
-  if (mention) return { kind: 'propose', product: mention };
-  if (pendingProduct && STAGE_CONFIRMATIONS.has(normalizeMentionText(text))) {
+  if (mention && mention.id !== activeProductId) return { kind: 'propose', product: mention };
+  if (pendingProduct && STAGE_CONFIRMATIONS.has(normalizeTranscriptFocusText(text))) {
     return { kind: 'confirm', product: pendingProduct };
   }
   return null;
@@ -98,6 +93,7 @@ export function useLiveTranscript({
   activeProductId,
   onActiveProductChange,
   onFinalSegment,
+  classifyProductFocus,
   ...options
 }: UseLiveTranscriptOptions): LiveTranscriptController {
   const managedSession = useMemo(
@@ -109,24 +105,80 @@ export function useLiveTranscript({
   const [interim, setInterim] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [suggestedProduct, setSuggestedProduct] = useState<TranscriptProductOption | null>(null);
+  const [suggestionConfidence, setSuggestionConfidence] = useState<number | null>(null);
+  const [suggestionEvidenceSegmentIds, setSuggestionEvidenceSegmentIds] = useState<string[]>([]);
+  const [suggestionExpiresAt, setSuggestionExpiresAt] = useState<number | null>(null);
 
   const productsRef = useRef(products);
+  const activeProductIdRef = useRef(activeProductId);
   const onFinalSegmentRef = useRef(onFinalSegment);
   const onActiveProductChangeRef = useRef(onActiveProductChange);
+  const classifyProductFocusRef = useRef(classifyProductFocus);
   const suggestedProductRef = useRef<TranscriptProductOption | null>(null);
+  const suggestionExpiresAtRef = useRef(0);
+  const finalSegmentsRef = useRef<TranscriptSegment[]>([]);
+  const classificationSequenceRef = useRef(0);
+  const dismissedUntilRef = useRef(new Map<string, number>());
   productsRef.current = products;
+  activeProductIdRef.current = activeProductId;
   onFinalSegmentRef.current = onFinalSegment;
   onActiveProductChangeRef.current = onActiveProductChange;
+  classifyProductFocusRef.current = classifyProductFocus;
 
   const clearSuggestion = useCallback(() => {
     suggestedProductRef.current = null;
+    suggestionExpiresAtRef.current = 0;
     setSuggestedProduct(null);
+    setSuggestionConfidence(null);
+    setSuggestionEvidenceSegmentIds([]);
+    setSuggestionExpiresAt(null);
+  }, []);
+
+  const proposeProduct = useCallback((
+    product: TranscriptProductOption,
+    confidence: number,
+    evidenceSegmentIds: readonly string[],
+  ) => {
+    const now = Date.now();
+    if (product.id === activeProductIdRef.current) return;
+    if ((dismissedUntilRef.current.get(product.id) ?? 0) > now) return;
+    suggestedProductRef.current = product;
+    suggestionExpiresAtRef.current = now + PRODUCT_SUGGESTION_TTL_MS;
+    setSuggestedProduct(product);
+    setSuggestionConfidence(confidence);
+    setSuggestionEvidenceSegmentIds([...evidenceSegmentIds]);
+    setSuggestionExpiresAt(suggestionExpiresAtRef.current);
   }, []);
 
   const stageProduct = useCallback((productId: string) => {
+    if (productId === activeProductIdRef.current) {
+      clearSuggestion();
+      return;
+    }
+    if (!productsRef.current.some((product) => product.id === productId)) return;
+    classificationSequenceRef.current += 1;
     onActiveProductChangeRef.current(productId);
     clearSuggestion();
   }, [clearSuggestion]);
+
+  const dismissSuggestion = useCallback(() => {
+    const product = suggestedProductRef.current;
+    if (product) dismissedUntilRef.current.set(product.id, Date.now() + PRODUCT_SUGGESTION_DISMISS_COOLDOWN_MS);
+    classificationSequenceRef.current += 1;
+    clearSuggestion();
+  }, [clearSuggestion]);
+
+  useEffect(() => {
+    classificationSequenceRef.current += 1;
+    clearSuggestion();
+  }, [activeProductId, clearSuggestion]);
+
+  useEffect(() => {
+    if (suggestionExpiresAt === null) return undefined;
+    const delay = Math.max(0, suggestionExpiresAt - Date.now());
+    const timeout = setTimeout(clearSuggestion, delay);
+    return () => clearTimeout(timeout);
+  }, [clearSuggestion, suggestionExpiresAt]);
 
   useEffect(() => {
     setState(managedSession.state);
@@ -136,21 +188,53 @@ export function useLiveTranscript({
         return;
       }
 
-      setFinalSegments((current) => [...current, segment].slice(-MAX_VISIBLE_TRANSCRIPT_SEGMENTS));
+      const nextFinalSegments = [...finalSegmentsRef.current, segment].slice(-MAX_VISIBLE_TRANSCRIPT_SEGMENTS);
+      finalSegmentsRef.current = nextFinalSegments;
+      setFinalSegments(nextFinalSegments);
       setInterim('');
       void onFinalSegmentRef.current?.(segment);
 
-      const intent = resolveTranscriptStageIntent(
-        segment.text,
-        productsRef.current,
-        suggestedProductRef.current,
-      );
-      if (intent?.kind === 'propose') {
-        suggestedProductRef.current = intent.product;
-        setSuggestedProduct(intent.product);
-      } else if (intent?.kind === 'confirm') {
-        stageProduct(intent.product.id);
+      const now = Date.now();
+      const pending = suggestedProductRef.current;
+      if (pending && suggestionExpiresAtRef.current > now && STAGE_CONFIRMATIONS.has(normalizeTranscriptFocusText(segment.text))) {
+        stageProduct(pending.id);
+        return;
       }
+      if (pending && suggestionExpiresAtRef.current <= now) clearSuggestion();
+
+      const decision = detectTranscriptProductFocus({
+        segments: nextFinalSegments,
+        products: productsRef.current,
+        activeProductId: activeProductIdRef.current,
+      });
+      if (decision.kind === 'suggest') {
+        classificationSequenceRef.current += 1;
+        proposeProduct(decision.product, decision.confidence, decision.evidenceSegmentIds);
+        return;
+      }
+      if (decision.reason === 'active-product-only') {
+        classificationSequenceRef.current += 1;
+        clearSuggestion();
+        return;
+      }
+      const classifier = classifyProductFocusRef.current;
+      if (!decision.needsSemantic || !classifier) return;
+      const requestSequence = ++classificationSequenceRef.current;
+      const requestActiveProductId = activeProductIdRef.current;
+      void classifier({
+        activeProductId: requestActiveProductId,
+        products: productsRef.current,
+        transcriptWindow: transcriptFocusWindow(nextFinalSegments),
+        requestSequence,
+      }).then((result) => {
+        if (classificationSequenceRef.current !== requestSequence) return;
+        if (activeProductIdRef.current !== requestActiveProductId) return;
+        if (result.requestSequence !== requestSequence || result.decision !== 'different') return;
+        if (result.confidence < PRODUCT_FOCUS_CONFIDENCE_FLOOR || !result.productId) return;
+        const product = productsRef.current.find((candidate) => candidate.id === result.productId);
+        if (!product || product.id === activeProductIdRef.current) return;
+        proposeProduct(product, result.confidence, result.evidenceSegmentIds);
+      }).catch(() => undefined);
     });
     const removeState = managedSession.onState(setState);
     const removeError = managedSession.onError((next) => setError(next.message));
@@ -160,7 +244,7 @@ export function useLiveTranscript({
       removeError();
       if (!session) void managedSession.stop();
     };
-  }, [managedSession, session, stageProduct]);
+  }, [clearSuggestion, managedSession, proposeProduct, session, stageProduct]);
 
   useEffect(() => {
     setError(null);
@@ -169,12 +253,14 @@ export function useLiveTranscript({
         setError(next instanceof Error ? next.message : String(next));
       });
     } else {
+      classificationSequenceRef.current += 1;
+      clearSuggestion();
       void managedSession.stop().catch((next) => {
         setError(next instanceof Error ? next.message : String(next));
       });
       setInterim('');
     }
-  }, [active, managedSession]);
+  }, [active, clearSuggestion, managedSession]);
 
   return {
     provider: managedSession.provider,
@@ -184,7 +270,10 @@ export function useLiveTranscript({
     error,
     activeProduct: products.find((product) => product.id === activeProductId) ?? null,
     suggestedProduct,
+    suggestionConfidence,
+    suggestionEvidenceSegmentIds,
+    suggestionExpiresAt,
     stageProduct,
-    dismissSuggestion: clearSuggestion,
+    dismissSuggestion,
   };
 }

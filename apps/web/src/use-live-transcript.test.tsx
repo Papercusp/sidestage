@@ -188,4 +188,127 @@ describe('useLiveTranscript', () => {
     expect(currentController().finalSegments).toEqual([mention, confirmation]);
     expect(onFinalSegment).toHaveBeenLastCalledWith(confirmation);
   });
+
+  it('suppresses the active product and keeps a dismissed alternative on cooldown', async () => {
+    const session = new FakeTranscriptionSession();
+    let controller: LiveTranscriptController | null = null;
+    const currentController = () => {
+      if (!controller) throw new Error('Expected the transcript controller to be mounted.');
+      return controller;
+    };
+
+    function Harness() {
+      controller = useLiveTranscript({
+        session,
+        active: true,
+        products: PRODUCTS,
+        activeProductId: 'hoodie',
+        onActiveProductChange: () => undefined,
+      });
+      return <output>{controller.suggestedProduct?.label ?? ''}</output>;
+    }
+
+    await act(async () => root.render(<Harness />));
+    await act(async () => session.emit({
+      id: 'active-mention', text: 'The linen hoodie has a relaxed fit.', isFinal: true, provider: 'web-speech', receivedAt: 1,
+    }));
+    expect(currentController().suggestedProduct).toBeNull();
+
+    await act(async () => session.emit({
+      id: 'other-mention', text: 'Now let us look at the stoneware mug.', isFinal: true, provider: 'web-speech', receivedAt: 2,
+    }));
+    expect(currentController().suggestedProduct?.id).toBe('mug');
+    await act(async () => currentController().dismissSuggestion());
+    await act(async () => session.emit({
+      id: 'repeat', text: 'The stoneware mug is dishwasher safe.', isFinal: true, provider: 'web-speech', receivedAt: 3,
+    }));
+    expect(currentController().suggestedProduct).toBeNull();
+  });
+
+  it('uses semantic fallback for unresolved context and ignores stale results after an active-product change', async () => {
+    const session = new FakeTranscriptionSession();
+    let controller: LiveTranscriptController | null = null;
+    const currentController = () => {
+      if (!controller) throw new Error('Expected the transcript controller to be mounted.');
+      return controller;
+    };
+    let resolveClassification: ((value: {
+      decision: 'different'; productId: string; confidence: number; evidenceSegmentIds: string[]; requestSequence: number;
+    }) => void) | undefined;
+    const classifyProductFocus = vi.fn((input: { requestSequence: number }) => new Promise<{
+      decision: 'different'; productId: string; confidence: number; evidenceSegmentIds: string[]; requestSequence: number;
+    }>((resolve) => {
+      resolveClassification = (value) => resolve({ ...value, requestSequence: input.requestSequence });
+    }));
+
+    function Harness({ activeProductId }: { activeProductId: string }) {
+      controller = useLiveTranscript({
+        session,
+        active: true,
+        products: PRODUCTS,
+        activeProductId,
+        onActiveProductChange: () => undefined,
+        classifyProductFocus,
+      });
+      return <output>{controller.suggestedProduct?.label ?? ''}</output>;
+    }
+
+    await act(async () => root.render(<Harness activeProductId="hoodie" />));
+    await act(async () => session.emit({
+      id: 'semantic-1',
+      text: 'Moving on now, this one has a glazed finish and a comfortable handle.',
+      isFinal: true,
+      provider: 'web-speech',
+      receivedAt: 1,
+    }));
+    expect(classifyProductFocus).toHaveBeenCalledOnce();
+
+    await act(async () => root.render(<Harness activeProductId="mug" />));
+    await act(async () => resolveClassification?.({
+      decision: 'different', productId: 'mug', confidence: 0.96, evidenceSegmentIds: ['semantic-1'], requestSequence: 0,
+    }));
+    expect(currentController().suggestedProduct).toBeNull();
+  });
+
+  it('surfaces a catalog-validated semantic different-product result', async () => {
+    const session = new FakeTranscriptionSession();
+    let controller: LiveTranscriptController | null = null;
+    const currentController = () => {
+      if (!controller) throw new Error('Expected the transcript controller to be mounted.');
+      return controller;
+    };
+    const classifyProductFocus = vi.fn(async (input: { requestSequence: number }) => ({
+      decision: 'different' as const,
+      productId: 'mug',
+      confidence: 0.95,
+      evidenceSegmentIds: ['semantic-1'],
+      requestSequence: input.requestSequence,
+    }));
+
+    function Harness() {
+      controller = useLiveTranscript({
+        session,
+        active: true,
+        products: PRODUCTS,
+        activeProductId: 'hoodie',
+        onActiveProductChange: () => undefined,
+        classifyProductFocus,
+      });
+      return <output>{controller.suggestedProduct?.label ?? ''}</output>;
+    }
+
+    await act(async () => root.render(<Harness />));
+    await act(async () => {
+      session.emit({
+        id: 'semantic-1',
+        text: 'Moving on now, this one has a glazed finish and a comfortable handle.',
+        isFinal: true,
+        provider: 'web-speech',
+        receivedAt: 1,
+      });
+      await Promise.resolve();
+    });
+    expect(currentController().suggestedProduct?.id).toBe('mug');
+    expect(currentController().suggestionConfidence).toBe(0.95);
+  });
 });

@@ -44,7 +44,17 @@ export function variantToTranscriptOption(variant: CatalogVariant): TranscriptPr
     words.slice(-2).join(' '),
     variant.brand.toLowerCase(),
   ].filter((alias, index, all) => alias && all.indexOf(alias) === index);
-  return { id: variant.id, label: variant.title, price: `$${(variant.priceCents / 100).toFixed(2)}`, aliases };
+  return {
+    id: variant.id,
+    label: variant.title,
+    price: `$${(variant.priceCents / 100).toFixed(2)}`,
+    aliases,
+    brand: variant.brand,
+    productType: variant.productType,
+    description: variant.description,
+    color: variant.color,
+    sku: variant.sku,
+  };
 }
 
 export function sellerCatalogFallback(
@@ -58,7 +68,7 @@ export function useSellerCatalog(): CatalogVariant[] {
   const [variants, setVariants] = useState<CatalogVariant[]>([]);
   useEffect(() => {
     let cancelled = false;
-    fetchCatalog({ availability: 'in-stock', pageSize: 3 })
+    fetchCatalog({ availability: 'in-stock', pageSize: 100 })
       .then((page) => {
         if (!cancelled) setVariants(page.rows);
       })

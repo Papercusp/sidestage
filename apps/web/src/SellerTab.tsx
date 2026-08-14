@@ -25,6 +25,10 @@ import type { SellerDockPanelContextValue } from './seller-dock-panel-props';
 import { SellerDockMissingPanel, sellerPanelRegistry } from './seller-dock-panels';
 import type { CatalogProduct } from './seller-products';
 import { connectPublisher, createEventRoom, type EventRoom, type PublisherSession } from './streaming';
+import {
+  type TranscriptSemanticFocusResult,
+  type TranscriptProductFocusClassifier,
+} from './transcript-product-focus';
 import { useLiveTranscript, type TranscriptProductOption } from './use-live-transcript';
 import { requestDeepgramToken } from './transcription';
 import './studio.css';
@@ -132,6 +136,13 @@ export function SellerTab({
     transcriptProducts,
     apiBaseUrl: import.meta.env.VITE_API_URL,
   });
+  const transcriptEventId = room?.eventId ?? chatEventId(eventId);
+  const classifyProductFocus = useCallback<TranscriptProductFocusClassifier>((input) => (
+    requestChatJson<TranscriptSemanticFocusResult>(
+      `${resolveApiOrigin(import.meta.env.VITE_API_URL)}/chat/events/${encodeURIComponent(transcriptEventId)}/transcript/product-focus`,
+      { method: 'POST', body: JSON.stringify(input) },
+    )
+  ), [transcriptEventId]);
   const transcript = useLiveTranscript({
     active: Boolean(stream.session?.localStream),
     mediaStream: stream.session?.localStream,
@@ -141,6 +152,7 @@ export function SellerTab({
     activeProductId: selectedProductId,
     onActiveProductChange,
     onFinalSegment: recordTranscriptMoment,
+    classifyProductFocus,
   });
 
   const startEvent = async () => {

@@ -16,6 +16,26 @@ export interface TranscriptFocusSegment {
   receivedAt?: number;
 }
 
+export interface TranscriptSemanticFocusRequest {
+  activeProductId: string | null;
+  products: readonly TranscriptProductOption[];
+  transcriptWindow: readonly TranscriptFocusSegment[];
+  requestSequence: number;
+}
+
+export interface TranscriptSemanticFocusResult {
+  decision: 'same' | 'different' | 'ambiguous' | 'unknown';
+  productId: string | null;
+  confidence: number;
+  evidenceSegmentIds: string[];
+  requestSequence: number;
+  source?: 'model' | 'unavailable' | 'error';
+}
+
+export type TranscriptProductFocusClassifier = (
+  input: TranscriptSemanticFocusRequest,
+) => Promise<TranscriptSemanticFocusResult>;
+
 export type TranscriptFocusDecision =
   | {
       kind: 'suggest';

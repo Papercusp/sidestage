@@ -104,7 +104,7 @@ describe('LiveTranscriptOverlay', () => {
     expect(container.querySelector('[role="alert"]')?.textContent).toBe('Microphone permission was denied.');
 
     const stageButton = Array.from(container.querySelectorAll('button'))
-      .find((button) => button.textContent?.includes('Stage Stoneware mug'));
+      .find((button) => button.textContent?.includes('Make Stoneware mug active'));
     await act(async () => stageButton?.click());
     expect(stageProduct).toHaveBeenCalledWith('mug');
 
