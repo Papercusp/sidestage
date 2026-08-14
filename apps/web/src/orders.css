@@ -251,6 +251,19 @@
   padding: .65rem;
 }
 
+.order-evidence-badge {
+  justify-self: start;
+  border: 1px solid color-mix(in srgb, var(--amber) 55%, var(--border));
+  border-radius: 999px;
+  padding: .22rem .45rem;
+  color: var(--yellow-text);
+  background: color-mix(in srgb, var(--amber) 12%, var(--surface));
+  font-size: .58rem;
+  font-weight: 750;
+  letter-spacing: .035em;
+  text-transform: uppercase;
+}
+
 .order-snapshot-copy strong,
 .order-snapshot-copy span {
   overflow: hidden;

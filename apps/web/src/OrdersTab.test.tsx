@@ -32,6 +32,8 @@ const order: BuyerOrder = {
     thumbnailUrl: '/event.png',
     startMs: 83_000,
     previewText: 'See the hand-painted detail up close.',
+    evidenceKind: 'condition',
+    evidenceLabel: 'Condition or flaw',
   }],
 };
 
@@ -47,7 +49,8 @@ describe('OrdersTab', () => {
     expect(html).toContain('Paid');
     expect(html).toContain('$30.00');
     expect(html).toContain('2 × $12.50');
-    expect(html).toContain('Your product moments');
+    expect(html).toContain('Product moments &amp; condition evidence');
+    expect(html).toContain('Condition evidence · Condition or flaw');
     expect(html).toContain('1:23');
     expect(html).toContain('See the hand-painted detail up close.');
   });

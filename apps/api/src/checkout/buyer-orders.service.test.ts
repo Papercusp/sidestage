@@ -71,7 +71,8 @@ const event: EventSummary = {
 };
 
 const chapters: ReplayChapter[] = [
-  { id: 'chapter-cup', productId: 'cup', productTitle: 'Aurora cup', startMs: 12_000, endMs: 25_000, previewText: 'Hand-painted glaze.' },
+  { id: 'chapter-cup-general', productId: 'cup', productTitle: 'Aurora cup', startMs: 5_000, endMs: 10_000, previewText: 'Hand-painted glaze.' },
+  { id: 'chapter-cup', productId: 'cup', productTitle: 'Aurora cup', startMs: 12_000, endMs: 25_000, previewText: 'Scratch disclosed on the base.', evidenceKind: 'condition', evidenceLabel: 'Condition or flaw' },
   { id: 'chapter-plate', productId: 'plate', productTitle: 'Aurora plate', startMs: 45_000, previewText: 'See the rim detail.' },
   { id: 'chapter-bowl', productId: 'bowl', productTitle: 'Aurora bowl', startMs: 70_000, previewText: 'The bowl in natural light.' },
 ];
@@ -113,10 +114,13 @@ describe('BuyerOrdersService', () => {
         previewText: 'The bowl in natural light.',
       }],
     });
-    expect(result[2]?.videoSnapshots[0]).toMatchObject({
+    expect(result[2]?.videoSnapshots).toHaveLength(2);
+    expect(result[2]?.videoSnapshots[1]).toMatchObject({
       productId: 'cup',
       productTitle: 'Aurora cup',
       startMs: 12_000,
+      evidenceKind: 'condition',
+      evidenceLabel: 'Condition or flaw',
     });
   });
 

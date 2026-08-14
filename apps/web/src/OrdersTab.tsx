@@ -26,6 +26,8 @@ export interface BuyerOrderVideoSnapshot {
   startMs?: number;
   endMs?: number;
   previewText?: string;
+  evidenceKind?: 'condition';
+  evidenceLabel?: string;
 }
 
 export interface BuyerOrder {
@@ -99,6 +101,9 @@ function SnapshotTile({ snapshot }: { snapshot: BuyerOrderVideoSnapshot }) {
         </span>
       </div>
       <div className="order-snapshot-copy">
+        {snapshot.evidenceKind === 'condition' ? (
+          <span className="order-evidence-badge">Condition evidence · {snapshot.evidenceLabel ?? 'On-camera disclosure'}</span>
+        ) : null}
         <strong>{snapshot.productTitle}</strong>
         <span>{snapshot.eventTitle}</span>
         {snapshot.previewText ? <p>{snapshot.previewText}</p> : <p>Your product moment from this event.</p>}
@@ -158,7 +163,7 @@ export function OrderHistory({ orders, buyerId }: { orders: readonly BuyerOrder[
                 <div className="order-video-heading">
                   <div>
                     <p className="eyebrow">From the live</p>
-                    <h3>Your product moments</h3>
+                    <h3>Product moments &amp; condition evidence</h3>
                   </div>
                   <span>{order.videoSnapshots.length} {order.videoSnapshots.length === 1 ? 'snapshot' : 'snapshots'}</span>
                 </div>
