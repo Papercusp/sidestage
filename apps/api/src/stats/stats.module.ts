@@ -78,7 +78,7 @@ export class EventStatsService {
 
   async read(eventId: string): Promise<EventStats> {
     await this.visibility.assertBuyerVisible(eventId);
-    const viewers = this.chat.getStats(eventId).activeUsers;
+    const viewers = (await this.chat.getStats(eventId)).activeUsers;
     let itemsSold = 0;
     let totalRaisedCents = 0;
     if (this.pool) {
