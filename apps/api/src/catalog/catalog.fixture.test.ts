@@ -169,15 +169,16 @@ describe('catalog source selection', () => {
     const pool = {
       query: async (_sql: string, params: unknown[]) => {
         observedParams.push([...params]);
-        return observedParams.length === 1 ? { rows: [{ n: '6' }] } : { rows: [] };
+        return observedParams.length === 2 ? { rows: [{ n: '6' }] } : { rows: [] };
       },
     } as unknown as Pool;
 
     const source = catalogSourceForPool(pool, { NODE_ENV: nodeEnv });
     await source.search({ availability: 'in-stock', pageSize: 6 });
 
-    expect(observedParams[0]).toEqual(expectedCountParams);
-    expect(observedParams[1]).toEqual(expectedPageParams);
+    expect(observedParams[0]).toEqual([]);
+    expect(observedParams[1]).toEqual(expectedCountParams);
+    expect(observedParams[2]).toEqual(expectedPageParams);
   });
 });
 
