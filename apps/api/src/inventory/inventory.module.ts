@@ -3,6 +3,7 @@ import type { Pool } from 'pg';
 import { AUCTION_INVENTORY, InMemoryAuctionInventory } from '../auction/auction.service';
 import { DatabaseModule, PG_POOL } from '../db/database.module';
 import { PgAuctionInventory } from '../db/pg-auction-inventory';
+import { SyncModule } from '../sync/sync.module';
 import { InventoryController } from './inventory.controller';
 
 /**
@@ -10,7 +11,7 @@ import { InventoryController } from './inventory.controller';
  * quantity limits all share it — a hold is a hold, whoever places it.
  */
 @Module({
-  imports: [DatabaseModule],
+  imports: [DatabaseModule, SyncModule],
   controllers: [InventoryController],
   providers: [
     {

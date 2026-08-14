@@ -1,13 +1,19 @@
 import { Inject, Body, Controller, Post } from '@nestjs/common';
+import { SyncInvalidationService } from '../sync/sync-invalidation.service';
 import { AutoResponderJudgeService } from './judge.service';
 import type { JudgeReport, JudgeRunRequest } from './judge.types';
 
 @Controller('judge')
 export class JudgeController {
-  constructor(@Inject(AutoResponderJudgeService) private readonly judge: AutoResponderJudgeService) {}
+  constructor(
+    @Inject(AutoResponderJudgeService) private readonly judge: AutoResponderJudgeService,
+    @Inject(SyncInvalidationService) private readonly invalidations: SyncInvalidationService,
+  ) {}
 
   @Post('run')
-  run(@Body() body: JudgeRunRequest): Promise<JudgeReport> {
-    return this.judge.run(body);
+  async run(@Body() body: JudgeRunRequest): Promise<JudgeReport> {
+    const report = await this.judge.run(body);
+    this.invalidations.invalidate('judge.latest');
+    return report;
   }
 }

@@ -14,6 +14,7 @@ import {
   type AuctionInventory,
   type InventoryHoldSource,
 } from '../auction/auction.service';
+import { SyncInvalidationService } from '../sync/sync-invalidation.service';
 
 interface HoldBody {
   quantity?: number;
@@ -33,7 +34,10 @@ function readSource(body: HoldBody): InventoryHoldSource {
 
 @Controller('inventory')
 export class InventoryController {
-  constructor(@Inject(AUCTION_INVENTORY) private readonly inventory: AuctionInventory) {}
+  constructor(
+    @Inject(AUCTION_INVENTORY) private readonly inventory: AuctionInventory,
+    @Inject(SyncInvalidationService) private readonly invalidations: SyncInvalidationService,
+  ) {}
 
   @Get(':productId')
   async snapshot(@Param('productId') productId: string) {
@@ -50,6 +54,7 @@ export class InventoryController {
     const held = await this.inventory.reserve(productId, quantity, source);
     if (!held) throw new ConflictException(`Insufficient available quantity for ${productId}`);
     const snapshot = await this.inventory.get(productId);
+    this.publishInventoryChange(productId);
     return { held: true, quantity, source, snapshot };
   }
 
@@ -58,6 +63,12 @@ export class InventoryController {
     const source = readSource(body);
     const released = await this.inventory.release(productId, body.quantity ?? 1, source);
     const snapshot = await this.inventory.get(productId);
+    if (released) this.publishInventoryChange(productId);
     return { released, source, snapshot };
+  }
+
+  private publishInventoryChange(productId: string): void {
+    this.invalidations.invalidate('catalog.page');
+    this.invalidations.invalidate('inventory.snapshot', { productId });
   }
 }
