@@ -1,12 +1,10 @@
 import type { ComponentProps } from 'react';
-import type { EventSettingsPanel } from './ConfigTab';
 import type { CopilotPanel } from './CopilotPanel';
 import type { EventChat } from './EventChat';
 import type EventManager from './events/EventManager';
 import type { SellerPanelId } from './seller-dock-layout';
 import type { OnDeckPanel } from './seller/OnDeckPanel';
 import type { RunOfShowPanel } from './seller/RunOfShowPanel';
-import type { RunOfShowPlannerPanel } from './seller/RunOfShowPlannerPanel';
 import type { StageStatusPanel } from './seller/StageStatusPanel';
 
 /**
@@ -46,9 +44,7 @@ export type SellerDockPanelContextValue = {
   copilot: ComponentProps<typeof CopilotPanel>;
   'event-chat': ComponentProps<typeof EventChat>;
   'event-manager': ComponentProps<typeof EventManager>;
-  'event-settings': ComponentProps<typeof EventSettingsPanel>;
   'run-of-show': ComponentProps<typeof RunOfShowPanel>;
-  'run-of-show-planner': ComponentProps<typeof RunOfShowPlannerPanel>;
 };
 
 /**

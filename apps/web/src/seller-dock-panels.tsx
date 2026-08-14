@@ -4,7 +4,6 @@ import {
   type PanelComponent,
   type PanelRegistry,
 } from '@papercusp/dock-workbench';
-import { EventSettingsPanel } from './ConfigTab';
 import { CopilotPanel } from './CopilotPanel';
 import { EventChat } from './EventChat';
 import EventManager from './events/EventManager';
@@ -12,7 +11,6 @@ import { SELLER_PANEL_IDS, SELLER_PANEL_TITLES, type SellerPanelId } from './sel
 import { useSellerDockPanels } from './SellerDock';
 import { OnDeckPanel } from './seller/OnDeckPanel';
 import { RunOfShowPanel } from './seller/RunOfShowPanel';
-import { RunOfShowPlannerPanel } from './seller/RunOfShowPlannerPanel';
 import { StageStatusPanel } from './seller/StageStatusPanel';
 
 /**
@@ -100,29 +98,11 @@ const EventManagerDockPanel: PanelComponent = function EventManagerDockPanel() {
   );
 };
 
-const EventSettingsDockPanel: PanelComponent = function EventSettingsDockPanel() {
-  const panels = useSellerDockPanels();
-  return (
-    <PanelBody>
-      <EventSettingsPanel {...panels['event-settings']} />
-    </PanelBody>
-  );
-};
-
 const RunOfShowDockPanel: PanelComponent = function RunOfShowDockPanel() {
   const panels = useSellerDockPanels();
   return (
     <PanelBody>
       <RunOfShowPanel {...panels['run-of-show']} />
-    </PanelBody>
-  );
-};
-
-const RunOfShowPlannerDockPanel: PanelComponent = function RunOfShowPlannerDockPanel() {
-  const panels = useSellerDockPanels();
-  return (
-    <PanelBody>
-      <RunOfShowPlannerPanel {...panels['run-of-show-planner']} />
     </PanelBody>
   );
 };
@@ -142,9 +122,7 @@ export const SELLER_PANEL_COMPONENTS: Record<SellerPanelId, PanelComponent> = {
   copilot: CopilotDockPanel,
   'event-chat': EventChatDockPanel,
   'event-manager': EventManagerDockPanel,
-  'event-settings': EventSettingsDockPanel,
   'run-of-show': RunOfShowDockPanel,
-  'run-of-show-planner': RunOfShowPlannerDockPanel,
 };
 
 /**

@@ -16,9 +16,7 @@ export type SellerPanelId =
   | 'copilot'
   | 'event-chat'
   | 'event-manager'
-  | 'event-settings'
-  | 'run-of-show'
-  | 'run-of-show-planner';
+  | 'run-of-show';
 
 /** The complete seller panel inventory (D-004). */
 export const SELLER_PANEL_IDS: readonly SellerPanelId[] = [
@@ -27,9 +25,7 @@ export const SELLER_PANEL_IDS: readonly SellerPanelId[] = [
   'copilot',
   'event-chat',
   'event-manager',
-  'event-settings',
   'run-of-show',
-  'run-of-show-planner',
 ];
 
 /** Tab-strip labels, keyed by panel id. */
@@ -39,9 +35,7 @@ export const SELLER_PANEL_TITLES: Readonly<Record<SellerPanelId, string>> = {
   copilot: 'Copilot',
   'event-chat': 'Event chat',
   'event-manager': 'Event manager',
-  'event-settings': 'Event settings',
   'run-of-show': 'Run of show',
-  'run-of-show-planner': 'Run of show',
 };
 
 /** Panels on the default Active Event board. Chat and transcript are embedded in Live console. */
@@ -54,7 +48,6 @@ export const SELLER_ACTIVE_PANEL_IDS = [
 /** Panels on the independently persisted Event Manager board. */
 export const SELLER_MANAGER_PANEL_IDS = [
   'event-manager',
-  'run-of-show-planner',
 ] as const satisfies readonly SellerPanelId[];
 
 /** Stable names are also the localStorage identity for each Studio board. */
@@ -121,7 +114,7 @@ export function sellerActiveEventDockDefaultLayout(): LayoutDoc {
 export function sellerEventManagerDockDefaultLayout(): LayoutDoc {
   return {
     schemaVersion: 1,
-    root: strip(['event-manager', 'run-of-show-planner'], 1000, 'event-manager'),
+    root: solo('event-manager', 1000),
   };
 }
 
@@ -132,8 +125,7 @@ export function sellerDockDefaultLayout(): LayoutDoc {
 
 /** Which column a panel occupies in the default layout. */
 export function defaultColumnForPanel(id: SellerPanelId): 'primary' | 'rail' {
-  return id === 'stage-status' || id === 'event-settings' || id === 'copilot' || id === 'event-manager'
-      || id === 'run-of-show-planner'
+  return id === 'stage-status' || id === 'copilot' || id === 'event-manager'
     ? 'primary'
     : 'rail';
 }
