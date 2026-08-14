@@ -1,19 +1,13 @@
 import { BadRequestException, Body, Controller, Get, Inject, Param, Post } from '@nestjs/common';
-import type { Pool } from 'pg';
-import { PG_POOL } from '../db/database.module';
-import { GuardedActionService } from '../actions/action.service';
-import { EventConfigService } from '../config/event-config.service';
-import { EVENT_POLICY_RESOLVER, type EventPolicyResolver } from '../config/event-policy-resolver';
 import { SyncInvalidationService } from '../sync/sync-invalidation.service';
 import {
-  buildPreflightReport,
   CLIENT_REALTIME_PROBE_EVENT,
   createClientRealtimeProbeReceipt,
-  probeDurability,
   type ClientClockReceipt,
   type ClientRealtimeProbeReceipt,
   type PreflightReport,
 } from './preflight';
+import { RehearsalPreflightService } from './rehearsal-preflight.service';
 import { RehearsalService } from './rehearsal.service';
 import { REHEARSAL_KINDS, type DressRehearsalVerdict, type RehearsalKind, type RehearsalReport } from './rehearsal.types';
 
@@ -33,35 +27,14 @@ function readProbeNonce(value: unknown): string {
 export class RehearsalController {
   constructor(
     @Inject(RehearsalService) private readonly rehearsals: RehearsalService,
-    @Inject(EventConfigService) private readonly configs: EventConfigService,
-    @Inject(GuardedActionService) private readonly actions: GuardedActionService,
-    @Inject(EVENT_POLICY_RESOLVER) private readonly policyResolver: EventPolicyResolver,
-    @Inject(PG_POOL) private readonly pool: Pool | null,
+    @Inject(RehearsalPreflightService) private readonly preflights: RehearsalPreflightService,
     @Inject(SyncInvalidationService) private readonly invalidations: SyncInvalidationService,
   ) {}
 
   /** The server-side half of preflight: what the browser cannot honestly measure. */
   @Get('preflight/:eventId')
-  async preflight(@Param('eventId') eventId: string): Promise<PreflightReport> {
-    const config = await this.configs.get(eventId);
-    // Probe on every request. `this.pool !== null` would only tell us Postgres
-    // was up when the API booted, which may have been hours before the host
-    // opened this screen.
-    const durability = await probeDurability(this.pool);
-    // Lint the policy the guard will actually enforce (WI-38673): the same
-    // resolver GuardedActionService uses, fed the event's registered items so
-    // derived floors read as ready instead of a stale "no floor" blocker.
-    const items = this.actions.listItems(eventId)
-      .map((item) => ({
-        productId: item.productId,
-        priceCents: item.referencePriceCents ?? item.priceCents,
-      }));
-    return buildPreflightReport({
-      eventId: config.eventId,
-      config,
-      policy: await this.policyResolver.resolve(eventId, items),
-      durability,
-    });
+  preflight(@Param('eventId') eventId: string): Promise<PreflightReport> {
+    return this.preflights.read(eventId);
   }
 
   /** Timestamped independently so a browser can estimate its clock offset. */

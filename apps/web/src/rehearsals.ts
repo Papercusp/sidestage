@@ -124,13 +124,6 @@ export function runDressRehearsal(apiBaseUrl?: string): Promise<DressRehearsalVe
   return postJson<DressRehearsalVerdict>('/rehearsals/all', apiBaseUrl);
 }
 
-export async function fetchPreflight(eventId: string, apiBaseUrl?: string): Promise<PreflightReport> {
-  const response = await fetch(`${resolveApiBaseUrl(apiBaseUrl)}/rehearsals/preflight/${encodeURIComponent(eventId)}`);
-  const payload = await response.json() as PreflightReport & { message?: string };
-  if (!response.ok) throw new Error(payload.message ?? `Preflight failed (${response.status})`);
-  return payload;
-}
-
 // ---- Measured browser preflight ---------------------------------------------
 
 export const REALTIME_PROBE_TIMEOUT_MS = 3_000;

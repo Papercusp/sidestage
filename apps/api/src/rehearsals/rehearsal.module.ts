@@ -1,9 +1,27 @@
-import { Module } from '@nestjs/common';
+import { Inject, Injectable, Module, type OnModuleInit } from '@nestjs/common';
 import { ActionModule } from '../actions/action.module';
 import { EventConfigModule } from '../config/event-config.module';
 import { DatabaseModule } from '../db/database.module';
+import { SyncModule } from '../sync/sync.module';
+import { SyncQueryRegistry } from '../sync/sync-query.registry';
+import { RehearsalPreflightService } from './rehearsal-preflight.service';
 import { RehearsalController } from './rehearsal.controller';
 import { RehearsalService } from './rehearsal.service';
+
+@Injectable()
+export class RehearsalSyncQueries implements OnModuleInit {
+  constructor(
+    @Inject(RehearsalPreflightService) private readonly preflights: RehearsalPreflightService,
+    @Inject(SyncQueryRegistry) private readonly queries: SyncQueryRegistry,
+  ) {}
+
+  onModuleInit(): void {
+    this.queries.register('rehearsal.preflight', async (args) => {
+      const eventId = typeof args.eventId === 'string' ? args.eventId.trim() : '';
+      return eventId ? [await this.preflights.read(eventId)] : [];
+    });
+  }
+}
 
 /**
  * The rehearsals deliberately construct their own service instances rather than
@@ -15,9 +33,9 @@ import { RehearsalService } from './rehearsal.service';
  * used by the measured client round-trip probe.
  */
 @Module({
-  imports: [ActionModule, DatabaseModule, EventConfigModule],
+  imports: [ActionModule, DatabaseModule, EventConfigModule, SyncModule],
   controllers: [RehearsalController],
-  providers: [RehearsalService],
+  providers: [RehearsalService, RehearsalPreflightService, RehearsalSyncQueries],
   exports: [RehearsalService],
 })
 export class RehearsalModule {}
