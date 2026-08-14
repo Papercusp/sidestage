@@ -47,6 +47,7 @@ export interface SchemaQueryable {
  * file dependency.
  */
 export const REQUIRED_TABLES: readonly string[] = [
+  'auction_state',
   'cart',
   'checkout_order',
   'copilot_proposal',

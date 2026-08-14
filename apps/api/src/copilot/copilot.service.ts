@@ -97,8 +97,10 @@ export class CopilotProposalService {
 
   async approve(id: string, input: ReviewCopilotReplyInput): Promise<CopilotProposal> {
     const proposal = await this.required(id);
-    if (proposal.status === 'approved') return proposal;
-    this.requirePending(proposal);
+    if ((proposal.status === 'approved' || proposal.status === 'executed') && proposal.decision?.sentMessageId) {
+      return proposal;
+    }
+    this.requireReviewable(proposal, 'reply');
     const fresh = await this.freshContext(proposal);
     await this.blockIfStale(proposal, fresh);
     const reply = input?.reply?.trim() || proposal.reply;
@@ -134,8 +136,8 @@ export class CopilotProposalService {
       context: fresh,
       groundingFingerprint: groundingFingerprint(fresh),
       replyGuardrail: guardrail,
-      status: 'approved',
-      decision: { actorId, decidedAt: new Date().toISOString(), sentMessageId: sent.id },
+      status: proposal.status === 'executed' ? 'executed' : 'approved',
+      decision: { ...proposal.decision, actorId, decidedAt: new Date().toISOString(), sentMessageId: sent.id },
     });
   }
 
@@ -153,8 +155,8 @@ export class CopilotProposalService {
 
   async confirmAction(id: string, input: ConfirmCopilotActionInput): Promise<CopilotProposal> {
     const proposal = await this.required(id);
-    if (proposal.status === 'executed') return proposal;
-    this.requirePending(proposal);
+    if (proposal.status === 'executed' && proposal.decision?.auditId) return proposal;
+    this.requireReviewable(proposal, 'action');
     if (!proposal.action || proposal.action.disposition === 'blocked') {
       throw new BadRequestException('This proposal has no executable guarded action');
     }
@@ -165,13 +167,14 @@ export class CopilotProposalService {
       eventId: proposal.eventId,
       actorId,
       action: proposal.action.proposal,
+      clientRequestId: `copilot-proposal:${proposal.id}:action`,
     });
     return this.transition(proposal, {
       ...proposal,
       context: fresh,
       groundingFingerprint: groundingFingerprint(fresh),
       status: 'executed',
-      decision: { actorId, decidedAt: new Date().toISOString(), auditId: execution.auditId },
+      decision: { ...proposal.decision, actorId, decidedAt: new Date().toISOString(), auditId: execution.auditId },
     });
   }
 
@@ -277,6 +280,15 @@ export class CopilotProposalService {
   private requirePending(proposal: CopilotProposal): void {
     if (proposal.status !== 'pending') {
       throw new ConflictException(`Copilot proposal is ${proposal.status}, not pending`);
+    }
+  }
+
+  private requireReviewable(proposal: CopilotProposal, review: 'reply' | 'action'): void {
+    const allowed = review === 'reply'
+      ? proposal.status === 'pending' || proposal.status === 'executed'
+      : proposal.status === 'pending' || proposal.status === 'approved';
+    if (!allowed) {
+      throw new ConflictException(`Copilot proposal is ${proposal.status}; its ${review} is not reviewable`);
     }
   }
 

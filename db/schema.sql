@@ -553,6 +553,43 @@ CREATE TABLE IF NOT EXISTS checkout_order (
 CREATE INDEX IF NOT EXISTS checkout_order_cart_status_idx
   ON checkout_order (cart_id, status);
 
+-- Auction aggregates are transaction-owned documents. Bids are ordered and
+-- settled together with the lifecycle transition, inventory hold, and winner
+-- order, so keeping the aggregate whole avoids a partially-written auction
+-- while the lifted columns preserve the hot event/product/buyer reads.
+CREATE TABLE IF NOT EXISTS auction_state (
+  id text PRIMARY KEY,
+  event_id text NOT NULL,
+  event_item_id text NOT NULL,
+  product_id text NOT NULL REFERENCES storefront_product (id) ON UPDATE CASCADE ON DELETE RESTRICT,
+  status text NOT NULL CHECK (status IN ('active', 'closed')),
+  quantity integer NOT NULL CHECK (quantity > 0),
+  current_price_cents integer NOT NULL CHECK (current_price_cents > 0),
+  winner_bidder_id text,
+  started_at timestamptz NOT NULL,
+  ends_at timestamptz NOT NULL,
+  closed_at timestamptz,
+  payload jsonb NOT NULL,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now(),
+  CONSTRAINT auction_state_payload_object CHECK (jsonb_typeof(payload) = 'object'),
+  CONSTRAINT auction_state_time_order CHECK (ends_at > started_at),
+  CONSTRAINT auction_state_closed_at_consistent CHECK (
+    (status = 'active' AND closed_at IS NULL)
+    OR (status = 'closed' AND closed_at IS NOT NULL)
+  )
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS auction_state_one_active_per_event
+  ON auction_state (event_id) WHERE status = 'active';
+CREATE INDEX IF NOT EXISTS auction_state_event_started_idx
+  ON auction_state (event_id, started_at DESC);
+CREATE INDEX IF NOT EXISTS auction_state_product_started_idx
+  ON auction_state (product_id, started_at DESC);
+CREATE INDEX IF NOT EXISTS auction_state_winner_created_idx
+  ON auction_state (winner_bidder_id, closed_at DESC)
+  WHERE winner_bidder_id IS NOT NULL;
+
 -- Event configuration (P-105): name, reply tone, guardrail toggles, and the
 -- copilot action policy — the settings the Config tab edits and the guardrail
 -- module enforces. One jsonb document per event.

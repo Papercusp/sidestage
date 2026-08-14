@@ -74,7 +74,10 @@ export class BuyerQuestionCopilotSubscriber implements OnModuleInit, OnModuleDes
       provide: COPILOT_PIPELINE,
       inject: [SideStageGroundingRetriever, ConfiguredCopilotReplyModel],
       useFactory: (retriever: SideStageGroundingRetriever, model: ConfiguredCopilotReplyModel) => (
-        new GroundedCopilotPipeline({ retriever, model })
+        // This composition always creates a durable seller-review proposal.
+        // Even an event configured for auto may execute only after the seller
+        // confirms through CopilotProposalService's fresh-context boundary.
+        new GroundedCopilotPipeline({ retriever, model, automationCeiling: 'confirm' })
       ),
     },
   ],

@@ -27,6 +27,8 @@ export interface CopilotPipelineDependencies {
   latencyBudget?: CopilotLatencyBudget;
   /** Optional property-aware catalog/web fallback for research-style turns. */
   researchFallback?: ParallelResearchFallback;
+  /** Cap policy automation for review-queue compositions that never execute during generation. */
+  automationCeiling?: AutomationLevel;
 }
 
 const FALLBACK_REPLY =
@@ -94,10 +96,22 @@ function validCitations(draftCitations: readonly string[], context: GroundingCon
   return [...new Set(draftCitations)].filter((citation) => known.has(citation));
 }
 
-function effectiveAutomation(context: GroundingContext): AutomationLevel {
+const AUTOMATION_RANK: Record<AutomationLevel, number> = {
+  suggest: 0,
+  confirm: 1,
+  auto: 2,
+};
+
+function effectiveAutomation(
+  context: GroundingContext,
+  ceiling: AutomationLevel | undefined,
+): AutomationLevel {
   // The Config snapshot is authoritative. A caller cannot elevate a seller's
   // policy by sending requestedAutomation:'auto' in a request body.
-  return context.policy.automationLevel;
+  if (!ceiling || AUTOMATION_RANK[context.policy.automationLevel] <= AUTOMATION_RANK[ceiling]) {
+    return context.policy.automationLevel;
+  }
+  return ceiling;
 }
 
 /** Order value of a price-bearing proposal, for the automation ladder's ceiling. */
@@ -114,6 +128,7 @@ async function resolveAction(
   executor: ActionExecutor | undefined,
   action: CopilotActionProposal,
   modelConfidence: number | undefined,
+  automationCeiling: AutomationLevel | undefined,
 ): Promise<ActionResult> {
   const guardrail = await guard.evaluate(action, context);
   if (!guardrail.allowed) {
@@ -121,6 +136,7 @@ async function resolveAction(
   }
 
   const policy = context.policy;
+  const effectiveLevel = effectiveAutomation(context, automationCeiling);
   // WI-38815: the Config tab's always-ask toggles reach the action boundary —
   // a kind listed there is capped at 'confirm' no matter how confident the model is.
   const alwaysConfirm = policy.alwaysConfirmActionKinds?.includes(action.kind) ?? false;
@@ -131,7 +147,7 @@ async function resolveAction(
   // seller policy carries no explicit floor.
   const decision = decideAutomation(
     {
-      automationLevel: alwaysConfirm && policy.automationLevel === 'auto' ? 'confirm' : policy.automationLevel,
+      automationLevel: alwaysConfirm && effectiveLevel === 'auto' ? 'confirm' : effectiveLevel,
       allowAutoActions: policy.allowAutoActions,
       priceFloorCentsByProduct: { ...policy.priceFloorCentsByProduct },
       maxMarkdownPercent: policy.maxMarkdownPercent,
@@ -141,7 +157,7 @@ async function resolveAction(
       maxOrderValueCents: policy.maxOrderValueCents ?? GUARDRAILS_V1['automation.maxOrderValueCents'].max,
     },
     {
-      requestedLevel: effectiveAutomation(context),
+      requestedLevel: effectiveLevel,
       confidence:
         typeof modelConfidence === 'number' && Number.isFinite(modelConfidence) ? modelConfidence : 0,
       // Price moves are bounded upstream by PolicyActionGuard floors/caps.
@@ -224,7 +240,15 @@ export class GroundedCopilotPipeline {
     const grounded = replyGuardrail.allowed && draft.reply.trim().length > 0 && citations.length > 0;
     const action = draft.action
       ? replyGuardrail.allowed
-        ? await resolveAction(request, context, this.guard, this.dependencies.executor, draft.action, draft.confidence)
+        ? await resolveAction(
+          request,
+          context,
+          this.guard,
+          this.dependencies.executor,
+          draft.action,
+          draft.confidence,
+          this.dependencies.automationCeiling,
+        )
         : undefined
       : undefined;
 
