@@ -10,6 +10,7 @@ import { randomUUID } from 'node:crypto';
 import { EVENT_POLICY_RESOLVER, type EventPolicyResolver } from '../config/event-policy-resolver';
 import { PolicyActionGuard } from '../copilot/guardrail';
 import type { ActionExecutor, CopilotActionProposal, CopilotPolicy } from '../copilot/copilot.types';
+import { SyncInvalidationService } from '../sync/sync-invalidation.service';
 import type {
   ActionAuditRecord,
   ActionEventItem,
@@ -118,6 +119,7 @@ export class GuardedActionService implements ActionExecutor {
    */
   constructor(
     @Optional() @Inject(EVENT_POLICY_RESOLVER) private readonly policyResolver: EventPolicyResolver | null = null,
+    @Optional() @Inject(SyncInvalidationService) private readonly syncInvalidations?: SyncInvalidationService,
   ) {}
 
   registerEvent(eventIdInput: string, input: RegisterActionEventInput): ActionEventItem[] {
@@ -255,6 +257,7 @@ export class GuardedActionService implements ActionExecutor {
     this.items.set(itemKey(eventId, current.productId), afterItem);
     const after = this.snapshot(eventId, afterItem);
     const audit = this.recordAudit({ eventId, actorId, action, before, after, offer });
+    if (offer) this.invalidateBuyerOrders(offer.buyerId);
     return { auditId: audit.id, status: 'executed', state: cloneItem(afterItem), offer: offer && cloneOffer(offer) };
   }
 
@@ -298,12 +301,17 @@ export class GuardedActionService implements ActionExecutor {
       auditKind: 'rollback',
     });
     original.rolledBackAt = rollbackAudit.createdAt;
+    if (original.buyerId) this.invalidateBuyerOrders(original.buyerId);
     return {
       auditId: rollbackAudit.id,
       rolledBackAuditId: original.id,
       status: 'executed',
       state: cloneItem(restored),
     };
+  }
+
+  private invalidateBuyerOrders(buyerId: string): void {
+    this.syncInvalidations?.invalidate('orders.byBuyer', { buyerId });
   }
 
   private normalizeItem(eventId: string, item: ActionEventItem): ActionEventItem {

@@ -1,6 +1,6 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
+import { useSyncQuery } from '@papercusp/sync';
 import { useBuyerIdentity } from './buyer-identity';
-import { resolveApiBaseUrl } from './catalog';
 import { formatReplayTime } from './ReplayChapters';
 import './orders.css';
 
@@ -47,11 +47,6 @@ export interface BuyerOrder {
   currency: 'USD';
   items: BuyerOrderItem[];
   videoSnapshots: BuyerOrderVideoSnapshot[];
-}
-
-interface BuyerOrdersResponse {
-  orders?: BuyerOrder[];
-  message?: string;
 }
 
 export interface BuyerOrderSummary {
@@ -173,18 +168,6 @@ function orderHeadline(order: BuyerOrder): string {
 
 function orderKey(order: BuyerOrder): string {
   return `${order.source}:${order.id}`;
-}
-
-export async function fetchBuyerOrders(
-  buyerId: string,
-  apiBaseUrl?: string,
-  signal?: AbortSignal,
-): Promise<BuyerOrder[]> {
-  const params = new URLSearchParams({ buyerId });
-  const response = await fetch(`${resolveApiBaseUrl(apiBaseUrl)}/checkout/orders?${params.toString()}`, { signal });
-  const payload = await response.json().catch(() => ({})) as BuyerOrdersResponse;
-  if (!response.ok) throw new Error(payload.message ?? `Orders request failed: HTTP ${response.status}`);
-  return Array.isArray(payload.orders) ? payload.orders : [];
 }
 
 function OrderMetrics({ orders }: { orders: readonly BuyerOrder[] }) {
@@ -440,31 +423,17 @@ export function OrdersWorkspace({
   );
 }
 
-export function OrdersTab({ apiBaseUrl }: { apiBaseUrl?: string }) {
+export function OrdersTab() {
   const { buyerId } = useBuyerIdentity();
-  const [orders, setOrders] = useState<BuyerOrder[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string>();
-  const [refreshKey, setRefreshKey] = useState(0);
-
-  const refresh = useCallback(() => setRefreshKey((value) => value + 1), []);
-
-  useEffect(() => {
-    const controller = new AbortController();
-    setLoading(true);
-    setError(undefined);
-    void fetchBuyerOrders(buyerId, apiBaseUrl, controller.signal)
-      .then((result) => setOrders(result))
-      .catch((caught) => {
-        if (controller.signal.aborted) return;
-        setError(caught instanceof Error ? caught.message : 'Unable to load orders');
-        setOrders([]);
-      })
-      .finally(() => {
-        if (!controller.signal.aborted) setLoading(false);
-      });
-    return () => controller.abort();
-  }, [apiBaseUrl, buyerId, refreshKey]);
+  const ordersQuery = useSyncQuery<BuyerOrder>({
+    queryName: 'orders.byBuyer',
+    args: { buyerId },
+    staleTime: 0,
+  });
+  const orders = ordersQuery.data ?? [];
+  const loading = ordersQuery.loading;
+  const refreshing = ordersQuery.fetching;
+  const error = ordersQuery.error;
 
   return (
     <section className="tab-layout density-roomy orders-page">
@@ -477,8 +446,8 @@ export function OrdersTab({ apiBaseUrl }: { apiBaseUrl?: string }) {
         </div>
         <div className="orders-head-actions">
           <a className="button primary" href="/?tab=buyer">Continue shopping</a>
-          <button className="button secondary" type="button" onClick={refresh} disabled={loading}>
-            {loading ? 'Refreshing…' : 'Refresh orders'}
+          <button className="button secondary" type="button" onClick={ordersQuery.invalidate} disabled={loading || refreshing}>
+            {loading || refreshing ? 'Refreshing…' : 'Refresh orders'}
           </button>
         </div>
       </header>
@@ -488,9 +457,9 @@ export function OrdersTab({ apiBaseUrl }: { apiBaseUrl?: string }) {
           <span className="orders-error-mark" aria-hidden="true">!</span>
           <div>
             <strong>Orders could not be refreshed.</strong>
-            <span>{error}</span>
+            <span>{error.message}</span>
           </div>
-          <button className="button secondary" type="button" onClick={refresh}>Refresh again</button>
+          <button className="button secondary" type="button" onClick={ordersQuery.invalidate}>Refresh again</button>
         </section>
       ) : loading && orders.length === 0 ? (
         <section className="orders-loading" role="status" aria-live="polite">
@@ -498,7 +467,7 @@ export function OrdersTab({ apiBaseUrl }: { apiBaseUrl?: string }) {
           <span>Loading orders for {buyerId}…</span>
         </section>
       ) : (
-        <OrdersWorkspace orders={orders} buyerId={buyerId} refreshing={loading} />
+        <OrdersWorkspace orders={orders} buyerId={buyerId} refreshing={refreshing} />
       )}
     </section>
   );

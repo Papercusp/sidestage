@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { GuardedActionService } from './action.service';
 import type { ActionEventItem } from './action.types';
 import type { CopilotPolicy } from '../copilot/copilot.types';
+import { SyncInvalidationService, type SyncInvalidation } from '../sync/sync-invalidation.service';
 
 const policy: CopilotPolicy = {
   automationLevel: 'auto',
@@ -87,6 +88,27 @@ describe('GuardedActionService', () => {
     expect(rollback.state.availableQty).toBe(5);
     expect(actions.getAudit(result.auditId).after.offers).toHaveLength(1);
     expect(actions.getAudit(rollback.auditId).after.offers).toHaveLength(0);
+  });
+
+  it('invalidates only the targeted buyer when an offer is created or rolled back', async () => {
+    const invalidations = new SyncInvalidationService();
+    const published: SyncInvalidation[] = [];
+    const subscription = invalidations.events().subscribe((event) => published.push(event));
+    const actions = new GuardedActionService(null, invalidations);
+    actions.registerEvent('event-1', { policy, items: [item] });
+
+    const result = await actions.apply({
+      eventId: 'event-1',
+      actorId: 'seller-1',
+      action: { kind: 'targeted-offer', productId: 'mug', buyerId: 'buyer-9', quantity: 1, priceCents: 1_200, reason: 'Reward a returning buyer' },
+    });
+    await actions.rollback(result.auditId, 'seller-1');
+    subscription.unsubscribe();
+
+    expect(published.filter(({ name }) => name === 'orders.byBuyer').map(({ args }) => args)).toEqual([
+      { buyerId: 'buyer-9' },
+      { buyerId: 'buyer-9' },
+    ]);
   });
 
   it('blocks below-floor writes before mutating state or creating an audit', async () => {

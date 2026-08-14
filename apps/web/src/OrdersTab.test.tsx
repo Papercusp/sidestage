@@ -1,10 +1,11 @@
 import { renderToStaticMarkup } from 'react-dom/server';
+import { SyncContext } from '@papercusp/sync';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
-  fetchBuyerOrders,
   filterAndSortOrders,
   formatOrderMoney,
   OrderHistory,
+  OrdersTab,
   OrdersWorkspace,
   orderStatusLabel,
   summarizeOrders,
@@ -137,18 +138,60 @@ describe('OrdersTab', () => {
     expect(html).toContain('How buying works');
   });
 
-  it('requests only the selected buyer identity', async () => {
-    const fetchMock = vi.fn().mockResolvedValue({
-      ok: true,
-      json: vi.fn().mockResolvedValue({ orders: [order] }),
-    });
+  it('binds the selected buyer identity to the live orders query without a direct fetch', () => {
+    const fetchMock = vi.fn();
     vi.stubGlobal('fetch', fetchMock);
+    const useDataImpl = vi.fn().mockReturnValue({
+      data: [order],
+      loading: false,
+      fetching: false,
+      transport: 'SSE',
+      invalidate: vi.fn(),
+      error: null,
+    });
 
-    await expect(fetchBuyerOrders('alice & bob', 'https://api.example.test/')).resolves.toEqual([order]);
-    expect(fetchMock).toHaveBeenCalledWith(
-      'https://api.example.test/checkout/orders?buyerId=alice+%26+bob',
-      { signal: undefined },
+    const html = renderToStaticMarkup(
+      <SyncContext.Provider value={{ transport: 'SSE', useDataImpl, prefetch: vi.fn() } as never}>
+        <OrdersTab />
+      </SyncContext.Provider>,
     );
+
+    expect(useDataImpl).toHaveBeenCalledWith({
+      queryName: 'orders.byBuyer',
+      args: { buyerId: 'demo-server-render' },
+      staleTime: 0,
+    });
+    expect(html).toContain('Aurora cup');
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('preserves explicit loading, empty, and query-error recovery states', () => {
+    const renderState = (state: Record<string, unknown>) => renderToStaticMarkup(
+      <SyncContext.Provider
+        value={{
+          transport: 'SSE',
+          prefetch: vi.fn(),
+          useDataImpl: vi.fn().mockReturnValue({
+            data: [],
+            loading: false,
+            fetching: false,
+            transport: 'SSE',
+            invalidate: vi.fn(),
+            error: null,
+            ...state,
+          }),
+        } as never}
+      >
+        <OrdersTab />
+      </SyncContext.Provider>,
+    );
+
+    expect(renderState({ loading: true })).toContain('Loading orders for demo-server-render…');
+    expect(renderState({})).toContain('No orders yet');
+    const errorHtml = renderState({ error: new Error('sync unavailable') });
+    expect(errorHtml).toContain('Orders could not be refreshed.');
+    expect(errorHtml).toContain('sync unavailable');
+    expect(errorHtml).toContain('Refresh again');
   });
 
   it('formats status and money labels for buyer-facing copy', () => {
