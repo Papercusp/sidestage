@@ -1,0 +1,90 @@
+/**
+ * SideStage theme for the shared drawer libs (P-005).
+ *
+ * `@papercusp/cart-drawer` and `@papercusp/scout-chat` are theme-agnostic: each
+ * reads a small set of PUBLIC `--cd-*` / `--sc-*` tokens and derives its own
+ * internal aliases from them (cart-drawer/src/styles.css:11-19 defines
+ * --cd-fg/-bg/-card-c/-border-c/-primary-c/-primary-fg/-muted/-muted-surface/
+ * -destructive-c from the public names below — so those internals must NOT be
+ * set here; setting one would silently shadow the derivation for that one
+ * property while the rest kept following the public token).
+ *
+ * Each lib token falls back to `--color-*` and then to a hard-coded default
+ * tuned for a DARK host (Restart). SideStage is a LIGHT theme, so every one of
+ * those defaults is wrong here and all of them must be mapped — an unmapped
+ * token does not fail loudly, it just renders Restart's dark default inside a
+ * cream panel.
+ *
+ * TWO RULES THIS FILE FOLLOWS, both deliberate:
+ *
+ * 1. Map to SideStage TOKENS (`var(--surface)`), never to the hexes behind
+ *    them. The retheme in D-004 moved every one of these values at once; a
+ *    sheet that copied hexes would have kept rendering the pre-retheme palette
+ *    with nothing failing. It also means CONTEXT-SCOPED overrides keep working:
+ *    styles.css:395 re-points --surface-sunken inside the video-overlay scope,
+ *    and a var() reference inherits that automatically where a hex could not.
+ *
+ * 2. Preserve SideStage's ground/card POLARITY rather than Restart's. In a dark
+ *    host the drawer ground is darkest and cards sit lighter; here styles.css:27
+ *    states the house rule — "raised = white card + border/shadow on cream" — so
+ *    the drawer ground takes the cream --bg and line/message cards take white
+ *    --surface. Mapping background→--surface would inverse the hierarchy and
+ *    flatten every card against its own panel.
+ */
+
+:root {
+  /* ---- Ground + content ------------------------------------------------ */
+  /* Drawer panel ground: warm cream, same as the page, so the drawer reads as
+     part of the app rather than as a foreign dark sheet. */
+  --cd-background: var(--bg);
+  --sc-background: var(--bg);
+
+  /* Raised surfaces INSIDE the drawer — cart line cards, scout message/starter
+     rows. White on cream per the house rule above. */
+  --cd-card: var(--surface);
+  --sc-card: var(--surface);
+
+  /* Recessed wells. --surface-sunken is documented in styles.css:96 as exactly
+     this role ("message lists, transcript body, chips"), which is what the
+     scout transcript and the cart's muted panels are. */
+  --cd-muted-bg: var(--surface-sunken);
+  --sc-muted-bg: var(--surface-sunken);
+
+  /* ---- Text ------------------------------------------------------------ */
+  /* Espresso body text (~13.9:1 on --bg). */
+  --cd-foreground: var(--text);
+  --sc-foreground: var(--text);
+
+  /* Secondary text. --muted was deliberately darkened during the P-004 contrast
+     audit so it clears the 4.5:1 AA floor on every surface it lands on,
+     INCLUDING the tinted wells mapped above — so this pairing is already the
+     audited one. Do not substitute a lighter warm grey here. */
+  --cd-muted-foreground: var(--muted);
+  --sc-muted-foreground: var(--muted);
+
+  /* ---- Lines ----------------------------------------------------------- */
+  --cd-border: var(--border);
+  --sc-border: var(--border);
+
+  /* ---- Brand / actions ------------------------------------------------- */
+  /* Primary = the CTA fill (cart's "request quote"/checkout, scout's send).
+     D-004 designates --brand-red for CTAs, with --on-brand-red as its paired
+     on-fill text — they must move together, so both are mapped. */
+  --cd-primary: var(--brand-red);
+  --cd-primary-foreground: var(--on-brand-red);
+  --sc-primary: var(--brand-red);
+  --sc-primary-foreground: var(--on-brand-red);
+
+  /* Destructive = remove-line. Per D-003 brand is NOT semantic: this takes the
+     semantic --danger crimson, never the brand-red CTA fill, so "remove this
+     line" cannot read as the primary action next to it. (scout-chat has no
+     destructive token — it has no destructive affordance.) */
+  --cd-destructive: var(--danger);
+
+  /* ---- Geometry -------------------------------------------------------- */
+  /* Matches the seller-dock panel idiom (seller-dock.css:260-261) so the two
+     side panels agree in width, and keeps the lib's viewport guard so the
+     drawer cannot exceed the screen on narrow widths. */
+  --cd-drawer-width: min(28rem, calc(100vw - 1.5rem));
+  --sc-drawer-width: min(28rem, calc(100vw - 1.5rem));
+}
