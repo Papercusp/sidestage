@@ -3,7 +3,7 @@
 import { act, createElement } from 'react';
 import { createRoot } from 'react-dom/client';
 import { describe, expect, it, vi } from 'vitest';
-import { studioBoardConfig, useTranscriptMomentRecorder } from './SellerTab';
+import { STUDIO_VIEW_TABS, studioBoardConfig, useTranscriptMomentRecorder } from './SellerTab';
 
 function panelIds(seed: () => { root: unknown }): string[] {
   const visit = (node: unknown): string[] => {
@@ -20,6 +20,14 @@ function panelIds(seed: () => { root: unknown }): string[] {
 }
 
 describe('Studio board selection', () => {
+  it('exposes the exact three peer Studio subtabs in order', () => {
+    expect(STUDIO_VIEW_TABS).toEqual([
+      { id: 'active-event', label: 'Current event' },
+      { id: 'event-manager', label: 'Event manager' },
+      { id: 'inventory', label: 'Inventory' },
+    ]);
+  });
+
   it('maps the default view to the independently persisted live-operation board', () => {
     const config = studioBoardConfig('active-event');
     expect(config.layoutName).toBe('seller-active-event');

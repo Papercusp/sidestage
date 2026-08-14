@@ -87,6 +87,25 @@ describe("InventoryPickerGrid", () => {
     // A row with no colour axis still has to say something useful.
     expect(markup).toContain("5d handling");
   });
+
+  it("parameterizes intake semantics and allows sold-out variants to be restocked", () => {
+    const markup = renderToStaticMarkup(
+      <InventoryPickerGrid
+        rows={ROWS}
+        selectedRowIds={new Set(["espresso-sold"])}
+        drafts={{}}
+        onSelectedRowIdsChange={() => undefined}
+        onDraftChange={() => undefined}
+        purpose="inventory"
+      />,
+    );
+
+    expect(markup).toContain("Unit price");
+    expect(markup).toContain("Add qty");
+    expect(markup).toContain("0 on hand");
+    expect(markup).toContain('value="1"');
+    expect(markup).not.toContain("catalog-row-unavailable");
+  });
 });
 
 describe("variantAxisLabel", () => {

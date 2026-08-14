@@ -31,3 +31,23 @@
   outline: 2px solid var(--focus-ring);
   outline-offset: 2px;
 }
+
+.studio-inventory {
+  min-height: 0;
+  overflow: auto;
+  padding: clamp(0.75rem, 2vw, 1.25rem);
+}
+
+.studio-inventory .event-creation {
+  border-radius: 0.9rem;
+}
+
+.inventory-confirmation {
+  margin: 0.75rem 0 0;
+  padding: 0.75rem 0.9rem;
+  border: 1px solid color-mix(in srgb, var(--success) 35%, var(--border));
+  border-radius: 0.65rem;
+  color: var(--success);
+  background: color-mix(in srgb, var(--success) 8%, var(--surface));
+  font-size: 0.8rem;
+}

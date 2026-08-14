@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 
 export type TabId = 'buyer' | 'orders' | 'seller' | 'history' | 'config' | 'test';
-export type StudioView = 'active-event' | 'event-manager';
+export type StudioView = 'active-event' | 'event-manager' | 'inventory';
 
 export type TabGroupId = 'buyer-work' | 'operator-work';
 
@@ -66,7 +66,7 @@ export function eventWatchHref(eventId: string, currentUrl = '/'): string {
 }
 
 function isStudioView(value: string | null): value is StudioView {
-  return value === 'active-event' || value === 'event-manager';
+  return value === 'active-event' || value === 'event-manager' || value === 'inventory';
 }
 
 export function getStudioViewFromUrl(value: string | URL | Pick<Location, 'pathname' | 'search' | 'hash'>): StudioView {

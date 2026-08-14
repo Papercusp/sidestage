@@ -18,6 +18,7 @@ export interface InventoryPickerGridProps {
     field: "eventPriceCents" | "quantityLimit",
     value: string,
   ) => void;
+  purpose?: "event" | "inventory";
 }
 
 /**
@@ -50,7 +51,14 @@ export function InventoryPickerGrid({
   drafts,
   onSelectedRowIdsChange,
   onDraftChange,
+  purpose = "event",
 }: InventoryPickerGridProps) {
+  const draftFor = (row: CatalogRow) => {
+    const draft = drafts[row.id] ?? draftFromCatalog(row);
+    return purpose === "inventory" && !drafts[row.id]
+      ? { ...draft, quantityLimit: 1 }
+      : draft;
+  };
   const columns = useMemo<ColumnDef<CatalogRow>[]>(
     () => [
       {
@@ -81,20 +89,20 @@ export function InventoryPickerGrid({
       },
       {
         key: "price",
-        header: "Event price",
-        headerText: "Event price",
+        header: purpose === "inventory" ? "Unit price" : "Event price",
+        headerText: purpose === "inventory" ? "Unit price" : "Event price",
         width: "minmax(125px, 1fr)",
         align: "right",
         toCopyText: (row) =>
           formatPrice(drafts[row.id]?.eventPriceCents ?? row.priceCents),
         render: ({ row }) => {
-          const draft = drafts[row.id] ?? draftFromCatalog(row);
+          const draft = draftFor(row);
           return (
             <label className="event-number-field">
-              <span className="sr-only">Event price for {row.title}</span>
+              <span className="sr-only">{purpose === "inventory" ? "Unit price" : "Event price"} for {row.title}</span>
               <span className="currency-prefix">$</span>
               <input
-                aria-label={`Event price for ${row.title} ${row.sku}`}
+                aria-label={`${purpose === "inventory" ? "Unit price" : "Event price"} for ${row.title} ${row.sku}`}
                 inputMode="decimal"
                 value={(draft.eventPriceCents / 100).toFixed(2)}
                 onChange={(event) =>
@@ -108,30 +116,30 @@ export function InventoryPickerGrid({
       },
       {
         key: "quantity",
-        header: "Event qty",
-        headerText: "Event qty",
+        header: purpose === "inventory" ? "Add qty" : "Event qty",
+        headerText: purpose === "inventory" ? "Add qty" : "Event qty",
         width: "minmax(120px, .8fr)",
         align: "right",
         toCopyText: (row) => String(drafts[row.id]?.quantityLimit ?? 1),
         render: ({ row }) => {
-          const draft = drafts[row.id] ?? draftFromCatalog(row);
+          const draft = draftFor(row);
           return (
             <label className="event-number-field quantity-field">
-              <span className="sr-only">Event quantity for {row.title}</span>
+              <span className="sr-only">{purpose === "inventory" ? "Quantity to add" : "Event quantity"} for {row.title}</span>
               <input
-                aria-label={`Event quantity for ${row.title} ${row.sku}`}
+                aria-label={`${purpose === "inventory" ? "Quantity to add" : "Event quantity"} for ${row.title} ${row.sku}`}
                 type="number"
-                min={row.availableQty > 0 ? 1 : 0}
-                max={row.availableQty}
+                min={purpose === "inventory" ? 1 : row.availableQty > 0 ? 1 : 0}
+                max={purpose === "inventory" ? undefined : row.availableQty}
                 step={1}
                 value={draft.quantityLimit}
-                disabled={row.availableQty === 0}
+                disabled={purpose === "event" && row.availableQty === 0}
                 onChange={(event) =>
                   onDraftChange(row, "quantityLimit", event.target.value)
                 }
                 onClick={(event) => event.stopPropagation()}
               />
-              <span className="quantity-stock">/{row.availableQty}</span>
+              <span className="quantity-stock">{purpose === "inventory" ? `${row.availableQty} on hand` : `/${row.availableQty}`}</span>
             </label>
           );
         },
@@ -152,14 +160,14 @@ export function InventoryPickerGrid({
         ),
       },
     ],
-    [drafts, onDraftChange],
+    [drafts, onDraftChange, purpose],
   );
 
   const selectRows = (next: ReadonlySet<string>) => {
     const rowsById = new Map(rows.map((row) => [row.id, row]));
     onSelectedRowIdsChange(
       new Set(
-        [...next].filter((id) => (rowsById.get(id)?.availableQty ?? 0) > 0),
+        [...next].filter((id) => purpose === "inventory" || (rowsById.get(id)?.availableQty ?? 0) > 0),
       ),
     );
   };
@@ -174,7 +182,7 @@ export function InventoryPickerGrid({
       selectedRowIds={selectedRowIds}
       onSelectedRowIdsChange={selectRows}
       onRowClick={(row) => {
-        if (row.availableQty === 0) return;
+        if (purpose === "event" && row.availableQty === 0) return;
         const next = new Set(selectedRowIds);
         if (next.has(row.id)) next.delete(row.id);
         else next.add(row.id);
@@ -183,15 +191,14 @@ export function InventoryPickerGrid({
       rowProps={({ row }) => ({
         "data-testid": `catalog-row-${row.id}`,
         "aria-label": `${row.title}, ${row.sku}, ${row.availableQty} available`,
-        className:
-          row.availableQty === 0 ? "catalog-row-unavailable" : undefined,
+        className: purpose === "event" && row.availableQty === 0 ? "catalog-row-unavailable" : undefined,
       })}
       topSlot={
         <div className="event-grid-note">
           <span>
             <strong>Catalog</strong> · select with the row checkboxes
           </span>
-          <span>Offer price and qty are editable per item</span>
+          <span>{purpose === "inventory" ? "Unit price and intake quantity are editable per variant" : "Offer price and qty are editable per item"}</span>
         </div>
       }
       empty={
