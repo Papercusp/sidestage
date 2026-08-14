@@ -242,6 +242,18 @@ export class AuctionService {
     return matches.sort((left, right) => right.startedAt.localeCompare(left.startedAt));
   }
 
+  async listWinnerOrdersForBuyer(bidderIdInput: string): Promise<AuctionWinnerOrder[]> {
+    const bidderId = this.readId(bidderIdInput, 'bidderId');
+    const orders: AuctionWinnerOrder[] = [];
+    for (const auction of this.auctions.values()) {
+      if (auction.status === 'active' && Date.now() >= Date.parse(auction.endsAt)) {
+        await this.closeInternal(auction);
+      }
+      if (auction.winnerOrder?.bidderId === bidderId) orders.push({ ...auction.winnerOrder });
+    }
+    return orders.sort((left, right) => right.createdAt.localeCompare(left.createdAt));
+  }
+
   async placeBid(id: string, input: PlaceBidInput): Promise<Auction> {
     const auction = this.requireAuction(id);
     if (auction.status === 'active' && Date.now() >= Date.parse(auction.endsAt)) await this.closeInternal(auction);

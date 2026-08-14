@@ -13,12 +13,20 @@ export class PgOrderStore implements OrderStore {
     return result.rows[0]?.payload ?? undefined;
   }
 
-  async findPendingByCart(cartId: string): Promise<CheckoutOrder | undefined> {
+  async findPendingByCart(cartId: string, buyerId: string): Promise<CheckoutOrder | undefined> {
     const result = await this.pool.query<{ payload: CheckoutOrder }>(
-      "SELECT payload FROM checkout_order WHERE cart_id = $1 AND status = 'pending' ORDER BY updated_at DESC LIMIT 1",
-      [cartId],
+      "SELECT payload FROM checkout_order WHERE cart_id = $1 AND payload->>'buyerId' = $2 AND status = 'pending' ORDER BY updated_at DESC LIMIT 1",
+      [cartId, buyerId],
     );
     return result.rows[0]?.payload ?? undefined;
+  }
+
+  async listByBuyer(buyerId: string): Promise<CheckoutOrder[]> {
+    const result = await this.pool.query<{ payload: CheckoutOrder }>(
+      "SELECT payload FROM checkout_order WHERE payload->>'buyerId' = $1 ORDER BY updated_at DESC LIMIT 200",
+      [buyerId],
+    );
+    return result.rows.map((row) => row.payload);
   }
 
   async set(order: CheckoutOrder): Promise<void> {

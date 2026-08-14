@@ -30,6 +30,7 @@ export interface TargetedOffer {
   priceCents: number;
   quantity: number;
   status: 'pending' | 'accepted' | 'expired' | 'cancelled';
+  createdAt?: string;
 }
 
 export interface ActionStateSnapshot {

@@ -1,8 +1,13 @@
 import { Module } from '@nestjs/common';
 import type { Pool } from 'pg';
 import { CartModule } from '../cart/cart.module';
+import { ActionModule } from '../actions/action.module';
+import { AuctionModule } from '../auction/auction.module';
+import { ChatModule } from '../chat/chat.module';
 import { DatabaseModule, PG_POOL } from '../db/database.module';
+import { EventModule } from '../events/event.module';
 import { PgOrderStore } from '../db/pg-order-store';
+import { BuyerOrdersService } from './buyer-orders.service';
 import { CheckoutController } from './checkout.controller';
 import {
   CHECKOUT_PAYMENT_PROVIDER,
@@ -13,10 +18,11 @@ import {
 } from './checkout.service';
 
 @Module({
-  imports: [DatabaseModule, CartModule],
+  imports: [DatabaseModule, CartModule, ActionModule, AuctionModule, ChatModule, EventModule],
   controllers: [CheckoutController],
   providers: [
     CheckoutService,
+    BuyerOrdersService,
     { provide: CHECKOUT_PAYMENT_PROVIDER, useFactory: () => new SquareSandboxProvider() },
     {
       provide: ORDER_STORE,

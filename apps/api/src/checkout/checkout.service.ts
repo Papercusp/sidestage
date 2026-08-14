@@ -38,19 +38,23 @@ export type CheckoutOrderStatus = 'pending' | 'paid' | 'failed';
  */
 export interface OrderStore {
   get(id: string): Promise<CheckoutOrder | undefined>;
-  findPendingByCart(cartId: string): Promise<CheckoutOrder | undefined>;
+  findPendingByCart(cartId: string, buyerId: string): Promise<CheckoutOrder | undefined>;
+  listByBuyer(buyerId: string): Promise<CheckoutOrder[]>;
   set(order: CheckoutOrder): Promise<void>;
 }
 
 export interface CheckoutOrder {
   id: string;
   cartId: string;
+  buyerId: string;
+  eventId: string;
   email?: string;
   subtotalCents: number;
   shippingCents: number;
   totalCents: number;
   currency: 'USD';
   status: CheckoutOrderStatus;
+  createdAt: string;
   items: Cart['items'];
   paymentSession: PaymentSession;
 }
@@ -135,8 +139,15 @@ export class InMemoryOrderStore implements OrderStore {
     return this.orders.get(id);
   }
 
-  async findPendingByCart(cartId: string): Promise<CheckoutOrder | undefined> {
-    return [...this.orders.values()].find((order) => order.cartId === cartId && order.status === 'pending');
+  async findPendingByCart(cartId: string, buyerId: string): Promise<CheckoutOrder | undefined> {
+    return [...this.orders.values()].find((order) => order.cartId === cartId && order.buyerId === buyerId && order.status === 'pending');
+  }
+
+  async listByBuyer(buyerId: string): Promise<CheckoutOrder[]> {
+    return [...this.orders.values()]
+      .filter((order) => order.buyerId === buyerId)
+      .sort((left, right) => right.createdAt.localeCompare(left.createdAt))
+      .map((order) => ({ ...order, items: order.items.map((item) => ({ ...item })), paymentSession: { ...order.paymentSession } }));
   }
 
   async set(order: CheckoutOrder): Promise<void> {
@@ -152,12 +163,14 @@ export class CheckoutService {
     @Inject(CartService) private readonly carts: CartService,
   ) {}
 
-  async createSession(input: { cartId: string; email?: string; shippingCents?: number }): Promise<{ order: CheckoutOrder; session: PaymentSession }> {
+  async createSession(input: { cartId: string; buyerId: string; eventId: string; email?: string; shippingCents?: number }): Promise<{ order: CheckoutOrder; session: PaymentSession }> {
     const cart = await this.carts.findCart(input.cartId);
     if (!cart || cart.items.length === 0) throw new Error('Cart is empty or not found');
+    const buyerId = this.readId(input.buyerId, 'buyerId');
+    const eventId = this.readId(input.eventId, 'eventId');
     const shippingCents = input.shippingCents ?? 0;
     if (!Number.isInteger(shippingCents) || shippingCents < 0) throw new Error('shippingCents must be a non-negative integer');
-    const existing = await this.orders.findPendingByCart(cart.id);
+    const existing = await this.orders.findPendingByCart(cart.id, buyerId);
     if (existing) return { order: this.cloneOrder(existing), session: existing.paymentSession };
 
     const subtotalCents = cart.subtotalCents;
@@ -166,12 +179,15 @@ export class CheckoutService {
     const order: CheckoutOrder = {
       id: orderId,
       cartId: cart.id,
+      buyerId,
+      eventId,
       email: input.email,
       subtotalCents,
       shippingCents,
       totalCents: subtotalCents + shippingCents,
       currency: 'USD',
       status: 'pending',
+      createdAt: new Date().toISOString(),
       items: cart.items.map((item) => ({ ...item })),
       paymentSession: session,
     };
@@ -193,6 +209,13 @@ export class CheckoutService {
   async getOrder(id: string): Promise<CheckoutOrder | null> {
     const order = await this.orders.get(id);
     return order ? this.cloneOrder(order) : null;
+  }
+
+  private readId(value: string, field: string): string {
+    if (typeof value !== 'string') throw new Error(`${field} is required`);
+    const id = value.trim();
+    if (!id || id.length > 120) throw new Error(`${field} is required and must be 120 characters or fewer`);
+    return id;
   }
 
   private cloneOrder(order: CheckoutOrder): CheckoutOrder {

@@ -139,6 +139,14 @@ export class GuardedActionService implements ActionExecutor {
       .map(cloneAudit);
   }
 
+  listOffersForBuyer(buyerIdInput: string): TargetedOffer[] {
+    const buyerId = assertText(buyerIdInput, 'buyerId');
+    return [...this.offers.values()]
+      .filter((offer) => offer.buyerId === buyerId)
+      .sort((left, right) => (right.createdAt ?? '').localeCompare(left.createdAt ?? ''))
+      .map(cloneOffer);
+  }
+
   /** ActionExecutor seam used by GroundedCopilotPipeline auto mode. */
   async execute(action: CopilotActionProposal, metadata: { eventId: string; buyerId?: string }): Promise<ActionExecutionResult> {
     const result = await this.apply({
@@ -186,6 +194,7 @@ export class GuardedActionService implements ActionExecutor {
         priceCents: action.priceCents ?? 0,
         quantity,
         status: 'pending',
+        createdAt: new Date().toISOString(),
       };
       this.offers.set(offer.id, offer);
     } else if (action.kind === 'markdown' || action.kind === 'price-adjust') {
