@@ -791,14 +791,18 @@ CREATE INDEX IF NOT EXISTS event_status_starts_at_idx
 -- explicit and then remove these defaults; the immutable-owner triggers below
 -- already prevent an upsert from changing an established owner.
 
-ALTER TABLE storefront_product ADD COLUMN IF NOT EXISTS seller_id text;
+-- PostgreSQL stores a constant DEFAULT as table metadata, so this is instant
+-- even for the million-row demo catalog instead of rewriting every row.
+ALTER TABLE storefront_product
+  ADD COLUMN IF NOT EXISTS seller_id text NOT NULL DEFAULT 'demo-seller';
 UPDATE storefront_product
 SET seller_id = 'demo-seller'
 WHERE seller_id IS NULL OR btrim(seller_id) = '';
 ALTER TABLE storefront_product ALTER COLUMN seller_id SET DEFAULT 'demo-seller';
 ALTER TABLE storefront_product ALTER COLUMN seller_id SET NOT NULL;
 
-ALTER TABLE inventory_reservation ADD COLUMN IF NOT EXISTS seller_id text;
+ALTER TABLE inventory_reservation
+  ADD COLUMN IF NOT EXISTS seller_id text NOT NULL DEFAULT 'demo-seller';
 UPDATE inventory_reservation AS reservation
 SET seller_id = product.seller_id
 FROM storefront_product AS product
@@ -807,7 +811,8 @@ WHERE reservation.variant_id = product.id
 ALTER TABLE inventory_reservation ALTER COLUMN seller_id SET DEFAULT 'demo-seller';
 ALTER TABLE inventory_reservation ALTER COLUMN seller_id SET NOT NULL;
 
-ALTER TABLE scout_session ADD COLUMN IF NOT EXISTS buyer_id text;
+ALTER TABLE scout_session
+  ADD COLUMN IF NOT EXISTS buyer_id text NOT NULL DEFAULT 'buyer-demo';
 UPDATE scout_session
 SET buyer_id = 'buyer-demo'
 WHERE buyer_id IS NULL OR btrim(buyer_id) = '';
