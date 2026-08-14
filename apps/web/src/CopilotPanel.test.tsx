@@ -1,17 +1,38 @@
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
-import { CopilotReplyReview, ProductResearchLatency, sellerReplyRequest } from './CopilotPanel';
+import {
+  CopilotReplyReview,
+  ProductResearchLatency,
+  copilotProductToBuyerProduct,
+  sellerReplyInput,
+} from './CopilotPanel';
 
 describe('seller copilot reply review', () => {
-  it('builds an approved reply as a real seller chat mutation', () => {
-    const request = sellerReplyRequest('event/one', '  Edited reply  ');
-    expect(request.path).toBe('/chat/events/event%2Fone/messages');
-    expect(request.init.method).toBe('POST');
-    expect(JSON.parse(String(request.init.body))).toEqual({
+  it('builds an approved reply for the shared EventChat mutation seam', () => {
+    expect(sellerReplyInput('  Edited reply  ')).toEqual({
       userId: 'seller-copilot-review',
       displayName: 'Host',
       role: 'seller',
       text: 'Edited reply',
+    });
+  });
+
+  it('maps a verified scout result into the app-wide buyer checkout model', () => {
+    expect(copilotProductToBuyerProduct({
+      productId: 'mug-1',
+      title: 'Aurora mug',
+      description: 'Hand-thrown stoneware',
+      priceCents: 2500,
+      availableQty: 3,
+      imageUrl: '/mug.png',
+      attributes: { material: 'stoneware' },
+    })).toEqual({
+      id: 'mug-1',
+      title: 'Aurora mug',
+      subtitle: 'Hand-thrown stoneware',
+      priceCents: 2500,
+      availableQty: 3,
+      imageUrl: '/mug.png',
     });
   });
 
