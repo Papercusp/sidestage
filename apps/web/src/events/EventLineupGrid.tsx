@@ -6,6 +6,7 @@ import type { SellerEventItem } from './api';
 export interface EventLineupGridProps {
   items: readonly SellerEventItem[];
   busyProductId?: string | null;
+  auctionWritesEnabled?: boolean;
   onPush: (item: SellerEventItem) => void;
   onSwap: (current: SellerEventItem, target: SellerEventItem) => void;
   onMarkdown: (item: SellerEventItem, percent: number) => void;
@@ -52,6 +53,7 @@ function initials(value: string): string {
 export function EventLineupGrid({
   items,
   busyProductId,
+  auctionWritesEnabled = true,
   onPush,
   onSwap,
   onMarkdown,
@@ -231,7 +233,8 @@ export function EventLineupGrid({
               <button
                 className="button tertiary"
                 type="button"
-                disabled={disabled || auctionQuantity === null || auctionPriceCents === null}
+                disabled={!auctionWritesEnabled || disabled || auctionQuantity === null || auctionPriceCents === null}
+                title={auctionWritesEnabled ? undefined : 'Unlock seller auction writes before starting an auction'}
                 onClick={() => auctionQuantity !== null && auctionPriceCents !== null
                   && onStartAuction(row, auctionQuantity, auctionPriceCents)}
               >
@@ -287,7 +290,7 @@ export function EventLineupGrid({
         );
       },
     },
-  ], [busyProductId, commerceDrafts, markdowns, onMarkdown, onPush, onSendOffer, onStage, onStartAuction, onStockAdjust, onSwap, quantities]);
+  ], [auctionWritesEnabled, busyProductId, commerceDrafts, markdowns, onMarkdown, onPush, onSendOffer, onStage, onStartAuction, onStockAdjust, onSwap, quantities]);
 
   return (
     <RichGrid

@@ -1,6 +1,12 @@
-import { useCallback, useEffect, useState, type FormEvent } from 'react';
+import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react';
 import { useSyncMutate, useSyncQuery } from '@papercusp/sync';
 import { EventSettingsPanel, type EventConfigView } from '../ConfigTab';
+import {
+  eventManagerHref,
+  useUrlEventManagerRoute,
+  type EventManagerRoute,
+  type EventManagerSection,
+} from '../app-routing';
 import EventCreationPanel from '../event-creation/EventCreationPanel';
 import type { EventCreationPayload } from '../event-creation/catalog';
 import {
@@ -26,7 +32,19 @@ export interface EventManagerProps {
   eventName?: string;
   apiBaseUrl?: string;
   initialItems?: readonly SellerEventItem[];
+  initialEvents?: readonly SellerOwnedEvent[];
   onEventReady?: (eventId: string, eventName: string) => void;
+}
+
+export interface SellerOwnedEvent {
+  eventId: string;
+  title: string;
+  sellerId: string;
+  sellerName: string;
+  status: 'draft' | 'scheduled' | 'live' | 'ended';
+  startsAt: string | null;
+  endedAt: string | null;
+  thumbnailUrl?: string;
 }
 
 function errorMessage(error: unknown): string {
@@ -52,36 +70,89 @@ type StartAuctionMutation = {
   startingPriceCents: number;
 };
 
+function eventInitials(title: string): string {
+  return title
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((word) => word[0]?.toUpperCase())
+    .join('') || 'EV';
+}
+
+function eventTiming(event: SellerOwnedEvent): string {
+  const date = event.status === 'ended' ? event.endedAt : event.startsAt;
+  if (!date) return event.status === 'draft' ? 'Not scheduled' : 'Schedule pending';
+  const parsed = new Date(date);
+  if (Number.isNaN(parsed.getTime())) return 'Schedule pending';
+  return new Intl.DateTimeFormat(undefined, {
+    month: 'short',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+  }).format(parsed);
+}
+
+function managerRoute(
+  eventId: string | undefined,
+  section: EventManagerSection = 'lineup',
+): EventManagerRoute {
+  return { view: 'events', ...(eventId ? { eventId } : {}), section };
+}
+
 export function EventManager({
   eventId,
   actorId,
   eventName = 'Seller event',
   apiBaseUrl,
   initialItems,
+  initialEvents,
   onEventReady,
 }: EventManagerProps) {
-  const [pickerOpen, setPickerOpen] = useState((initialItems?.length ?? 0) === 0);
+  const [route, navigateRoute] = useUrlEventManagerRoute();
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const [eventSearch, setEventSearch] = useState('');
   const [busyProductId, setBusyProductId] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [sellerAuctionToken, setSellerAuctionToken] = useState(() => readSellerAuctionToken() ?? '');
   const [sellerAccessDraft, setSellerAccessDraft] = useState('');
   const [sellerAccessBusy, setSellerAccessBusy] = useState(false);
 
+  const directoryQuery = useSyncQuery<SellerOwnedEvent>({
+    queryName: 'events.mine',
+    args: {},
+    enabled: initialEvents === undefined,
+    pollIntervalMs: 15_000,
+  });
+  const events = initialEvents ?? directoryQuery.data ?? [];
+  const filteredEvents = useMemo(() => {
+    const needle = eventSearch.trim().toLowerCase();
+    return needle
+      ? events.filter((event) => `${event.title} ${event.status}`.toLowerCase().includes(needle))
+      : [...events];
+  }, [eventSearch, events]);
+  const routedEvent = route.eventId
+    ? events.find((event) => event.eventId === route.eventId)
+    : undefined;
+  const fallbackEvent = events.find((event) => event.eventId === eventId) ?? events[0];
+  const selectedEvent = routedEvent ?? fallbackEvent;
+  const selectedEventId = route.eventId ?? selectedEvent?.eventId ?? eventId;
+  const isCreateView = route.view === 'create';
+
   const configQuery = useSyncQuery<EventConfigView>({
     queryName: 'event.config',
-    args: { eventId },
-    enabled: initialItems === undefined,
+    args: { eventId: selectedEventId },
+    enabled: initialItems === undefined && !isCreateView,
     pollIntervalMs: 30_000,
   });
   const itemsQuery = useSyncQuery<SellerEventItem>({
     queryName: 'event.actions.items',
-    args: { eventId },
-    enabled: initialItems === undefined,
+    args: { eventId: selectedEventId },
+    enabled: initialItems === undefined && !isCreateView,
     pollIntervalMs: 10_000,
   });
-  const name = configQuery.data?.[0]?.name ?? eventName;
+  const name = configQuery.data?.[0]?.name ?? selectedEvent?.title ?? eventName;
   const items = initialItems ?? itemsQuery.data ?? [];
-  const loaded = initialItems !== undefined || (!configQuery.loading && !itemsQuery.loading);
+  const loaded = isCreateView || initialItems !== undefined || (!configQuery.loading && !itemsQuery.loading);
   const readError = initialItems === undefined ? configQuery.error ?? itemsQuery.error : null;
 
   const setupFallback = useCallback(
@@ -123,17 +194,19 @@ export function EventManager({
   const mutateStartAuction = useSyncMutate<StartAuctionMutation, SellerAuction>('auction.start', auctionFallback);
 
   useEffect(() => {
-    if (loaded) setPickerOpen(items.length === 0);
-  }, [eventId, items.length, loaded]);
+    setPickerOpen(false);
+    setMessage(null);
+  }, [selectedEventId]);
 
   const submitPicker = async (payload: EventCreationPayload) => {
     setMessage(null);
-    const result = items.length
-      ? await mutateAddItems({ eventId, payload })
-      : await mutateSetup(payload);
+    const result = isCreateView
+      ? await mutateSetup(payload)
+      : await mutateAddItems({ eventId: selectedEventId, payload });
     setPickerOpen(false);
-    setMessage(items.length ? 'Catalog items reserved and added to the live event.' : 'Event created and inventory reserved.');
+    setMessage(isCreateView ? 'Event created and inventory reserved.' : 'Catalog items reserved and added to the live event.');
     onEventReady?.(result.eventId, result.name);
+    navigateRoute(managerRoute(result.eventId));
   };
 
   const runAction = async (
@@ -172,147 +245,285 @@ export function EventManager({
     }
   };
 
+  const openRoute = (next: EventManagerRoute) => (event: React.MouseEvent<HTMLAnchorElement>) => {
+    event.preventDefault();
+    navigateRoute(next);
+  };
+
+  const selectEvent = (event: SellerOwnedEvent) => {
+    onEventReady?.(event.eventId, event.title);
+    navigateRoute(managerRoute(event.eventId, route.section));
+  };
+
+  const eventStatus = selectedEvent?.status ?? 'draft';
+
   return (
     <section className="event-manager" aria-labelledby="event-manager-title">
       <div className="event-manager-heading">
         <div>
           <p className="eyebrow">Seller workspace · event setup</p>
-          <h2 id="event-manager-title">{items.length ? name : 'Build the live lineup.'}</h2>
+          <h2 id="event-manager-title">Event Manager</h2>
           <p className="event-manager-copy">
-            Search the real catalog, reserve event quantities, then push, swap, mark down, adjust stock, start auctions, and send offers through the guarded action service.
+            Choose an event to manage, or create one from real catalog inventory. Guarded seller actions remain enforced server-side.
           </p>
         </div>
+        <nav className="event-manager-switch" aria-label="Event Manager view" role="tablist">
+          <a
+            className={route.view === 'events' ? 'is-active' : undefined}
+            href={eventManagerHref(managerRoute(selectedEventId), typeof window === 'undefined' ? '/' : window.location.href)}
+            role="tab"
+            aria-selected={route.view === 'events'}
+            aria-controls="event-manager-events"
+            onClick={openRoute(managerRoute(selectedEventId))}
+          >
+            My events <span>{events.length}</span>
+          </a>
+          <a
+            className={route.view === 'create' ? 'is-active' : undefined}
+            href={eventManagerHref({ view: 'create', section: 'lineup' }, typeof window === 'undefined' ? '/' : window.location.href)}
+            role="tab"
+            aria-selected={route.view === 'create'}
+            aria-controls="event-manager-create"
+            onClick={openRoute({ view: 'create', section: 'lineup' })}
+          >
+            Create event
+          </a>
+        </nav>
       </div>
 
-      {!loaded ? <p className="event-manager-message" role="status">Loading verified event state…</p> : null}
-      {readError ? <p className="event-manager-message" role="status">{errorMessage(readError)}</p> : null}
-
-      {loaded && pickerOpen ? (
-        <EventCreationPanel
-          initialEventName={items.length ? name : ''}
-          eventNameReadOnly={items.length > 0}
-          title={items.length ? `Add inventory to ${name}` : 'Choose what goes on stage'}
-          copy={items.length
-            ? 'Select more real-catalog inventory and set the event price and reserved quantity.'
-            : 'Create the event from real catalog inventory with a price and reservation-backed quantity for every item.'}
-          submitLabel={items.length ? 'Reserve and add items' : 'Create event'}
-          onCreateEvent={submitPicker}
-        />
-      ) : null}
-
-      {items.length ? (
-        <>
-          <div className="event-guardrail-banner">
-            <span className="feature-icon cyan" aria-hidden="true">⌁</span>
-            <span>
-              <strong>Guarded seller actions are live</strong>
-              <small>Price floors, markdown limits, verified inventory, audit, and rollback are enforced server-side.</small>
-            </span>
-          </div>
-          <form className="event-auction-access" onSubmit={(event) => void unlockAuctionWrites(event)}>
-            <div>
-              <strong>{sellerAuctionToken ? 'Auction writes unlocked' : 'Unlock auction writes'}</strong>
-              <small>Start and close require the server-configured seller credential. It stays in this browser session only.</small>
+      {route.view === 'create' ? (
+        <div id="event-manager-create" role="tabpanel" className="event-manager-create-view">
+          <EventCreationPanel
+            title="Build the live lineup"
+            copy="Name the event, reserve real catalog inventory, and set the guarded price and quantity for every item."
+            submitLabel="Create event"
+            onCreateEvent={submitPicker}
+          />
+        </div>
+      ) : (
+        <div id="event-manager-events" role="tabpanel" className="event-manager-layout">
+          <aside className="event-list-panel" aria-label="My events">
+            <div className="event-list-heading">
+              <div>
+                <p className="eyebrow">My events</p>
+                <strong>Drafts, scheduled rooms, live shows, and replays</strong>
+              </div>
+              <span className="event-list-count">{events.length} total</span>
             </div>
-            {!sellerAuctionToken ? (
-              <div className="event-auction-access-controls">
-                <label htmlFor="seller-auction-access">Seller credential</label>
-                <input
-                  id="seller-auction-access"
-                  type="password"
-                  autoComplete="current-password"
-                  value={sellerAccessDraft}
-                  onChange={(event) => setSellerAccessDraft(event.target.value)}
-                />
-                <button className="button secondary" type="submit" disabled={sellerAccessBusy || !sellerAccessDraft.trim()}>
-                  {sellerAccessBusy ? 'Checking…' : 'Unlock'}
+            <label className="event-search-field event-list-search">
+              <span aria-hidden="true">⌕</span>
+              <span className="sr-only">Search my events</span>
+              <input
+                type="search"
+                placeholder="Search events"
+                value={eventSearch}
+                onChange={(event) => setEventSearch(event.target.value)}
+              />
+            </label>
+            {directoryQuery.loading ? <p className="event-list-state" role="status">Loading your events…</p> : null}
+            {directoryQuery.error ? <p className="event-list-state" role="status">{errorMessage(directoryQuery.error)}</p> : null}
+            <div className="event-list">
+              {filteredEvents.map((event) => (
+                <button
+                  key={event.eventId}
+                  type="button"
+                  className={`event-list-row${event.eventId === selectedEventId ? ' is-selected' : ''}`}
+                  aria-pressed={event.eventId === selectedEventId}
+                  onClick={() => selectEvent(event)}
+                >
+                  <span className="event-list-avatar" aria-hidden="true">{eventInitials(event.title)}</span>
+                  <span className="event-list-copy">
+                    <strong>{event.title}</strong>
+                    <small>{eventTiming(event)}</small>
+                  </span>
+                  <span className={`event-status event-status-${event.status}`}>{event.status}</span>
                 </button>
+              ))}
+            </div>
+            {!directoryQuery.loading && filteredEvents.length === 0 ? (
+              <div className="event-list-empty">
+                <p>{eventSearch ? 'No events match this search.' : 'No seller events yet.'}</p>
+                {!eventSearch ? (
+                  <a
+                    className="button secondary"
+                    href={eventManagerHref({ view: 'create', section: 'lineup' }, typeof window === 'undefined' ? '/' : window.location.href)}
+                    onClick={openRoute({ view: 'create', section: 'lineup' })}
+                  >
+                    Create event
+                  </a>
+                ) : null}
               </div>
             ) : null}
-          </form>
-          <div className="event-manager-queue-heading">
-            <div>
-              <p className="eyebrow">Event queue</p>
-              <strong>{items.length} reserved {items.length === 1 ? 'item' : 'items'} ready for the live lineup</strong>
+          </aside>
+
+          <section className="event-detail-panel" aria-labelledby="event-detail-title">
+            <div className="event-detail-heading">
+              <div>
+                <span className={`event-status event-status-${eventStatus}`}>{eventStatus}</span>
+                <h3 id="event-detail-title">{name}</h3>
+                <p>{items.length} reserved {items.length === 1 ? 'item' : 'items'} · Event ID {selectedEventId}</p>
+              </div>
+              <button className="button secondary" type="button" onClick={() => setPickerOpen((open) => !open)}>
+                {pickerOpen ? 'Close lineup editor' : 'Add inventory'}
+              </button>
             </div>
-            <button className="button secondary" type="button" onClick={() => setPickerOpen((open) => !open)}>
-              {pickerOpen ? 'Close lineup editor' : 'Manage lineup'}
-            </button>
-          </div>
-          <EventLineupGrid
-            items={items}
-            busyProductId={busyProductId}
-            onPush={(item) => void runAction(
-              item.productId,
-              () => mutateAction({
-                eventId,
-                actorId,
-                action: {
-                  kind: 'push',
-                  productId: item.productId,
-                  reason: 'Seller pushed this verified item to the live stage',
-                },
-              }),
-              `${item.title} is now on stage.`,
+
+            <nav className="event-detail-tabs" aria-label={`${name} detail`} role="tablist">
+              {(['lineup', 'settings'] as const).map((section) => {
+                const next = managerRoute(selectedEventId, section);
+                return (
+                  <a
+                    key={section}
+                    className={route.section === section ? 'is-active' : undefined}
+                    href={eventManagerHref(next, typeof window === 'undefined' ? '/' : window.location.href)}
+                    role="tab"
+                    aria-selected={route.section === section}
+                    onClick={openRoute(next)}
+                  >
+                    {section === 'lineup' ? 'Lineup' : 'Settings'}
+                  </a>
+                );
+              })}
+            </nav>
+
+            {route.section === 'settings' ? (
+              <div className="event-settings-view" role="tabpanel">
+                <EventSettingsPanel eventId={selectedEventId} apiBaseUrl={apiBaseUrl} embedded />
+              </div>
+            ) : (
+              <div className="event-lineup-view" role="tabpanel">
+                {!loaded ? <p className="event-manager-message" role="status">Loading verified event state…</p> : null}
+                {readError ? <p className="event-manager-message" role="status">{errorMessage(readError)}</p> : null}
+
+                {loaded && pickerOpen ? (
+                  <EventCreationPanel
+                    initialEventName={name}
+                    eventNameReadOnly
+                    title={`Add inventory to ${name}`}
+                    copy="Select more real-catalog inventory and set the event price and reserved quantity."
+                    submitLabel="Reserve and add items"
+                    onCreateEvent={submitPicker}
+                  />
+                ) : null}
+
+                {items.length ? (
+                  <>
+                    <div className="event-guardrail-banner">
+                      <span className="feature-icon cyan" aria-hidden="true">⌁</span>
+                      <span>
+                        <strong>Guarded seller actions are live</strong>
+                        <small>Price floors, markdown limits, verified inventory, audit, and rollback are enforced server-side.</small>
+                      </span>
+                    </div>
+                    <form className="event-auction-access" onSubmit={(event) => void unlockAuctionWrites(event)}>
+                      <div>
+                        <strong>{sellerAuctionToken ? 'Auction writes unlocked' : 'Unlock auction writes'}</strong>
+                        <small>Start and close require the server-configured seller credential. It stays in this browser session only.</small>
+                      </div>
+                      {!sellerAuctionToken ? (
+                        <div className="event-auction-access-controls">
+                          <label htmlFor="seller-auction-access">Seller credential</label>
+                          <input
+                            id="seller-auction-access"
+                            type="password"
+                            autoComplete="current-password"
+                            value={sellerAccessDraft}
+                            onChange={(event) => setSellerAccessDraft(event.target.value)}
+                          />
+                          <button className="button secondary" type="submit" disabled={sellerAccessBusy || !sellerAccessDraft.trim()}>
+                            {sellerAccessBusy ? 'Checking…' : 'Unlock'}
+                          </button>
+                        </div>
+                      ) : null}
+                    </form>
+                    <div className="event-manager-queue-heading">
+                      <div>
+                        <p className="eyebrow">Event lineup</p>
+                        <strong>{items.length} reserved {items.length === 1 ? 'item' : 'items'} ready for the live room</strong>
+                      </div>
+                    </div>
+                    <EventLineupGrid
+                      items={items}
+                      busyProductId={busyProductId}
+                      onPush={(item) => void runAction(
+                        item.productId,
+                        () => mutateAction({
+                          eventId: selectedEventId,
+                          actorId,
+                          action: { kind: 'push', productId: item.productId, reason: 'Seller pushed this verified item to the live stage' },
+                        }),
+                        `${item.title} is now on stage.`,
+                      )}
+                      onSwap={(current, target) => void runAction(
+                        target.productId,
+                        () => mutateAction({
+                          eventId: selectedEventId,
+                          actorId,
+                          action: {
+                            kind: 'swap',
+                            productId: current.productId,
+                            swapToProductId: target.productId,
+                            reason: 'Seller swapped the next verified item onto the live stage',
+                          },
+                        }),
+                        `${target.title} replaced ${current.title} on stage.`,
+                      )}
+                      onMarkdown={(item, percent) => void runAction(
+                        item.productId,
+                        () => mutateAction({
+                          eventId: selectedEventId,
+                          actorId,
+                          action: {
+                            kind: 'markdown',
+                            productId: item.productId,
+                            priceCents: Math.max(1, Math.round(item.priceCents * (1 - percent / 100))),
+                            reason: `Seller applied a ${percent}% live-event markdown`,
+                          },
+                        }),
+                        `${item.title} markdown passed the event guardrail.`,
+                      )}
+                      onStockAdjust={(item, quantity) => void runAction(
+                        item.productId,
+                        () => mutateStock({ eventId: selectedEventId, actorId, item, quantity }),
+                        `${item.title} inventory reservation is now ${quantity}.`,
+                      )}
+                      onStartAuction={(item, quantity, startingPriceCents) => void runAction(
+                        item.productId,
+                        () => mutateStartAuction({ eventId: selectedEventId, item, quantity, startingPriceCents }),
+                        `${quantity} × ${item.title} auction started.`,
+                      )}
+                      onSendOffer={(item, buyerId, quantity, priceCents) => void runAction(
+                        item.productId,
+                        () => mutateAction({
+                          eventId: selectedEventId,
+                          actorId,
+                          action: {
+                            kind: 'targeted-offer',
+                            productId: item.productId,
+                            buyerId,
+                            quantity,
+                            priceCents,
+                            reason: `Seller sent ${buyerId} a quantity-aware targeted offer`,
+                          },
+                        }),
+                        `${quantity} × ${item.title} offered to ${buyerId}.`,
+                      )}
+                    />
+                  </>
+                ) : loaded && !pickerOpen ? (
+                  <div className="event-detail-empty">
+                    <div>
+                      <strong>This event has no reserved inventory yet.</strong>
+                      <p>Add verified catalog items before opening the live room.</p>
+                      <button className="button primary" type="button" onClick={() => setPickerOpen(true)}>Add inventory</button>
+                    </div>
+                  </div>
+                ) : null}
+              </div>
             )}
-            onSwap={(current, target) => void runAction(
-              target.productId,
-              () => mutateAction({
-                eventId,
-                actorId,
-                action: {
-                  kind: 'swap',
-                  productId: current.productId,
-                  swapToProductId: target.productId,
-                  reason: 'Seller swapped the next verified item onto the live stage',
-                },
-              }),
-              `${target.title} replaced ${current.title} on stage.`,
-            )}
-            onMarkdown={(item, percent) => void runAction(
-              item.productId,
-              () => mutateAction({
-                eventId,
-                actorId,
-                action: {
-                  kind: 'markdown',
-                  productId: item.productId,
-                  priceCents: Math.max(1, Math.round(item.priceCents * (1 - percent / 100))),
-                  reason: `Seller applied a ${percent}% live-event markdown`,
-                },
-              }),
-              `${item.title} markdown passed the event guardrail.`,
-            )}
-            onStockAdjust={(item, quantity) => void runAction(
-              item.productId,
-              () => mutateStock({ eventId, actorId, item, quantity }),
-              `${item.title} inventory reservation is now ${quantity}.`,
-            )}
-            onStartAuction={(item, quantity, startingPriceCents) => void runAction(
-              item.productId,
-              () => mutateStartAuction({ eventId, item, quantity, startingPriceCents }),
-              `${quantity} × ${item.title} auction started.`,
-            )}
-            onSendOffer={(item, buyerId, quantity, priceCents) => void runAction(
-              item.productId,
-              () => mutateAction({
-                eventId,
-                actorId,
-                action: {
-                  kind: 'targeted-offer',
-                  productId: item.productId,
-                  buyerId,
-                  quantity,
-                  priceCents,
-                  reason: `Seller sent ${buyerId} a quantity-aware targeted offer`,
-                },
-              }),
-              `${quantity} × ${item.title} offered to ${buyerId}.`,
-            )}
-          />
-          <EventSettingsPanel eventId={eventId} apiBaseUrl={apiBaseUrl} embedded />
-        </>
-      ) : null}
+          </section>
+        </div>
+      )}
 
       {message ? <p className="event-manager-message" role="status">{message}</p> : null}
     </section>
