@@ -93,12 +93,13 @@ export function EventReadinessPanel({
   });
   const report = query.data?.[0] ?? null;
   const run = useCallback(() => query.invalidate(), [query.invalidate]);
+  const loading = Boolean(query.loading || query.fetching || (!report && !query.error));
 
   return (
     <EventReadinessView
       eventId={eventId}
       report={report}
-      loading={Boolean(query.loading || query.fetching)}
+      loading={loading}
       error={query.error?.message ?? null}
       onRun={run}
     />
