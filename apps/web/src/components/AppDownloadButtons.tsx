@@ -27,13 +27,11 @@ function AppBadge({ href, platform, storeName }: BadgeProps) {
       className="app-badge"
       href={href}
       download={downloadName}
-      aria-label={`Download the SideStage ${platform === 'ios' ? 'iPhone' : 'Android'} install file — ${storeName}`}
+    aria-label={`Download the SideStage ${platform === 'ios' ? 'iPhone' : 'Android'} install file — ${storeName}`}
       data-platform={platform}
     >
-      <>
-        <span className="app-badge-hint">Download {platform === 'ios' ? 'iOS' : 'Android'}</span>
-        <span className="app-badge-name">{storeName}</span>
-      </>
+      <span className="app-badge-hint">Download {platform === 'ios' ? 'iOS' : 'Android'}</span>
+      <span className="app-badge-name">{storeName}</span>
     </a>
   );
 }
