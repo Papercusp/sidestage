@@ -5,7 +5,7 @@
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "start": "node dist/main.js",
-    "start:dev": "npm run build --workspace @papercusp/typesense && tsx watch src/main.ts",
+    "start:dev": "npm run build --workspace @papercusp/typesense && tsx watch --exclude '../../node_modules/**' src/main.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "pretest": "npm run build --workspace @papercusp/typesense",
     "test": "vitest run src",

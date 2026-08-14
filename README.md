@@ -20,6 +20,13 @@ npm install
 npm run dev
 ```
 
+Papercusp-managed checkouts are shared by concurrent agents. In that environment,
+use `npm run install:safe` (or, for a named package,
+`npm run install:safe -- install --no-save <package>`) so the existing Papercusp
+filesystem mutex serializes changes to this checkout's `node_modules`. An install
+that intentionally targets an isolated scratch tree may continue to use npm's
+explicit `--prefix /tmp/...` form.
+
 The web shell runs at <http://localhost:5173> and the API health endpoint is
 <http://localhost:3100/healthz>. Start local infrastructure with
 `docker compose up -d` before using persistence, search, or live media.

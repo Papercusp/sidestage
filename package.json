@@ -12,6 +12,7 @@
     "dev": "concurrently -k -n api,web -c blue,cyan \"npm:dev:api\" \"npm:dev:web\"",
     "dev:api": "npm run start:dev --workspace @papercusp/sidestage-api",
     "dev:web": "npm run dev --workspace @papercusp/sidestage-web",
+    "install:safe": "node \"$PAPERCUSP_REPO_ROOT/scripts/npm-install-safe.mjs\" --repo-root . --",
     "build": "npm run build --workspaces --if-present",
     "typecheck": "npm run typecheck --workspaces --if-present",
     "db:apply": "bash scripts/db-apply.sh",
