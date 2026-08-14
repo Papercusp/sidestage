@@ -1,0 +1,74 @@
+.buyer-identity {
+  display: grid;
+  gap: .38rem;
+  min-width: min(20rem, 100%);
+  padding: .55rem .65rem;
+  border: 1px solid color-mix(in srgb, var(--brand-yellow) 45%, var(--border));
+  border-radius: .7rem;
+  background: color-mix(in srgb, var(--brand-yellow) 10%, var(--surface));
+}
+
+.buyer-identity-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: .75rem;
+  color: var(--muted);
+  font-size: .62rem;
+  font-weight: 700;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+
+.buyer-identity-heading strong {
+  max-width: 11rem;
+  overflow: hidden;
+  color: var(--text);
+  font-size: .68rem;
+  letter-spacing: 0;
+  text-overflow: ellipsis;
+  text-transform: none;
+  white-space: nowrap;
+}
+
+.buyer-identity-row {
+  display: flex;
+  align-items: stretch;
+  gap: .4rem;
+}
+
+.buyer-identity-row input {
+  min-width: 0;
+  flex: 1;
+  border: 1px solid var(--border);
+  border-radius: .5rem;
+  padding: .52rem .6rem;
+  color: var(--text);
+  background: var(--surface);
+  font-size: .72rem;
+}
+
+.buyer-identity-row input:focus {
+  outline: 2px solid color-mix(in srgb, var(--brand-red) 36%, transparent);
+  outline-offset: 1px;
+  border-color: var(--red-text);
+}
+
+.buyer-identity-row .button {
+  flex: 0 0 auto;
+  padding: .5rem .65rem;
+  font-size: .7rem;
+}
+
+.buyer-identity small,
+.buyer-identity-error {
+  color: var(--muted);
+  font-size: .6rem;
+  line-height: 1.35;
+}
+
+.buyer-identity-error { color: var(--danger); }
+
+@media (max-width: 560px) {
+  .buyer-identity { width: 100%; }
+}
