@@ -41,8 +41,33 @@ done
 SSH=(ssh -i "$PROD_SSH_KEY" -o ConnectTimeout=10 "root@$PROD_HOST")
 say() { echo "==> $*"; }
 
-CURRENT="$("${SSH[@]}" "cat $DEPLOYED_SHA_FILE 2>/dev/null" || true)"
-CURRENT="${CURRENT//[$'\r\n']/}"
+# What prod RECORDS as live. This is an assertion written by the last deploy --
+# it can be stale (a deploy that died between `up -d` and the record, or an
+# operator switching containers by hand), so it is not on its own trusted.
+RECORDED="$("${SSH[@]}" "cat $DEPLOYED_SHA_FILE 2>/dev/null" || true)"
+RECORDED="${RECORDED//[$'\r\n']/}"
+
+# What prod is ACTUALLY RUNNING, straight from the process. Since 2026-08-14
+# /healthz reports the sha baked into the image, so reality is observable
+# rather than inferred -- which is the whole point of baking it in. Empty when
+# the image predates that change (it reports "unknown") or the API is down.
+observed_sha() {
+  "${SSH[@]}" "cd $PROD_DIR && $COMPOSE exec -T api node -e '
+    fetch(\"http://127.0.0.1:3100/healthz\")
+      .then(r => r.json())
+      .then(j => console.log(/^[0-9a-f]{40}$/.test(j.sha || \"\") ? j.sha : \"\"))
+      .catch(() => console.log(\"\"))
+  '" 2>/dev/null | tr -d '\r\n' || true
+}
+RUNNING="$(observed_sha)"
+
+# Prefer observed reality over the recorded claim.
+CURRENT="${RUNNING:-$RECORDED}"
+
+if [[ -n "$RUNNING" && -n "$RECORDED" && "$RUNNING" != "$RECORDED" ]]; then
+  echo "WARN: prod is RUNNING ${RUNNING:0:7} but $DEPLOYED_SHA_FILE records ${RECORDED:0:7}." >&2
+  echo "      The record is STALE -- trusting what the process reports." >&2
+fi
 
 if $LIST; then
   say "Currently deployed: ${CURRENT:0:7}"
@@ -114,9 +139,18 @@ say "Switching containers to ${TARGET:0:7} (no rebuild)"
 "${SSH[@]}" "cd $PROD_DIR && SIDESTAGE_SHA=$TARGET $COMPOSE up -d --no-build api web"
 
 say "Health check"
+# TWO-TIER, mirroring deploy.sh. The api container EXPOSES 3100 but does not
+# PUBLISH it to the host (it is reached through Traefik), so the host-port curl
+# alone fails with exit 7 on a perfectly healthy prod -- it could never pass.
+# Until 2026-08-14 that was this script's only probe, so EVERY rollback ended
+# in "FATAL: came up unhealthy -- prod needs hands" and skipped the record step,
+# leaving .deployed-sha pointing at a release that was no longer running. A
+# rollback tool that always reports failure is worse than none: it trains the
+# operator to ignore it during the one event it exists for.
 healthy=false
 for attempt in $(seq 1 20); do
-  if "${SSH[@]}" "curl -sf --max-time 4 http://127.0.0.1:3100/healthz -H 'Host: sidestage'" >/dev/null 2>&1; then
+  if "${SSH[@]}" "curl -sf --max-time 4 http://127.0.0.1:3100/healthz -H 'Host: sidestage'" >/dev/null 2>&1 \
+    || "${SSH[@]}" "cd $PROD_DIR && SIDESTAGE_SHA=$TARGET $COMPOSE exec -T api node -e 'fetch(\"http://127.0.0.1:3100/healthz\").then(r=>{if(!r.ok)throw 0})'" >/dev/null 2>&1; then
     say "API healthy (attempt $attempt)"
     healthy=true
     break
@@ -142,10 +176,22 @@ say "Recording rollback (health check passed)"
 
 ELAPSED=$(( $(date +%s) - START ))
 
-served="$("${SSH[@]}" "curl -sf --max-time 4 http://127.0.0.1:3100/healthz -H 'Host: sidestage'" 2>/dev/null || true)"
-case "$served" in
-  *"$TARGET"*) say "Verified: /healthz reports ${TARGET:0:7}" ;;
-  *) echo "WARN: /healthz did not report $TARGET (got: ${served:-<no response>}). Expected for images built before /healthz reported a sha." >&2 ;;
-esac
+# Independent confirmation: ask the RUNNING PROCESS what it was built from,
+# rather than trusting the record we just wrote. Three outcomes, deliberately
+# kept distinct -- the pre-2026-08-14 version collapsed the last two into one
+# reassuring "expected for older images" line, so a genuine mismatch (we rolled
+# to X and prod is serving Y) was reported in the same words as the benign
+# can't-tell case.
+served="$(observed_sha)"
+if [[ "$served" == "$TARGET" ]]; then
+  say "Verified: /healthz reports ${TARGET:0:7}"
+elif [[ -z "$served" ]]; then
+  say "Note: this image reports no sha (built before /healthz carried one),"
+  say "      so the rollback could not be independently confirmed."
+else
+  echo "WARN: rolled to ${TARGET:0:7} but /healthz reports ${served:0:7} -- prod is" >&2
+  echo "      not serving what we just recorded. Investigate before trusting" >&2
+  echo "      $DEPLOYED_SHA_FILE." >&2
+fi
 
 say "Rollback complete: ${CURRENT:0:7} -> ${TARGET:0:7} in ${ELAPSED}s"

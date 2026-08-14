@@ -61,6 +61,65 @@ describe('deploy.sh records the deployed sha only after the health check', () =>
   });
 });
 
+describe('rollback.sh health check can actually pass', () => {
+  // REGRESSION GUARD for a defect that made rollback.sh useless in the exact
+  // situation it exists for. The api container EXPOSES 3100 but does not
+  // PUBLISH it to the host (traffic arrives via Traefik), so a curl to
+  // 127.0.0.1:3100 ON THE HOST fails with exit 7 against a perfectly healthy
+  // prod. That host-port curl was the ONLY probe, so every rollback ended in
+  // "FATAL: came up unhealthy -- prod needs hands" and skipped the record step,
+  // leaving .deployed-sha naming a release that was no longer running.
+  // Measured live 2026-08-14: rollback to 4c6ca94 reported FATAL while the
+  // public URL served HTTP 200 from that very build.
+  it('falls back to an in-container probe, not host-port curl alone', () => {
+    const check = rollbackSource.slice(rollbackSource.indexOf('say "Health check"'));
+    expect(check).toMatch(/curl -sf .*127\.0\.0\.1:3100\/healthz/);
+    expect(check, 'no in-container fallback: a not-published port fails forever').toMatch(
+      /\$COMPOSE exec -T api node -e/,
+    );
+  });
+});
+
+describe('rollback.sh trusts the running process over the recorded sha', () => {
+  // REGRESSION GUARD for a deadlock. The "already the deployed sha -- nothing
+  // to roll back" check compared against .deployed-sha, a claim written by the
+  // last deploy. When that claim went stale (the health-check defect above did
+  // exactly this), prod ran X, the file said Y, and rollback.sh refused to move
+  // to Y because it believed prod was already there -- so the one tool that
+  // could reconcile the drift was disabled BY the drift. Now that /healthz
+  // reports the built sha, reality is observable; prefer it, and say so loudly
+  // when the record disagrees rather than silently picking one.
+  it('reads the running sha from the process, not just the file', () => {
+    expect(rollbackSource).toMatch(/observed_sha\(\)/);
+    expect(rollbackSource).toMatch(/RUNNING="\$\(observed_sha\)"/);
+  });
+
+  it('prefers observed reality over the recorded claim', () => {
+    expect(rollbackSource).toMatch(/CURRENT="\$\{RUNNING:-\$RECORDED\}"/);
+  });
+
+  it('warns when the record and reality disagree instead of silently choosing', () => {
+    expect(rollbackSource).toMatch(/"\$RUNNING" != "\$RECORDED"/);
+    expect(rollbackSource).toMatch(/STALE/);
+  });
+
+  it('distinguishes a real mismatch from a can-not-tell reading', () => {
+    // The post-rollback confirmation used to print the same reassuring
+    // "expected for images built before /healthz reported a sha" line whether
+    // the image simply carried no sha OR prod was serving a DIFFERENT sha than
+    // the one just recorded. Those need opposite operator responses.
+    const verify = rollbackSource.slice(rollbackSource.indexOf('served="$(observed_sha)"'));
+    expect(verify).toMatch(/elif \[\[ -z "\$served" \]\]/);
+    expect(verify).toMatch(/not serving what we just recorded/);
+  });
+
+  it('only accepts a full 40-char sha as an observed reading', () => {
+    // "unknown" (an image built before the sha was baked in) must not be
+    // mistaken for a real sha and compared against the record.
+    expect(rollbackSource).toMatch(/\^\[0-9a-f\]\{40\}\$\/\.test/);
+  });
+});
+
 describe('rollback.sh accepts a short sha', () => {
   // REGRESSION GUARD. Image tags are full 40-char shas, but every surface an
   // operator reads mid-incident -- git log, --list, a chat message -- prints 7.
