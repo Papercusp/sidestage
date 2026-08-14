@@ -34,7 +34,10 @@ export class AuctionSyncQueries implements OnModuleInit {
       inject: [PG_POOL],
       useFactory: (pool: Pool | null) => (pool ? new PgAuctionStore(pool) : null),
     },
-    AuctionAccessService,
+    {
+      provide: AuctionAccessService,
+      useFactory: () => new AuctionAccessService(),
+    },
     AuctionAuditService,
     AuctionService,
     AuctionSyncQueries,
