@@ -127,6 +127,16 @@ describe('StatsController pricing history', () => {
       expect(sql).not.toContain('DROP TABLE');
     });
 
+    it('CONTROL: the fake pool really does return the platform-wide sum when unscoped', async () => {
+      // Falsifiability proof for the three cases above. They only mean something if
+      // this fake discriminates — a mock that filtered unconditionally would let them
+      // pass even against the unfixed query. Here we call it the way the OLD code did
+      // (no predicate, no bound params) and assert it yields the global total, which
+      // is precisely what would break the isolation expectations.
+      const unscoped = await fakePool.query("... FROM checkout_order WHERE status = 'paid'");
+      expect(unscoped.rows[0]).toEqual({ items: '8', raised: '14900' });
+    });
+
     it('fails closed on a blank eventId instead of returning the global total', async () => {
       // StatsSyncQueries coerces a missing/non-string eventId arg to ''. That must
       // read as zero, never as every seller's revenue.

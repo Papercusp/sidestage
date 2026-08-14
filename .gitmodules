@@ -22,3 +22,6 @@
 [submodule "libs/dock-workbench"]
 	path = libs/dock-workbench
 	url = https://github.com/Papercusp/dock-workbench.git
+[submodule "libs/drawer-stack"]
+	path = libs/drawer-stack
+	url = https://github.com/Papercusp/drawer-stack.git
