@@ -1,7 +1,9 @@
 import { renderToStaticMarkup } from 'react-dom/server';
-import { describe, expect, it } from 'vitest';
+import { SyncContext } from '@papercusp/sync';
+import { describe, expect, it, vi } from 'vitest';
 
 import { BuyerTab, buyerProductsFromSyncRows, buyerStatsFromSyncRows } from './BuyerTab';
+import type { GuideEvent } from './events/api';
 
 /**
  * The BUYER-side cover for the event thumbnail.
@@ -96,6 +98,47 @@ describe('BuyerTab event thumbnail', () => {
 });
 
 describe('BuyerTab sync read models', () => {
+  it('reads the guide and active-event thumbnail through events.guide without a direct fetch', () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal('fetch', fetchMock);
+    const guideEvent: GuideEvent = {
+      eventId: 'live-room',
+      title: 'Renamed live room',
+      sellerId: 'seller-1',
+      sellerName: 'SideStage Seller',
+      status: 'live',
+      startsAt: '2026-08-14T15:00:00.000Z',
+      endedAt: null,
+      thumbnailUrl: 'data:image/png;base64,GUIDE',
+      viewers: 8,
+    };
+    const useDataImpl = vi.fn((options: { queryName: string }) => ({
+      data: options.queryName === 'events.guide' ? [guideEvent] : [],
+      loading: false,
+      fetching: false,
+      transport: 'SSE',
+      invalidate: vi.fn(),
+      error: null,
+    }));
+
+    const html = renderToStaticMarkup(
+      <SyncContext.Provider value={{ transport: 'SSE', useDataImpl, prefetch: vi.fn() } as never}>
+        <BuyerTab eventId="live-room" eventTitle="Stale title" products={[]} stats={STATS} />
+      </SyncContext.Provider>,
+    );
+
+    expect(useDataImpl).toHaveBeenCalledWith({
+      queryName: 'events.guide',
+      args: {},
+      enabled: true,
+      pollIntervalMs: 15_000,
+    });
+    expect(html).toContain('Renamed live room');
+    expect(html).toContain('src="data:image/png;base64,GUIDE"');
+    expect(fetchMock).not.toHaveBeenCalled();
+    vi.unstubAllGlobals();
+  });
+
   it('maps the event stats named-query row without changing the buyer view shape', () => {
     expect(buyerStatsFromSyncRows([STATS])).toEqual(STATS);
     expect(buyerStatsFromSyncRows([])).toBeNull();

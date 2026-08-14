@@ -49,7 +49,7 @@ describe('create → GET /events (EI-20426845001666103 / P-014)', () => {
       status: 'scheduled',
       thumbnailUrl: 'data:image/png;base64,AAAA',
     });
-    expect(invalidated).toContain('event.config');
+    expect(invalidated).toEqual(['event.config', 'events.guide']);
   });
 
   it('a follow-up rename PUT updates the guide row without duplicating it', async () => {

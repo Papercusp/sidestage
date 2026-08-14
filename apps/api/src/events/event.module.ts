@@ -1,10 +1,24 @@
-import { Module } from '@nestjs/common';
+import { Inject, Injectable, Module, type OnModuleInit } from '@nestjs/common';
 import type { Pool } from 'pg';
 import { ChatModule } from '../chat/chat.module';
 import { DatabaseModule, PG_POOL } from '../db/database.module';
 import { PgEventStore } from '../db/pg-event-store';
+import { SyncModule } from '../sync/sync.module';
+import { SyncQueryRegistry } from '../sync/sync-query.registry';
 import { EventController } from './event.controller';
 import { EVENT_STORE, EventService, InMemoryEventStore } from './event.service';
+
+@Injectable()
+export class EventSyncQueries implements OnModuleInit {
+  constructor(
+    @Inject(EventService) private readonly events: EventService,
+    @Inject(SyncQueryRegistry) private readonly queries: SyncQueryRegistry,
+  ) {}
+
+  onModuleInit(): void {
+    this.queries.register('events.guide', () => this.events.listForGuide());
+  }
+}
 
 /**
  * Event directory for the buyer Channel Guide (P-118 / D-019).
@@ -17,10 +31,11 @@ import { EVENT_STORE, EventService, InMemoryEventStore } from './event.service';
  * request time rather than persisting a counter that would outlive its viewers.
  */
 @Module({
-  imports: [DatabaseModule, ChatModule],
+  imports: [DatabaseModule, ChatModule, SyncModule],
   controllers: [EventController],
   providers: [
     EventService,
+    EventSyncQueries,
     {
       provide: EVENT_STORE,
       inject: [PG_POOL],

@@ -37,6 +37,7 @@ describe('ChatService', () => {
     expect(sharedEvents).toEqual([
       'event.chat.messages',
       'event.chat.presence',
+      'events.guide',
       'event.chat.stats',
       'event.stats',
     ]);
@@ -172,5 +173,23 @@ describe('ChatService', () => {
 
     expect(service.getPresence('demo-event')).toEqual([]);
     expect(events.slice(-2)).toEqual(['event.chat.presence', 'event.chat.stats']);
+  });
+
+  it('invalidates the unscoped event guide whenever presence changes', () => {
+    const invalidations = new SyncInvalidationService();
+    const service = new ChatService(invalidations);
+    const guideEvents: Array<{ name: string; args?: Record<string, unknown> }> = [];
+    invalidations.events().subscribe((event) => {
+      if (event.name === 'events.guide') guideEvents.push(event);
+    });
+
+    service.touchPresence('demo-event', { userId: 'buyer-1', displayName: 'Maya', role: 'buyer' });
+    service.removePresence('demo-event', 'buyer-1');
+
+    expect(guideEvents).toEqual([
+      { name: 'events.guide', tsMs: expect.any(Number) },
+      { name: 'events.guide', tsMs: expect.any(Number) },
+    ]);
+    expect(guideEvents.every((event) => event.args === undefined)).toBe(true);
   });
 });

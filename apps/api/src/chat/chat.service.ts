@@ -371,6 +371,11 @@ export class ChatService {
       data: JSON.stringify({ name, args: { eventId: resolvedEventId }, tsMs: now }),
     });
     this.syncInvalidations?.invalidate(name, { eventId: resolvedEventId });
+    if (name === 'event.chat.presence') {
+      // Viewer counts and live-room ordering are part of the unscoped guide.
+      // Do not attach eventId: events.guide is cached under empty args.
+      this.syncInvalidations?.invalidate('events.guide');
+    }
     if (name === 'event.chat.stats') {
       this.syncInvalidations?.invalidate('event.stats', { eventId: resolvedEventId });
     }

@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { ChatService } from '../chat/chat.service';
+import { SyncQueryRegistry } from '../sync/sync-query.registry';
+import { EventSyncQueries } from './event.module';
 import {
   compareForGuide,
   demoEventRecords,
@@ -39,6 +41,19 @@ class StubStore implements EventStore {
 }
 
 describe('event directory (P-118 / D-019)', () => {
+  it('registers the buyer directory as the events.guide named query', async () => {
+    const service = new EventService(
+      new StubStore([record({ eventId: 'live-room', status: 'live' })]),
+      new ChatService(),
+    );
+    const queries = new SyncQueryRegistry();
+    new EventSyncQueries(service, queries).onModuleInit();
+
+    await expect(queries.resolve('events.guide', {})).resolves.toEqual([
+      expect.objectContaining({ eventId: 'live-room', viewers: 0 }),
+    ]);
+  });
+
   it('groups live before upcoming before ended', () => {
     expect(statusRank('live')).toBeLessThan(statusRank('scheduled'));
     expect(statusRank('scheduled')).toBeLessThan(statusRank('ended'));

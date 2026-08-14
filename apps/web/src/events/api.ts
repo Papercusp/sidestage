@@ -85,7 +85,8 @@ interface ActionProposal {
  * Callers need to tell "this event has no config" (a 404 — ordinary, expected)
  * apart from "the API is broken" (a 5xx — an outage). Before this, the status
  * existed only inside a message string, so the one caller that swallows errors
- * could not distinguish them and swallowed both. See fetchEventThumbnailUrl.
+ * could not distinguish them and swallowed both. Callers can now branch on
+ * the structured status rather than parsing an error message.
  */
 export class EventApiError extends Error {
   constructor(message: string, readonly status: number) {
@@ -127,48 +128,6 @@ async function fetchEventConfig(eventId: string, apiBaseUrl?: string): Promise<E
   );
 }
 
-/**
- * The event's thumbnail, for buyer-facing surfaces.
- *
- * A thumbnail is decoration, so this NEVER rejects: an unreachable API or an
- * event with no config yet resolves to undefined and the caller renders its
- * placeholder. Letting it throw would put a failed decoration fetch on the same
- * footing as a failed inventory hold, and the buyer view would surface an error
- * for a missing picture.
- *
- * But NEVER REJECTING IS NOT THE SAME AS NEVER REPORTING, and conflating the two
- * cost real time: GET /events/:id/config once 500'd for every event on the site
- * (the database was missing the P-114 policy tables) and this function returned
- * undefined for all of them. A total API outage rendered as the placeholder glyph
- * and read as "these events have no thumbnails". Nothing anywhere said otherwise.
- *
- * So the swallow now discriminates. A 4xx is the expected, boring case — no
- * config for this event — and stays silent. A 5xx or a transport failure is the
- * app telling us something is broken, and gets reported to the console while the
- * UI still degrades gracefully.
- */
-export async function fetchEventThumbnailUrl(
-  eventId: string,
-  apiBaseUrl?: string,
-): Promise<string | undefined> {
-  try {
-    return (await fetchEventConfig(eventId, apiBaseUrl)).thumbnailUrl;
-  } catch (error) {
-    const status = error instanceof EventApiError ? error.status : undefined;
-    // 4xx: this event simply has no config. Expected — say nothing.
-    if (status !== undefined && status < 500) return undefined;
-    // 5xx or a transport error: the API is failing. Never let that pass silently
-    // as decoration — it is the shape of an outage.
-    console.error(
-      `[events] thumbnail fetch failed for "${eventId}" — the events API is not healthy` +
-        `${status !== undefined ? ` (HTTP ${status})` : ''}. ` +
-        'Rendering the placeholder, but this is an API failure, not a missing image.',
-      error,
-    );
-    return undefined;
-  }
-}
-
 /* ── The event directory, for the buyer Channel Guide (P-118 / D-019) ─────── */
 
 /** One row of the "What's on" guide, as served by GET /events. */
@@ -184,24 +143,6 @@ export interface GuideEvent {
   thumbnailUrl?: string;
   /** Live chat presence, read at request time — never a stored counter. */
   viewers: number;
-}
-
-interface EventListResponse {
-  events: GuideEvent[];
-}
-
-/**
- * Every event a buyer may browse, already grouped-ordered by the API
- * (Live now → Up next → Ended).
- *
- * Unlike the thumbnail read above this DOES reject: the guide is the only way
- * to reach another seller's event, so a silent empty list would look like
- * "nothing is on" — a confident wrong answer — rather than "we could not ask".
- * The caller distinguishes the two and says so.
- */
-export async function fetchEventGuide(apiBaseUrl?: string): Promise<GuideEvent[]> {
-  const response = await requestJson<EventListResponse>(eventUrl('/events', apiBaseUrl));
-  return Array.isArray(response?.events) ? response.events : [];
 }
 
 async function fetchVariant(productId: string, apiBaseUrl?: string): Promise<CatalogVariant> {

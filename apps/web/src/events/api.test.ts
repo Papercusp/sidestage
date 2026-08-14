@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { adjustSellerEventStock, executeSellerAction, fetchEventThumbnailUrl, setupSellerEvent, startSellerAuction, type SellerEventItem } from './api';
+import { adjustSellerEventStock, executeSellerAction, setupSellerEvent, startSellerAuction, type SellerEventItem } from './api';
 
 function json(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {
@@ -181,67 +181,3 @@ const ITEM: SellerEventItem = {
   quantity: 3,
   attributes: {},
 };
-
-/**
- * The thumbnail fetch must never reject — a picture is decoration. But it must
- * also never make an OUTAGE look like decoration, which is what it used to do:
- * /events/:id/config 500'd for every event on the site and each one rendered the
- * placeholder, indistinguishable from an event that simply has no image.
- */
-describe('fetchEventThumbnailUrl error discrimination', () => {
-  it('returns the thumbnail on success', async () => {
-    vi.stubGlobal('fetch', vi.fn(async () => json({ eventId: 'e', thumbnailUrl: 'data:image/png;base64,AAA' })));
-    await expect(fetchEventThumbnailUrl('e')).resolves.toBe('data:image/png;base64,AAA');
-  });
-
-  it('stays SILENT on a 404 — that event just has no config', async () => {
-    const error = vi.spyOn(console, 'error').mockImplementation(() => {});
-    vi.stubGlobal('fetch', vi.fn(async () => json({ message: 'not found' }, 404)));
-
-    await expect(fetchEventThumbnailUrl('missing')).resolves.toBeUndefined();
-    expect(error).not.toHaveBeenCalled();
-    error.mockRestore();
-  });
-
-  it('REPORTS a 500 while still resolving undefined, so the outage is visible but the UI survives', async () => {
-    const error = vi.spyOn(console, 'error').mockImplementation(() => {});
-    vi.stubGlobal('fetch', vi.fn(async () => json({ message: 'Internal server error' }, 500)));
-
-    // Still degrades gracefully — the caller renders its placeholder.
-    await expect(fetchEventThumbnailUrl('sunday-drop')).resolves.toBeUndefined();
-    // ...but no longer silently.
-    expect(error).toHaveBeenCalledTimes(1);
-    const logged = String(error.mock.calls[0]?.[0] ?? '');
-    expect(logged).toContain('sunday-drop');
-    expect(logged).toContain('500');
-    expect(logged).toContain('not a missing image');
-    error.mockRestore();
-  });
-
-  it('REPORTS a transport failure, which carries no status at all', async () => {
-    const error = vi.spyOn(console, 'error').mockImplementation(() => {});
-    vi.stubGlobal('fetch', vi.fn(async () => { throw new TypeError('Failed to fetch'); }));
-
-    await expect(fetchEventThumbnailUrl('sunday-drop')).resolves.toBeUndefined();
-    expect(error).toHaveBeenCalledTimes(1);
-    error.mockRestore();
-  });
-
-  it('treats every 5xx as reportable, not just 500', async () => {
-    const error = vi.spyOn(console, 'error').mockImplementation(() => {});
-    vi.stubGlobal('fetch', vi.fn(async () => json({ message: 'bad gateway' }, 502)));
-
-    await expect(fetchEventThumbnailUrl('e')).resolves.toBeUndefined();
-    expect(error).toHaveBeenCalledTimes(1);
-    error.mockRestore();
-  });
-
-  it('treats a 400 as silent, pinning the boundary at exactly 500', async () => {
-    const error = vi.spyOn(console, 'error').mockImplementation(() => {});
-    vi.stubGlobal('fetch', vi.fn(async () => json({ message: 'bad request' }, 400)));
-
-    await expect(fetchEventThumbnailUrl('e')).resolves.toBeUndefined();
-    expect(error).not.toHaveBeenCalled();
-    error.mockRestore();
-  });
-});
