@@ -1,10 +1,14 @@
 /** @vitest-environment jsdom */
 
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { LiveTranscriptOverlay, liveTranscriptStateLabel } from './LiveTranscriptOverlay';
 import type { LiveTranscriptController } from './use-live-transcript';
+
+const overlayCss = readFileSync(resolve(process.cwd(), 'src/live-transcript-overlay.css'), 'utf8');
 
 function transcriptFixture(overrides: Partial<LiveTranscriptController> = {}): LiveTranscriptController {
   return {
@@ -38,6 +42,13 @@ afterEach(async () => {
 });
 
 describe('LiveTranscriptOverlay', () => {
+  it('reserves separate mobile bands for status, audience chat, and captions', () => {
+    expect(overlayCss).toMatch(/@media \(max-width: 560px\) \{[\s\S]*?\.seller-stream-preview > \.stream-video \{[^}]*min-height:\s*25rem;[^}]*aspect-ratio:\s*auto;/);
+    expect(overlayCss).toMatch(/@media \(max-width: 560px\) \{[\s\S]*?\.seller-stream-preview > \.stream-video-overlay \{[^}]*top:\s*\.5rem;[^}]*right:\s*\.5rem;[^}]*left:\s*\.5rem;[^}]*max-width:\s*none;/);
+    expect(overlayCss).toMatch(/@media \(max-width: 560px\) \{[\s\S]*?\.seller-stream-preview \.seller-video-chat-overlay \{[^}]*top:\s*5\.5rem;[^}]*right:\s*\.5rem;[^}]*left:\s*\.5rem;[^}]*width:\s*auto;/);
+    expect(overlayCss).toMatch(/@media \(max-width: 560px\) \{[\s\S]*?\.seller-stream-preview \.seller-video-chat-overlay\[data-open\] \{[^}]*height:\s*7\.5rem;/);
+  });
+
   it('uses explicit, user-facing labels for every transcription state', () => {
     expect(liveTranscriptStateLabel('idle')).toBe('Captions start with the event');
     expect(liveTranscriptStateLabel('connecting')).toBe('Starting captions…');
