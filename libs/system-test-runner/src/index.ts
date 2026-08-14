@@ -257,6 +257,31 @@ export function validateAcceptanceComposeConfig(output: string, projectName: str
       throw new Error(`service ${serviceName} attaches a non-isolated network`);
     }
   }
+  const apiEnvironment = record(
+    record(services.api, 'service api').environment,
+    'service api environment',
+  );
+  const internalEndpoints: Record<string, string | RegExp> = {
+    NODE_ENV: 'test',
+    TYPESENSE_HOST: 'typesense',
+    REDIS_URL: 'redis://redis:6379',
+    MEDIAMTX_HOST: 'mediamtx',
+    MEDIAMTX_WHIP_URL: 'http://mediamtx:8889',
+    MEDIAMTX_WHEP_URL: 'http://mediamtx:8889',
+    DATABASE_URL: /^postgresql:\/\/[^@]+@postgres:5432\//,
+  };
+  for (const [key, expected] of Object.entries(internalEndpoints)) {
+    const value = apiEnvironment[key];
+    const matches = typeof expected === 'string'
+      ? value === expected
+      : typeof value === 'string' && expected.test(value);
+    if (!matches) throw new Error(`service api ${key} does not target the isolated acceptance dependency`);
+  }
+  for (const key of ['SQUARE_APP_ID', 'SQUARE_LOCATION_ID', 'SQUARE_ACCESS_TOKEN', 'EASYPOST_API_KEY']) {
+    if (apiEnvironment[key] !== '') {
+      throw new Error(`service api must not inherit host credential ${key}`);
+    }
+  }
   const networks = record(config.networks, 'docker compose config networks');
   const defaultNetwork = record(networks.default, 'acceptance default network');
   if (defaultNetwork.external === true || defaultNetwork.name !== `${projectName}_default`) {

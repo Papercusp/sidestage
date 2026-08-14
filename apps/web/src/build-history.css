@@ -497,6 +497,176 @@
   color: var(--danger);
 }
 
+.build-plan-dialog-overlay {
+  position: fixed;
+  z-index: 100;
+  inset: 0;
+  background: color-mix(in srgb, #241d17 62%, transparent);
+  backdrop-filter: blur(5px);
+  animation: build-dialog-fade-in 140ms ease-out;
+}
+
+.build-plan-dialog {
+  position: fixed;
+  z-index: 101;
+  top: 50%;
+  left: 50%;
+  display: grid;
+  width: min(94vw, 92rem);
+  height: min(92vh, 60rem);
+  min-width: 0;
+  min-height: 0;
+  grid-template-rows: auto auto minmax(0, 1fr);
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--brand-red) 26%, var(--border));
+  border-radius: 1rem;
+  color: var(--text);
+  background: var(--surface);
+  box-shadow: 0 2rem 6rem rgb(31 22 16 / 36%);
+  transform: translate(-50%, -50%);
+  animation: build-dialog-enter 160ms ease-out;
+}
+
+.build-plan-dialog:focus {
+  outline: none;
+}
+
+.build-plan-dialog-header {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
+  gap: 1rem;
+  padding: 1rem 1.2rem;
+  border-bottom: 1px solid var(--border);
+  background: color-mix(in srgb, var(--brand-yellow) 8%, var(--surface));
+}
+
+.build-plan-dialog-eyebrow,
+.build-plan-dialog-provenance dt {
+  color: var(--red-text);
+  font-size: .62rem;
+  font-weight: 800;
+  letter-spacing: .065em;
+  text-transform: uppercase;
+}
+
+.build-plan-dialog-header h2 {
+  margin: .3rem 0 0;
+  font-size: clamp(1.2rem, 2vw, 1.7rem);
+  letter-spacing: -.035em;
+  line-height: 1.15;
+}
+
+.build-plan-dialog-header p {
+  max-width: 80ch;
+  margin: .35rem 0 0;
+  color: var(--muted);
+  font-size: .72rem;
+  line-height: 1.5;
+}
+
+.build-plan-dialog-close {
+  display: grid;
+  width: 2.6rem;
+  height: 2.6rem;
+  place-items: center;
+  border: 1px solid var(--border);
+  border-radius: 50%;
+  color: var(--text);
+  background: var(--surface);
+  cursor: pointer;
+  font: inherit;
+  font-size: 1.45rem;
+  line-height: 1;
+}
+
+.build-plan-dialog-close:hover {
+  border-color: var(--red-text);
+  color: var(--red-text);
+}
+
+.build-plan-dialog-provenance {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: .65rem;
+  margin: 0;
+  padding: .7rem 1.2rem;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface-soft);
+}
+
+.build-plan-dialog-provenance > div {
+  min-width: 0;
+}
+
+.build-plan-dialog-provenance dd {
+  overflow: hidden;
+  margin: .18rem 0 0;
+  color: var(--muted);
+  font-size: .68rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.build-plan-dialog-provenance code {
+  color: var(--text);
+}
+
+.build-plan-dialog-document {
+  --fg: #28231f;
+  --fg-dim: #514941;
+  --fg-mute: #766c63;
+  --bg-popover: #f5f1ea;
+  --border-strong: #bdb2a7;
+  min-width: 0;
+  min-height: 0;
+  overflow: auto;
+  padding: 1.1rem 1.2rem 2rem;
+  color: #28231f;
+  background: #fffdfa;
+  overscroll-behavior: contain;
+}
+
+.build-plan-dialog-document .pc-md-outline a {
+  color: #6d6259;
+}
+
+.build-plan-dialog-document .pc-md-outline a:hover {
+  color: #2b2520;
+  background: #efe8de;
+}
+
+.build-plan-dialog-missing {
+  align-self: start;
+  margin: 1.2rem;
+  padding: 1rem;
+  border: 1px solid color-mix(in srgb, var(--danger) 38%, var(--border));
+  border-radius: .75rem;
+  color: var(--danger);
+  background: color-mix(in srgb, var(--danger) 6%, var(--surface));
+}
+
+.build-plan-dialog-missing p {
+  margin: .35rem 0 0;
+  color: var(--muted);
+}
+
+@keyframes build-dialog-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes build-dialog-enter {
+  from {
+    opacity: 0;
+    transform: translate(-50%, calc(-50% + .65rem)) scale(.992);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1);
+  }
+}
+
 @media (max-width: 900px) {
   .build-metric-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -562,5 +732,34 @@
 
   .build-item-heading time {
     white-space: normal;
+  }
+
+  .build-plan-dialog {
+    width: 100vw;
+    height: 100dvh;
+    border: 0;
+    border-radius: 0;
+  }
+
+  .build-plan-dialog-header,
+  .build-plan-dialog-provenance,
+  .build-plan-dialog-document {
+    padding-right: 1rem;
+    padding-left: 1rem;
+  }
+
+  .build-plan-dialog-provenance {
+    grid-template-columns: 1fr;
+  }
+
+  .build-plan-dialog-document .pc-md-outline {
+    display: none !important;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .build-plan-dialog-overlay,
+  .build-plan-dialog {
+    animation: none;
   }
 }

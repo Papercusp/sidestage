@@ -79,11 +79,27 @@ function healthRows(): string {
 }
 
 function configObject(): Record<string, unknown> {
-  return {
-    services: Object.fromEntries(ACCEPTANCE_SERVICES.map((service) => [service, {
+  const services: Record<string, Record<string, unknown>> = Object.fromEntries(
+    ACCEPTANCE_SERVICES.map((service) => [service, {
       image: `sidestage-${service}:stable`,
       networks: { default: null },
-    }])),
+    }]),
+  );
+  services.api.environment = {
+    NODE_ENV: 'test',
+    DATABASE_URL: 'postgresql://acceptance:secret@postgres:5432/acceptance_run_1',
+    TYPESENSE_HOST: 'typesense',
+    REDIS_URL: 'redis://redis:6379',
+    MEDIAMTX_HOST: 'mediamtx',
+    MEDIAMTX_WHIP_URL: 'http://mediamtx:8889',
+    MEDIAMTX_WHEP_URL: 'http://mediamtx:8889',
+    SQUARE_APP_ID: '',
+    SQUARE_LOCATION_ID: '',
+    SQUARE_ACCESS_TOKEN: '',
+    EASYPOST_API_KEY: '',
+  };
+  return {
+    services,
     networks: { default: { name: `${PROJECT_NAME}_default`, ipam: {} } },
     volumes: null,
   };
@@ -142,11 +158,17 @@ describe('acceptance Compose isolation', () => {
     expect(() => validateAcceptanceComposeConfig(JSON.stringify(namedVolume), PROJECT_NAME)).toThrow(/named volumes/);
 
     const production = configObject();
-    (production.services as Record<string, Record<string, unknown>>).api.environment = {
-      URL: 'https://sidestage.buyrestart.com',
-    };
+    const productionApi = (production.services as Record<string, Record<string, unknown>>).api;
+    (productionApi.environment as Record<string, unknown>).URL = 'https://sidestage.buyrestart.com';
     expect(() => validateAcceptanceComposeConfig(JSON.stringify(production), PROJECT_NAME)).toThrow(
       /forbidden production marker/,
+    );
+
+    const hostCredential = configObject();
+    const hostCredentialApi = (hostCredential.services as Record<string, Record<string, unknown>>).api;
+    (hostCredentialApi.environment as Record<string, unknown>).SQUARE_ACCESS_TOKEN = 'production-secret';
+    expect(() => validateAcceptanceComposeConfig(JSON.stringify(hostCredential), PROJECT_NAME)).toThrow(
+      /must not inherit host credential SQUARE_ACCESS_TOKEN/,
     );
   });
 });
