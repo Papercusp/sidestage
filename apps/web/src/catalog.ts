@@ -20,6 +20,8 @@ export interface CatalogVariant {
   sku: string;
   /** The SideStage variant axis — what separates one variant from its siblings. */
   color?: string;
+  /** Normalized size option when this product has a size axis. */
+  size?: string;
   /** Restart import compatibility (resale grade + lead time), never the axis. */
   condition: string | null;
   handlingDays: number | null;
@@ -186,6 +188,7 @@ export function variantToCatalogRow(variant: CatalogVariant): CatalogRow {
     productType: variant.productType,
     sku: variant.sku,
     color: variant.color,
+    size: variant.size,
     condition: variant.condition ?? 'NEW',
     handlingDays: variant.handlingDays,
     priceCents: variant.priceCents,

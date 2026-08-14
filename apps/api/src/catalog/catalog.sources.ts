@@ -10,6 +10,7 @@ import type {
 
 const DEFAULT_PAGE_SIZE = 24;
 const MAX_PAGE_SIZE = 100;
+export const EVENT_DEMO_COLLECTION = 'event-demo-200';
 
 /** Lazy-load @papercusp/typesense: the lib is TS-source-only (main: src/index.ts),
  * so the compiled prod image cannot require it — a static import crash-looped prod
@@ -76,7 +77,15 @@ const VARIANT_COLUMNS = `v.id, v.group_id AS "groupId", c.title, c.brand, c.prod
                  JOIN product_option_values value
                    ON value.id = selected.value_id AND value.axis_id = axis.id
                 WHERE selected.variant_id = v.id
-                LIMIT 1) AS "color"`;
+                LIMIT 1) AS "color",
+              (SELECT value.label
+                 FROM storefront_product_option selected
+                 JOIN product_option_axes axis
+                   ON axis.id = selected.axis_id AND axis.slug = 'size'
+                 JOIN product_option_values value
+                   ON value.id = selected.value_id AND value.axis_id = axis.id
+                WHERE selected.variant_id = v.id
+                LIMIT 1) AS "size"`;
 
 interface VariantRow {
   id: string;
@@ -86,6 +95,7 @@ interface VariantRow {
   productType: string | null;
   sku: string;
   color: string | null;
+  size: string | null;
   condition: string | null;
   handlingDays: number | null;
   priceCents: number;
@@ -105,6 +115,7 @@ function rowToVariant(row: VariantRow): CatalogVariant {
     productType: row.productType ?? 'OTHER',
     sku: row.sku,
     color: row.color ?? undefined,
+    size: row.size ?? undefined,
     condition: row.condition,
     handlingDays: row.handlingDays,
     priceCents: row.priceCents,
@@ -121,7 +132,10 @@ function rowToVariant(row: VariantRow): CatalogVariant {
 export class PgCatalogSource implements CatalogSource {
   private readonly logger = new Logger(PgCatalogSource.name);
 
-  constructor(private readonly pool: Pool) {}
+  constructor(
+    private readonly pool: Pool,
+    private readonly collection: string = EVENT_DEMO_COLLECTION,
+  ) {}
 
   async search(query: CatalogQuery): Promise<CatalogPage> {
     const { q, productType, availability, page, pageSize } = normalizeQuery(query);
@@ -129,7 +143,7 @@ export class PgCatalogSource implements CatalogSource {
     // typo-tolerant, one hit per product group, true corpus match count — with
     // graceful SQL degradation when Typesense is unavailable (spec parity,
     // sidestage-code-quality P-110).
-    const typesense = q ? await loadTypesense(this.logger) : null;
+    const typesense = q && !this.collection ? await loadTypesense(this.logger) : null;
     if (q && typesense) {
       try {
         const { hits, found } = await typesense.typesenseService.search({
@@ -181,8 +195,11 @@ export class PgCatalogSource implements CatalogSource {
 
   private async runSearch(query: CatalogQuery, qClause: string | null): Promise<CatalogPage> {
     const { q, productType, availability, page, pageSize } = normalizeQuery(query);
-    const where: string[] = ['v.active'];
-    const params: unknown[] = [];
+    const where: string[] = [
+      'v.active',
+      `($1 = '' OR c.properties->>'sidestageCollection' = $1)`,
+    ];
+    const params: unknown[] = [this.collection];
 
     if (q && qClause) {
       params.push(q);
@@ -226,8 +243,9 @@ export class PgCatalogSource implements CatalogSource {
   async productTypes(limit = 40): Promise<string[]> {
     const result = await this.pool.query<{ productType: string }>(
       `SELECT product_type AS "productType" FROM product_catalog
+       WHERE ($2 = '' OR properties->>'sidestageCollection' = $2)
        GROUP BY product_type ORDER BY count(*) DESC LIMIT $1`,
-      [Math.min(200, Math.max(1, limit))],
+      [Math.min(200, Math.max(1, limit)), this.collection],
     );
     return result.rows.map((row) => row.productType);
   }
@@ -237,8 +255,9 @@ export class PgCatalogSource implements CatalogSource {
       `SELECT ${VARIANT_COLUMNS}
        FROM storefront_product v
        LEFT JOIN product_catalog c ON c.group_id = v.group_id AND c.region = v.region
-       WHERE v.id = $1`,
-      [id],
+       WHERE v.id = $1
+         AND ($2 = '' OR c.properties->>'sidestageCollection' = $2)`,
+      [id, this.collection],
     );
     const row = result.rows[0];
     return row ? rowToVariant(row) : undefined;

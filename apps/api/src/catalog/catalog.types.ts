@@ -28,6 +28,8 @@ export interface CatalogVariant {
    * imported row that carries no color axis.
    */
   color?: string;
+  /** Normalized size option, when the product carries a size axis. */
+  size?: string;
   /**
    * Restart import compatibility, not a SideStage variant axis: these describe
    * a resale grade and a fulfilment lead time, so they are carried through the

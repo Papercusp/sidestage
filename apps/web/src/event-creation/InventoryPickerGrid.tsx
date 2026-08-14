@@ -26,7 +26,8 @@ export interface InventoryPickerGridProps {
  * back to the resale grade and lead time it was imported with (WI-38716).
  */
 export function variantAxisLabel(row: CatalogRow): string {
-  if (row.color) return row.color;
+  const options = [row.color, row.size].filter((value): value is string => Boolean(value));
+  if (options.length) return options.join(' · ');
   return `${row.condition} · ${row.handlingDays ?? "—"}d handling`;
 }
 

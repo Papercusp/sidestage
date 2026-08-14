@@ -262,11 +262,6 @@ export function EventCreationPanel({
           {thumbnailError ? <p className="event-form-error" role="alert">{thumbnailError}</p> : null}
         </div>
 
-        <div className="event-selection-summary" aria-live="polite">
-          <strong>{selectedRows.length}</strong> selected
-          <span>·</span>
-          <span>{filteredRows.length} of {catalog.length} catalog items</span>
-        </div>
       </div>
 
       <div className="event-filters" role="search" aria-label="Catalog filters">
@@ -302,6 +297,21 @@ export function EventCreationPanel({
         </p>
       ) : null}
 
+      <div className="event-creation-toolbar">
+        <div className="event-selection-summary" aria-live="polite">
+          <strong>{selectedRows.length}</strong> selected
+          <span>·</span>
+          <span>{filteredRows.length} of {catalog.length} catalog items</span>
+        </div>
+        <div className="event-creation-toolbar-action">
+          <span>{selectedRows.length ? `${selectedRows.length} items ready` : 'Select items to build your event'}</span>
+          <button className="button primary" type="button" disabled={!selectedRows.length || submitting} onClick={() => void handleCreate()}>
+            {submitting ? 'Reserving…' : submitLabel} <span aria-hidden="true">→</span>
+          </button>
+        </div>
+      </div>
+      {error ? <p className="event-form-error" role="alert">{error}</p> : null}
+
       <InventoryPickerGrid
         rows={filteredRows}
         selectedRowIds={selectedRowIds}
@@ -323,16 +333,6 @@ export function EventCreationPanel({
         </div>
       ) : null}
 
-      <div className="event-creation-footer">
-        <div>
-          <strong>{selectedRows.length ? `${selectedRows.length} items ready for your event` : 'Select items to build your event'}</strong>
-          <span>Submitting creates source-tracked event reservations for every selected variant.</span>
-        </div>
-        <button className="button primary" type="button" disabled={!selectedRows.length || submitting} onClick={() => void handleCreate()}>
-          {submitting ? 'Reserving…' : submitLabel} <span aria-hidden="true">→</span>
-        </button>
-      </div>
-      {error ? <p className="event-form-error" role="alert">{error}</p> : null}
     </section>
   );
 }
