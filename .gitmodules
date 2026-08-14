@@ -21,4 +21,4 @@
 	url = https://github.com/Papercusp/test-config.git
 [submodule "libs/dock-workbench"]
 	path = libs/dock-workbench
-	url = git@github.com:Papercusp/dock-workbench.git
+	url = https://github.com/Papercusp/dock-workbench.git
