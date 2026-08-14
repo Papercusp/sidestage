@@ -1,56 +1,24 @@
-/* Buyer "What's on" Channel Guide drawer — P-118 / D-019.
+/* Buyer "What's on" Channel Guide sidebar — P-118 / D-019.
  *
  * Every colour resolves through an R3 :root token (retheme D-004). There is
  * deliberately no hex literal in this file: D-019 requires the guide to adopt
  * the retheme tokens, and a local hex would survive the next palette change
  * as a stale island. */
 
-.channel-guide-layer {
-  position: fixed;
-  inset: 0;
-  z-index: 60;
-  display: flex;
-  justify-content: flex-end;
-}
-
-/* The scrim dims the room behind the drawer. Its own stacking context sits
-   below the panel so the panel stays clickable. */
-.channel-guide-scrim {
-  position: absolute;
-  inset: 0;
-  background: var(--scrim);
-  animation: channel-guide-fade 140ms ease-out;
-}
-
 .channel-guide-panel {
-  position: relative;
+  position: sticky;
+  top: 1rem;
+  align-self: start;
   display: flex;
   flex-direction: column;
-  width: min(26rem, 100vw);
-  max-height: 100vh;
+  min-width: 0;
+  width: 100%;
+  max-height: calc(100vh - 2rem);
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: .9rem;
   background: var(--surface);
-  border-left: 1px solid var(--border);
   box-shadow: var(--shadow-float);
-  animation: channel-guide-slide 180ms cubic-bezier(.22, .61, .36, 1);
-}
-
-/* Respect a reduced-motion preference: the drawer still appears, it just does
-   not travel. */
-@media (prefers-reduced-motion: reduce) {
-  .channel-guide-panel,
-  .channel-guide-scrim {
-    animation: none;
-  }
-}
-
-@keyframes channel-guide-slide {
-  from { transform: translateX(1.5rem); opacity: 0; }
-  to   { transform: translateX(0);      opacity: 1; }
-}
-
-@keyframes channel-guide-fade {
-  from { opacity: 0; }
-  to   { opacity: 1; }
 }
 
 .channel-guide-header {
@@ -79,27 +47,9 @@
   line-height: 1.2;
 }
 
-.channel-guide-close {
-  flex: 0 0 auto;
-  width: 2rem;
-  height: 2rem;
-  display: grid;
-  place-items: center;
-  border: 1px solid var(--border);
-  border-radius: .5rem;
-  background: var(--surface-raised);
-  color: var(--muted);
-  font-size: .8rem;
-  cursor: pointer;
-}
-
-.channel-guide-close:hover {
-  color: var(--text);
-  border-color: var(--muted);
-}
-
 .channel-guide-body {
   flex: 1 1 auto;
+  min-height: 0;
   overflow-y: auto;
   padding: .5rem .75rem 1.5rem;
 }
@@ -258,37 +208,13 @@
   font-weight: 700;
 }
 
-/* ── The trigger that lives in the buyer header ───────────────────────────── */
+@media (max-width: 800px) {
+  .channel-guide-panel {
+    position: static;
+    max-height: none;
+  }
 
-.whats-on-button {
-  display: inline-flex;
-  align-items: center;
-  gap: .45rem;
-  padding: .45rem .8rem;
-  border: 1px solid var(--border);
-  border-radius: .6rem;
-  background: var(--surface-raised);
-  color: var(--text);
-  font-size: .82rem;
-  font-weight: 650;
-  cursor: pointer;
-}
-
-.whats-on-button:hover {
-  border-color: var(--brand-red);
-  color: var(--red-text);
-}
-
-.whats-on-button:focus-visible {
-  outline: 2px solid var(--brand-red);
-  outline-offset: 1px;
-}
-
-.whats-on-count {
-  padding: .05rem .35rem;
-  border-radius: 999px;
-  background: var(--brand-red);
-  color: var(--on-brand-red);
-  font-size: .68rem;
-  font-weight: 700;
+  .channel-guide-body {
+    max-height: min(28rem, 55vh);
+  }
 }

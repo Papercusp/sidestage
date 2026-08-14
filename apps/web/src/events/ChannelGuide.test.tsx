@@ -41,8 +41,6 @@ const EVENTS: GuideEvent[] = [
 function render(props: Partial<React.ComponentProps<typeof ChannelGuide>> = {}) {
   return renderToStaticMarkup(
     <ChannelGuide
-      open
-      onClose={() => {}}
       events={EVENTS}
       currentEventId="sunday-drop"
       onSelect={() => {}}
@@ -53,8 +51,11 @@ function render(props: Partial<React.ComponentProps<typeof ChannelGuide>> = {}) 
 }
 
 describe('ChannelGuide (P-118 / D-019)', () => {
-  it('renders nothing at all while closed, so it steals no space from the stream', () => {
-    expect(render({ open: false })).toBe('');
+  it('always renders as the buyer layout\'s What\'s on sidebar', () => {
+    const markup = render({ events: [] });
+    expect(markup).toContain('<aside');
+    expect(markup).toContain('class="channel-guide-panel"');
+    expect(markup).toContain('aria-labelledby="channel-guide-title"');
   });
 
   it('groups events under the three headings the owner picked', () => {
@@ -111,11 +112,12 @@ describe('ChannelGuide (P-118 / D-019)', () => {
     expect(empty).not.toContain('Loading events…');
   });
 
-  it('is announced as a dialog labelled "What\'s on"', () => {
+  it('is a complementary landmark rather than a modal dialog', () => {
     const markup = render();
-    expect(markup).toContain('role="dialog"');
-    expect(markup).toContain('aria-modal="true"');
-    expect(markup).toContain('aria-label="What&#x27;s on"');
+    expect(markup).toContain('<aside');
+    expect(markup).toContain('id="channel-guide-title"');
+    expect(markup).not.toContain('role="dialog"');
+    expect(markup).not.toContain('aria-modal="true"');
   });
 
   it('carries no hard-coded colour — every colour comes from an R3 token', () => {
