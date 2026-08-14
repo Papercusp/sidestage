@@ -3,6 +3,7 @@ import { SyncModule } from '../sync/sync.module';
 import { SyncQueryRegistry, type SyncQueryArgs } from '../sync/sync-query.registry';
 import { ChatController } from './chat.controller';
 import { ChatService } from './chat.service';
+import { ConfiguredProductFocusClassifier } from './product-focus.classifier';
 
 function eventIdFrom(args: SyncQueryArgs): string {
   return typeof args.eventId === 'string' ? args.eventId : '';
@@ -27,7 +28,7 @@ export class ChatSyncQueries implements OnModuleInit {
 @Module({
   imports: [SyncModule],
   controllers: [ChatController],
-  providers: [ChatService, ChatSyncQueries],
+  providers: [ChatService, ChatSyncQueries, ConfiguredProductFocusClassifier],
   exports: [ChatService],
 })
 export class ChatModule {}

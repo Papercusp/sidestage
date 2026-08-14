@@ -13,10 +13,14 @@ import {
   type PresenceInput,
   type TranscriptMomentInput,
 } from './chat.service';
+import { ConfiguredProductFocusClassifier } from './product-focus.classifier';
 
 @Controller()
 export class ChatController {
-  constructor(@Inject(ChatService) private readonly chat: ChatService) {}
+  constructor(
+    @Inject(ChatService) private readonly chat: ChatService,
+    @Inject(ConfiguredProductFocusClassifier) private readonly productFocus?: ConfiguredProductFocusClassifier,
+  ) {}
 
   @Post('chat/events/:eventId/messages')
   sendMessage(@Param('eventId') eventId: string, @Body() body: ChatMessageInput) {
@@ -26,6 +30,19 @@ export class ChatController {
   @Post('chat/events/:eventId/transcript')
   addTranscriptMoment(@Param('eventId') eventId: string, @Body() body: TranscriptMomentInput) {
     return this.chat.addTranscriptMoment(eventId, body ?? {});
+  }
+
+  @Post('chat/events/:eventId/transcript/product-focus')
+  classifyTranscriptProductFocus(@Param('eventId') eventId: string, @Body() body: unknown) {
+    void eventId;
+    return this.productFocus?.classify(body) ?? {
+      decision: 'unknown',
+      productId: null,
+      confidence: 0,
+      evidenceSegmentIds: [],
+      requestSequence: 0,
+      source: 'unavailable',
+    };
   }
 
   @Post('chat/events/:eventId/presence')

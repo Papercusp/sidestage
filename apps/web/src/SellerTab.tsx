@@ -26,6 +26,7 @@ import { SellerDockMissingPanel, sellerPanelRegistry } from './seller-dock-panel
 import type { CatalogProduct } from './seller-products';
 import { connectPublisher, createEventRoom, type EventRoom, type PublisherSession } from './streaming';
 import { useLiveTranscript, type TranscriptProductOption } from './use-live-transcript';
+import { requestDeepgramToken } from './transcription';
 import './studio.css';
 
 export const STUDIO_VIEW_TABS = [
@@ -134,7 +135,8 @@ export function SellerTab({
   const transcript = useLiveTranscript({
     active: Boolean(stream.session?.localStream),
     mediaStream: stream.session?.localStream,
-    deepgramToken: import.meta.env.VITE_DEEPGRAM_TOKEN,
+    deepgramTokenProvider: () => requestDeepgramToken(import.meta.env.VITE_API_URL),
+    fallbackToWebSpeech: true,
     products: transcriptProducts,
     activeProductId: selectedProductId,
     onActiveProductChange,

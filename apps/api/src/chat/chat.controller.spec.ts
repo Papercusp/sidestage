@@ -1,6 +1,7 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { ChatController } from './chat.controller';
 import { ChatService } from './chat.service';
+import type { ConfiguredProductFocusClassifier } from './product-focus.classifier';
 
 describe('ChatController', () => {
   it('accepts seller transcript moments while queuing buyer questions for Copilot review', () => {
@@ -35,5 +36,29 @@ describe('ChatController', () => {
     expect(service.getReplayChapters('demo-event')).toEqual([
       expect.objectContaining({ productId: 'aurora-cup', productTitle: 'Aurora cup', startMs: 24_000 }),
     ]);
+  });
+
+  it('routes product-focus classification through the fail-safe classifier seam', async () => {
+    const service = new ChatService();
+    const classify = vi.fn(async () => ({
+      decision: 'different' as const,
+      productId: 'hoodie',
+      confidence: 0.93,
+      evidenceSegmentIds: ['segment-1'],
+      requestSequence: 4,
+      source: 'model' as const,
+    }));
+    const controller = new ChatController(service, { classify } as unknown as ConfiguredProductFocusClassifier);
+    const input = {
+      activeProductId: 'mug',
+      requestSequence: 4,
+      transcriptWindow: [{ id: 'segment-1', text: 'Moving on to the hoodie.' }],
+      products: [{ id: 'mug', label: 'Mug' }, { id: 'hoodie', label: 'Hoodie' }],
+    };
+
+    await expect(controller.classifyTranscriptProductFocus('demo-event', input)).resolves.toMatchObject({
+      decision: 'different', productId: 'hoodie', requestSequence: 4,
+    });
+    expect(classify).toHaveBeenCalledWith(input);
   });
 });

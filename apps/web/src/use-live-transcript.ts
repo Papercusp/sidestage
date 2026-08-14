@@ -102,7 +102,7 @@ export function useLiveTranscript({
 }: UseLiveTranscriptOptions): LiveTranscriptController {
   const managedSession = useMemo(
     () => session ?? createTranscriptionSession(options),
-    [session, options.deepgramToken, options.deepgramTokenProvider, options.mediaStream, options.deepgramUrl, options.model, options.language],
+    [session, options.deepgramToken, options.deepgramTokenProvider, options.fallbackToWebSpeech, options.mediaStream, options.deepgramUrl, options.model, options.language],
   );
   const [state, setState] = useState<TranscriptionState>(managedSession.state);
   const [finalSegments, setFinalSegments] = useState<TranscriptSegment[]>([]);
