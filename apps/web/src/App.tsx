@@ -1,5 +1,5 @@
 import { useCallback, useMemo, useState } from 'react';
-import { TABS, tabHref, useUrlTab } from './app-routing';
+import { TABS, tabHref, type TabId, useUrlTab } from './app-routing';
 import { AppDownloadButtons } from './components/AppDownloadButtons';
 import { BuildHistoryTab } from './BuildHistoryTab';
 import { BuyerTab } from './BuyerTab';
@@ -19,6 +19,15 @@ import { TestTab } from './TestTab';
 export { getTabFromUrl, tabHref, TABS, type TabId } from './app-routing';
 export { variantToSellerProduct, variantToTranscriptOption, type CatalogProduct } from './seller-products';
 export { TestTab } from './TestTab';
+
+export function appLayoutForTab(tab: TabId) {
+  const isSeller = tab === 'seller';
+  return {
+    shellClassName: `app-shell${isSeller ? ' app-shell--seller' : ''}`,
+    contentClassName: `content${isSeller ? ' content-seller' : ''}`,
+    showFooter: !isSeller,
+  };
+}
 
 export function App() {
   const [tab, navigate] = useUrlTab();
@@ -50,9 +59,10 @@ export function App() {
     [sellerVariants],
   );
   const selectedProduct = sellerProducts.find((product) => product.id === selectedProductId) ?? null;
+  const layout = appLayoutForTab(tab);
 
   return (
-    <div className="app-shell">
+    <div className={layout.shellClassName}>
       <header className="topbar">
         <a className="wordmark" href={tabHref('buyer')} onClick={(event) => { event.preventDefault(); navigate('buyer'); }} aria-label="SideStage home">
           <span className="wordmark-mark" aria-hidden="true">✦</span>
@@ -74,7 +84,7 @@ export function App() {
         <span className="connection-pill"><span className="connection-dot" /> Ready for your next event</span>
       </header>
 
-      <main className="content">
+      <main className={layout.contentClassName}>
         {tab === 'buyer' ? (
           <BuyerCheckoutProvider eventId={activeEventId}>
             <BuyerTab
@@ -97,11 +107,13 @@ export function App() {
         {tab === 'history' ? <BuildHistoryTab /> : null}
         {tab === 'config' ? <ConfigTab /> : null}
         {tab === 'test' ? <TestTab /> : null}
-        <footer className="footer">
-          <span>SideStage preview</span>
-          <AppDownloadButtons />
-          <span>Built for the live-selling floor</span>
-        </footer>
+        {layout.showFooter ? (
+          <footer className="footer">
+            <span>SideStage preview</span>
+            <AppDownloadButtons />
+            <span>Built for the live-selling floor</span>
+          </footer>
+        ) : null}
       </main>
     </div>
   );
