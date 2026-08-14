@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { DEMO_PRINCIPAL_HEADER } from '@papercusp/sync';
 import {
   adjustSellerEventStock,
   closeSellerAuction,
@@ -64,7 +65,7 @@ describe('seller event API orchestration', () => {
     expect(result.items[0]).toMatchObject({ productId: 'mug', priceCents: 1_500, quantity: 3 });
     expect(calls.some((call) => call.url.endsWith('/inventory/mug/hold'))).toBe(true);
     const configPut = calls.find((call) => call.url.endsWith('/events/sunday-drop/config') && call.init?.method === 'PUT');
-    expect(new Headers(configPut?.init?.headers).get('x-seller-id')).toBe('seller-27');
+    expect(new Headers(configPut?.init?.headers).get(DEMO_PRINCIPAL_HEADER)).toBe('seller-27');
     expect(new Headers(configPut?.init?.headers).get('x-seller-name')).toBe('Studio 27');
   });
 
