@@ -223,6 +223,7 @@ describe('AuctionService', () => {
     expect(published.map(({ name }) => name)).toEqual([
       'event.auction.active',
       'catalog.page',
+      'inventory.snapshot',
       'event.auction.active',
       'event.auction.active',
       'orders.byBuyer',
@@ -234,6 +235,9 @@ describe('AuctionService', () => {
     ]);
     expect(published.filter(({ name }) => name === 'orders.byBuyer').map(({ args }) => args)).toEqual([
       { buyerId: 'buyer-a' },
+    ]);
+    expect(published.filter(({ name }) => name === 'inventory.snapshot').map(({ args }) => args)).toEqual([
+      { productId: 'product-1' },
     ]);
   });
 

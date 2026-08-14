@@ -551,6 +551,18 @@ CREATE TABLE IF NOT EXISTS event_config (
   CONSTRAINT event_config_payload_object CHECK (jsonb_typeof(payload) = 'object')
 );
 
+-- The seller's run of show for one event: planned product order, per-product
+-- time budgets, and talking-point notes (plan sidestage-run-of-show-planner-
+-- 2026-08-14). One jsonb document per event, same shape of seam as
+-- event_config: entry array order IS the planned order. Advisory only — this
+-- never feeds the action guard.
+CREATE TABLE IF NOT EXISTS event_run_of_show (
+  event_id text PRIMARY KEY,
+  payload jsonb NOT NULL,
+  updated_at timestamptz NOT NULL DEFAULT now(),
+  CONSTRAINT event_run_of_show_payload_object CHECK (jsonb_typeof(payload) = 'object')
+);
+
 -- ── Seller policies (P-114, docs/config-policies.md) ─────────────────────────
 -- Immutable revisions behind draft→validated→published→superseded (\→rejected).
 -- The whole revision is jsonb with hot columns lifted; the DB enforces one
