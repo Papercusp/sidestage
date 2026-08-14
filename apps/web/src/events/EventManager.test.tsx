@@ -105,6 +105,9 @@ describe('EventManager', () => {
     expect(markup).toContain('Add inventory');
     expect(markup).toContain('Lineup');
     expect(markup).toContain('Settings');
+    expect(markup).toContain('Rehearse');
+    expect(markup.indexOf('>Lineup</a>')).toBeLessThan(markup.indexOf('>Settings</a>'));
+    expect(markup.indexOf('>Settings</a>')).toBeLessThan(markup.indexOf('>Rehearse</a>'));
     expect(markup).not.toContain('Event settings &amp; readiness');
   });
 
@@ -140,6 +143,25 @@ describe('EventManager', () => {
     expect(markup).toContain('Event settings &amp; readiness');
     expect(markup).toContain('Loading event settings…');
     expect(markup).not.toContain('data-rg-screen-grid="true"');
+  });
+
+  it('embeds the existing Run-of-show planner in the selected event Rehearse tab', () => {
+    window.history.replaceState({}, '', '/?tab=seller&studio=event-manager&manager=events&event=sunday-drop&section=rehearse');
+    const markup = renderToStaticMarkup(
+      <EventManager
+        actorId="seller-27"
+        eventId="sunday-drop"
+        eventName="Sunday drop"
+        initialItems={ITEMS}
+        initialEvents={EVENTS}
+      />,
+    );
+
+    expect(markup).toContain('Plan the show');
+    expect(markup).toContain('Order the lineup, budget minutes per product');
+    expect(markup).toContain('Save show plan');
+    expect(markup).not.toContain('data-rg-screen-grid="true"');
+    expect(markup).not.toContain('Event settings &amp; readiness');
   });
 
   it('renders the existing reservation-backed creation flow in Create event', () => {
