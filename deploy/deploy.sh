@@ -2,10 +2,10 @@
 # deploy.sh — Ship SideStage to production (sidestage.buyrestart.com).
 #
 # Mimics the Restart deploy pattern (see /home/marsh-office/Restart/deploy):
-# rsync the git-TRACKED file set (an allowlist — untracked junk and local env
-# files are unreachable by construction) to /opt/SideStage on the shared
-# Hetzner box, then docker compose build + up there. A COMPLETELY INDEPENDENT
-# stack: own compose project, containers, volumes, hostname. It never touches
+# export one immutable snapshot of the working tree (tracked edits plus
+# non-ignored new files) and rsync it to /opt/SideStage on the shared Hetzner
+# box, then docker compose build + up there. A COMPLETELY INDEPENDENT stack:
+# own compose project, containers, volumes, hostname. It never touches
 # /opt/Restart or the restart-* containers.
 #
 # Usage:
@@ -17,6 +17,7 @@
 # /opt/SideStage/.env.production with POSTGRES_PASSWORD, TYPESENSE_API_KEY,
 # PUBLIC_HOSTNAME.
 set -euo pipefail
+SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
 cd "$(git rev-parse --show-toplevel)"
 
 PROD_HOST="${PROD_HOST:-178.156.254.59}"
@@ -31,23 +32,22 @@ SSH=(ssh -i "$PROD_SSH_KEY" -o ConnectTimeout=10 "root@$PROD_HOST")
 
 say() { echo "==> $*"; }
 
-# The tracked file set of the superproject + every submodule, as one manifest.
-manifest() {
-  git ls-files
-  git submodule foreach --quiet 'git ls-files | sed "s|^|$sm_path/|"'
-}
+SNAPSHOT_DIR="$(mktemp -d "${TMPDIR:-/tmp}/sidestage-deploy.XXXXXX")"
+trap 'rm -rf -- "$SNAPSHOT_DIR"' EXIT INT TERM
+bash "$SCRIPT_DIR/snapshot-source.sh" "$PWD" "$SNAPSHOT_DIR"
+SNAPSHOT_FILE_COUNT="$(find "$SNAPSHOT_DIR" \( -type f -o -type l \) -print | wc -l | tr -d ' ')"
 
 say "Shipping $(git rev-parse --short HEAD) to $PROD_HOST:$PROD_DIR"
 if $DRY_RUN; then
-  say "[dry-run] would rsync $(manifest | wc -l) tracked files, then: $COMPOSE build && up -d"
+  say "[dry-run] would rsync $SNAPSHOT_FILE_COUNT snapshot files, then: $COMPOSE build && up -d"
   exit 0
 fi
 
 "${SSH[@]}" "mkdir -p $PROD_DIR"
 
-say "rsync tracked file set"
-manifest | rsync -az --delete --files-from=- \
-  -e "ssh -i $PROD_SSH_KEY" ./ "root@$PROD_HOST:$PROD_DIR/"
+say "rsync immutable working-tree snapshot ($SNAPSHOT_FILE_COUNT files)"
+rsync -az --delete --exclude='/.env.production' \
+  -e "ssh -i $PROD_SSH_KEY" "$SNAPSHOT_DIR/" "root@$PROD_HOST:$PROD_DIR/"
 
 say "Checking .env.production exists on prod"
 "${SSH[@]}" "test -f $PROD_DIR/.env.production" || {
