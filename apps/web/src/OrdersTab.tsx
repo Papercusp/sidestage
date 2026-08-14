@@ -446,9 +446,6 @@ export function OrdersTab() {
         </div>
         <div className="orders-head-actions">
           <a className="button primary" href="/?tab=buyer">Continue shopping</a>
-          <button className="button secondary" type="button" onClick={ordersQuery.invalidate} disabled={loading || refreshing}>
-            {loading || refreshing ? 'Refreshing…' : 'Refresh orders'}
-          </button>
         </div>
       </header>
 
@@ -456,10 +453,10 @@ export function OrdersTab() {
         <section className="orders-error" role="alert">
           <span className="orders-error-mark" aria-hidden="true">!</span>
           <div>
-            <strong>Orders could not be refreshed.</strong>
+            <strong>Orders could not be loaded.</strong>
             <span>{error.message}</span>
           </div>
-          <button className="button secondary" type="button" onClick={ordersQuery.invalidate}>Refresh again</button>
+          <button className="button secondary" type="button" onClick={ordersQuery.invalidate}>Try again</button>
         </section>
       ) : loading && orders.length === 0 ? (
         <section className="orders-loading" role="status" aria-live="polite">

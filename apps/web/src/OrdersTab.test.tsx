@@ -162,6 +162,9 @@ describe('OrdersTab', () => {
       staleTime: 0,
     });
     expect(html).toContain('Aurora cup');
+    expect(html).toContain('Continue shopping');
+    expect(html).not.toContain('Refresh orders');
+    expect(html).not.toContain('Try again');
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
@@ -189,9 +192,10 @@ describe('OrdersTab', () => {
     expect(renderState({ loading: true })).toContain('Loading orders for demo-server-render…');
     expect(renderState({})).toContain('No orders yet');
     const errorHtml = renderState({ error: new Error('sync unavailable') });
-    expect(errorHtml).toContain('Orders could not be refreshed.');
+    expect(errorHtml).toContain('Orders could not be loaded.');
     expect(errorHtml).toContain('sync unavailable');
-    expect(errorHtml).toContain('Refresh again');
+    expect(errorHtml).toContain('Try again');
+    expect(errorHtml).not.toContain('Refresh orders');
   });
 
   it('formats status and money labels for buyer-facing copy', () => {

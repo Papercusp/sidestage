@@ -75,6 +75,7 @@ function sameItem(left: ActionEventItem, right: ActionEventItem): boolean {
   return left.eventId === right.eventId
     && left.eventItemId === right.eventItemId
     && left.productId === right.productId
+    && left.referencePriceCents === right.referencePriceCents
     && left.priceCents === right.priceCents
     && left.availableQty === right.availableQty
     && left.quantity === right.quantity;
@@ -182,7 +183,10 @@ export class GuardedActionService implements ActionExecutor {
    */
   private async resolveEnforcementPolicy(eventId: string, registered: CopilotPolicy): Promise<CopilotPolicy> {
     if (!this.policyResolver) return registered;
-    const items = this.listItems(eventId).map((item) => ({ productId: item.productId, priceCents: item.priceCents }));
+    const items = this.listItems(eventId).map((item) => ({
+      productId: item.productId,
+      priceCents: item.referencePriceCents ?? item.priceCents,
+    }));
     return this.policyResolver.resolve(eventId, items);
   }
 
@@ -320,10 +324,15 @@ export class GuardedActionService implements ActionExecutor {
     const productId = assertText(item.productId, 'productId');
     const title = assertText(item.title, 'title');
     const priceCents = assertPositiveInteger(item.priceCents, 'priceCents');
+    const previous = this.items.get(itemKey(eventId, productId));
+    const referencePriceCents = assertPositiveInteger(
+      previous?.referencePriceCents ?? item.referencePriceCents ?? priceCents,
+      'referencePriceCents',
+    );
     const availableQty = assertNonNegativeInteger(item.availableQty, 'availableQty');
     const quantity = assertPositiveInteger(item.quantity, 'quantity');
     if (quantity > availableQty && availableQty > 0) throw new BadRequestException('quantity cannot exceed availableQty');
-    return { ...item, eventId, eventItemId, productId, title, priceCents, availableQty, quantity, onStage: item.onStage ?? false, attributes: { ...item.attributes } };
+    return { ...item, eventId, eventItemId, productId, title, referencePriceCents, priceCents, availableQty, quantity, onStage: item.onStage ?? false, attributes: { ...item.attributes } };
   }
 
   private normalizeAction(action: GuardedActionProposal): GuardedActionProposal {

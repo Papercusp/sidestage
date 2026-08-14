@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { GuardedActionService } from './action.service';
 import type { ActionEventItem } from './action.types';
 import type { CopilotPolicy } from '../copilot/copilot.types';
+import { withDerivedPriceFloors } from '../config/event-config.service';
 import { SyncInvalidationService, type SyncInvalidation } from '../sync/sync-invalidation.service';
 
 const policy: CopilotPolicy = {
@@ -235,6 +236,42 @@ describe('config-authoritative policy resolution (WI-38673)', () => {
       action: { kind: 'markdown', productId: 'mug', priceCents: 1_100, reason: 'Inside the config floor' },
     });
     expect(applied.state.priceCents).toBe(1_100);
+  });
+
+  it('anchors derived floors to the registration price across successive markdowns', async () => {
+    const derivedPolicy: CopilotPolicy = {
+      ...policy,
+      priceFloorCentsByProduct: {},
+      maxMarkdownPercent: 30,
+    };
+    const resolvedPrices: number[] = [];
+    const actions = new GuardedActionService({
+      resolve: async (_eventId, items) => {
+        resolvedPrices.push(items[0]?.priceCents ?? -1);
+        return withDerivedPriceFloors(derivedPolicy, items);
+      },
+    });
+    actions.registerEvent('event-1', {
+      policy: derivedPolicy,
+      items: [{ ...item, priceCents: 10_000 }],
+    });
+
+    await actions.apply({
+      eventId: 'event-1',
+      actorId: 'seller-1',
+      action: { kind: 'markdown', productId: 'mug', priceCents: 7_500, reason: 'First 25% markdown' },
+    });
+    await expect(actions.apply({
+      eventId: 'event-1',
+      actorId: 'seller-1',
+      action: { kind: 'markdown', productId: 'mug', priceCents: 5_625, reason: 'Second 25% markdown' },
+    })).rejects.toThrow('floor');
+
+    expect(actions.listItems('event-1')[0]).toMatchObject({
+      referencePriceCents: 10_000,
+      priceCents: 7_500,
+    });
+    expect(resolvedPrices).toEqual([10_000, 10_000]);
   });
 
   it('falls back to the registered policy when no resolver is wired (rehearsal path)', async () => {
