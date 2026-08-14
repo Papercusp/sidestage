@@ -950,10 +950,10 @@ export class PostgresSystemTestRunStore implements SystemTestRunQueueStore {
     const ids = await this.#pool.query<{ id: string }>(
       `SELECT id
          FROM system_test_run
-        WHERE actor_role = 'release' OR actor_id = $1
+        WHERE $2 = 'release' OR actor_id = $1
         ORDER BY created_at DESC, id DESC
-        LIMIT $2`,
-      [options.actor.id, limit],
+        LIMIT $3`,
+      [options.actor.id, options.actor.role, limit],
     );
     return Promise.all(ids.rows.map((row) => this.requireRun(row.id)));
   }

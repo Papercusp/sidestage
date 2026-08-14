@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { type KeyboardEvent, useEffect, useRef, useState } from 'react';
 import { CopilotPanel } from './CopilotPanel';
 import type { SellerDockPanelContextValue } from './seller-dock-panel-props';
 import { RunOfShowPanel } from './seller/RunOfShowPanel';
@@ -13,6 +13,18 @@ export const STUDIO_MOBILE_MODES = [
 ] as const;
 
 export type StudioMobileMode = (typeof STUDIO_MOBILE_MODES)[number]['id'];
+
+export function nextStudioMobileMode(
+  current: StudioMobileMode,
+  key: string,
+): StudioMobileMode | null {
+  const index = STUDIO_MOBILE_MODES.findIndex(({ id }) => id === current);
+  if (key === 'Home') return STUDIO_MOBILE_MODES[0].id;
+  if (key === 'End') return STUDIO_MOBILE_MODES.at(-1)!.id;
+  if (key === 'ArrowRight') return STUDIO_MOBILE_MODES[(index + 1) % STUDIO_MOBILE_MODES.length].id;
+  if (key === 'ArrowLeft') return STUDIO_MOBILE_MODES[(index - 1 + STUDIO_MOBILE_MODES.length) % STUDIO_MOBILE_MODES.length].id;
+  return null;
+}
 
 type MatchMedia = (query: string) => Pick<MediaQueryList, 'matches'>;
 
@@ -47,6 +59,17 @@ export function useMobileStudioViewport(): boolean {
 
 export function SellerMobileStudio({ panels }: { panels: SellerDockPanelContextValue }) {
   const [mode, setMode] = useState<StudioMobileMode>('stage');
+  const tabsRef = useRef<HTMLElement>(null);
+
+  const onTabKeyDown = (event: KeyboardEvent<HTMLButtonElement>) => {
+    const next = nextStudioMobileMode(mode, event.key);
+    if (!next) return;
+    event.preventDefault();
+    setMode(next);
+    tabsRef.current
+      ?.querySelector<HTMLButtonElement>(`#seller-mobile-tab-${next}`)
+      ?.focus();
+  };
 
   return (
     <div className="seller-mobile-studio">
@@ -61,7 +84,7 @@ export function SellerMobileStudio({ panels }: { panels: SellerDockPanelContextV
         {mode === 'copilot' ? <CopilotPanel {...panels.copilot} /> : null}
       </section>
 
-      <nav className="seller-mobile-tabs" aria-label="Studio mobile panels" role="tablist">
+      <nav ref={tabsRef} className="seller-mobile-tabs" aria-label="Studio mobile panels" role="tablist">
         {STUDIO_MOBILE_MODES.map(({ id, label }) => (
           <button
             key={id}
@@ -70,7 +93,9 @@ export function SellerMobileStudio({ panels }: { panels: SellerDockPanelContextV
             role="tab"
             aria-controls={`seller-mobile-panel-${id}`}
             aria-selected={mode === id}
+            tabIndex={mode === id ? 0 : -1}
             onClick={() => setMode(id)}
+            onKeyDown={onTabKeyDown}
           >
             {label}
           </button>

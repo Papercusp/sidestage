@@ -1,5 +1,7 @@
-import { Body, Controller, Get, Inject, Param, Put } from '@nestjs/common';
+import { Body, Controller, Get, Headers, Inject, Param, Put } from '@nestjs/common';
+import { EventOwnershipGuard } from '../events/event-ownership.guard';
 import { SyncInvalidationService } from '../sync/sync-invalidation.service';
+import { DEMO_PRINCIPAL_HEADER } from '../sync/sync-request-context';
 import { RunOfShowService, type RunOfShowPlan } from './run-of-show.service';
 
 /**
@@ -15,10 +17,15 @@ export class RunOfShowController {
   constructor(
     @Inject(RunOfShowService) private readonly runOfShow: RunOfShowService,
     @Inject(SyncInvalidationService) private readonly invalidations: SyncInvalidationService,
+    @Inject(EventOwnershipGuard) private readonly ownership: EventOwnershipGuard,
   ) {}
 
   @Get(':eventId/run-of-show')
-  async get(@Param('eventId') eventId: string): Promise<RunOfShowPlan> {
+  async get(
+    @Param('eventId') eventId: string,
+    @Headers(DEMO_PRINCIPAL_HEADER) principalHeader?: string,
+  ): Promise<RunOfShowPlan> {
+    await this.ownership.requireOwned(eventId, principalHeader);
     return this.runOfShow.get(eventId);
   }
 
@@ -26,7 +33,9 @@ export class RunOfShowController {
   async put(
     @Param('eventId') eventId: string,
     @Body() body: { entries?: unknown },
+    @Headers(DEMO_PRINCIPAL_HEADER) principalHeader?: string,
   ): Promise<RunOfShowPlan> {
+    await this.ownership.requireOwned(eventId, principalHeader);
     const plan = await this.runOfShow.save(eventId, body ?? {});
     this.invalidations.invalidate('event.runOfShow', { eventId: plan.eventId });
     return plan;

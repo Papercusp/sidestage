@@ -222,6 +222,36 @@ describe('PostgresSystemTestRunStore', () => {
     expect(acknowledged.cancellation?.acknowledgedAt).toBe('2026-08-14T20:10:01.000Z');
   });
 
+  it('atomically enforces the global queue cap and preserves event scope for retry', async () => {
+    await store.createRun({
+      ...launch('run-claim-1', 'launch-claim-1'),
+      request: { ...launch('ignored', 'ignored').request, eventId: 'fixture-event-claim' },
+    });
+    await store.createRun(launch('run-claim-2', 'launch-claim-2'));
+
+    const first = await store.claimNextRun({ maxConcurrentRuns: 1, now: new Date('2026-08-14T20:20:00Z') });
+    const capped = await store.claimNextRun({ maxConcurrentRuns: 1, now: new Date('2026-08-14T20:20:01Z') });
+
+    expect(first?.run).toMatchObject({ id: 'run-claim-1', state: 'provisioning', eventId: 'fixture-event-claim' });
+    expect(capped).toBeNull();
+
+    await store.advanceRun('run-claim-1', 'blocked', { reason: 'Executor unavailable.' });
+    const second = await store.claimNextRun({ maxConcurrentRuns: 1, now: new Date('2026-08-14T20:20:02Z') });
+    expect(second?.run).toMatchObject({ id: 'run-claim-2', state: 'provisioning' });
+  });
+
+  it('lists only the requesting operator runs while a release principal can inspect all', async () => {
+    await store.createRun({ ...launch('run-list-a', 'launch-list-a'), actor: { id: 'operator-a', role: 'operator' } });
+    await store.createRun({ ...launch('run-list-b', 'launch-list-b'), actor: { id: 'operator-b', role: 'operator' } });
+
+    const operator = await store.listRuns({ actor: { id: 'operator-a', role: 'operator' }, limit: 100 });
+    const release = await store.listRuns({ actor: { id: 'release-bot', role: 'release' }, limit: 100 });
+
+    expect(operator.map((entry) => entry.run.id)).toContain('run-list-a');
+    expect(operator.map((entry) => entry.run.id)).not.toContain('run-list-b');
+    expect(release.map((entry) => entry.run.id)).toEqual(expect.arrayContaining(['run-list-a', 'run-list-b']));
+  });
+
   it('recovers stale nonterminal rows to timed-out with cleanup pending', async () => {
     await store.createRun(launch('run-stale-1', 'launch-stale-1', new Date('2026-08-01T00:00:00Z')));
     await store.advanceRun('run-stale-1', 'provisioning', { at: new Date('2026-08-01T00:00:01Z') });

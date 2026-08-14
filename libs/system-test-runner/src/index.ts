@@ -508,3 +508,4 @@ export class AcceptanceEnvironmentProvisioner {
 }
 
 export * from './postgres-run-store';
+export * from './queue-worker';
