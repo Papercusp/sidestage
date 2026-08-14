@@ -1,7 +1,9 @@
-import { FormEvent, useState } from 'react';
-import { useBuyerIdentity } from './buyer-identity';
+import { type FormEvent, useCallback, useState } from 'react';
+import { useSyncMutate } from '@papercusp/sync';
+import type { BuyerProduct } from './buyer';
+import { useBuyerCheckout } from './BuyerCheckout';
 import { browserEventId } from './event-identity';
-import { resolveApiOrigin } from './EventChat';
+import { resolveApiOrigin, useEventChatSender, type EventChatMessageInput } from './EventChat';
 
 interface ProductCard {
   productId: string;
@@ -13,23 +15,11 @@ interface ProductCard {
   attributes: Record<string, string | number | boolean>;
 }
 
-interface Cart {
-  id: string;
-  items: Array<{ productId: string; title: string; priceCents: number; quantity: number; imageUrl?: string }>;
-  subtotalCents: number;
-}
-
 interface ScoutResponse {
   reply: string;
   products: ProductCard[];
-  cart: Cart;
   cartId: string;
   latencyMs: number;
-}
-
-interface CheckoutResponse {
-  order: { id: string; totalCents: number; status: string };
-  session: { status: string; mode: string; appId: string | null; locationId: string | null };
 }
 
 export interface CopilotPanelProps {
@@ -54,24 +44,24 @@ export function ProductResearchLatency({ latencyMs }: { latencyMs: number | null
   );
 }
 
-export interface SellerReplyRequest {
-  path: string;
-  init: RequestInit;
+/** Build the shared EventChat mutation input used by an approved copilot reply. */
+export function sellerReplyInput(text: string): EventChatMessageInput {
+  return {
+    userId: 'seller-copilot-review',
+    displayName: 'Host',
+    role: 'seller',
+    text: text.trim(),
+  };
 }
 
-/** Build the one real chat mutation used by an approved copilot reply. */
-export function sellerReplyRequest(eventId: string, text: string): SellerReplyRequest {
+export function copilotProductToBuyerProduct(product: ProductCard): BuyerProduct {
   return {
-    path: `/chat/events/${encodeURIComponent(eventId)}/messages`,
-    init: {
-      method: 'POST',
-      body: JSON.stringify({
-        userId: 'seller-copilot-review',
-        displayName: 'Host',
-        role: 'seller',
-        text: text.trim(),
-      }),
-    },
+    id: product.productId,
+    title: product.title,
+    subtitle: product.description,
+    priceCents: product.priceCents,
+    availableQty: product.availableQty,
+    imageUrl: product.imageUrl,
   };
 }
 
@@ -135,27 +125,31 @@ const money = (cents: number) => new Intl.NumberFormat('en-US', { style: 'curren
  * compose this panel without owning cart state or payment-provider details.
  */
 export function CopilotPanel({ apiBaseUrl, eventId = browserEventId() }: CopilotPanelProps) {
-  const { buyerId } = useBuyerIdentity();
   const apiOrigin = resolveApiOrigin(apiBaseUrl);
+  const buyerCheckout = useBuyerCheckout();
+  const sendChatMessage = useEventChatSender({ eventId, apiBaseUrl });
   const [message, setMessage] = useState('');
-  const [cartId, setCartId] = useState<string>();
   const [reply, setReply] = useState('Ask about a product in the verified catalog.');
   const [replyDraft, setReplyDraft] = useState('');
   const [replyReviewStatus, setReplyReviewStatus] = useState<CopilotReplyReviewStatus>('idle');
   const [editingReply, setEditingReply] = useState(false);
   const [products, setProducts] = useState<ProductCard[]>([]);
-  const [cart, setCart] = useState<Cart>();
-  const [checkout, setCheckout] = useState<CheckoutResponse>();
   const [researchLatencyMs, setResearchLatencyMs] = useState<number | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string>();
 
-  async function request<T>(path: string, init: RequestInit): Promise<T> {
+  const scoutFallback = useCallback(async (input: { message: string; cartId?: string; eventId: string }) => {
+    const path = '/scout/chat';
+    const init: RequestInit = { method: 'POST', body: JSON.stringify(input) };
     const response = await fetch(`${apiOrigin}${path}`, { ...init, headers: { 'content-type': 'application/json', ...init.headers } });
-    const payload = await response.json() as T & { message?: string };
+    const payload = await response.json() as ScoutResponse & { message?: string };
     if (!response.ok) throw new Error(payload.message ?? `Request failed (${response.status})`);
     return payload;
-  }
+  }, [apiOrigin]);
+  const requestScout = useSyncMutate<
+    { message: string; cartId?: string; eventId: string },
+    ScoutResponse
+  >('scout.chat', scoutFallback);
 
   async function ask(event: FormEvent) {
     event.preventDefault();
@@ -163,12 +157,8 @@ export function CopilotPanel({ apiBaseUrl, eventId = browserEventId() }: Copilot
     setBusy(true);
     setError(undefined);
     try {
-      const result = await request<ScoutResponse>('/scout/chat', {
-        method: 'POST',
-        body: JSON.stringify({ message, cartId }),
-      });
-      setCartId(result.cartId);
-      setCart(result.cart);
+      const result = await requestScout({ message, cartId: buyerCheckout?.cartId, eventId });
+      buyerCheckout?.adoptCartId(result.cartId);
       setProducts(result.products);
       setReply(result.reply);
       setReplyDraft(result.reply);
@@ -188,8 +178,7 @@ export function CopilotPanel({ apiBaseUrl, eventId = browserEventId() }: Copilot
     setBusy(true);
     setError(undefined);
     try {
-      const approved = sellerReplyRequest(eventId, replyDraft);
-      await request(approved.path, approved.init);
+      await sendChatMessage(sellerReplyInput(replyDraft));
       setReplyReviewStatus('approved');
       setEditingReply(false);
     } catch (caught) {
@@ -203,30 +192,10 @@ export function CopilotPanel({ apiBaseUrl, eventId = browserEventId() }: Copilot
     setBusy(true);
     setError(undefined);
     try {
-      const result = await request<Cart>('/cart/items', {
-        method: 'POST',
-        body: JSON.stringify({ cartId, productId: product.productId, title: product.title, priceCents: product.priceCents, imageUrl: product.imageUrl }),
-      });
-      setCartId(result.id);
-      setCart(result);
+      if (!buyerCheckout) throw new Error('Buyer checkout is unavailable');
+      await buyerCheckout.holdProduct(copilotProductToBuyerProduct(product));
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : 'Unable to update cart');
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function startCheckout() {
-    if (!cartId || !cart?.items.length || busy) return;
-    setBusy(true);
-    setError(undefined);
-    try {
-      setCheckout(await request<CheckoutResponse>('/checkout/sessions', {
-        method: 'POST',
-        body: JSON.stringify({ cartId, buyerId, eventId }),
-      }));
-    } catch (caught) {
-      setError(caught instanceof Error ? caught.message : 'Unable to start checkout');
     } finally {
       setBusy(false);
     }
@@ -276,8 +245,12 @@ export function CopilotPanel({ apiBaseUrl, eventId = browserEventId() }: Copilot
           ))}
         </div>
       ) : null}
-      {cart ? <div className="copilot-cart"><span>Cart · {cart.items.reduce((sum, item) => sum + item.quantity, 0)} item(s)</span><strong>{money(cart.subtotalCents)}</strong><button className="button secondary" type="button" onClick={() => void startCheckout()} disabled={busy || !cart.items.length}>Checkout</button></div> : null}
-      {checkout ? <p className="copilot-checkout" role="status">Order {checkout.order.id} is {checkout.order.status}. Square {checkout.session.status} in {checkout.session.mode} mode.</p> : null}
+      {buyerCheckout?.heldItemCount ? (
+        <div className="copilot-cart">
+          <span>Held cart · {buyerCheckout.heldItemCount} item(s)</span>
+          <button className="button secondary" type="button" onClick={buyerCheckout.openHeldItems} disabled={busy}>Open checkout</button>
+        </div>
+      ) : null}
     </section>
   );
 }
