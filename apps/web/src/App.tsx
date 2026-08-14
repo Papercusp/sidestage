@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { TABS, tabHref, useUrlTab } from './app-routing';
 import { AppDownloadButtons } from './components/AppDownloadButtons';
 import { BuyerTab } from './BuyerTab';
@@ -20,6 +20,23 @@ export { TestTab } from './TestTab';
 export function App() {
   const [tab, navigate] = useUrlTab();
   const [selectedProductId, setSelectedProductId] = useState<string | null>(null);
+
+  /* P-118 / D-019: the active event is app state, not a hard-pin. It seeds
+     from ?event= so existing share links keep resolving, and the Channel Guide
+     moves it. */
+  const [activeEventId, setActiveEventId] = useState(browserEventId);
+
+  const selectEvent = useCallback((nextEventId: string) => {
+    setActiveEventId(nextEventId);
+    if (typeof window === 'undefined') return;
+    // Keep ?event= in step with what the buyer is watching. replaceState, not
+    // push: switching rooms in a guide is not a navigation a Back press should
+    // walk through one room at a time. The share button reads the same id, so
+    // a link copied after a switch points at the room actually on screen.
+    const url = new URL(window.location.href);
+    url.searchParams.set('event', nextEventId);
+    window.history.replaceState({}, '', url);
+  }, []);
   const sellerVariants = useSellerCatalog();
   const sellerProducts = useMemo(
     () => sellerVariants.map((variant, index) => variantToSellerProduct(variant, index)),
@@ -57,9 +74,10 @@ export function App() {
       <main className="content">
         {tab === 'buyer' ? (
           <BuyerTab
-            eventId={browserEventId()}
+            eventId={activeEventId}
             eventTitle={DEFAULT_EVENT_TITLE}
             mediaBaseUrl={mediaBaseUrl()}
+            onEventChange={selectEvent}
           />
         ) : null}
         {tab === 'seller' ? (

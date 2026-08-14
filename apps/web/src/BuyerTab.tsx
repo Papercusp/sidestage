@@ -16,7 +16,8 @@ import { BuyerProductRail } from './BuyerProductRail';
 import { connectViewer, createEventRoom, type ViewerSession } from './streaming';
 import { EventThumbnail } from './event-creation/EventThumbnail';
 import { isRenderableThumbnailUrl } from './event-creation/thumbnail';
-import { fetchEventThumbnailUrl } from './events/api';
+import { fetchEventGuide, fetchEventThumbnailUrl, type GuideEvent } from './events/api';
+import { ChannelGuide } from './events/ChannelGuide';
 
 export interface BuyerTabProps {
   eventId?: string;
@@ -27,6 +28,14 @@ export interface BuyerTabProps {
   origin?: string;
   /** Supplied by tests/embeds; otherwise read from the event config. */
   thumbnailUrl?: string;
+  /**
+   * Switch the active event (P-118 / D-019). The buyer tab owns the Channel
+   * Guide, but not which event the app is showing — that lives above it so the
+   * URL and every other surface stay in step.
+   */
+  onEventChange?: (eventId: string) => void;
+  /** Supplied by tests; otherwise fetched from GET /events. */
+  guideEvents?: readonly GuideEvent[];
 }
 
 /** A stable per-browser buyer identity, so holds and chat survive reloads. */
@@ -49,7 +58,60 @@ export function BuyerTab({
   mediaBaseUrl,
   origin,
   thumbnailUrl: thumbnailUrlProp,
+  onEventChange,
+  guideEvents: guideEventsProp,
 }: BuyerTabProps) {
+  /* ── Channel Guide (P-118 / D-019) ──────────────────────────────────────
+     The directory is loaded ONCE for the tab, not per drawer-open: the button
+     shows a live-room count, so the data has to exist before the buyer opens
+     anything. It is refreshed on event switch so viewer counts and the
+     live/ended split do not go stale while the drawer sits closed. */
+  const [guideOpen, setGuideOpen] = useState(false);
+  const [guideEvents, setGuideEvents] = useState<readonly GuideEvent[]>(guideEventsProp ?? []);
+  const [guideLoading, setGuideLoading] = useState(!guideEventsProp);
+  const [guideError, setGuideError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (guideEventsProp) return;
+    let cancelled = false;
+    setGuideLoading(true);
+    fetchEventGuide()
+      .then((list) => {
+        if (cancelled) return;
+        setGuideEvents(list);
+        setGuideError(null);
+      })
+      .catch(() => {
+        // Say we could not ask, rather than rendering an empty guide that
+        // claims nothing is on.
+        if (!cancelled) setGuideError('Could not load the event guide.');
+      })
+      .finally(() => {
+        if (!cancelled) setGuideLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [guideEventsProp, eventId]);
+
+  const liveEventCount = useMemo(
+    () => guideEvents.filter((event) => event.status === 'live').length,
+    [guideEvents],
+  );
+
+  // The guide is the authority on an event's title once loaded: an event
+  // reached from the guide has no config fetch behind it yet, and falling back
+  // to the caller's title would label every room "Sunday vintage drop".
+  const activeGuideEvent = useMemo(
+    () => guideEvents.find((event) => event.eventId === eventId) ?? null,
+    [guideEvents, eventId],
+  );
+  const resolvedTitle = activeGuideEvent?.title ?? eventTitle;
+
+  const selectEvent = (nextEventId: string) => {
+    setGuideOpen(false);
+    if (nextEventId !== eventId) onEventChange?.(nextEventId);
+  };
   // Live stats (P-111 — no dummy data): real presence + paid orders, polled.
   const [liveStats, setLiveStats] = useState<BuyerStats | null>(null);
   useEffect(() => {
@@ -178,14 +240,26 @@ export function BuyerTab({
     <section className="buyer-tab density-roomy" id="buyer" aria-labelledby="buyer-title">
       <div className="buyer-heading">
         <div className="buyer-heading-identity">
-          <EventThumbnail url={thumbnailUrl} eventName={eventTitle} className="buyer-event-thumbnail" />
+          <EventThumbnail url={thumbnailUrl} eventName={resolvedTitle} className="buyer-event-thumbnail" />
           <div>
             <p className="eyebrow">Join the room</p>
-            <h2 id="buyer-title">{eventTitle}</h2>
+            <h2 id="buyer-title">{resolvedTitle}</h2>
             <p className="muted">Watch together, ask questions, and keep the good finds moving.</p>
           </div>
         </div>
         <div className="buyer-heading-actions">
+          {/* D-019: the "What's on" trigger. It carries the live-room count so
+              the guide advertises what is happening without being opened. */}
+          <button
+            className="whats-on-button"
+            type="button"
+            onClick={() => setGuideOpen(true)}
+            aria-haspopup="dialog"
+            aria-expanded={guideOpen}
+          >
+            What&rsquo;s on
+            {liveEventCount > 0 ? <span className="whats-on-count">{liveEventCount}</span> : null}
+          </button>
           <span className={`buyer-live-state buyer-live-state-${streamState}`}>
             <span aria-hidden="true" /> {liveLabel}
           </span>
@@ -194,6 +268,16 @@ export function BuyerTab({
           </button>
         </div>
       </div>
+
+      <ChannelGuide
+        open={guideOpen}
+        onClose={() => setGuideOpen(false)}
+        events={guideEvents}
+        currentEventId={eventId}
+        onSelect={selectEvent}
+        loading={guideLoading}
+        error={guideError}
+      />
 
       <div className="buyer-layout">
         <div className="buyer-main-column">
