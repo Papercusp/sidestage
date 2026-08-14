@@ -102,6 +102,10 @@ describe('CopilotPanel sync integration', () => {
       args: { eventId: 'event-live' },
     });
     expect(container.textContent).toContain('Blue mug live event listing');
+    expect(container.querySelector('.live-badge')).toMatchObject({
+      role: 'status',
+      ariaLive: 'polite',
+    });
 
     await act(async () => {
       button('Approve reply').click();
@@ -131,6 +135,15 @@ describe('CopilotPanel sync integration', () => {
     expect(runtime.invalidate).toHaveBeenCalledTimes(1);
     expect(runtime.approve).not.toHaveBeenCalled();
     expect(runtime.chatSend).not.toHaveBeenCalled();
+  });
+
+  it('marks a skipped proposal status as a polite atomic announcement', async () => {
+    await mount({ ...baseProposal, status: 'skipped' });
+
+    const status = container.querySelector('.copilot-review-status');
+    expect(status?.getAttribute('role')).toBe('status');
+    expect(status?.getAttribute('aria-live')).toBe('polite');
+    expect(status?.getAttribute('aria-atomic')).toBe('true');
   });
 
   it('requires the guarded action confirmation to use its dedicated mutation', async () => {
