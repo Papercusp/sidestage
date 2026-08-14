@@ -115,4 +115,6 @@ static), and `docker compose up`s the stack. Traefik (external, `coolify`
 network) terminates TLS and routes `sidestage.buyrestart.com` — web as
 catch-all, `/api` + `/healthz` to the API (`API_PREFIX=api`), and
 `media.sidestage.buyrestart.com` (DNS-only) to MediaMTX for WebRTC. Secrets
-live only in the on-box `.env.production`.
+live only in the on-box `.env.production`. That file also supplies
+`MEDIAMTX_PUBLIC_IP` as a literal IPv4 address: MediaMTX 1.9.3 copies the value
+into ICE candidates and does not resolve the public DNS hostname there.

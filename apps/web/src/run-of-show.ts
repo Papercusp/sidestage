@@ -101,6 +101,8 @@ export interface RunOfShowSlotView {
 
 export interface RunOfShowView {
   slots: RunOfShowSlotView[];
+  /** Total live-show time across planned and off-plan products. */
+  totalElapsedSec: number;
   /** The planned slot currently on stage, if the staged product is planned. */
   activeSlot: RunOfShowSlotView | null;
   /** Staged product that is NOT in the plan — a detour, shown, never an error. */
@@ -171,12 +173,27 @@ export function buildRunOfShowView(input: {
 
   const remainingCount = slots.filter((slot) => slot.state === 'upcoming').length;
 
+  const closedElapsedSec = Object.values(log.visitedSec).reduce((sum, seconds) => sum + seconds, 0);
+  const liveElapsedSec = log.activeProductId && log.activeSinceMs !== null
+    ? Math.max(0, Math.round((nowMs - log.activeSinceMs) / 1000))
+    : 0;
+  const totalElapsedSec = closedElapsedSec + liveElapsedSec;
+
   const planned = new Set(entries.map((entry) => entry.productId));
   const unplanned = (input.lineupProductIds ?? [])
     .filter((id) => !planned.has(id))
     .map((id) => ({ productId: id, title: titles[id] ?? id }));
 
-  return { slots, activeSlot, offPlanActive, nextUp, paceDeltaSec, remainingCount, unplanned };
+  return {
+    slots,
+    totalElapsedSec,
+    activeSlot,
+    offPlanActive,
+    nextUp,
+    paceDeltaSec,
+    remainingCount,
+    unplanned,
+  };
 }
 
 /* ── Formatting ───────────────────────────────────────────────────────────── */
