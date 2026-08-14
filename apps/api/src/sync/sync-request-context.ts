@@ -10,8 +10,29 @@ export interface SyncRequestContext {
   principal: string | null;
 }
 
+export type DemoPrincipalRole = 'buyer' | 'seller';
+
 export function normalizeDemoPrincipal(value: unknown): string | null {
   if (typeof value !== 'string') return null;
   const normalized = value.trim();
   return normalized.length > 0 ? normalized : null;
+}
+
+/**
+ * Project the selected app-wide demo identity into a role-specific authority.
+ *
+ * The browser may persist the base persona as `demo-avi`, `buyer-avi`, or
+ * `seller-avi` depending on which surface last changed it. Stripping one
+ * existing role before applying the requested one keeps all three spellings
+ * on the same seller/buyer record and prevents clients from choosing a
+ * different seller with a second header or query argument.
+ */
+export function rolePrincipal(
+  value: unknown,
+  role: DemoPrincipalRole,
+): string | null {
+  const principal = normalizeDemoPrincipal(value);
+  if (!principal) return null;
+  const persona = principal.replace(/^(?:buyer|seller)-+/i, '');
+  return persona.length > 0 ? `${role}-${persona}` : null;
 }
