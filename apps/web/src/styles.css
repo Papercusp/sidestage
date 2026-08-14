@@ -133,6 +133,9 @@ h1 { margin: 0; max-width: 720px; font-size: clamp(3rem, 7vw, 5.8rem); line-heig
 .event-chat-importance-high { color: #061525; background: var(--amber); }
 .event-chat-importance-normal { color: var(--accent-strong); background: rgba(98, 216, 255, .12); }
 .event-chat-importance-low { color: var(--muted); background: rgba(255, 255, 255, .06); }
+.event-chat-grounding { display: inline-flex; margin-top: .4rem; padding: .18rem .38rem; border-radius: .3rem; font-size: .62rem; font-weight: 700; }
+.event-chat-grounding-answered { color: var(--success); background: rgba(116, 224, 173, .1); }
+.event-chat-grounding-queued { color: var(--amber); background: rgba(246, 199, 111, .1); }
 .event-chat-form { display: flex; gap: .65rem; margin-top: .8rem; }
 .event-chat-form .text-input { min-width: 0; }
 .event-chat-form .button { flex: 0 0 auto; }

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useCallback, useState } from 'react';
 import { TabHeader } from './components/TabHeader';
 import { CopilotPanel } from './CopilotPanel';
 import { EventChat } from './EventChat';
@@ -24,6 +24,20 @@ export function SellerTab({
   const [room, setRoom] = useState<EventRoom | null>(null);
   const stream = useStreamSession<PublisherSession>();
   const { copyState, copy } = useCopyState();
+  const recordTranscriptMoment = useCallback((segment: { text: string; startMs?: number; endMs?: number }) => {
+    const transcriptEventId = room?.eventId ?? chatEventId(eventId);
+    return fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3100'}/chat/events/${encodeURIComponent(transcriptEventId)}/transcript`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        text: segment.text,
+        startMs: segment.startMs,
+        endMs: segment.endMs,
+      }),
+    }).then((response) => {
+      if (!response.ok) throw new Error(`Transcript grounding failed (${response.status})`);
+    }).catch(() => undefined);
+  }, [eventId, room?.eventId]);
 
   const startEvent = async () => {
     let nextRoom: EventRoom;
@@ -93,6 +107,7 @@ export function SellerTab({
           products={transcriptProducts}
           activeProductId={selectedProductId}
           onActiveProductChange={onActiveProductChange}
+          onFinalSegment={recordTranscriptMoment}
         />
         <section className="stage-panel" aria-labelledby="on-deck-title">
           <div className="panel-kicker">On deck <span className="panel-status">1 slot</span></div>

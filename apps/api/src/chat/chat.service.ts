@@ -11,6 +11,31 @@ export interface ChatMessage {
   role: ChatRole;
   text: string;
   createdAt: string;
+  grounding?: ChatGrounding;
+}
+
+export interface ChatGrounding {
+  status: 'answered' | 'seller-queue';
+  sourceMessageId?: string;
+  citation?: {
+    transcriptId: string;
+    label: string;
+    quote: string;
+    startMs?: number;
+  };
+}
+
+export interface TranscriptMomentInput {
+  text?: unknown;
+  startMs?: unknown;
+  endMs?: unknown;
+}
+
+interface TranscriptMoment {
+  id: string;
+  text: string;
+  startMs?: number;
+  endMs?: number;
 }
 
 export interface ChatPresence {
@@ -48,6 +73,7 @@ export interface ChatSseEvent {
 
 interface EventState {
   messages: ChatMessage[];
+  transcript: TranscriptMoment[];
   presence: Map<string, ChatPresence>;
   updates: Subject<ChatSseEvent>;
 }
@@ -55,9 +81,35 @@ interface EventState {
 const EVENT_ID_RE = /^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$/;
 const PRESENCE_TTL_MS = 35_000;
 const MAX_MESSAGES = 200;
+const MAX_TRANSCRIPT_MOMENTS = 200;
 const MAX_USER_ID_LENGTH = 80;
 const MAX_DISPLAY_NAME_LENGTH = 80;
 const MAX_MESSAGE_LENGTH = 500;
+const STOP_WORDS = new Set([
+  'about', 'after', 'again', 'also', 'been', 'before', 'could', 'does', 'from',
+  'have', 'into', 'just', 'that', 'their', 'there', 'these', 'they', 'this',
+  'what', 'when', 'where', 'which', 'with', 'would', 'your',
+]);
+
+function questionTokens(value: string): string[] {
+  return value
+    .toLocaleLowerCase()
+    .replace(/[^a-z0-9]+/g, ' ')
+    .split(/\s+/)
+    .filter((token) => token.length >= 3 && !STOP_WORDS.has(token));
+}
+
+function isBuyerQuestion(value: string): boolean {
+  return value.includes('?') || /^(what|when|where|who|why|how|is|are|does|do|can|could|will|would)\b/i.test(value.trim());
+}
+
+function citationLabel(startMs?: number): string {
+  if (startMs === undefined) return 'Live transcript';
+  const totalSeconds = Math.max(0, Math.floor(startMs / 1_000));
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = String(totalSeconds % 60).padStart(2, '0');
+  return `Stream ${minutes}:${seconds}`;
+}
 
 /**
  * The event chat's sync boundary.
@@ -112,7 +164,38 @@ export class ChatService {
       createdAt: new Date(now).toISOString(),
     };
 
-    state.messages.push(message);
+    if (role === 'buyer' && isBuyerQuestion(text)) {
+      const groundedMoment = this.findGroundedMoment(state, text);
+      if (groundedMoment) {
+        const citation = {
+          transcriptId: groundedMoment.id,
+          label: citationLabel(groundedMoment.startMs),
+          quote: groundedMoment.text,
+          startMs: groundedMoment.startMs,
+        };
+        message.grounding = { status: 'answered', citation };
+        state.messages.push(message, {
+          id: `${eventId}-${++this.sequence}`,
+          eventId,
+          userId: 'sidestage-copilot',
+          displayName: 'SideStage copilot',
+          role: 'seller',
+          text: `From the live transcript: “${groundedMoment.text}”`,
+          createdAt: message.createdAt,
+          grounding: {
+            status: 'answered',
+            sourceMessageId: message.id,
+            citation,
+          },
+        });
+      } else {
+        message.grounding = { status: 'seller-queue' };
+        state.messages.push(message);
+      }
+    } else {
+      state.messages.push(message);
+    }
+
     if (state.messages.length > MAX_MESSAGES) state.messages.splice(0, state.messages.length - MAX_MESSAGES);
     state.presence.set(userId, {
       userId,
@@ -124,6 +207,22 @@ export class ChatService {
     this.emitInvalidation(eventId, 'event.chat.presence');
     this.emitInvalidation(eventId, 'event.chat.stats');
     return { ...message };
+  }
+
+  addTranscriptMoment(eventId: string, input: TranscriptMomentInput): TranscriptMoment {
+    const state = this.getEvent(eventId);
+    const text = this.readBoundedString(input.text, 'text', MAX_MESSAGE_LENGTH);
+    const moment: TranscriptMoment = {
+      id: `transcript-${eventId}-${++this.sequence}`,
+      text,
+      startMs: this.readOptionalMilliseconds(input.startMs, 'startMs'),
+      endMs: this.readOptionalMilliseconds(input.endMs, 'endMs'),
+    };
+    state.transcript.push(moment);
+    if (state.transcript.length > MAX_TRANSCRIPT_MOMENTS) {
+      state.transcript.splice(0, state.transcript.length - MAX_TRANSCRIPT_MOMENTS);
+    }
+    return { ...moment };
   }
 
   touchPresence(eventId: string, input: PresenceInput): ChatPresence {
@@ -160,10 +259,22 @@ export class ChatService {
     }
     let state = this.events.get(eventId);
     if (!state) {
-      state = { messages: [], presence: new Map(), updates: new Subject<ChatSseEvent>() };
+      state = { messages: [], transcript: [], presence: new Map(), updates: new Subject<ChatSseEvent>() };
       this.events.set(eventId, state);
     }
     return state;
+  }
+
+  private findGroundedMoment(state: EventState, question: string): TranscriptMoment | null {
+    const tokens = new Set(questionTokens(question));
+    if (tokens.size === 0) return null;
+    let winner: { moment: TranscriptMoment; score: number } | null = null;
+    for (const moment of state.transcript) {
+      const momentTokens = new Set(questionTokens(moment.text));
+      const score = [...tokens].filter((token) => momentTokens.has(token)).length;
+      if (score > 0 && (!winner || score >= winner.score)) winner = { moment, score };
+    }
+    return winner?.moment ?? null;
   }
 
   private prunePresence(state: EventState): void {
@@ -209,5 +320,13 @@ export class ChatService {
   private readRole(value: unknown): ChatRole {
     if (value === 'buyer' || value === 'seller') return value;
     throw new BadRequestException('role must be buyer or seller');
+  }
+
+  private readOptionalMilliseconds(value: unknown, field: string): number | undefined {
+    if (value === undefined || value === null) return undefined;
+    if (typeof value !== 'number' || !Number.isFinite(value) || value < 0) {
+      throw new BadRequestException(`${field} must be a non-negative number`);
+    }
+    return Math.round(value);
   }
 }

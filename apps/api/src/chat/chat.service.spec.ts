@@ -22,11 +22,45 @@ describe('ChatService', () => {
       displayName: 'Maya',
       role: 'buyer',
       text: 'Is this available in blue?',
+      grounding: { status: 'seller-queue' },
     });
     expect(service.getMessages('demo-event')).toEqual([message]);
     expect(service.getPresence('demo-event')).toHaveLength(1);
     expect(service.getStats('demo-event')).toEqual({ activeUsers: 1, buyers: 1, sellers: 0, totalMessages: 1 });
     expect(events).toEqual(['event.chat.messages', 'event.chat.presence', 'event.chat.stats']);
+  });
+
+  it('answers from the closest transcript moment and cites the stream timestamp', () => {
+    const service = new ChatService();
+    service.addTranscriptMoment('demo-event', {
+      text: 'The Aurora cup is dishwasher safe and made in Portugal.',
+      startMs: 83_000,
+    });
+
+    const question = service.addMessage('demo-event', {
+      userId: 'buyer-1',
+      displayName: 'Maya',
+      role: 'buyer',
+      text: 'Is the Aurora cup dishwasher safe?',
+    });
+    const messages = service.getMessages('demo-event');
+
+    expect(question.grounding).toMatchObject({
+      status: 'answered',
+      citation: { label: 'Stream 1:23' },
+    });
+    expect(messages).toHaveLength(2);
+    expect(messages[1]).toMatchObject({
+      displayName: 'SideStage copilot',
+      role: 'seller',
+      grounding: {
+        status: 'answered',
+        sourceMessageId: question.id,
+        citation: { label: 'Stream 1:23' },
+      },
+    });
+    expect(messages[1]?.text).toContain('dishwasher safe');
+    expect(service.getStats('demo-event').totalMessages).toBe(2);
   });
 
   it('rejects blank or oversized messages before mutating state', () => {

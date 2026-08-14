@@ -13,6 +13,16 @@ export interface EventChatMessage {
   role: EventChatRole;
   text: string;
   createdAt: string;
+  grounding?: {
+    status: 'answered' | 'seller-queue';
+    sourceMessageId?: string;
+    citation?: {
+      transcriptId: string;
+      label: string;
+      quote: string;
+      startMs?: number;
+    };
+  };
 }
 
 export interface EventChatPresence {
@@ -165,7 +175,11 @@ function EventChatSurface({
   const triagedMessages = useMemo(() => triageMessages(messages), [messages]);
   const focusedMessages = useMemo(
     () => triagedMessages
-      .filter(({ triage }) => triage.importance !== 'low')
+      .filter(({ message, triage }) => (
+        message.role === 'buyer'
+        && triage.importance !== 'low'
+        && message.grounding?.status !== 'answered'
+      ))
       .sort((left, right) => MESSAGE_IMPORTANCE_ORDER[left.triage.importance] - MESSAGE_IMPORTANCE_ORDER[right.triage.importance]),
     [triagedMessages],
   );
@@ -269,6 +283,14 @@ function EventChatSurface({
                 ) : null}
               </div>
               <p>{message.text}</p>
+              {message.grounding?.status === 'answered' ? (
+                <span className="event-chat-grounding event-chat-grounding-answered">
+                  Answered from transcript{message.grounding.citation ? ` · ${message.grounding.citation.label}` : ''}
+                </span>
+              ) : null}
+              {message.grounding?.status === 'seller-queue' ? (
+                <span className="event-chat-grounding event-chat-grounding-queued">Queued for seller</span>
+              ) : null}
             </div>
           </article>
         ))}

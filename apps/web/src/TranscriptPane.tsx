@@ -14,6 +14,7 @@ export interface TranscriptPaneProps extends Omit<TranscriptionOptions, 'speechR
   products?: readonly TranscriptProductOption[];
   activeProductId?: string | null;
   onActiveProductChange?: (productId: string | null) => void;
+  onFinalSegment?: (segment: TranscriptSegment) => void | Promise<void>;
 }
 
 export interface TranscriptProductOption {
@@ -54,6 +55,7 @@ export function TranscriptPane({
   products = EMPTY_PRODUCTS,
   activeProductId,
   onActiveProductChange,
+  onFinalSegment,
   ...options
 }: TranscriptPaneProps) {
   const managedSession = useMemo(
@@ -80,6 +82,7 @@ export function TranscriptPane({
     const removeSegment = managedSession.onSegment((segment) => {
       if (segment.isFinal) {
         setFinalSegments((current) => [...current, segment]);
+        void onFinalSegment?.(segment);
         const mention = findTranscriptProductMention(segment.text, products);
         if (mention) setSuggestedProduct(mention);
         setInterim('');
@@ -96,7 +99,7 @@ export function TranscriptPane({
       removeError();
       if (!session) void managedSession.stop();
     };
-  }, [autoStart, managedSession, products, session]);
+  }, [autoStart, managedSession, onFinalSegment, products, session]);
 
   const toggle = async () => {
     setError(null);

@@ -17,6 +17,7 @@ import {
   type ChatMessageInput,
   type ChatSseEvent,
   type PresenceInput,
+  type TranscriptMomentInput,
 } from './chat.service';
 
 interface SyncQuery {
@@ -41,6 +42,11 @@ export class ChatController {
   @Post('chat/events/:eventId/messages')
   sendMessage(@Param('eventId') eventId: string, @Body() body: ChatMessageInput) {
     return this.chat.addMessage(eventId, body ?? {});
+  }
+
+  @Post('chat/events/:eventId/transcript')
+  addTranscriptMoment(@Param('eventId') eventId: string, @Body() body: TranscriptMomentInput) {
+    return this.chat.addTranscriptMoment(eventId, body ?? {});
   }
 
   @Post('chat/events/:eventId/presence')

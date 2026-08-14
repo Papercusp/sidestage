@@ -34,4 +34,21 @@ describe('ChatController sync contract', () => {
     expect(response.results[0]?.error).toContain('unknown sync query');
     expect(response.results[1]).toMatchObject({ rows: [], error: undefined });
   });
+
+  it('accepts seller transcript moments for grounded chat answers', () => {
+    const service = new ChatService();
+    const controller = new ChatController(service);
+    const moment = controller.addTranscriptMoment('demo-event', {
+      text: 'Shipping takes two business days.',
+      startMs: 12_000,
+    });
+
+    expect(moment).toMatchObject({ text: 'Shipping takes two business days.', startMs: 12_000 });
+    expect(service.addMessage('demo-event', {
+      userId: 'buyer-1',
+      displayName: 'Maya',
+      role: 'buyer',
+      text: 'How long does shipping take?',
+    }).grounding).toMatchObject({ status: 'answered' });
+  });
 });
