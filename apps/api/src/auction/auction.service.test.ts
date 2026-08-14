@@ -117,6 +117,32 @@ describe('AuctionService', () => {
     expect(snapshot.auction).toMatchObject({ id: started.id, status: 'closed' });
   });
 
+  it('recovers the authoritative current auction through the durable store after restart', async () => {
+    const recovered = {
+      id: 'auction-recovered',
+      eventId: 'event-1',
+      eventItemId: 'item-1',
+      productId: 'product-1',
+      quantity: 1,
+      startingPriceCents: 1_000,
+      currentPriceCents: 1_400,
+      status: 'active' as const,
+      startedAt: '2026-08-14T18:00:00.000Z',
+      endsAt: '2099-08-14T18:01:00.000Z',
+      bids: [{
+        id: 'bid-1',
+        bidderId: 'buyer-a',
+        amountCents: 1_400,
+        createdAt: '2026-08-14T18:00:30.000Z',
+      }],
+    };
+    const store = { getCurrentByEvent: vi.fn().mockResolvedValue(recovered) };
+    const restarted = new AuctionService(new InMemoryAuctionInventory(), undefined, store as never);
+
+    await expect(restarted.getCurrentAuction('event-1')).resolves.toEqual(recovered);
+    expect(store.getCurrentByEvent).toHaveBeenCalledWith('event-1');
+  });
+
   it('lets the next auction start on an event whose previous one closed', async () => {
     // The event's current-auction entry now survives a close, so the
     // "already has an active auction" guard must key on STATUS, not presence.
