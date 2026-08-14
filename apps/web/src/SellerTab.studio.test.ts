@@ -1,5 +1,9 @@
-import { describe, expect, it } from 'vitest';
-import { studioBoardConfig } from './SellerTab';
+/** @vitest-environment jsdom */
+
+import { act, createElement } from 'react';
+import { createRoot } from 'react-dom/client';
+import { describe, expect, it, vi } from 'vitest';
+import { studioBoardConfig, useTranscriptMomentRecorder } from './SellerTab';
 
 function panelIds(seed: () => { root: unknown }): string[] {
   const visit = (node: unknown): string[] => {
@@ -41,5 +45,54 @@ describe('Studio board selection', () => {
     ]);
     expect(manager.layoutName).not.toBe(active.layoutName);
     expect(manager.resetEventName).not.toBe(active.resetEventName);
+  });
+
+  it('preserves transcript ingestion through the named mutation REST fallback', async () => {
+    const fetchMock = vi.fn(async (_input: RequestInfo | URL, _init?: RequestInit) => ({
+      ok: true,
+      status: 200,
+      json: async () => ({ id: 'transcript-1' }),
+      text: async () => '',
+    }) as Response);
+    vi.stubGlobal('fetch', fetchMock);
+    (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
+    const container = document.createElement('div');
+    const root = createRoot(container);
+    let record: ReturnType<typeof useTranscriptMomentRecorder> | null = null;
+
+    function Harness() {
+      record = useTranscriptMomentRecorder({
+        eventId: 'configured-event',
+        roomEventId: 'live/event',
+        selectedProductId: 'mug',
+        transcriptProducts: [{ id: 'mug', label: 'Stoneware mug' }],
+        apiBaseUrl: 'https://sidestage.example/',
+      });
+      return null;
+    }
+
+    try {
+      await act(async () => root.render(createElement(Harness)));
+      await act(async () => {
+        await record?.({ text: 'Here is the mug', startMs: 2_000, endMs: 3_500 });
+      });
+
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+      expect(fetchMock.mock.calls[0]?.[0]).toBe(
+        'https://sidestage.example/chat/events/live%2Fevent/transcript',
+      );
+      expect(fetchMock.mock.calls[0]?.[1]).toMatchObject({ method: 'POST' });
+      expect(JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body))).toEqual({
+        text: 'Here is the mug',
+        startMs: 2_000,
+        endMs: 3_500,
+        productId: 'mug',
+        productTitle: 'Stoneware mug',
+      });
+      await act(async () => root.unmount());
+    } finally {
+      vi.unstubAllGlobals();
+      delete (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT;
+    }
   });
 });
