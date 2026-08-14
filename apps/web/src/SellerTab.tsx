@@ -220,6 +220,7 @@ export function SellerTab({
         registry={sellerPanelRegistry}
         layoutName={layoutName}
         layoutSeed={layoutSeed}
+        foregroundPanelId={studioView === 'event-manager' ? 'event-manager' : undefined}
         resetEventName={resetEventName}
         missingComponent={SellerDockMissingPanel}
       >

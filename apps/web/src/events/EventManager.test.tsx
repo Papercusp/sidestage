@@ -69,6 +69,8 @@ describe('EventManager', () => {
     expect(markup).toContain('Markdown');
     expect(markup).toContain('Stock');
     expect(markup).toContain('Auction quantity for Barista Pro Espresso Machine');
+    expect(markup).toContain('start auctions');
+    expect(markup).toContain('Start auction');
     expect(markup).toContain('Offer quantity for Barista Pro Espresso Machine');
     expect(markup).toContain('Barista Pro Espresso Machine');
     expect(markup).toContain('Event queue');

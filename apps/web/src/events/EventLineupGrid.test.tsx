@@ -34,6 +34,7 @@ describe('EventLineupGrid', () => {
     expect(markup).toContain('Stock');
     expect(markup).toContain('Auction starting price for Aurora mug');
     expect(markup).toContain('Auction quantity for Aurora mug');
+    expect(markup).toContain('Start auction');
     expect(markup).toContain('Offer price for Aurora mug');
     expect(markup).toContain('Offer quantity for Aurora mug');
     expect(markup).toContain('Offer buyer ID for Aurora mug');

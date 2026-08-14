@@ -154,7 +154,7 @@ export function EventManager({
           <p className="eyebrow">Seller workspace · event setup</p>
           <h2 id="event-manager-title">{items.length ? name : 'Build the live lineup.'}</h2>
           <p className="event-manager-copy">
-            Search the real catalog, reserve event quantities, then run Push, Swap, Markdown, and Stock through the guarded action service.
+            Search the real catalog, reserve event quantities, then push, swap, mark down, adjust stock, start auctions, and send offers through the guarded action service.
           </p>
         </div>
       </div>

@@ -13,6 +13,7 @@ import {
   SELLER_MANAGER_DOCK_RESET_EVENT,
   SELLER_DOCK_STORAGE_PREFIX,
   createSellerDockStore,
+  foregroundSellerDockPanel,
   requestSellerDockLayoutReset,
   sellerDockStorageKey,
 } from './seller-dock-store';
@@ -96,6 +97,49 @@ describe('createSellerDockStore — round trip', () => {
     expect(reloaded.layoutJson).not.toEqual(sellerDockDefaultLayout());
   });
 
+  it('foregrounds the route panel while preserving the saved manager geometry', async () => {
+    const saved = sellerEventManagerDockDefaultLayout();
+    const root = saved.root as { activePanelId: string; size?: number };
+    root.activePanelId = 'run-of-show-planner';
+    root.size = 731;
+    await createSellerDockStore({ seed: sellerEventManagerDockDefaultLayout }).save(
+      SELLER_MANAGER_DOCK_LAYOUT_NAME,
+      saved,
+    );
+
+    const row = await createSellerDockStore({
+      seed: sellerEventManagerDockDefaultLayout,
+      foregroundPanelId: 'event-manager',
+    }).load(SELLER_MANAGER_DOCK_LAYOUT_NAME);
+    const restored = row.layoutJson as LayoutDoc;
+
+    expect((restored.root as { activePanelId: string }).activePanelId).toBe('event-manager');
+    expect((restored.root as { size?: number }).size).toBe(731);
+    expect((restored.root as { panels: unknown[] }).panels).toEqual(
+      (saved.root as { panels: unknown[] }).panels,
+    );
+  });
+
+  it('reseeds a manager layout that no longer contains its route panel', async () => {
+    const incomplete = sellerEventManagerDockDefaultLayout();
+    const root = incomplete.root as { activePanelId: string; panels: Array<{ id: string }> };
+    root.panels = root.panels.filter((panel) => panel.id !== 'event-manager');
+    root.activePanelId = 'run-of-show-planner';
+    await createSellerDockStore({ seed: sellerEventManagerDockDefaultLayout }).save(
+      SELLER_MANAGER_DOCK_LAYOUT_NAME,
+      incomplete,
+    );
+
+    const row = await createSellerDockStore({
+      seed: sellerEventManagerDockDefaultLayout,
+      foregroundPanelId: 'event-manager',
+    }).load(SELLER_MANAGER_DOCK_LAYOUT_NAME);
+
+    expect(row.layoutJson).toEqual(sellerEventManagerDockDefaultLayout());
+    expect(JSON.parse(store.get(sellerDockStorageKey(SELLER_MANAGER_DOCK_LAYOUT_NAME))!).layoutJson)
+      .toEqual(sellerEventManagerDockDefaultLayout());
+  });
+
   it('reset() drops the saved layout and returns the default', async () => {
     const s = createSellerDockStore();
     const moved = sellerDockDefaultLayout();
@@ -108,6 +152,16 @@ describe('createSellerDockStore — round trip', () => {
     // And it STAYS reset across a remount, rather than resurrecting the old row.
     const reloaded = await createSellerDockStore().load(SELLER_DOCK_LAYOUT_NAME);
     expect(reloaded.layoutJson).toEqual(sellerDockDefaultLayout());
+  });
+});
+
+describe('foregroundSellerDockPanel', () => {
+  it('returns null rather than mutating a layout that does not contain the panel', () => {
+    const layout = sellerDockDefaultLayout();
+    const before = JSON.stringify(layout);
+
+    expect(foregroundSellerDockPanel(layout, 'not-installed')).toBeNull();
+    expect(JSON.stringify(layout)).toBe(before);
   });
 });
 

@@ -122,6 +122,8 @@ export interface SellerDockProps {
   layoutName?: string;
   /** Default panel geometry for this Studio board. */
   layoutSeed?: () => LayoutDoc;
+  /** Panel this route must reveal after restoring the board's saved geometry. */
+  foregroundPanelId?: SellerPanelId;
   /** Reset event scoped to this board, so sibling boards keep their layout. */
   resetEventName?: string;
   /**
@@ -142,6 +144,7 @@ export function SellerDock({
   store,
   layoutName = SELLER_DOCK_LAYOUT_NAME,
   layoutSeed = sellerDockDefaultLayout,
+  foregroundPanelId,
   resetEventName = SELLER_DOCK_RESET_EVENT,
   missingComponent,
   children,
@@ -149,8 +152,8 @@ export function SellerDock({
   // A fresh store per mount would re-seed and drop the user's saved layout, so
   // it is memoised for the life of the component.
   const layoutStore = useMemo(
-    () => store ?? createSellerDockStore({ seed: layoutSeed }),
-    [layoutSeed, store],
+    () => store ?? createSellerDockStore({ seed: layoutSeed, foregroundPanelId }),
+    [foregroundPanelId, layoutSeed, store],
   );
   const shellRef = useRef<HTMLDivElement>(null);
 

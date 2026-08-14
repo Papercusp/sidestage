@@ -100,6 +100,15 @@ export interface SellerDockStoreOptions {
   /** Seed for this named Studio board. Defaults to the Active Event board. */
   seed?: () => LayoutDoc;
   /**
+   * Panel the addressed board must reveal when it is entered.
+   *
+   * Persisted geometry still wins; only the containing tab strip's active
+   * panel is changed. If the saved layout no longer contains this essential
+   * panel, the row is reseeded so the route cannot hydrate into a board that
+   * has lost its own destination.
+   */
+  foregroundPanelId?: string;
+  /**
    * Called when an unreadable row was discarded and the default reseeded.
    *
    * Defaults to a `console.warn`. This is deliberately a notification and not a
@@ -117,6 +126,35 @@ function defaultOnRecover({ key, error }: { key: string; error: Error }): void {
 
 function asError(err: unknown): Error {
   return err instanceof Error ? err : new Error(String(err));
+}
+
+/**
+ * Return a copy of `layout` with `panelId` selected in its containing strip.
+ * `null` means the panel was removed from the saved layout.
+ *
+ * Layout documents are deliberately JSON-only (D-006), so the JSON clone is
+ * the narrowest safe way to preserve every piece of user geometry without
+ * mutating the row returned by the underlying store.
+ */
+export function foregroundSellerDockPanel(layout: LayoutDoc, panelId: string): LayoutDoc | null {
+  const next = JSON.parse(JSON.stringify(layout)) as LayoutDoc;
+
+  const visit = (node: LayoutDoc['root']): boolean => {
+    if (node.kind === 'tabs') {
+      if (!node.panels.some((panel) => panel.id === panelId)) return false;
+      node.activePanelId = panelId;
+      return true;
+    }
+    return node.children.some(visit);
+  };
+
+  if (visit(next.root)) return next;
+  const floating = next.floating?.find((group) => (
+    group.panels.some((panel) => panel.id === panelId)
+  ));
+  if (!floating) return null;
+  floating.activePanelId = panelId;
+  return next;
 }
 
 /**
@@ -148,15 +186,31 @@ export function createSellerDockStore(opts: SellerDockStoreOptions = {}): DockLa
     onRecover({ layoutName, key, error });
   };
 
+  const foreground = async (name: string, row: DockLayoutRow): Promise<DockLayoutRow> => {
+    if (!opts.foregroundPanelId || row.schemaVersion !== 1) return row;
+    const layout = foregroundSellerDockPanel(row.layoutJson as LayoutDoc, opts.foregroundPanelId);
+    if (layout) return { ...row, layoutJson: layout };
+
+    // A board route whose destination panel was closed is not recoverable by
+    // merely changing activePanelId. Reuse the store's existing reset/seed path
+    // so there is still one authoritative default layout.
+    const seeded = await inner.reset(name);
+    if (seeded.schemaVersion !== 1) return seeded;
+    const repaired = foregroundSellerDockPanel(seeded.layoutJson as LayoutDoc, opts.foregroundPanelId);
+    return repaired ? { ...seeded, layoutJson: repaired } : seeded;
+  };
+
   return {
     async load(name: string): Promise<DockLayoutRow> {
+      let row: DockLayoutRow;
       try {
-        return await inner.load(name);
+        row = await inner.load(name);
       } catch (err) {
         discard(name, asError(err));
         // The row is gone, so this takes the store's seed path.
-        return inner.load(name);
+        row = await inner.load(name);
       }
+      return foreground(name, row);
     },
 
     async save(name, layout, saveOpts): Promise<DockLayoutRow> {

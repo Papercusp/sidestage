@@ -235,7 +235,7 @@ export function EventLineupGrid({
                 onClick={() => auctionQuantity !== null && auctionPriceCents !== null
                   && onStartAuction(row, auctionQuantity, auctionPriceCents)}
               >
-                Start
+                Start auction
               </button>
             </div>
             <div className="event-commerce-row">
