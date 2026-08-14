@@ -19,7 +19,7 @@ export class CartController {
     quantity?: number;
     imageUrl?: string;
   }) {
-    return this.carts.addItem(body);
+    return this.carts.holdItem(body);
   }
 
   @Patch(':cartId/items/:productId')

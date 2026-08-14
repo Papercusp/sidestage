@@ -1,12 +1,13 @@
 import { Module } from '@nestjs/common';
 import type { Pool } from 'pg';
 import { DatabaseModule, PG_POOL } from '../db/database.module';
+import { InventoryModule } from '../inventory/inventory.module';
 import { PgCartStore } from '../db/pg-cart-store';
 import { CartController } from './cart.controller';
 import { CART_STORE, CartService, InMemoryCartStore } from './cart.service';
 
 @Module({
-  imports: [DatabaseModule],
+  imports: [DatabaseModule, InventoryModule],
   controllers: [CartController],
   providers: [
     CartService,

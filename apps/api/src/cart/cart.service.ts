@@ -1,5 +1,7 @@
-import { Inject, Injectable } from '@nestjs/common';
+import { ConflictException, Inject, Injectable, Optional } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
+import { AUCTION_INVENTORY, type AuctionInventory, type InventoryHoldSource } from '../auction/auction.service';
+import { buyerHoldExpiresAt } from '../inventory/hold-policy';
 
 export const CART_STORE = Symbol('CART_STORE');
 
@@ -9,6 +11,7 @@ export interface CartItem {
   priceCents: number;
   quantity: number;
   imageUrl?: string;
+  expiresAt?: string;
 }
 
 export interface Cart {
@@ -57,11 +60,21 @@ export class InMemoryCartStore implements CartStore {
 
 @Injectable()
 export class CartService {
-  constructor(@Inject(CART_STORE) private readonly store: CartStore) {}
+  constructor(
+    @Inject(CART_STORE) private readonly store: CartStore,
+    @Optional() @Inject(AUCTION_INVENTORY) private readonly inventory?: AuctionInventory,
+  ) {}
 
   async findCart(id: string): Promise<Cart | null> {
     const cart = await this.store.get(id);
-    return cart ? cloneCart(cart) : null;
+    if (!cart) return null;
+    const expired = cart.items.filter((item) => this.isExpired(item));
+    if (expired.length === 0) return cloneCart(cart);
+    await Promise.all(expired.map((item) => this.releaseReservation(cart.id, item)));
+    cart.items = cart.items.filter((item) => !this.isExpired(item));
+    const updated = summarize(cart);
+    await this.store.set(updated);
+    return cloneCart(updated);
   }
 
   async getCart(id?: string): Promise<Cart> {
@@ -88,6 +101,7 @@ export class CartService {
     priceCents: number;
     quantity?: number;
     imageUrl?: string;
+    expiresAt?: string;
   }): Promise<Cart> {
     this.assertProduct(input.productId, input.title, input.priceCents);
     const quantity = this.assertQuantity(input.quantity ?? 1);
@@ -98,6 +112,7 @@ export class CartService {
       existing.title = input.title;
       existing.priceCents = input.priceCents;
       existing.imageUrl = input.imageUrl ?? existing.imageUrl;
+      existing.expiresAt = input.expiresAt ?? existing.expiresAt;
     } else {
       cart.items.push({
         productId: input.productId,
@@ -105,6 +120,7 @@ export class CartService {
         priceCents: input.priceCents,
         quantity,
         imageUrl: input.imageUrl,
+        expiresAt: input.expiresAt,
       });
     }
     const updated = summarize(cart);
@@ -112,11 +128,42 @@ export class CartService {
     return cloneCart(updated);
   }
 
+  async holdItem(input: {
+    cartId?: string;
+    productId: string;
+    title: string;
+    priceCents: number;
+    quantity?: number;
+    imageUrl?: string;
+  }): Promise<Cart> {
+    this.assertProduct(input.productId, input.title, input.priceCents);
+    const quantity = this.assertQuantity(input.quantity ?? 1);
+    const cart = await this.getCart(input.cartId);
+    const existing = cart.items.find((item) => item.productId === input.productId);
+    const nextQuantity = this.assertQuantity((existing?.quantity ?? 0) + quantity);
+    const expiresAt = buyerHoldExpiresAt();
+    if (this.inventory) {
+      const reserved = await this.inventory.reserve(input.productId, nextQuantity, this.holdSource(cart.id), expiresAt);
+      if (!reserved) throw new ConflictException(`Insufficient available quantity for ${input.productId}`);
+    }
+    try {
+      return await this.addItem({ ...input, cartId: cart.id, expiresAt });
+    } catch (error) {
+      await this.inventory?.release(input.productId, nextQuantity, this.holdSource(cart.id));
+      throw error;
+    }
+  }
+
   async setQuantity(cartId: string, productId: string, quantity: number): Promise<Cart> {
     const cart = await this.requireCart(cartId);
     const item = cart.items.find((candidate) => candidate.productId === productId);
     if (!item) throw new Error(`Product ${productId} is not in cart`);
-    item.quantity = this.assertQuantity(quantity);
+    const nextQuantity = this.assertQuantity(quantity);
+    if (this.inventory && item.expiresAt) {
+      const reserved = await this.inventory.reserve(productId, nextQuantity, this.holdSource(cart.id), item.expiresAt);
+      if (!reserved) throw new ConflictException(`Insufficient available quantity for ${productId}`);
+    }
+    item.quantity = nextQuantity;
     const updated = summarize(cart);
     await this.store.set(updated);
     return cloneCart(updated);
@@ -124,8 +171,25 @@ export class CartService {
 
   async removeItem(cartId: string, productId: string): Promise<Cart> {
     const cart = await this.requireCart(cartId);
+    const heldItem = cart.items.find((item) => item.productId === productId);
+    if (heldItem) await this.releaseReservation(cart.id, heldItem);
     cart.items = cart.items.filter((item) => item.productId !== productId);
     const updated = summarize(cart);
+    await this.store.set(updated);
+    return cloneCart(updated);
+  }
+
+  async commit(cartId: string): Promise<Cart> {
+    const cart = await this.store.get(cartId);
+    if (!cart || cart.items.length === 0) throw new Error('Cart is empty or not found');
+    if (this.inventory) {
+      await Promise.all(cart.items.map(async (item) => {
+        if (!item.expiresAt) return;
+        const committed = await this.inventory!.commit(item.productId, this.holdSource(cart.id));
+        if (!committed) throw new Error(`Inventory hold for ${item.productId} could not be committed`);
+      }));
+    }
+    const updated = summarize({ ...cart, items: [] });
     await this.store.set(updated);
     return cloneCart(updated);
   }
@@ -134,6 +198,21 @@ export class CartService {
     const cart = await this.findCart(id);
     if (!cart) throw new Error(`Cart ${id} was not found`);
     return cart;
+  }
+
+  private isExpired(item: CartItem): boolean {
+    if (!item.expiresAt) return false;
+    const deadline = Date.parse(item.expiresAt);
+    return !Number.isFinite(deadline) || deadline <= Date.now();
+  }
+
+  private holdSource(cartId: string): InventoryHoldSource {
+    return { kind: 'cart', id: cartId };
+  }
+
+  private async releaseReservation(cartId: string, item: CartItem): Promise<void> {
+    if (!this.inventory || !item.expiresAt) return;
+    await this.inventory.release(item.productId, item.quantity, this.holdSource(cartId));
   }
 
   private assertProduct(productId: string, title: string, priceCents: number): void {

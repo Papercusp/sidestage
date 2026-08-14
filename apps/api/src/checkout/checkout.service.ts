@@ -263,9 +263,16 @@ export class CheckoutService {
     const order = await this.orders.get(input.orderId);
     if (!order) throw new Error('Order not found');
     if (order.status === 'paid') return { order: this.cloneOrder(order), payment: { status: 'paid' } };
+    const cart = await this.requireCart(order.cartId);
+    if (cart.updatedAt !== order.cartUpdatedAt || JSON.stringify(cart.items) !== JSON.stringify(order.items)) {
+      throw new BadRequestException('Held items changed or expired before payment; review your held items and try again');
+    }
     const previousStatus = order.status;
     const payment = await this.provider.confirmPayment({ orderId: order.id, sourceId: input.sourceId, amountCents: order.totalCents, currency: order.currency });
-    if (payment.status === 'paid') order.status = 'paid';
+    if (payment.status === 'paid') {
+      await this.carts.commit(order.cartId);
+      order.status = 'paid';
+    }
     if (payment.status === 'failed') order.status = 'failed';
     await this.orders.set(order);
     if (order.status !== previousStatus) this.invalidateBuyerOrders(order.buyerId);
