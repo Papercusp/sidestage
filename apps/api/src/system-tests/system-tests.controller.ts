@@ -14,6 +14,7 @@ import {
 import { SystemTestContractError, type SystemTestActor } from '@papercusp/system-test-contract';
 import { SystemTestRunConflictError, SystemTestRunStoreError } from '@papercusp/system-test-runner';
 import { AuctionAccessService, auctionHeader } from '../auction/auction-access.service';
+import { DEMO_PRINCIPAL_HEADER } from '../sync/sync-request-context';
 import { SystemTestsService } from './system-tests.service';
 
 type HeadersMap = Record<string, string | string[] | undefined>;
@@ -105,7 +106,10 @@ export class SystemTestsController {
   }
 
   private actor(headers: HeadersMap, ip: string, action: string): SystemTestActor {
-    const seller = this.access.requireSeller(auctionHeader(headers, 'authorization'));
+    const seller = this.access.requireSeller(
+      auctionHeader(headers, 'authorization'),
+      auctionHeader(headers, DEMO_PRINCIPAL_HEADER),
+    );
     this.access.consumeRateLimit(`system-tests-${action}`, seller.sellerId || ip || 'unknown', 60, 60_000);
     return { id: seller.sellerId, role: 'operator' };
   }

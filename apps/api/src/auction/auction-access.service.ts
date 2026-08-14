@@ -8,6 +8,7 @@ import {
 } from '@nestjs/common';
 import { createHmac, randomUUID, timingSafeEqual } from 'node:crypto';
 import { parseCookies } from '../scout/scout-identity';
+import { DEMO_PRINCIPAL_HEADER, rolePrincipal } from '../sync/sync-request-context';
 
 export const AUCTION_GUEST_COOKIE = 'ss_auction_guest';
 
@@ -89,7 +90,10 @@ export class AuctionAccessService {
     this.sellerToken = env.SIDESTAGE_AUCTION_SELLER_TOKEN?.trim() || (production ? undefined : DEV_SELLER_TOKEN);
   }
 
-  requireSeller(authorization: string | undefined): { sellerId: string } {
+  requireSeller(
+    authorization: string | undefined,
+    principal: unknown,
+  ): { sellerId: string } {
     const configured = this.sellerToken;
     if (!configured) {
       throw new ServiceUnavailableException({
@@ -104,7 +108,14 @@ export class AuctionAccessService {
         message: 'A valid seller auction credential is required.',
       });
     }
-    return { sellerId: 'sidestage-seller' };
+    const sellerId = rolePrincipal(principal, 'seller');
+    if (!sellerId) {
+      throw new UnauthorizedException({
+        code: 'AUCTION_SELLER_PRINCIPAL_REQUIRED',
+        message: `${DEMO_PRINCIPAL_HEADER} is required for seller-owned resources.`,
+      });
+    }
+    return { sellerId };
   }
 
   issueGuest(cookieHeader: string | undefined): { principal: AuctionGuestPrincipal; setCookie?: string } {

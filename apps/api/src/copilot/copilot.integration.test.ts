@@ -1,6 +1,8 @@
 import { describe, expect, it, vi } from 'vitest';
 import { GuardedActionService } from '../actions/action.service';
 import { ChatService, type ChatMessage } from '../chat/chat.service';
+import { EventOwnershipGuard } from '../events/event-ownership.guard';
+import { EventService, InMemoryEventStore } from '../events/event.service';
 import type { AutoResponderJudgeService } from '../judge/judge.service';
 import { SyncInvalidationService } from '../sync/sync-invalidation.service';
 import { SyncQueryRegistry } from '../sync/sync-query.registry';
@@ -84,9 +86,21 @@ function integrationRuntime(action?: ActionResult) {
     judge,
     invalidations,
   );
-  const controller = new CopilotController(service);
+  const ownership = new EventOwnershipGuard(new EventService(
+    new InMemoryEventStore([{
+      eventId: 'event-live',
+      title: 'Live event',
+      sellerId: 'seller-1',
+      sellerName: 'Seller one',
+      status: 'live',
+      startsAt: null,
+      endedAt: null,
+    }]),
+    chat,
+  ));
+  const controller = new CopilotController(service, ownership);
   const queries = new SyncQueryRegistry();
-  const syncQueries = new CopilotSyncQueries(service, queries);
+  const syncQueries = new CopilotSyncQueries(service, queries, ownership);
   const subscriber = new BuyerQuestionCopilotSubscriber(chat, service);
   syncQueries.onModuleInit();
   subscriber.onModuleInit();
@@ -102,7 +116,11 @@ function integrationRuntime(action?: ActionResult) {
     await vi.waitFor(async () => {
       expect(await service.list('event-live')).toHaveLength(1);
     });
-    const proposals = await queries.resolve('event.copilot.proposals', { eventId: 'event-live' });
+    const proposals = await queries.resolve(
+      'event.copilot.proposals',
+      { eventId: 'event-live' },
+      { principal: 'seller-1' },
+    );
     return (proposals as CopilotProposal[])[0]!;
   }
 
@@ -129,8 +147,8 @@ describe('seller Copilot integration', () => {
       const proposal = await runtime.ask('Is the blue mug still available?');
 
       const [first, retry] = await Promise.all([
-        runtime.controller.approve(proposal.id, { actorId: 'seller-1' }),
-        runtime.controller.approve(proposal.id, { actorId: 'seller-1' }),
+        runtime.controller.approve(proposal.id, { actorId: 'seller-forged' }, 'seller-1'),
+        runtime.controller.approve(proposal.id, { actorId: 'seller-forged' }, 'seller-1'),
       ]);
 
       expect(retry).toEqual(first);
@@ -139,7 +157,11 @@ describe('seller Copilot integration', () => {
         decision: { actorId: 'seller-1', sentMessageId: expect.any(String) },
       });
       expect(sellerMessages(await runtime.chat.getMessages('event-live'))).toHaveLength(1);
-      await expect(runtime.queries.resolve('event.copilot.proposals', { eventId: 'event-live' }))
+      await expect(runtime.queries.resolve(
+        'event.copilot.proposals',
+        { eventId: 'event-live' },
+        { principal: 'seller-1' },
+      ))
         .resolves.toEqual([first]);
     } finally {
       runtime.destroy();
@@ -150,8 +172,8 @@ describe('seller Copilot integration', () => {
     const runtime = integrationRuntime();
     try {
       const proposal = await runtime.ask('Can this mug ship tomorrow?');
-      const skipped = await runtime.controller.skip(proposal.id, { actorId: 'seller-1' });
-      const retry = await runtime.controller.skip(proposal.id, { actorId: 'seller-1' });
+      const skipped = await runtime.controller.skip(proposal.id, { actorId: 'seller-forged' }, 'seller-1');
+      const retry = await runtime.controller.skip(proposal.id, { actorId: 'seller-forged' }, 'seller-1');
 
       expect(retry).toEqual(skipped);
       expect(skipped.status).toBe('skipped');
@@ -170,9 +192,13 @@ describe('seller Copilot integration', () => {
         eventItems: [{ ...context.eventItems[0]!, availableQty: 0 }],
       });
 
-      await expect(runtime.controller.approve(proposal.id, { actorId: 'seller-1' }))
+      await expect(runtime.controller.approve(proposal.id, { actorId: 'seller-forged' }, 'seller-1'))
         .rejects.toThrow('Grounding changed');
-      await expect(runtime.queries.resolve('event.copilot.proposals', { eventId: 'event-live' }))
+      await expect(runtime.queries.resolve(
+        'event.copilot.proposals',
+        { eventId: 'event-live' },
+        { principal: 'seller-1' },
+      ))
         .resolves.toEqual([expect.objectContaining({ status: 'blocked' })]);
       expect(sellerMessages(await runtime.chat.getMessages('event-live'))).toEqual([]);
     } finally {
@@ -210,10 +236,10 @@ describe('seller Copilot integration', () => {
     try {
       const proposal = await runtime.ask('Can you make me an offer?');
       const [first, retry] = await Promise.all([
-        runtime.controller.confirmAction(proposal.id, { actorId: 'seller-1' }),
-        runtime.controller.confirmAction(proposal.id, { actorId: 'seller-1' }),
+        runtime.controller.confirmAction(proposal.id, { actorId: 'seller-forged' }, 'seller-1'),
+        runtime.controller.confirmAction(proposal.id, { actorId: 'seller-forged' }, 'seller-1'),
       ]);
-      const approved = await runtime.controller.approve(proposal.id, { actorId: 'seller-1' });
+      const approved = await runtime.controller.approve(proposal.id, { actorId: 'seller-forged' }, 'seller-1');
 
       expect(retry).toEqual(first);
       expect(runtime.actions.listAudit('event-live')).toHaveLength(1);

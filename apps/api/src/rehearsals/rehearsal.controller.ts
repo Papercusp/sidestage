@@ -1,5 +1,7 @@
-import { BadRequestException, Body, Controller, Get, Inject, Param, Post } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Get, Headers, Inject, Param, Post } from '@nestjs/common';
+import { EventOwnershipGuard } from '../events/event-ownership.guard';
 import { SyncInvalidationService } from '../sync/sync-invalidation.service';
+import { DEMO_PRINCIPAL_HEADER } from '../sync/sync-request-context';
 import {
   CLIENT_REALTIME_PROBE_EVENT,
   createClientRealtimeProbeReceipt,
@@ -29,11 +31,16 @@ export class RehearsalController {
     @Inject(RehearsalService) private readonly rehearsals: RehearsalService,
     @Inject(RehearsalPreflightService) private readonly preflights: RehearsalPreflightService,
     @Inject(SyncInvalidationService) private readonly invalidations: SyncInvalidationService,
+    @Inject(EventOwnershipGuard) private readonly ownership: EventOwnershipGuard,
   ) {}
 
   /** The server-side half of preflight: what the browser cannot honestly measure. */
   @Get('preflight/:eventId')
-  preflight(@Param('eventId') eventId: string): Promise<PreflightReport> {
+  async preflight(
+    @Param('eventId') eventId: string,
+    @Headers(DEMO_PRINCIPAL_HEADER) principalHeader?: string,
+  ): Promise<PreflightReport> {
+    await this.ownership.requireOwned(eventId, principalHeader);
     return this.preflights.read(eventId);
   }
 
@@ -49,10 +56,12 @@ export class RehearsalController {
    * nonce to return on `/sync/sse` and times that full round trip.
    */
   @Post('client-realtime/:eventId')
-  clientRealtime(
+  async clientRealtime(
     @Param('eventId') eventId: string,
     @Body() body: { nonce?: unknown },
-  ): ClientRealtimeProbeReceipt {
+    @Headers(DEMO_PRINCIPAL_HEADER) principalHeader?: string,
+  ): Promise<ClientRealtimeProbeReceipt> {
+    await this.ownership.requireOwned(eventId, principalHeader);
     const receipt = createClientRealtimeProbeReceipt(eventId, readProbeNonce(body?.nonce));
     this.invalidations.invalidate(CLIENT_REALTIME_PROBE_EVENT, { ...receipt });
     return receipt;

@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { ChatService } from '../chat/chat.service';
+import type { EventOwnershipGuard } from '../events/event-ownership.guard';
 import { SyncQueryRegistry } from '../sync/sync-query.registry';
 import { BuyerQuestionCopilotSubscriber, CopilotSyncQueries } from './copilot.module';
 import type { CopilotProposalService } from './copilot.service';
@@ -10,11 +11,19 @@ describe('Copilot runtime composition', () => {
       list: vi.fn(async (eventId: string) => [{ id: 'p-1', eventId }]),
     } as unknown as CopilotProposalService;
     const queries = new SyncQueryRegistry();
+    const ownership = {
+      requireOwned: vi.fn().mockResolvedValue({ sellerId: 'seller-1' }),
+    } as unknown as EventOwnershipGuard;
 
-    new CopilotSyncQueries(copilot, queries).onModuleInit();
+    new CopilotSyncQueries(copilot, queries, ownership).onModuleInit();
 
-    await expect(queries.resolve('event.copilot.proposals', { eventId: 'event-1' }))
+    await expect(queries.resolve(
+      'event.copilot.proposals',
+      { eventId: 'event-1' },
+      { principal: 'seller-1' },
+    ))
       .resolves.toEqual([{ id: 'p-1', eventId: 'event-1' }]);
+    expect(ownership.requireOwned).toHaveBeenCalledWith('event-1', 'seller-1');
     expect(copilot.list).toHaveBeenCalledWith('event-1');
   });
 

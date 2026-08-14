@@ -1,6 +1,9 @@
 import { BadRequestException } from '@nestjs/common';
 import { firstValueFrom, take } from 'rxjs';
 import { describe, expect, it, vi } from 'vitest';
+import { ChatService } from '../chat/chat.service';
+import { EventOwnershipGuard } from '../events/event-ownership.guard';
+import { EventService, InMemoryEventStore } from '../events/event.service';
 import { SyncInvalidationService } from '../sync/sync-invalidation.service';
 import { SyncQueryRegistry } from '../sync/sync-query.registry';
 import { CLIENT_REALTIME_PROBE_EVENT } from './preflight';
@@ -13,13 +16,27 @@ function createController(
   invalidations = new SyncInvalidationService(),
   preflights = { read: vi.fn() } as unknown as RehearsalPreflightService,
 ) {
+  const ownership = new EventOwnershipGuard(new EventService(
+    new InMemoryEventStore([{
+      eventId: 'event-1',
+      title: 'Event one',
+      sellerId: 'seller-1',
+      sellerName: 'Seller one',
+      status: 'scheduled',
+      startsAt: null,
+      endedAt: null,
+    }]),
+    new ChatService(),
+  ));
   return {
     controller: new RehearsalController(
       {} as RehearsalService,
       preflights,
       invalidations,
+      ownership,
     ),
     invalidations,
+    ownership,
   };
 }
 
@@ -36,17 +53,30 @@ describe('Rehearsal preflight sync query', () => {
     };
     const preflights = { read: vi.fn().mockResolvedValue(report) };
     const queries = new SyncQueryRegistry();
-    new RehearsalSyncQueries(preflights as unknown as RehearsalPreflightService, queries).onModuleInit();
+    const { ownership } = createController();
+    new RehearsalSyncQueries(
+      preflights as unknown as RehearsalPreflightService,
+      queries,
+      ownership,
+    ).onModuleInit();
 
-    await expect(queries.resolve('rehearsal.preflight', { eventId: ' event-1 ' })).resolves.toEqual([report]);
+    await expect(queries.resolve(
+      'rehearsal.preflight',
+      { eventId: ' event-1 ' },
+      { principal: 'seller-1' },
+    )).resolves.toEqual([report]);
     expect(preflights.read).toHaveBeenCalledWith('event-1');
-    await expect(queries.resolve('rehearsal.preflight', {})).resolves.toEqual([]);
+    await expect(queries.resolve(
+      'rehearsal.preflight',
+      { eventId: 'event-1' },
+      { principal: 'seller-other' },
+    )).rejects.toThrow('Event not found for this seller.');
 
     const { controller } = createController(
       new SyncInvalidationService(),
       preflights as unknown as RehearsalPreflightService,
     );
-    await expect(controller.preflight('event-1')).resolves.toEqual(report);
+    await expect(controller.preflight('event-1', 'seller-1')).resolves.toEqual(report);
     expect(preflights.read).toHaveBeenLastCalledWith('event-1');
   });
 });
@@ -67,7 +97,11 @@ describe('RehearsalController client probes', () => {
     const published = firstValueFrom(invalidations.events().pipe(take(1)));
     const now = vi.spyOn(Date, 'now').mockReturnValue(1_786_690_000_456);
     try {
-      const receipt = controller.clientRealtime('event-1', { nonce: 'probe-nonce-123' });
+      const receipt = await controller.clientRealtime(
+        'event-1',
+        { nonce: 'probe-nonce-123' },
+        'seller-1',
+      );
       expect(receipt).toEqual({
         eventId: 'event-1',
         nonce: 'probe-nonce-123',
@@ -83,9 +117,9 @@ describe('RehearsalController client probes', () => {
     }
   });
 
-  it('refuses an uncorrelatable nonce instead of emitting a global-looking update', () => {
+  it('refuses an uncorrelatable nonce instead of emitting a global-looking update', async () => {
     const { controller } = createController();
-    expect(() => controller.clientRealtime('event-1', { nonce: '../bad' }))
-      .toThrow(BadRequestException);
+    await expect(controller.clientRealtime('event-1', { nonce: '../bad' }, 'seller-1'))
+      .rejects.toThrow(BadRequestException);
   });
 });
