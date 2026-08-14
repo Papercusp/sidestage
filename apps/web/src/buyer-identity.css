@@ -1,7 +1,8 @@
 .demo-identity {
   display: grid;
   gap: .38rem;
-  min-width: min(20rem, 100%);
+  width: min(20rem, 100%);
+  min-width: 0;
   padding: .55rem .65rem;
   border: 1px solid color-mix(in srgb, var(--brand-yellow) 45%, var(--border));
   border-radius: .7rem;
@@ -12,6 +13,7 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
+  min-width: 0;
   gap: .75rem;
   color: var(--muted);
   font-size: .62rem;
@@ -21,6 +23,7 @@
 }
 
 .demo-identity-heading strong {
+  min-width: 0;
   max-width: 11rem;
   overflow: hidden;
   color: var(--text);
@@ -34,6 +37,7 @@
 .demo-identity-row {
   display: flex;
   align-items: stretch;
+  min-width: 0;
   gap: .4rem;
 }
 

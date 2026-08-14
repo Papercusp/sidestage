@@ -24,6 +24,11 @@ describe('EventCreationPanel catalog source loss', () => {
     expect(html).toContain('role="alert"');
     expect(html).toContain('Catalog unavailable. No inventory is shown');
     expect(html).toContain('0 of 0 catalog items');
+    expect(html).toContain('class="event-creation-toolbar"');
+    expect(html.indexOf('class="event-creation-toolbar"')).toBeLessThan(
+      html.indexOf('class="event-catalog-grid'),
+    );
+    expect(html.match(/Create event/g)).toHaveLength(1);
     expect(html).not.toContain('demo-espresso-matte-black');
     expect(html).not.toContain('offline fixture');
   });

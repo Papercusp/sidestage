@@ -14,7 +14,8 @@ const here = path.dirname(fileURLToPath(import.meta.url));
 // where git-sync would commit the mutant on its next sweep.
 const deployScript = process.env.PROBE_DEPLOY_SCRIPT ?? path.join(here, 'deploy.sh');
 const rollbackScript = process.env.PROBE_ROLLBACK_SCRIPT ?? path.join(here, 'rollback.sh');
-const composeFile = path.join(here, '..', 'docker-compose.prod.yml');
+const composeFile =
+  process.env.PROBE_COMPOSE_FILE ?? path.join(here, '..', 'docker-compose.prod.yml');
 
 const deploySource = readFileSync(deployScript, 'utf8');
 const rollbackSource = readFileSync(rollbackScript, 'utf8');
@@ -269,5 +270,89 @@ describe('rollback.sh refuses to half-run', () => {
   it('reports how long the rollback took, so the drill is timed', () => {
     expect(rollbackSource).toMatch(/ELAPSED=/);
     expect(rollbackSource).toMatch(/Rollback complete: .* in \$\{ELAPSED\}s/);
+  });
+});
+
+/** The post-deploy sha verification block, between its own banner and the record step. */
+function shaVerificationBlock() {
+  const start = deploySource.indexOf('say "Verifying /healthz reports the sha we just shipped"');
+  const end = deploySource.indexOf('say "Recording deployed sha');
+  return start > -1 && end > start ? deploySource.slice(start, end) : '';
+}
+
+describe('deploy.sh proves what it shipped before recording it', () => {
+  // REGRESSION GUARD for a VACUOUS CHECK -- the most dangerous defect class,
+  // because success and "never actually ran" are indistinguishable from the
+  // output. Until 2026-08-14 this block curl'd an unpublished host loopback
+  // port with a trailing `|| true`, so `served` was UNCONDITIONALLY empty, the
+  // case statement ALWAYS fell to a WARN branch whose text pre-excused its own
+  // failure ("Expected on the first deploy after the sha-reporting change"),
+  // and the deploy exited 0. It never once compared a sha to anything, on any
+  // run it ever made, while printing a benign-looking message every time.
+
+  it('reads the sha through the reported-leg probe, never a swallowed failure', () => {
+    const verify = shaVerificationBlock();
+    expect(verify, 'sha verification block not found in deploy.sh').not.toBe('');
+    expect(verify, 'must read the body through health_probe so the leg is known').toMatch(
+      /health_probe "\$SHA"/,
+    );
+    expect(verify, '`|| true` swallows the read and makes the comparison vacuous').not.toMatch(
+      /\|\|\s*true/,
+    );
+  });
+
+  it('fails the deploy on a mismatch instead of warning and exiting 0', () => {
+    const verify = shaVerificationBlock();
+    expect(verify, 'a mismatch must be fatal, not advisory').toMatch(/exit 5/);
+    expect(verify, 'a branch that pre-excuses its own failure cannot detect one').not.toMatch(
+      /Expected on the first deploy/,
+    );
+  });
+
+  it('verifies BEFORE recording, so .deployed-sha never names an unproven sha', () => {
+    const verifyIndex = lineIndex(deploySource, /Verifying \/healthz reports the sha/);
+    const recordIndex = lineIndex(deploySource, /Recording deployed sha/);
+
+    expect(verifyIndex).toBeGreaterThan(-1);
+    expect(recordIndex).toBeGreaterThan(-1);
+    expect(verifyIndex, 'recording an unverified sha is what makes prod and the file disagree')
+      .toBeLessThan(recordIndex);
+  });
+
+  it('probes public ingress first and retains an in-container fallback', () => {
+    const probe = deploySource.slice(
+      deploySource.indexOf('health_probe() {'),
+      deploySource.indexOf('\nSNAPSHOT_DIR='),
+    );
+    expect(probe).toMatch(/curl -sf .*"\$HEALTH_URL"/);
+    expect(probe, 'no in-container fallback when public ingress is unavailable').toMatch(
+      /\$COMPOSE exec -T api node -e/,
+    );
+    expect(probe, 'the host loopback port is never published; this leg can only ever fail')
+      .not.toMatch(/curl -sf .*127\.0\.0\.1:3100\/healthz/);
+  });
+
+  it('says which leg answered, so a fallback is never mistaken for a full pass', () => {
+    expect(deploySource).toMatch(/HEALTH_LEG=/);
+    expect(deploySource).toMatch(/API healthy via \$HEALTH_LEG leg/);
+    expect(deploySource, 'falling back to the container leg leaves ingress unverified').toMatch(
+      /ingress is NOT verified/,
+    );
+  });
+});
+
+describe('docker-compose.prod.yml keeps the api unpublished', () => {
+  // REGRESSION GUARD for a fix that manufactures its own confirmation. On
+  // 2026-08-14 a `ports: - "127.0.0.1:3100:3100"` mapping was committed to make
+  // the three dead loopback probes pass. It would have worked -- and that is
+  // precisely the danger: it turns every red probe green while adding host
+  // surface the architecture deliberately avoids. The api is EXPOSED, not
+  // PUBLISHED; Traefik reaches it over the `coolify` docker network.
+  it('never publishes container port 3100 to the host', () => {
+    expect(composeSource).not.toMatch(/^\s*-\s*"?127\.0\.0\.1:3100:3100"?/m);
+  });
+
+  it('still routes to 3100 through traefik, which is how it is actually reached', () => {
+    expect(composeSource).toMatch(/loadbalancer\.server\.port=3100/);
   });
 });
