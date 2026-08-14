@@ -88,7 +88,6 @@ export const SELLER_PANEL_TITLES: Readonly<Record<SellerPanelId, string>> = {
 export const SELLER_ACTIVE_PANEL_IDS = [
   'stage-status',
   'transcript',
-  'on-deck',
   'copilot',
   'event-chat',
   'run-of-show',
@@ -157,8 +156,7 @@ export function sellerActiveEventDockDefaultLayout(): LayoutDoc {
           size: 380,
           children: [
             strip(['transcript', 'event-chat'], 450, 'transcript'),
-            solo('on-deck', 300),
-            solo('run-of-show', 250),
+            solo('run-of-show', 550),
           ],
         },
       ],

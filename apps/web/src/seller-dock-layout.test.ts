@@ -48,13 +48,13 @@ describe('Studio dock board seeds', () => {
       'copilot',
       'transcript',
       'event-chat',
-      'on-deck',
       'run-of-show',
     ]);
     expect(new Set(placed)).toEqual(new Set(SELLER_ACTIVE_PANEL_IDS));
     expect(placed).toContain('event-chat');
     expect(placed).not.toContain('event-manager');
     expect(placed).not.toContain('event-settings');
+    expect(placed).not.toContain('on-deck');
   });
 
   it('puts Event Manager and Event settings in one tab strip on the manager board', () => {
