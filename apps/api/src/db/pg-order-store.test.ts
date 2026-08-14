@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
+import type { CheckoutOrder } from '../checkout/checkout.service';
 import { PgOrderStore } from './pg-order-store';
 
 describe('PgOrderStore buyer reads', () => {
@@ -40,7 +41,7 @@ describe('PgOrderStore buyer reads', () => {
   it('writes lifted identity and payment state beside the lossless payload', async () => {
     const pool = { query: vi.fn().mockResolvedValue({ rows: [] }) };
     const store = new PgOrderStore(pool as never);
-    const order = {
+    const order: CheckoutOrder = {
       id: 'order-1',
       buyerId: 'buyer-1',
       sourceKind: 'auction',
@@ -54,7 +55,7 @@ describe('PgOrderStore buyer reads', () => {
       paymentState: 'payment_required',
       createdAt: '2026-08-14T02:00:00.000Z',
       items: [],
-    } as const;
+    };
 
     await store.set(order);
     expect(pool.query).toHaveBeenCalledWith(

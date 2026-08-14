@@ -282,7 +282,7 @@ export class CheckoutService {
     }
     if (existing?.paymentSession && this.sameCheckout(existing, cart, eventId, email, name, shippingAddress, selectedShippingRate)) {
       const order = this.cloneOrder(existing);
-      return { order, session: { ...order.paymentSession } };
+      return { order, session: { ...existing.paymentSession } };
     }
 
     const orderId = existing?.id ?? `order_${randomUUID()}`;
