@@ -127,12 +127,15 @@ describe('SideStage web sync contract', () => {
     expect(chat).not.toMatch(/\bfetch\s*\(/);
     expect(seller).toContain("'chat.addTranscriptMoment'");
     expect(seller).toContain('useTranscriptMomentRecorder({');
+    expect(seller).toContain('sellerAccessToken: readSellerAuctionToken()');
+    expect(seller).not.toContain('VITE_DEEPGRAM_TOKEN');
     expect(seller).not.toMatch(/\bfetch\s*\(/);
     expect(inventoryPanel).toContain("'inventory.restock'");
     expect(inventoryPanel).toContain('useSyncMutate');
     expect(inventoryApi).toContain('requestJson');
     expect(inventoryApi).not.toMatch(/\bfetch\s*\(/);
     expect(transcription).toContain('const socket = factory(buildDeepgramUrl(');
+    expect(transcription).not.toContain('VITE_DEEPGRAM_TOKEN');
 
     const provider = app.indexOf('<BuyerCheckoutProvider');
     expect(provider).toBeGreaterThan(-1);
