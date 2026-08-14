@@ -108,6 +108,41 @@ export async function fetchEventThumbnailUrl(
   }
 }
 
+/* ── The event directory, for the buyer Channel Guide (P-118 / D-019) ─────── */
+
+/** One row of the "What's on" guide, as served by GET /events. */
+export interface GuideEvent {
+  eventId: string;
+  title: string;
+  sellerId: string;
+  sellerName: string;
+  /** Only the buyer-visible states reach the client; `draft` is filtered API-side. */
+  status: 'live' | 'scheduled' | 'ended';
+  startsAt: string | null;
+  endedAt: string | null;
+  thumbnailUrl?: string;
+  /** Live chat presence, read at request time — never a stored counter. */
+  viewers: number;
+}
+
+interface EventListResponse {
+  events: GuideEvent[];
+}
+
+/**
+ * Every event a buyer may browse, already grouped-ordered by the API
+ * (Live now → Up next → Ended).
+ *
+ * Unlike the thumbnail read above this DOES reject: the guide is the only way
+ * to reach another seller's event, so a silent empty list would look like
+ * "nothing is on" — a confident wrong answer — rather than "we could not ask".
+ * The caller distinguishes the two and says so.
+ */
+export async function fetchEventGuide(apiBaseUrl?: string): Promise<GuideEvent[]> {
+  const response = await requestJson<EventListResponse>(eventUrl('/events', apiBaseUrl));
+  return Array.isArray(response?.events) ? response.events : [];
+}
+
 async function fetchVariant(productId: string, apiBaseUrl?: string): Promise<CatalogVariant> {
   return requestJson<CatalogVariant>(
     eventUrl(`/catalog/variants/${encodeURIComponent(productId)}`, apiBaseUrl),
