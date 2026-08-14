@@ -56,10 +56,17 @@ export class EventStatsService {
     let itemsSold = 0;
     let totalRaisedCents = 0;
     if (this.pool) {
+      // The eventId predicate is load-bearing, not cosmetic: without it this
+      // aggregate sums EVERY seller's paid orders and reports the platform-wide
+      // total under whichever eventId was requested. CheckoutService persists
+      // eventId into the order payload (checkout.service.ts), so filtering here
+      // needs no schema change. A blank/unknown eventId now matches nothing and
+      // reads 0 — failing closed rather than falling back to the global sum.
       const result = await this.pool.query<{ items: string; raised: string }>(
         `SELECT COALESCE(SUM(jsonb_array_length(payload->'items')), 0) AS items,
                 COALESCE(SUM((payload->>'totalCents')::bigint), 0) AS raised
-         FROM checkout_order WHERE status = 'paid'`,
+         FROM checkout_order WHERE status = 'paid' AND payload->>'eventId' = $1`,
+        [eventId],
       );
       itemsSold = Number(result.rows[0]?.items ?? 0);
       totalRaisedCents = Number(result.rows[0]?.raised ?? 0);

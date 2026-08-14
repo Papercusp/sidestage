@@ -69,6 +69,73 @@ describe('StatsController pricing history', () => {
     ]);
   });
 
+  describe('event stats are isolated per event', () => {
+    // Paid orders belonging to two different events, plus a third event with none.
+    const PAID_ORDERS = [
+      { eventId: 'event-a', items: 2, totalCents: 4200 },
+      { eventId: 'event-a', items: 1, totalCents: 800 },
+      { eventId: 'event-b', items: 5, totalCents: 9900 },
+    ];
+
+    /**
+     * Stands in for Postgres. Deliberately honours the eventId predicate ONLY when
+     * the query actually carries it AND binds the parameter — otherwise it returns
+     * the GLOBAL sum, exactly as the unfixed query did. That is what makes these
+     * assertions falsifiable: drop the predicate from stats.module.ts and the
+     * isolation cases below fail instead of silently passing against a mock that
+     * was filtering on the test's behalf.
+     */
+    const fakePool = {
+      query: vi.fn(async (sql: string, params?: unknown[]) => {
+        const scoped = sql.includes("payload->>'eventId' = $1") && typeof params?.[0] === 'string';
+        const rows = scoped ? PAID_ORDERS.filter((o) => o.eventId === params?.[0]) : PAID_ORDERS;
+        return {
+          rows: [{
+            items: String(rows.reduce((n, o) => n + o.items, 0)),
+            raised: String(rows.reduce((n, o) => n + o.totalCents, 0)),
+          }],
+        };
+      }),
+    };
+
+    const chat = { getStats: () => ({ activeUsers: 0 }) };
+    const service = () => new EventStatsService(chat as never, fakePool as never);
+
+    it('reports only the requested event totals, not the platform-wide sum', async () => {
+      // Global totals across both events would be 8 items / 14900 cents.
+      await expect(service().read('event-a')).resolves.toMatchObject({
+        eventId: 'event-a', itemsSold: 3, totalRaisedCents: 5000,
+      });
+      await expect(service().read('event-b')).resolves.toMatchObject({
+        eventId: 'event-b', itemsSold: 5, totalRaisedCents: 9900,
+      });
+    });
+
+    it('reports zero for an event with no paid orders rather than the global total', async () => {
+      // The regression this guards: an unscoped aggregate reported 8/14900 here.
+      await expect(service().read('event-with-no-orders')).resolves.toMatchObject({
+        itemsSold: 0, totalRaisedCents: 0,
+      });
+    });
+
+    it('binds the eventId as a parameter instead of interpolating it', async () => {
+      fakePool.query.mockClear();
+      await service().read("event-'; DROP TABLE checkout_order; --");
+      const [sql, params] = fakePool.query.mock.calls[0] as [string, unknown[]];
+      expect(sql).toContain("payload->>'eventId' = $1");
+      expect(params).toEqual(["event-'; DROP TABLE checkout_order; --"]);
+      expect(sql).not.toContain('DROP TABLE');
+    });
+
+    it('fails closed on a blank eventId instead of returning the global total', async () => {
+      // StatsSyncQueries coerces a missing/non-string eventId arg to ''. That must
+      // read as zero, never as every seller's revenue.
+      await expect(service().read('')).resolves.toMatchObject({
+        itemsSold: 0, totalRaisedCents: 0,
+      });
+    });
+  });
+
   it('returns honest empty settled history when Postgres is unavailable', async () => {
     const controller = new StatsController(
       { read: vi.fn() } as never,
