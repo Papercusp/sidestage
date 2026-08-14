@@ -366,6 +366,7 @@ export async function addItemsToSellerEvent(
 
 export async function executeSellerAction(
   eventId: string,
+  actorId: string,
   action: ActionProposal,
   apiBaseUrl?: string,
 ): Promise<SellerActionResult> {
@@ -373,7 +374,7 @@ export async function executeSellerAction(
     eventUrl(`/actions/events/${encodeURIComponent(eventId)}/execute`, apiBaseUrl),
     {
       method: 'POST',
-      body: JSON.stringify({ actorId: 'seller-demo', action }),
+      body: JSON.stringify({ actorId, action }),
     },
   );
 }
@@ -400,13 +401,14 @@ export async function startSellerAuction(
 
 export async function adjustSellerEventStock(
   eventId: string,
+  actorId: string,
   item: SellerEventItem,
   quantity: number,
   apiBaseUrl?: string,
 ): Promise<SellerActionResult> {
   await holdInventory(eventId, item.productId, quantity, apiBaseUrl);
   try {
-    return await executeSellerAction(eventId, {
+    return await executeSellerAction(eventId, actorId, {
       kind: 'stock-adjust',
       productId: item.productId,
       quantity,
