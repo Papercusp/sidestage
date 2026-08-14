@@ -3,7 +3,7 @@ import { useEffect, useState } from 'react';
 export type TabId = 'buyer' | 'orders' | 'seller' | 'history' | 'config' | 'test';
 export type StudioView = 'active-event' | 'event-manager' | 'inventory';
 export type EventManagerView = 'events' | 'create';
-export type EventManagerSection = 'lineup' | 'settings';
+export type EventManagerSection = 'lineup' | 'settings' | 'rehearse';
 
 export interface EventManagerRoute {
   view: EventManagerView;
@@ -113,7 +113,7 @@ function isEventManagerView(value: string | null): value is EventManagerView {
 }
 
 function isEventManagerSection(value: string | null): value is EventManagerSection {
-  return value === 'lineup' || value === 'settings';
+  return value === 'lineup' || value === 'settings' || value === 'rehearse';
 }
 
 /** Resolve the nested Event Manager state without interpreting Watch-page URLs. */
