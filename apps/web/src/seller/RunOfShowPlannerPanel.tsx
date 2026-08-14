@@ -1,10 +1,7 @@
-import { useEffect, useMemo, useState } from 'react';
-import {
-  fetchRunOfShow,
-  saveRunOfShow,
-  type RunOfShowEntry,
-} from '../run-of-show';
-import { fetchSellerEvent } from '../events/api';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useSyncMutate, useSyncQuery } from '@papercusp/sync';
+import type { RunOfShowEntry, RunOfShowPlan } from '../run-of-show';
+import { fetchSellerEvent, saveRunOfShowPlan } from '../events/api';
 
 /**
  * The run-of-show planner (plan P-003): the pre-show authoring surface.
@@ -149,30 +146,38 @@ export function RunOfShowPlannerView({
 
 export function RunOfShowPlannerPanel({ eventId, apiBaseUrl }: RunOfShowPlannerPanelProps) {
   const [rows, setRows] = useState<DraftRow[]>([]);
+  const [seededFor, setSeededFor] = useState<string | null>(null);
   const [titles, setTitles] = useState<Record<string, string>>({});
   const [lineupIds, setLineupIds] = useState<string[]>([]);
   const [status, setStatus] = useState<'idle' | 'saving' | 'saved'>('idle');
   const [error, setError] = useState<string | null>(null);
 
+  /** Stored plan via the audited sync path; seeds the draft once per event. */
+  const planQuery = useSyncQuery<RunOfShowPlan>({ queryName: 'event.runOfShow', args: { eventId } });
+  const storedPlan = planQuery.data?.[0];
+  useEffect(() => {
+    if (!storedPlan || seededFor === eventId) return;
+    setRows(storedPlan.entries.map(toDraft));
+    setSeededFor(eventId);
+  }, [storedPlan, seededFor, eventId]);
+
+  /** The save is a useSyncMutate write: optimistic where a mutator exists, REST fallback otherwise. */
+  const restSave = useCallback(
+    (entries: RunOfShowEntry[]) => saveRunOfShowPlan(eventId, entries, apiBaseUrl),
+    [eventId, apiBaseUrl],
+  );
+  const mutateSave = useSyncMutate<RunOfShowEntry[], RunOfShowPlan>('runOfShow.save', restSave);
+
+  /** Lineup titles through the budgeted events/api transport. */
   useEffect(() => {
     let cancelled = false;
-    Promise.all([
-      fetchRunOfShow(eventId, apiBaseUrl),
-      fetchSellerEvent(eventId, apiBaseUrl).catch(() => null),
-    ])
-      .then(([plan, event]) => {
+    fetchSellerEvent(eventId, apiBaseUrl)
+      .then((event) => {
         if (cancelled) return;
-        setRows(plan.entries.map(toDraft));
-        if (event) {
-          setTitles(Object.fromEntries(event.items.map((item) => [item.productId, item.title])));
-          setLineupIds(event.items.map((item) => item.productId));
-        }
-        setError(null);
+        setTitles(Object.fromEntries(event.items.map((item) => [item.productId, item.title])));
+        setLineupIds(event.items.map((item) => item.productId));
       })
-      .catch((cause: unknown) => {
-        if (cancelled) return;
-        setError(cause instanceof Error ? cause.message : 'The show plan could not be loaded.');
-      });
+      .catch(() => undefined);
     return () => {
       cancelled = true;
     };
@@ -208,7 +213,7 @@ export function RunOfShowPlannerPanel({ eventId, apiBaseUrl }: RunOfShowPlannerP
     setStatus('saving');
     setError(null);
     try {
-      const saved = await saveRunOfShow(eventId, entries, apiBaseUrl);
+      const saved = await mutateSave(entries);
       setRows(saved.entries.map(toDraft));
       setStatus('saved');
     } catch (cause) {

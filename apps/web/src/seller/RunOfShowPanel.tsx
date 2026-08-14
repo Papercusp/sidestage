@@ -1,12 +1,12 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import { useSyncQuery } from '@papercusp/sync';
 import {
   buildRunOfShowView,
   emptyStageLog,
-  fetchRunOfShow,
   formatClock,
   formatPace,
   stageLogOnProductChange,
-  type RunOfShowEntry,
+  type RunOfShowPlan,
   type RunOfShowView,
   type StageLog,
 } from '../run-of-show';
@@ -112,39 +112,34 @@ export function RunOfShowPanelView({
 }
 
 export function RunOfShowPanel({ eventId, activeProductId, onActiveProductChange, apiBaseUrl }: RunOfShowPanelProps) {
-  const [entries, setEntries] = useState<RunOfShowEntry[]>([]);
+  /**
+   * The plan rides the audited sync path (sync-contract.test.ts): the server
+   * registers `event.runOfShow` and invalidates it on every PUT, so a save in
+   * the planner board appears here live with no refetch code of our own.
+   */
+  const planQuery = useSyncQuery<RunOfShowPlan>({ queryName: 'event.runOfShow', args: { eventId } });
+  const entries = useMemo(() => planQuery.data?.[0]?.entries ?? [], [planQuery.data]);
+
   const [titles, setTitles] = useState<Record<string, string>>({});
-  const [loaded, setLoaded] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const [log, setLog] = useState<StageLog>(emptyStageLog);
   const [nowMs, setNowMs] = useState(() => Date.now());
-  const logRef = useRef(log);
-  logRef.current = log;
 
+  /** Lineup titles: one read through the budgeted events/api transport. */
   useEffect(() => {
     let cancelled = false;
-    Promise.all([
-      fetchRunOfShow(eventId, apiBaseUrl),
-      fetchSellerEvent(eventId, apiBaseUrl).catch(() => null),
-    ])
-      .then(([plan, event]) => {
+    fetchSellerEvent(eventId, apiBaseUrl)
+      .then((event) => {
         if (cancelled) return;
-        setEntries(plan.entries);
-        if (event) {
-          setTitles(Object.fromEntries(event.items.map((item) => [item.productId, item.title])));
-        }
-        setLoaded(true);
-        setError(null);
+        setTitles(Object.fromEntries(event.items.map((item) => [item.productId, item.title])));
       })
-      .catch((cause: unknown) => {
-        if (cancelled) return;
-        setLoaded(true);
-        setError(cause instanceof Error ? cause.message : 'The show plan could not be loaded.');
-      });
+      .catch(() => undefined);
     return () => {
       cancelled = true;
     };
   }, [eventId, apiBaseUrl]);
+
+  const loaded = !planQuery.loading;
+  const error = planQuery.error ? 'The show plan could not be loaded.' : null;
 
   /** Fold stage changes into the log — pure transition, tested in run-of-show.test.ts. */
   useEffect(() => {

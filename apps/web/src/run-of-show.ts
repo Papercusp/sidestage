@@ -24,35 +24,12 @@ export interface RunOfShowPlan {
   updatedAt: string;
 }
 
-const DEFAULT_API_BASE = 'http://localhost:3100';
-
-function runOfShowUrl(eventId: string, apiBaseUrl?: string): string {
-  const base = (apiBaseUrl || DEFAULT_API_BASE).replace(/\/$/, '');
-  return `${base}/events/${encodeURIComponent(eventId)}/run-of-show`;
-}
-
-export async function fetchRunOfShow(eventId: string, apiBaseUrl?: string): Promise<RunOfShowPlan> {
-  const response = await fetch(runOfShowUrl(eventId, apiBaseUrl));
-  if (!response.ok) throw new Error(`Run of show load failed (${response.status})`);
-  return (await response.json()) as RunOfShowPlan;
-}
-
-export async function saveRunOfShow(
-  eventId: string,
-  entries: readonly RunOfShowEntry[],
-  apiBaseUrl?: string,
-): Promise<RunOfShowPlan> {
-  const response = await fetch(runOfShowUrl(eventId, apiBaseUrl), {
-    method: 'PUT',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ entries }),
-  });
-  if (!response.ok) {
-    const detail = await response.json().then((body: { message?: string }) => body?.message).catch(() => undefined);
-    throw new Error(detail || `Run of show save failed (${response.status})`);
-  }
-  return (await response.json()) as RunOfShowPlan;
-}
+/*
+ * No HTTP here by design (sync-contract.test.ts): reads go through
+ * useSyncQuery('event.runOfShow'); the REST client lives in events/api.ts
+ * (fetchRunOfShowPlan / saveRunOfShowPlan), the one budgeted transport module.
+ * This module is pure types + logic so the math is testable without a network.
+ */
 
 /* ── Stage log: who has been on stage, for how long ───────────────────────── */
 
