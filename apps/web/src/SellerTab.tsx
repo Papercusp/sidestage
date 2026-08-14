@@ -1,4 +1,6 @@
 import { useCallback, useState } from 'react';
+import { DemoIdentityControl } from './BuyerIdentityControl';
+import { useDemoIdentity } from './buyer-identity';
 import { TabHeader } from './components/TabHeader';
 import { chatEventId, DEFAULT_EVENT_ID, DEFAULT_EVENT_TITLE, mediaBaseUrl } from './event-identity';
 import { useCopyState, useStreamSession } from './hooks';
@@ -24,6 +26,7 @@ export function SellerTab({
   const [room, setRoom] = useState<EventRoom | null>(null);
   const stream = useStreamSession<PublisherSession>();
   const { copyState, copy } = useCopyState();
+  const { userId, impersonate } = useDemoIdentity();
   const recordTranscriptMoment = useCallback((segment: { text: string; startMs?: number; endMs?: number }) => {
     const transcriptEventId = room?.eventId ?? chatEventId(eventId);
     const product = transcriptProducts.find((candidate) => candidate.id === selectedProductId);
@@ -119,13 +122,14 @@ export function SellerTab({
     'event-chat': {
       eventId: room?.eventId ?? chatEventId(eventId),
       role: 'seller',
-      userId: 'seller-demo',
-      displayName: 'Host',
+      userId,
+      displayName: userId,
       eventTitle: DEFAULT_EVENT_TITLE,
       apiBaseUrl: import.meta.env.VITE_API_URL,
     },
     'event-manager': {
       eventId,
+      actorId: userId,
       eventName: DEFAULT_EVENT_TITLE,
       apiBaseUrl: import.meta.env.VITE_API_URL,
       onEventReady: (nextEventId: string) => setEventId(nextEventId),
@@ -143,7 +147,14 @@ export function SellerTab({
         panels={panels}
         registry={sellerPanelRegistry}
         missingComponent={SellerDockMissingPanel}
-      />
+      >
+        <DemoIdentityControl
+          userId={userId}
+          onImpersonate={impersonate}
+          inputId="seller-demo-user-id"
+          label="Seller demo user"
+        />
+      </SellerDock>
     </div>
   );
 }
