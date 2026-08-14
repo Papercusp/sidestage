@@ -84,4 +84,35 @@ describe('SideStage web sync contract', () => {
       }
     }
   });
+
+  it('keeps checkout, copilot, and chat on one app-wide ownership seam', () => {
+    const checkout = readFileSync(path.join(sourceRoot, 'BuyerCheckout.tsx'), 'utf8');
+    const copilot = readFileSync(path.join(sourceRoot, 'CopilotPanel.tsx'), 'utf8');
+    const chat = readFileSync(path.join(sourceRoot, 'EventChat.tsx'), 'utf8');
+    const app = readFileSync(path.join(sourceRoot, 'App.tsx'), 'utf8');
+
+    expect(checkout).toContain("queryName: 'cart.byId'");
+    for (const mutation of [
+      'cart.holdProduct',
+      'cart.setQuantity',
+      'cart.removeItem',
+      'shipping.rates',
+      'checkout.createSession',
+      'checkout.confirmPayment',
+    ]) {
+      expect(checkout, `BuyerCheckout must route ${mutation} through useSyncMutate`).toContain(`'${mutation}'`);
+    }
+
+    expect(copilot).toContain('useBuyerCheckout()');
+    expect(copilot).toContain('useEventChatSender({ eventId, apiBaseUrl })');
+    expect(copilot).not.toContain("'/cart/items'");
+    expect(copilot).not.toContain("'/checkout/sessions'");
+    expect(chat).toContain("'chat.sendMessage'");
+    expect(chat).toContain('const sendMessage = useEventChatSender({ eventId, apiBaseUrl })');
+
+    const provider = app.indexOf('<BuyerCheckoutProvider');
+    expect(provider).toBeGreaterThan(-1);
+    expect(provider).toBeLessThan(app.indexOf("{tab === 'buyer'"));
+    expect(provider).toBeLessThan(app.indexOf("{tab === 'seller'"));
+  });
 });

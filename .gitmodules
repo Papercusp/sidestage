@@ -25,3 +25,6 @@
 [submodule "libs/drawer-stack"]
 	path = libs/drawer-stack
 	url = https://github.com/Papercusp/drawer-stack.git
+[submodule "libs/cart-drawer"]
+	path = libs/cart-drawer
+	url = https://github.com/Papercusp/cart-drawer.git
