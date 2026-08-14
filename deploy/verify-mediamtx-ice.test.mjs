@@ -27,17 +27,21 @@ describe('MediaMTX public ICE configuration', () => {
     const turnUrl = compose
       .split('\n')
       .find((line) => line.includes('MTX_WEBRTCICESERVERS2_0_URL:'));
+    const turnRule = compose
+      .split('\n')
+      .find((line) => line.includes('traefik.tcp.routers.sidestage-turn.rule='));
     const turnSecretUses = compose
       .split('\n')
       .filter((line) => line.includes('${TURN_AUTH_SECRET:?'));
 
-    expect(turnUrl).toContain('turns:media.${PUBLIC_HOSTNAME:-sidestage.buyrestart.com}:443?transport=tcp');
+    expect(turnUrl).toContain('turns:turn.${PUBLIC_HOSTNAME:-sidestage.buyrestart.com}:443?transport=tcp');
     expect(compose).toContain('MTX_WEBRTCICESERVERS2_0_USERNAME: AUTH_SECRET');
     expect(compose).toContain('MTX_WEBRTCICESERVERS2_0_CLIENTONLY: "yes"');
     expect(turnSecretUses).toHaveLength(2);
     expect(compose).toContain('image: coturn/coturn:4.15.0-r0');
     expect(compose).toContain('traefik.tcp.routers.sidestage-turn.entrypoints=https');
-    expect(compose).toContain('!ALPN(`h2`) && !ALPN(`http/1.1`)');
+    expect(turnRule).toContain('HostSNI(`turn.${PUBLIC_HOSTNAME:-sidestage.buyrestart.com}`)');
+    expect(turnRule).not.toContain('ALPN(');
   });
 
   it('finds the expected public candidate in a real SDP-shaped answer', () => {

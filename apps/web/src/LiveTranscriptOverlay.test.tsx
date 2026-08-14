@@ -1,6 +1,6 @@
 /** @vitest-environment jsdom */
 
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
@@ -8,7 +8,14 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { LiveTranscriptOverlay, liveTranscriptStateLabel } from './LiveTranscriptOverlay';
 import type { LiveTranscriptController } from './use-live-transcript';
 
-const overlayCss = readFileSync(resolve(process.cwd(), 'src/live-transcript-overlay.css'), 'utf8');
+function readWebStyle(name: string): string {
+  const workspacePath = resolve(process.cwd(), 'src', name);
+  const rootPath = resolve(process.cwd(), 'apps/web/src', name);
+  return readFileSync(existsSync(workspacePath) ? workspacePath : rootPath, 'utf8');
+}
+
+const overlayCss = readWebStyle('live-transcript-overlay.css');
+const engagementCss = readWebStyle('video-engagement-overlay.css');
 
 function transcriptFixture(overrides: Partial<LiveTranscriptController> = {}): LiveTranscriptController {
   return {
@@ -42,16 +49,14 @@ afterEach(async () => {
 });
 
 describe('LiveTranscriptOverlay', () => {
-  it('reserves separate mobile bands for status, audience chat, and captions', () => {
+  it('composes transcript and chat under one responsive video overlay root', () => {
     expect(overlayCss).toMatch(/\.seller-stream-preview\s*\{[^}]*container-type:\s*inline-size;/);
     expect(overlayCss).toMatch(/\.live-transcript-history\s*\{[^}]*max-height:\s*4\.5rem;/);
     expect(overlayCss).not.toMatch(/\.live-transcript-history\s*\{[^}]*max-height:[^;}]*%/);
-    expect(overlayCss).toMatch(/@container \(max-width: 32rem\) \{[\s\S]*?\.seller-stream-preview > \.stream-video \{[^}]*min-height:\s*26rem;[^}]*aspect-ratio:\s*auto;/);
-    expect(overlayCss).toMatch(/@container \(max-width: 32rem\) \{[\s\S]*?\.seller-stream-preview > \.stream-video-overlay \{[^}]*top:\s*\.5rem;[^}]*right:\s*\.5rem;[^}]*left:\s*\.5rem;[^}]*max-width:\s*none;/);
-    expect(overlayCss).toMatch(/@container \(max-width: 32rem\) \{[\s\S]*?\.seller-stream-preview \.seller-video-chat-overlay \{[^}]*top:\s*5\.5rem;[^}]*right:\s*\.5rem;[^}]*left:\s*\.5rem;[^}]*width:\s*auto;/);
-    expect(overlayCss).toMatch(/@container \(max-width: 32rem\) \{[\s\S]*?\.seller-stream-preview \.seller-video-chat-overlay\[data-open\] \{[^}]*height:\s*7\.5rem;/);
-    expect(overlayCss).toMatch(/@container \(max-width: 18rem\) \{[\s\S]*?\.seller-stream-preview > \.stream-video \{[^}]*min-height:\s*31rem;/);
-    expect(overlayCss).toMatch(/@container \(max-width: 18rem\) \{[\s\S]*?\.seller-stream-preview \.seller-video-chat-overlay \{[^}]*top:\s*7\.5rem;/);
+    expect(engagementCss).toMatch(/\.video-engagement-overlay\s*\{[^}]*position:\s*absolute;[^}]*right:\s*\.75rem;[^}]*bottom:\s*\.75rem;[^}]*left:\s*\.75rem;/s);
+    expect(engagementCss).toMatch(/\.video-engagement-overlay > \.live-transcript-overlay\s*\{[^}]*position:\s*static;[^}]*width:\s*100%;/s);
+    expect(engagementCss).toMatch(/\.video-engagement-chat-panel\s*\{[^}]*height:\s*clamp\(8rem, 28vh, 15rem\);/s);
+    expect(engagementCss).toMatch(/@container \(max-width: 32rem\) \{[\s\S]*?\.seller-stream-preview > \.stream-video \{[^}]*min-height:\s*27rem;[^}]*aspect-ratio:\s*auto;/);
   });
 
   it('uses explicit, user-facing labels for every transcription state', () => {

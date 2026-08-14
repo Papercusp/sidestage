@@ -1,0 +1,80 @@
+.video-engagement-overlay {
+  position: absolute;
+  z-index: 6;
+  right: .75rem;
+  bottom: .75rem;
+  left: .75rem;
+  display: grid;
+  justify-items: center;
+  gap: .45rem;
+  color: var(--on-video);
+  pointer-events: none;
+}
+
+.video-engagement-overlay > .live-transcript-overlay {
+  position: static;
+  width: 100%;
+}
+
+.video-engagement-chat-panel {
+  width: min(100%, 42rem);
+  height: clamp(8rem, 28vh, 15rem);
+  min-height: 0;
+  overflow: hidden;
+  pointer-events: auto;
+}
+
+.video-engagement-chat-panel[hidden] {
+  display: none;
+}
+
+.video-engagement-chat-toggle {
+  flex: 0 0 auto;
+  border: 1px solid color-mix(in srgb, var(--on-video) 35%, transparent);
+  border-radius: 999px;
+  padding: .28rem .55rem;
+  color: var(--on-video);
+  background: color-mix(in srgb, var(--video-inset-bg) 55%, transparent);
+  font: inherit;
+  font-weight: 780;
+  cursor: pointer;
+}
+
+.video-engagement-chat-toggle[aria-expanded='true'] {
+  border-color: color-mix(in srgb, var(--brand-red) 72%, transparent);
+  background: color-mix(in srgb, var(--video-inset-bg) 68%, var(--brand-red) 32%);
+}
+
+.video-engagement-chat-toggle:focus-visible {
+  outline: 2px solid var(--on-video-red);
+  outline-offset: 2px;
+}
+
+@media (max-width: 760px) {
+  .video-engagement-overlay {
+    right: .45rem;
+    bottom: .45rem;
+    left: .45rem;
+  }
+
+  .video-engagement-chat-panel {
+    height: clamp(7rem, 24vh, 11rem);
+  }
+}
+
+@container (max-width: 32rem) {
+  .seller-stream-preview > .stream-video {
+    min-height: 27rem;
+    aspect-ratio: auto;
+  }
+
+  .seller-stream-preview .video-engagement-chat-panel {
+    height: 8rem;
+  }
+}
+
+@container (max-width: 18rem) {
+  .seller-stream-preview > .stream-video {
+    min-height: 31rem;
+  }
+}
