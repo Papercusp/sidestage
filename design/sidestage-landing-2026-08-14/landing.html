@@ -1,0 +1,607 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<!-- Source of https://claude.ai/code/artifact/5c70e2b3-27a3-4e8c-b4d4-a6fc1deedef2 — see README.md in this directory. -->
+<style>:root{color-scheme:light}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#faf9f5;color:#141413}img{max-width:100%}</style>
+</head>
+<body>
+<title>SideStage Live Selling</title>
+
+<style>
+  /* ============================================================
+     SideStage landing page.
+
+     Palette is the live app's CURRENT theme — "R3 Ticket"
+     (apps/web/src/styles.css :root, plan
+     sidestage-red-yellow-retheme-2026-08-13 D-004). The app is
+     color-scheme:LIGHT: cream ground, espresso text, fire-engine
+     red for action, taxi yellow for money. Every colour is
+     painted explicitly — this page never inherits a host theme.
+
+     Semantic colours (D-003) stay visibly DISTINCT from brand:
+     success is forest green, warning is dark amber (never brand
+     yellow), danger is crimson and always OUTLINED — never a fill.
+     ============================================================ */
+  :root{
+    color-scheme: light;
+
+    /* ground */
+    --bg:#FFF8EF;
+    --surface:#FFFFFF;
+    --surface-2:#FDF4E8;
+    --sunk:#F7EBDA;
+    --border:#EBDFCC;
+    --border-2:#DCCCB2;
+
+    /* type */
+    --text:#2A1F1A;
+    --dim:#5C4B40;
+    --muted:#8A7A6C;
+    --faint:#A2907F;
+
+    /* brand */
+    --brand-red:#D62B1F;
+    --on-brand-red:#FFF8F5;
+    --red-text:#C2271C;
+    --brand-red-hover:#C2271C;
+    --brand-red-active:#B42217;
+    --brand-yellow:#FFC400;
+    --on-brand-yellow:#2A1F04;
+    --yellow-text:#A66A00;
+    --brand-yellow-hover:#EDB400;
+
+    /* semantic — deliberately not the brand hues */
+    --success:#1E7F4F;
+    --warning:#A66A00;
+    --danger:#A61B10;
+
+    --sans:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+    --mono:ui-monospace,"SF Mono","JetBrains Mono",Menlo,Consolas,"Liberation Mono",monospace;
+
+    --col:1140px;
+    --r:14px;
+  }
+
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  @media (prefers-reduced-motion:reduce){html{scroll-behavior:auto}}
+
+  body{
+    margin:0;
+    background:var(--bg);
+    background-image:
+      radial-gradient(1250px 680px at 82% -14%, rgba(255,196,0,.20), transparent 62%),
+      radial-gradient(900px 540px at 0% 2%, rgba(214,43,31,.07), transparent 58%);
+    background-attachment:fixed;
+    color:var(--text);
+    font-family:var(--sans);
+    font-size:16px; line-height:1.6;
+    -webkit-font-smoothing:antialiased;
+  }
+
+  /* the drop line, deliberately far back — it must never compete
+     with the auction for attention */
+  .bgfx{position:fixed; inset:0; z-index:-1; pointer-events:none; opacity:.62; contain:strict}
+  .bgfx canvas{width:100%; height:100%; display:block}
+
+  .col{width:min(var(--col), calc(100% - 44px)); margin-inline:auto}
+  h1,h2,h3,h4{margin:0; text-wrap:balance; letter-spacing:-.035em; line-height:1.05; font-weight:800}
+  p{margin:0}
+  a{color:inherit; text-decoration:none}
+
+  .lab{font-family:var(--mono); font-size:.68rem; letter-spacing:.16em; text-transform:uppercase; color:var(--muted); font-weight:600}
+  .num{font-family:var(--mono); font-variant-numeric:tabular-nums; font-feature-settings:"tnum" 1}
+
+  /* ---------------- header ---------------- */
+  .top{
+    position:sticky; top:0; z-index:40;
+    background:color-mix(in srgb, var(--bg) 84%, transparent);
+    backdrop-filter:blur(16px) saturate(1.2);
+    border-bottom:1px solid var(--border);
+  }
+  .top .col{display:flex; align-items:center; gap:14px; height:64px}
+  .mark{
+    width:28px; height:28px; flex:0 0 auto; display:grid; place-items:center;
+    border:1.5px solid var(--brand-red); border-radius:8px;
+    background:var(--surface);
+    box-shadow:0 2px 0 rgba(214,43,31,.18);
+  }
+  .mark svg{width:15px; height:15px; display:block}
+  .wordmark{font-weight:800; letter-spacing:-.03em; font-size:1.06rem}
+  .top .right{margin-left:auto; display:flex; align-items:center; gap:10px}
+
+  .btn{
+    display:inline-flex; align-items:center; gap:.5rem; font-weight:700; font-size:.9rem;
+    padding:11px 18px; border-radius:9px; cursor:pointer;
+    border:1px solid var(--brand-red);
+    background:var(--brand-red); color:var(--on-brand-red);
+    box-shadow:0 10px 24px -14px rgba(214,43,31,.9);
+    transition:transform .16s, background .2s, box-shadow .2s;
+  }
+  .btn:hover{transform:translateY(-1px); background:var(--brand-red-hover); border-color:var(--brand-red-hover)}
+  .btn:active{background:var(--brand-red-active)}
+  .btn:focus-visible{outline:2px solid var(--red-text); outline-offset:3px}
+  .btn.ghost{
+    background:var(--surface); color:var(--text); border-color:var(--border-2);
+    box-shadow:none; font-weight:600;
+  }
+  .btn.ghost:hover{border-color:var(--brand-red); color:var(--red-text)}
+  .top .btn{padding:9px 15px; font-size:.85rem}
+
+  /* ---------------- hero ---------------- */
+  .hero{padding:70px 0 30px}
+  .hero .grid{display:grid; grid-template-columns:.92fr 1.08fr; gap:52px; align-items:center}
+  .eyebrow{display:inline-flex; align-items:center; gap:.6rem; color:var(--red-text)}
+  .eyebrow::before{content:""; width:26px; height:2px; background:linear-gradient(90deg,var(--brand-red),transparent)}
+  .hero h1{margin-top:20px; font-size:clamp(2.15rem,4.6vw,3.35rem)}
+  .sheen{
+    background:linear-gradient(105deg,var(--brand-red) 0%,#E8572C 26%,var(--yellow-text) 52%,var(--brand-red) 78%,#E8572C 100%);
+    background-size:240% 100%; -webkit-background-clip:text; background-clip:text;
+    color:transparent; -webkit-text-fill-color:transparent;
+    animation:sheen 8s ease-in-out infinite;
+  }
+  @keyframes sheen{0%,100%{background-position:0% 50%} 50%{background-position:100% 50%}}
+  .hero .sub{margin-top:22px; max-width:46ch; color:var(--dim); font-size:1.1rem}
+  .hero .cta{margin-top:30px; display:flex; gap:12px; flex-wrap:wrap; align-items:center}
+  .hero .fine{margin-top:18px; font-family:var(--mono); font-size:.72rem; color:var(--faint); letter-spacing:.03em}
+  @media (max-width:960px){ .hero .grid{grid-template-columns:1fr; gap:34px} }
+
+  /* ---------------- the board (hero panel) ---------------- */
+  .stage{
+    position:relative; width:100%; border:1px solid var(--border-2); border-radius:var(--r);
+    overflow:hidden; background:var(--surface);
+    box-shadow:0 30px 64px -40px rgba(42,31,26,.42); isolation:isolate;
+  }
+  .board{position:relative; padding:20px}
+  .board .heat{
+    position:absolute; inset:0; pointer-events:none; z-index:0;
+    background:radial-gradient(72% 92% at 50% 106%, rgba(255,196,0,var(--heat,.06)), transparent 70%);
+    transition:background .5s linear;
+  }
+  .board > *{position:relative; z-index:1}
+  .bhead{
+    display:flex; align-items:center; gap:10px; padding-bottom:14px; margin-bottom:16px;
+    border-bottom:1px solid var(--border);
+  }
+  .live{display:inline-flex; align-items:center; gap:6px; font-family:var(--mono); font-size:.64rem;
+    letter-spacing:.16em; text-transform:uppercase; font-weight:700;
+    color:var(--on-brand-red); background:var(--brand-red); padding:3px 8px; border-radius:5px}
+  .live i{width:6px; height:6px; border-radius:50%; background:var(--on-brand-red)}
+  body:not(.frozen) .live i{animation:blink 1.6s steps(1) infinite}
+  @keyframes blink{50%{opacity:0}}
+  .bhead .watch{margin-left:auto; font-family:var(--mono); font-size:.68rem; color:var(--muted)}
+
+  .bgrid{display:grid; grid-template-columns:172px 1fr 172px; gap:18px; align-items:center}
+  .lot{display:flex; flex-direction:column; gap:9px; min-width:0}
+  .lot .tile{
+    aspect-ratio:1/1; border-radius:11px; border:1px solid var(--border); display:grid; place-items:center;
+    background:radial-gradient(120% 90% at 22% 0%, rgba(255,196,0,.30), transparent 64%), var(--sunk);
+  }
+  .lot .tile svg{width:44%; height:44%; opacity:.72}
+  .lot h4{font-size:.92rem; font-weight:750; line-height:1.22}
+  .lot .meta{color:var(--muted); font-size:.72rem}
+
+  .bidcol{display:flex; flex-direction:column; align-items:center; gap:12px; min-width:0}
+  .ring{position:relative; width:124px; height:124px; flex:0 0 auto}
+  .ring svg{width:100%; height:100%; transform:rotate(-90deg); display:block}
+  .ring .trk{fill:none; stroke:var(--border); stroke-width:5}
+  .ring .arc{fill:none; stroke:var(--success); stroke-width:5; stroke-linecap:round; transition:stroke .4s linear}
+  .ring .inner{position:absolute; inset:0; display:grid; place-content:center; text-align:center; gap:1px}
+  .ring .secs{font-family:var(--mono); font-variant-numeric:tabular-nums; font-size:1.85rem; font-weight:700; letter-spacing:-.045em; line-height:1}
+
+  /* the price is a ticket: taxi-yellow band, espresso figure */
+  .price{
+    font-family:var(--mono); font-variant-numeric:tabular-nums;
+    font-size:clamp(1.85rem,4vw,2.6rem); font-weight:800; letter-spacing:-.05em; line-height:1;
+    color:var(--on-brand-yellow); background:var(--brand-yellow);
+    padding:5px 16px 7px; border-radius:8px;
+    box-shadow:0 3px 0 rgba(166,106,0,.35);
+    transition:transform .18s, background .25s;
+  }
+  .price.up{transform:translateY(-2px); background:var(--brand-yellow-hover)}
+  .state{font-family:var(--mono); font-size:.66rem; letter-spacing:.2em; text-transform:uppercase; color:var(--muted); min-height:1.2em; transition:color .3s; font-weight:600}
+  .state.hot{color:var(--red-text)}
+  body:not(.frozen) .state.hot{animation:statepulse .85s ease-in-out infinite}
+  .state.sold{color:var(--success); animation:none}
+  @keyframes statepulse{0%,100%{opacity:.55} 50%{opacity:1}}
+
+  .feed{display:flex; flex-direction:column; gap:6px; min-width:0}
+  .bid{
+    display:flex; align-items:baseline; justify-content:space-between; gap:8px;
+    font-family:var(--mono); font-size:.71rem; padding:6px 9px; border-radius:7px;
+    background:var(--surface-2); border:1px solid var(--border); color:var(--dim);
+    animation:bidin .35s cubic-bezier(.2,.9,.3,1) both;
+  }
+  .bid b{color:var(--yellow-text); font-weight:700; font-variant-numeric:tabular-nums}
+  .bid.win{border-color:var(--success); background:rgba(30,127,79,.09); color:var(--success)}
+  .bid.win b{color:var(--success)}
+  @keyframes bidin{from{opacity:0; transform:translateY(9px)} to{opacity:1; transform:none}}
+
+  .bfoot{
+    display:flex; gap:8px; flex-wrap:wrap; align-items:center;
+    margin-top:16px; padding-top:14px; border-top:1px solid var(--border);
+  }
+  .guard{
+    display:inline-flex; align-items:center; gap:7px; font-family:var(--mono); font-size:.63rem;
+    letter-spacing:.09em; text-transform:uppercase; padding:5px 9px; border-radius:6px;
+    border:1px solid rgba(30,127,79,.42); color:var(--success); background:rgba(30,127,79,.07);
+    font-weight:600;
+  }
+  .guard svg{width:11px; height:11px}
+  .bfoot .note{margin-left:auto; font-family:var(--mono); font-size:.63rem; color:var(--faint)}
+
+  /* crimson, OUTLINED — never a fill (D-003) */
+  .stamp{
+    position:absolute; z-index:5; left:50%; top:50%;
+    transform:translate(-50%,-50%) rotate(-11deg) scale(.6);
+    font-size:clamp(2.3rem,6.4vw,4rem); font-weight:800; letter-spacing:-.05em;
+    color:var(--danger); border:5px solid var(--danger); border-radius:12px; padding:4px 22px 8px;
+    background:color-mix(in srgb, var(--surface) 86%, transparent);
+    opacity:0; pointer-events:none;
+    box-shadow:0 10px 34px -14px rgba(166,27,16,.55);
+  }
+  .stamp.on{animation:stamp 1.9s cubic-bezier(.16,1.1,.3,1) forwards}
+  @keyframes stamp{
+    0%{opacity:0; transform:translate(-50%,-50%) rotate(-24deg) scale(1.7)}
+    16%{opacity:1; transform:translate(-50%,-50%) rotate(-11deg) scale(1)}
+    82%{opacity:1}
+    100%{opacity:0; transform:translate(-50%,-50%) rotate(-11deg) scale(1)}
+  }
+  @media (max-width:560px){
+    .bgrid{grid-template-columns:1fr 150px; gap:14px}
+    .lot{display:none}
+  }
+
+  /* ---------------- close ---------------- */
+  .close{padding:104px 0 40px; text-align:center}
+  .close h2{font-size:clamp(1.8rem,3.8vw,2.6rem); max-width:20ch; margin-inline:auto}
+  .close p{margin-top:18px; color:var(--dim); max-width:48ch; margin-inline:auto; font-size:1.04rem}
+  .close .cta{margin-top:30px; display:flex; gap:12px; justify-content:center; flex-wrap:wrap}
+  footer.site{padding:30px 0 60px; border-top:1px solid var(--border); margin-top:70px}
+  footer.site .col{display:flex; gap:16px; align-items:center; flex-wrap:wrap;
+    font-family:var(--mono); font-size:.7rem; color:var(--faint)}
+  footer.site .sp{margin-left:auto}
+
+  .rv{opacity:0; transform:translateY(16px); transition:opacity .6s ease, transform .6s cubic-bezier(.2,.8,.3,1)}
+  .rv.in{opacity:1; transform:none}
+
+  @media (prefers-reduced-motion:reduce){
+    .sheen{animation:none; background-position:16% 50%}
+    .rv{opacity:1; transform:none; transition:none}
+    .bid{animation:none}
+    .stamp.on{animation:none; opacity:1}
+    .live i,.state.hot{animation:none}
+  }
+</style>
+
+<div class="bgfx" aria-hidden="true"><canvas></canvas></div>
+
+<header class="top">
+  <div class="col">
+    <span class="mark" aria-hidden="true">
+      <svg viewBox="0 0 24 24" fill="none" stroke="#D62B1F" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M3 8h18M6 8V5h12v3M5 8v11h14V8"/><path d="M9 12h6"/>
+      </svg>
+    </span>
+    <span class="wordmark">SideStage</span>
+    <span class="right">
+      <a class="btn ghost" href="#start">See it run</a>
+      <a class="btn" href="#start">Start an event</a>
+    </span>
+  </div>
+</header>
+
+<!-- ============================ HERO ============================ -->
+<section class="hero">
+  <div class="col">
+    <div class="grid">
+      <div>
+        <span class="lab eyebrow">Live selling, run properly</span>
+        <h1>Run the sale.<br>The copilot <span class="sheen">runs the room.</span></h1>
+        <p class="sub">
+          Stream, chat, catalog, holds, auctions and checkout in one place — with an
+          assistant that answers from your own listings and gets stopped before it can
+          say anything wrong.
+        </p>
+        <div class="cta">
+          <a class="btn" href="#start">Start an event</a>
+          <a class="btn ghost" href="#start">See it run</a>
+        </div>
+        <p class="fine">No card. Square sandbox included. Bring your own catalog.</p>
+      </div>
+
+      <div class="stage rv" data-stage="board">
+        <div class="board">
+          <div class="heat"></div>
+          <div class="bhead">
+            <span class="live"><i></i>Live</span>
+            <span class="lab">Auction</span>
+            <span class="watch num">214 watching</span>
+          </div>
+          <div class="bgrid">
+            <div class="lot">
+              <div class="tile">
+                <svg viewBox="0 0 24 24" fill="none" stroke="#A66A00" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <path d="M8 3l4 2 4-2 4 3-2.5 3.5L16 9v12H8V9l-1.5.5L4 6z"/>
+                </svg>
+              </div>
+              <div>
+                <h4>1972 Selvedge Trucker</h4>
+                <p class="meta num">Lot 07 · M · 1 left</p>
+              </div>
+            </div>
+            <div class="bidcol">
+              <div class="ring">
+                <svg viewBox="0 0 100 100" aria-hidden="true">
+                  <circle class="trk" cx="50" cy="50" r="44"></circle>
+                  <circle class="arc" cx="50" cy="50" r="44" stroke-dasharray="276.5" stroke-dashoffset="0"></circle>
+                </svg>
+                <div class="inner"><span class="secs num">10</span><span class="lab" style="font-size:.54rem">seconds</span></div>
+              </div>
+              <div class="price num">$120</div>
+              <div class="state">Bidding open</div>
+            </div>
+            <div class="feed"><span class="lab">Bids</span></div>
+          </div>
+          <div class="bfoot">
+            <span class="guard">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M12 3l7 3v6c0 4.5-3 7.6-7 9-4-1.4-7-4.5-7-9V6z"/><path d="M9 12l2 2 4-4"/>
+              </svg>
+              Quantity held
+            </span>
+            <span class="guard">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M12 3l7 3v6c0 4.5-3 7.6-7 9-4-1.4-7-4.5-7-9V6z"/><path d="M9 12l2 2 4-4"/>
+              </svg>
+              Bids ordered server-side
+            </span>
+            <span class="note">Reservation carries into checkout</span>
+          </div>
+        </div>
+        <div class="stamp">SOLD</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================ CLOSE ============================ -->
+<section class="close" id="start">
+  <div class="col">
+    <h2>Your next drop can run itself.</h2>
+    <p>Bring a catalog and a camera. SideStage handles the room, the holds, the close and the checkout.</p>
+    <div class="cta">
+      <a class="btn" href="#start">Start an event</a>
+      <a class="btn ghost" href="#start">Talk to us first</a>
+    </div>
+  </div>
+</section>
+
+<footer class="site">
+  <div class="col">
+    <span>SideStage</span>
+    <span>Live-selling copilot</span>
+    <span class="sp">Payments via Square · Search via Typesense</span>
+  </div>
+</footer>
+
+<script>
+(function(){
+  "use strict";
+  var REDUCE = matchMedia("(prefers-reduced-motion:reduce)").matches;
+  var stages = [];
+  function register(el, api){ stages.push({ el:el, api:api, visible:false, running:false }); }
+  function sync(){
+    for (var i=0;i<stages.length;i++){
+      var s = stages[i], want = s.visible && !REDUCE && !document.hidden;
+      if (want && !s.running){ s.running = true; s.api.start(); }
+      else if (!want && s.running){ s.running = false; s.api.stop(); }
+    }
+  }
+
+  /* ---------- reveal ---------- */
+  (function(){
+    var els = document.querySelectorAll(".rv");
+    if (REDUCE || !("IntersectionObserver" in window)){
+      for (var i=0;i<els.length;i++) els[i].classList.add("in"); return;
+    }
+    var io = new IntersectionObserver(function(en){
+      en.forEach(function(x){ if (x.isIntersecting){ x.target.classList.add("in"); io.unobserve(x.target); } });
+    }, { threshold:.1, rootMargin:"0px 0px -6% 0px" });
+    for (var j=0;j<els.length;j++) io.observe(els[j]);
+  })();
+
+  /* ============================================================
+     BACKGROUND — the drop line, held well back.
+     Same geometry as before; colours are the R3 set, and alphas
+     are raised because these are now dark marks on a light page.
+     ============================================================ */
+  (function(){
+    var cv = document.querySelector(".bgfx canvas"); if (!cv) return;
+    var ctx = cv.getContext("2d");
+    var W=0, H=0, raf=0, t0=0, T=0;
+    var RAILS=3, PER=13, LOOP=18;
+
+    function fit(){
+      var dpr = Math.min(window.devicePixelRatio || 1, 2);
+      W = innerWidth; H = innerHeight;
+      cv.width = Math.round(W*dpr); cv.height = Math.round(H*dpr);
+      ctx.setTransform(dpr,0,0,dpr,0,0);
+    }
+    function clamp01(v){ return v<0?0:(v>1?1:v); }
+    function rail(i){
+      var base = H*(0.26 + i*0.24);
+      return { x0:-0.05*W, y0:base + H*0.11, x1:1.05*W, y1:base - H*0.08 };
+    }
+    function tag(x,y,s,rot,stroke,alpha){
+      ctx.save(); ctx.translate(x,y); ctx.rotate(rot); ctx.scale(s,s);
+      ctx.lineWidth = 1.5/s; ctx.lineJoin="round"; ctx.lineCap="round";
+      ctx.strokeStyle = "rgba("+stroke+","+alpha.toFixed(3)+")";
+      ctx.beginPath();
+      ctx.moveTo(-14,0); ctx.lineTo(-8,-7.5); ctx.lineTo(9,-7.5);
+      ctx.quadraticCurveTo(12,-7.5,12,-4.5); ctx.lineTo(12,4.5);
+      ctx.quadraticCurveTo(12,7.5,9,7.5); ctx.lineTo(-8,7.5); ctx.closePath(); ctx.stroke();
+      ctx.beginPath(); ctx.arc(-6.2,0,1.7,0,6.2832); ctx.stroke();
+      ctx.restore();
+    }
+    function draw(t){
+      ctx.clearRect(0,0,W,H);
+      for (var i=0;i<RAILS;i++){
+        var R = rail(i);
+        ctx.beginPath(); ctx.strokeStyle="rgba(166,106,0,.13)"; ctx.lineWidth=1;
+        ctx.moveTo(R.x0+(R.x1-R.x0)*0.42, R.y0+(R.y1-R.y0)*0.42);
+        ctx.lineTo(R.x1,R.y1); ctx.stroke();
+        for (var k=0;k<PER;k++){
+          var p = ((t/LOOP) + (k/PER) + i*0.37) % 1;
+          var order = clamp01((p-0.06)/0.46), chaos = Math.pow(1-order,1.25), seed = k*2.399+i*1.117;
+          var bx = R.x0+(R.x1-R.x0)*p, by = R.y0+(R.y1-R.y0)*p;
+          var ox = chaos*(Math.sin(t*0.5+seed)*W*0.05 + Math.sin(t*0.22+seed*2.7)*W*0.026);
+          var oy = chaos*(Math.cos(t*0.42+seed*1.4)*H*0.10 + Math.cos(t*0.19+seed*3.1)*H*0.05);
+          var sold = clamp01((p-0.84)/0.10);
+          var a = 0.16+0.26*order;
+          if (p<0.05) a *= p/0.05;
+          if (p>0.94) a *= (1-p)/0.06;
+          /* tan while it's chaos, taxi-yellow once it lines up, forest once sold */
+          var col = sold>0 ? "30,127,79" : (order>0.55 ? "166,106,0" : "160,141,120");
+          tag(bx+ox, by+oy, (0.6+0.4*order)*(H/620), chaos*Math.sin(t*0.4+seed)*1.5, col, Math.max(a,0));
+        }
+      }
+    }
+    function frame(now){
+      if (!t0) t0 = now;
+      T += (now-t0)/1000; t0 = now;
+      draw(T); raf = requestAnimationFrame(frame);
+    }
+    fit();
+    addEventListener("resize", function(){ fit(); if (!raf) draw(T); });
+    draw(REDUCE ? 6 : 0);
+    if (!REDUCE){
+      register(document.querySelector(".bgfx"), {
+        start:function(){ if (!raf){ t0=0; raf=requestAnimationFrame(frame); } },
+        stop:function(){ if (raf){ cancelAnimationFrame(raf); raf=0; t0=0; } }
+      });
+      stages[stages.length-1].visible = true;   /* fixed layer: always on screen */
+    }
+  })();
+
+  /* ============================================================
+     THE BOARD — the hero
+     ============================================================ */
+  (function(){
+    var stage = document.querySelector("[data-stage=board]"); if (!stage) return;
+    var heatEl=stage.querySelector(".heat"), arc=stage.querySelector(".arc"),
+        secsEl=stage.querySelector(".secs"), priceEl=stage.querySelector(".price"),
+        stateEl=stage.querySelector(".state"), feed=stage.querySelector(".feed"),
+        stamp=stage.querySelector(".stamp");
+    var CIRC=276.5, BIDDERS=["dana_r","mike_t","kchen","ren__","tovah","bcarter","nina.p","j.alv"];
+    var timers=[], rafId=0, running=false, price=120, secs=10, MAX=10;
+
+    function later(fn,ms){ var id=setTimeout(function(){ if (running) fn(); },ms); timers.push(id); return id; }
+    function clearAll(){ timers.forEach(clearTimeout); timers=[]; if (rafId){ cancelAnimationFrame(rafId); rafId=0; } }
+    function clearBids(){ var r=feed.querySelectorAll(".bid"); for (var i=0;i<r.length;i++) r[i].remove(); }
+
+    function paint(){
+      var f = Math.max(0, secs/MAX);
+      arc.setAttribute("stroke-dashoffset",(CIRC*(1-f)).toFixed(1));
+      /* calm → money → urgent, and the urgent end is the brand red */
+      arc.style.stroke = secs<=3 ? "var(--brand-red)" : secs<=6 ? "var(--brand-yellow)" : "var(--success)";
+      secsEl.textContent = Math.max(0, Math.ceil(secs));
+      heatEl.style.setProperty("--heat", (0.06+0.34*(1-f)).toFixed(3));
+    }
+    function tween(from,to){
+      var s=performance.now(), dur=420;
+      priceEl.classList.add("up");
+      (function step(now){
+        var k=Math.min(1,(now-s)/dur), e=1-Math.pow(1-k,3);
+        priceEl.textContent = "$"+Math.round(from+(to-from)*e);
+        if (k<1 && running) rafId=requestAnimationFrame(step);
+        else { priceEl.textContent="$"+to; priceEl.classList.remove("up"); rafId=0; }
+      })(s);
+    }
+    function addBid(who,amt){
+      var row=document.createElement("div"); row.className="bid";
+      row.innerHTML='<span>'+who+'</span><b>$'+amt+'</b>';
+      feed.appendChild(row);
+      var r=feed.querySelectorAll(".bid");
+      while (r.length>4){ r[0].remove(); r=feed.querySelectorAll(".bid"); }
+    }
+    function reset(){
+      clearAll(); price=120; secs=10; MAX=10;
+      priceEl.textContent="$120"; stateEl.textContent="Bidding open"; stateEl.className="state";
+      clearBids(); stamp.classList.remove("on"); lastBidder = -1;
+      heatEl.style.setProperty("--heat","0.06"); paint();
+    }
+    function countdown(){
+      var last=performance.now();
+      (function step(now){
+        if (!running) return;
+        secs -= (now-last)/1000; last=now; paint();
+        if (secs>0) rafId=requestAnimationFrame(step); else close();
+      })(last);
+    }
+    var lastBidder = -1;
+    function nextBidder(){                       /* nobody bids against themselves */
+      var i; do { i = (Math.random()*BIDDERS.length)|0; } while (i === lastBidder);
+      lastBidder = i; return BIDDERS[i];
+    }
+    function bid(){
+      var was=price; price += 3+((Math.random()*5)|0);
+      tween(was,price); addBid(nextBidder(), price);
+      secs = Math.min(10, secs+4.5);
+      stateEl.textContent="Bidding open"; stateEl.className="state";
+    }
+    function close(){
+      secs=0; paint();
+      stateEl.textContent="Going once"; stateEl.className="state hot";
+      later(function(){ stateEl.textContent="Going twice"; },900);
+      later(function(){
+        /* name the bidder who actually holds the top bid, not a fixed one */
+        var winner = lastBidder >= 0 ? BIDDERS[lastBidder] : BIDDERS[0];
+        stateEl.textContent="Sold · "+winner; stateEl.className="state sold";
+        arc.style.stroke="var(--success)"; heatEl.style.setProperty("--heat","0.38");
+        var w=feed.querySelectorAll(".bid"); if (w.length) w[w.length-1].classList.add("win");
+        stamp.classList.add("on");
+      },1850);
+      later(function(){ reset(); run(); },4400);
+    }
+    function run(){ countdown(); [900,2200,3600,5200,6900].forEach(function(ms){ later(bid,ms); }); }
+
+    reset();
+    if (REDUCE){
+      price=141; priceEl.textContent="$141"; secs=4; paint();
+      addBid("kchen",132); addBid("tovah",137); addBid("dana_r",141);
+      stateEl.textContent="Going once"; stateEl.className="state hot";
+    }
+    register(stage, {
+      start:function(){ if (!running){ running=true; reset(); run(); } },
+      stop:function(){ running=false; clearAll(); }
+    });
+  })();
+
+  /* ---------- visibility wiring ---------- */
+  (function(){
+    if (REDUCE) return;
+    if ("IntersectionObserver" in window){
+      var io = new IntersectionObserver(function(en){
+        en.forEach(function(x){
+          for (var i=0;i<stages.length;i++){
+            if (stages[i].el === x.target){ stages[i].visible = x.isIntersecting; break; }
+          }
+        });
+        sync();
+      }, { threshold:.15 });
+      for (var i=0;i<stages.length;i++){
+        if (stages[i].el && stages[i].el.className.indexOf("bgfx") === -1) io.observe(stages[i].el);
+      }
+    } else {
+      for (var j=0;j<stages.length;j++) stages[j].visible = true;
+    }
+    document.addEventListener("visibilitychange", sync);
+    sync();
+  })();
+})();
+</script>
+</body>
+</html>

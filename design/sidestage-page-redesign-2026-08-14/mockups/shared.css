@@ -127,6 +127,7 @@ a { color: inherit; }
   font-weight: 850;
 }
 .nav-toggle { display: none; }
+.mobile-primary-nav { display: none; }
 
 .shell {
   width: min(calc(100% - 40px), var(--content));
@@ -520,7 +521,8 @@ details > summary { cursor: pointer; }
 @media (max-width: 760px) {
   .app-header-inner { width: min(calc(100% - 24px), var(--content)); min-height: 58px; gap: 10px; }
   .brand-copy { display: none; }
-  .primary-nav { justify-content: flex-start; }
+  .desktop-primary-nav { display: none; }
+  .mobile-primary-nav { display: flex; justify-content: flex-start; gap: 3px; padding: 3px; border-radius: 12px; overflow: visible; background: rgba(251, 242, 227, 0.72); }
   .nav-cluster { display: contents; }
   .nav-cluster + .nav-cluster { margin-left: 0; }
   .nav-link { min-height: 32px; padding: 7px 8px; font-size: 10px; }

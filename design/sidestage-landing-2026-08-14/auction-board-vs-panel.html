@@ -1,0 +1,782 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<!-- Source of https://claude.ai/code/artifact/3cb1079b-eb11-4e2b-8334-9f2b4d2af1c0 — see README.md in this directory. -->
+<style>:root{color-scheme:light}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#faf9f5;color:#141413}img{max-width:100%}</style>
+</head>
+<body>
+<title>The Board vs The Panel</title>
+
+<style>
+  /* ============================================================
+     Two SideStage auction designs, side by side.
+
+     Palette is SideStage's own "R3 Ticket" theme
+     (apps/web/src/styles.css :root) — this page honours the
+     product's system rather than inventing one.
+
+     THEME NOTE: the document chrome follows the viewer's theme.
+     The two SPECIMENS do not — they are mounted artwork, pinned
+     to the light palette they actually ship in, because the whole
+     point is to judge their real colour.
+     ============================================================ */
+  :root{
+    --bg:#FFF8EF;
+    --raised:#FFFFFF;
+    --sunk:#FDF4E8;
+    --line:#EBDFCC;
+    --line-2:#DCCCB2;
+    --text:#2A1F1A;
+    --dim:#5C4B40;
+    --muted:#8A7A6C;
+
+    --red:#D62B1F;
+    --red-text:#C2271C;
+    --yellow:#FFC400;
+    --yellow-text:#A66A00;
+    --forest:#1E7F4F;
+
+    --sans:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+    --mono:ui-monospace,"SF Mono","JetBrains Mono",Menlo,Consolas,"Liberation Mono",monospace;
+    --col:1180px;
+  }
+  @media (prefers-color-scheme:dark){
+    :root:not([data-theme="light"]){
+      --bg:#191210;
+      --raised:#221A15;
+      --sunk:#1F1713;
+      --line:#3B2D25;
+      --line-2:#4C3A30;
+      --text:#F2E7DA;
+      --dim:#CDBBAA;
+      --muted:#9C8878;
+      --red-text:#FF6B57;
+      --yellow-text:#E0A64B;
+      --forest:#4FC98B;
+    }
+  }
+  :root[data-theme="dark"]{
+    --bg:#191210;
+    --raised:#221A15;
+    --sunk:#1F1713;
+    --line:#3B2D25;
+    --line-2:#4C3A30;
+    --text:#F2E7DA;
+    --dim:#CDBBAA;
+    --muted:#9C8878;
+    --red-text:#FF6B57;
+    --yellow-text:#E0A64B;
+    --forest:#4FC98B;
+  }
+
+  *{box-sizing:border-box}
+  body{
+    margin:0; background:var(--bg); color:var(--text);
+    font-family:var(--sans); font-size:16px; line-height:1.62;
+    -webkit-font-smoothing:antialiased;
+  }
+  .col{width:min(var(--col), calc(100% - 40px)); margin-inline:auto}
+  h1,h2,h3{margin:0; text-wrap:balance; letter-spacing:-.035em; line-height:1.08; font-weight:800}
+  p{margin:0}
+
+  .eyebrow{
+    font-family:var(--mono); font-size:.7rem; letter-spacing:.16em; text-transform:uppercase;
+    color:var(--red-text); font-weight:700;
+  }
+  .num{font-variant-numeric:tabular-nums}
+
+  /* ---- masthead ---- */
+  header.mast{padding:64px 0 0}
+  header.mast h1{margin-top:14px; font-size:clamp(2rem,4.2vw,3rem)}
+  header.mast .lede{margin-top:20px; max-width:64ch; color:var(--dim); font-size:1.08rem}
+  .stamp-note{
+    margin-top:24px; display:flex; gap:10px; align-items:flex-start;
+    padding:12px 14px; border-radius:9px;
+    border:1px solid var(--line); border-left:3px solid var(--yellow-text);
+    background:var(--sunk); max-width:72ch;
+  }
+  .stamp-note .k{
+    font-family:var(--mono); font-size:.62rem; letter-spacing:.13em; text-transform:uppercase;
+    color:var(--yellow-text); font-weight:700; flex:0 0 auto; padding-top:.25em;
+  }
+  .stamp-note p{font-size:.92rem; color:var(--dim)}
+
+  /* ---- section rhythm ---- */
+  section.blk{padding:60px 0 0}
+  section.blk > .col > .eyebrow + h2{margin-top:12px; font-size:clamp(1.35rem,2.6vw,1.8rem)}
+  section.blk .intro{margin-top:14px; max-width:66ch; color:var(--dim)}
+
+  /* ---- the two-up mount ---- */
+  .mount{display:grid; grid-template-columns:1fr 1fr; gap:26px; margin-top:30px; align-items:start}
+  @media (max-width:940px){ .mount{grid-template-columns:1fr} }
+
+  .spec{border:1px solid var(--line); border-radius:13px; overflow:hidden; background:var(--raised)}
+  .spec > .cap{
+    display:flex; align-items:baseline; gap:10px; flex-wrap:wrap;
+    padding:13px 16px; border-bottom:1px solid var(--line); background:var(--sunk);
+  }
+  .spec .cap .who{font-weight:750; font-size:.95rem; letter-spacing:-.02em}
+  .spec .cap .tag{
+    font-family:var(--mono); font-size:.6rem; letter-spacing:.12em; text-transform:uppercase;
+    font-weight:700; padding:3px 7px; border-radius:5px;
+  }
+  .tag.ship{color:#0E5C38; background:#D7F0E2; border:1px solid #9FD8BC}
+  .tag.concept{color:#8A4A00; background:#FFEFC7; border:1px solid #F0D48A}
+  .spec .cap .src{
+    margin-left:auto; font-family:var(--mono); font-size:.62rem; color:var(--muted);
+    overflow-wrap:anywhere;
+  }
+
+  /* the mounted artwork itself: always the shipping light palette */
+  .plate{
+    padding:22px 20px 24px;
+    background:#FFF8EF;
+    color:#2A1F1A;
+    color-scheme:light;
+  }
+
+  /* ============================================================
+     SPECIMEN A — the app's AuctionPanel.
+     auction.css verbatim (current working tree, swept to R3
+     tokens 2026-08-14 00:46:55Z), with the tokens it references
+     resolved to their real styles.css values.
+     ============================================================ */
+  .plate{
+    --surface:#FFFFFF; --surface-glass:#FDF8F0; --border:#EBDFCC;
+    --text:#2A1F1A; --muted:#77685A; --brand-red:#D62B1F; --on-brand-red:#FFF8F5;
+    --red-text:#B52218; --brand-yellow:#FFC400; --yellow-text:#9B6300;
+    --success:#196B42; --danger:#A61B10;
+    --panel-grad:linear-gradient(145deg,#FFFDF9,var(--surface));
+    --shadow-hue:92 62 34;
+  }
+  .plate .eyebrow{ margin:0 0 1.15rem; color:var(--red-text); font-size:.72rem; font-weight:700; letter-spacing:.14em; text-transform:uppercase; }
+  .plate .muted{ color:var(--muted); }
+  .plate .button{ border:1px solid var(--border); border-radius:.65rem; padding:.72rem 1rem; color:var(--text); background:var(--surface-glass); font-weight:650; font:inherit; cursor:default; }
+  .plate .button.primary{ color:var(--on-brand-red); background:var(--brand-red); border-color:var(--brand-red); box-shadow:0 8px 28px color-mix(in srgb, var(--brand-red) 26%, transparent); font-weight:650; }
+  .plate h3{font-size:1.15rem; font-weight:750}
+
+  .auction-card { display: grid; gap: 1rem; padding: 1.1rem; border: 1px solid color-mix(in srgb, var(--brand-red) 24%, transparent); border-radius: 1.15rem; background: var(--panel-grad); box-shadow: 0 20px 52px rgb(var(--shadow-hue) / 28%); }
+  .auction-card-heading,.auction-bid-row,.auction-leader { display: flex; align-items: center; }
+  .auction-card-heading { justify-content: space-between; gap: 1rem; }
+  .auction-card-heading h3,.auction-card-heading p { margin: 0; }
+  .auction-sync { display: inline-flex; align-items: center; gap: .45rem; padding: .4rem .7rem; border: 1px solid color-mix(in srgb, var(--success) 20%, transparent); border-radius: 999px; color: var(--text); font-size: .76rem; font-weight: 700; letter-spacing: .04em; }
+  .auction-sync > span { width: .5rem; height: .5rem; border-radius: 50%; background: var(--success); box-shadow: 0 0 12px color-mix(in srgb, var(--success) 80%, transparent); }
+  .auction-metrics { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: .6rem; }
+  .auction-metrics > div { display: grid; gap: .25rem; padding: .8rem; border: 1px solid var(--border); border-radius: .85rem; background: var(--surface-glass); }
+  .auction-metrics span,.auction-bid-form small { color: var(--muted); font-size: .78rem; }
+  .auction-metrics strong { color: var(--text); font-size: 1.3rem; font-variant-numeric:tabular-nums; }
+  .auction-leader { min-height: 2.6rem; padding: .65rem .8rem; border-left: 3px solid var(--yellow-text); border-radius: .45rem; background: color-mix(in srgb, var(--brand-yellow) 10%, transparent); color: var(--text); font-weight: 650; }
+  .auction-bid-form { display: grid; gap: .45rem; }
+  .auction-bid-form > label { color: var(--text); font-size: .82rem; font-weight: 700; }
+  .auction-bid-row { gap: .55rem; }
+  .auction-bid-row > span { margin-right: -.25rem; color: var(--muted); }
+  .auction-bid-row input { min-width: 0; flex: 1; padding: .7rem .8rem; border: 1px solid color-mix(in srgb, var(--brand-red) 24%, transparent); border-radius: .72rem; background: var(--surface); color: var(--text); font: inherit; font-variant-numeric:tabular-nums; }
+  @media (max-width:560px) { .auction-card-heading,.auction-bid-row { align-items: stretch; flex-direction: column; } .auction-sync { align-self: flex-start; } .auction-metrics { grid-template-columns: 1fr; } }
+
+  /* ============================================================
+     SPECIMEN B — the landing page's Board, re-themed to R3.
+     ============================================================ */
+  .stage{
+    position:relative; width:100%; border:1px solid #DCCCB2; border-radius:14px;
+    overflow:hidden; background:#FFFFFF;
+    box-shadow:0 20px 52px rgb(92 62 34 / 28%);
+  }
+  .board{position:relative; padding:18px}
+  .board .heat{
+    position:absolute; inset:0; pointer-events:none; z-index:0;
+    background:radial-gradient(72% 92% at 50% 106%, rgba(255,196,0,var(--heat,.06)), transparent 70%);
+    transition:background .5s linear;
+  }
+  .board > *{position:relative; z-index:1}
+  .bhead{display:flex; align-items:center; gap:10px; padding-bottom:12px; margin-bottom:14px; border-bottom:1px solid #EBDFCC}
+  .live{display:inline-flex; align-items:center; gap:6px; font-family:var(--mono); font-size:.62rem;
+    letter-spacing:.16em; text-transform:uppercase; font-weight:700;
+    color:#FFF8F5; background:#D62B1F; padding:3px 8px; border-radius:5px}
+  .live i{width:6px; height:6px; border-radius:50%; background:#FFF8F5; animation:blink 1.6s steps(1) infinite}
+  @keyframes blink{50%{opacity:0}}
+  .blab{font-family:var(--mono); font-size:.62rem; letter-spacing:.16em; text-transform:uppercase; color:#8A7A6C; font-weight:600}
+  .bhead .watch{margin-left:auto; font-family:var(--mono); font-size:.66rem; color:#8A7A6C; font-variant-numeric:tabular-nums}
+
+  .bgrid{display:grid; grid-template-columns:1fr 150px; gap:16px; align-items:center}
+  .bidcol{display:flex; flex-direction:column; align-items:center; gap:10px; min-width:0}
+  .ring{position:relative; width:112px; height:112px; flex:0 0 auto}
+  .ring svg{width:100%; height:100%; transform:rotate(-90deg); display:block}
+  .ring .trk{fill:none; stroke:#EBDFCC; stroke-width:5}
+  .ring .arc{fill:none; stroke:#1E7F4F; stroke-width:5; stroke-linecap:round; transition:stroke .4s linear}
+  .ring .inner{position:absolute; inset:0; display:grid; place-content:center; text-align:center; gap:1px}
+  .ring .secs{font-family:var(--mono); font-variant-numeric:tabular-nums; font-size:1.7rem; font-weight:700; letter-spacing:-.045em; line-height:1; color:#2A1F1A}
+  .price{
+    font-family:var(--mono); font-variant-numeric:tabular-nums;
+    font-size:1.95rem; font-weight:800; letter-spacing:-.05em; line-height:1;
+    color:#2A1F04; background:#FFC400; padding:5px 14px 7px; border-radius:8px;
+    box-shadow:0 3px 0 rgba(166,106,0,.35); transition:transform .18s, background .25s;
+  }
+  .price.up{transform:translateY(-2px); background:#EDB400}
+  .state{font-family:var(--mono); font-size:.63rem; letter-spacing:.18em; text-transform:uppercase; color:#8A7A6C; min-height:1.2em; transition:color .3s; font-weight:600}
+  .state.hot{color:#C2271C; animation:statepulse .85s ease-in-out infinite}
+  .state.sold{color:#1E7F4F; animation:none}
+  @keyframes statepulse{0%,100%{opacity:.55} 50%{opacity:1}}
+
+  .feed{display:flex; flex-direction:column; gap:5px; min-width:0}
+  .bid{
+    display:flex; align-items:baseline; justify-content:space-between; gap:8px;
+    font-family:var(--mono); font-size:.69rem; padding:5px 8px; border-radius:7px;
+    background:#FDF4E8; border:1px solid #EBDFCC; color:#5C4B40;
+    animation:bidin .35s cubic-bezier(.2,.9,.3,1) both;
+  }
+  .bid b{color:#A66A00; font-weight:700; font-variant-numeric:tabular-nums}
+  .bid.win{border-color:#1E7F4F; background:rgba(30,127,79,.09); color:#1E7F4F}
+  .bid.win b{color:#1E7F4F}
+  @keyframes bidin{from{opacity:0; transform:translateY(9px)} to{opacity:1; transform:none}}
+
+  .bfoot{display:flex; gap:7px; flex-wrap:wrap; align-items:center; margin-top:14px; padding-top:12px; border-top:1px solid #EBDFCC}
+  .guard{
+    display:inline-flex; align-items:center; gap:6px; font-family:var(--mono); font-size:.6rem;
+    letter-spacing:.09em; text-transform:uppercase; padding:4px 8px; border-radius:6px;
+    border:1px solid rgba(30,127,79,.42); color:#1E7F4F; background:rgba(30,127,79,.07); font-weight:600;
+  }
+  .stamp{
+    position:absolute; z-index:5; left:50%; top:50%;
+    transform:translate(-50%,-50%) rotate(-11deg) scale(.6);
+    font-size:2.6rem; font-weight:800; letter-spacing:-.05em;
+    color:#A61B10; border:5px solid #A61B10; border-radius:12px; padding:4px 20px 8px;
+    background:rgba(255,255,255,.86);
+    opacity:0; pointer-events:none;
+  }
+  .stamp.on{animation:stamp 1.9s cubic-bezier(.16,1.1,.3,1) forwards}
+  @keyframes stamp{
+    0%{opacity:0; transform:translate(-50%,-50%) rotate(-24deg) scale(1.7)}
+    16%{opacity:1; transform:translate(-50%,-50%) rotate(-11deg) scale(1)}
+    82%{opacity:1}
+    100%{opacity:0; transform:translate(-50%,-50%) rotate(-11deg) scale(1)}
+  }
+
+  /* ---- shared-clock banner ---- */
+  .clockbar{
+    display:flex; align-items:center; gap:12px; flex-wrap:wrap;
+    margin-top:26px; padding:11px 15px; border-radius:9px;
+    border:1px dashed var(--line-2); background:var(--sunk);
+    font-family:var(--mono); font-size:.7rem; color:var(--muted);
+  }
+  .clockbar b{color:var(--text); font-weight:700}
+  .clockbar .dot{width:7px; height:7px; border-radius:50%; background:var(--forest); flex:0 0 auto}
+
+  /* ---- matrix ---- */
+  .tablewrap{margin-top:26px; overflow-x:auto; border:1px solid var(--line); border-radius:11px; background:var(--raised)}
+  table{border-collapse:collapse; width:100%; min-width:660px; font-size:.92rem}
+  thead th{
+    text-align:left; padding:13px 16px; border-bottom:1px solid var(--line);
+    font-family:var(--mono); font-size:.63rem; letter-spacing:.13em; text-transform:uppercase;
+    color:var(--muted); font-weight:700; background:var(--sunk);
+  }
+  thead th:not(:first-child){width:23%}
+  tbody td{padding:12px 16px; border-bottom:1px solid var(--line); vertical-align:top}
+  tbody tr:last-child td{border-bottom:0}
+  tbody td:first-child{color:var(--dim)}
+  tbody td:first-child b{color:var(--text); font-weight:700; display:block; letter-spacing:-.01em}
+  .yes,.no,.part{
+    font-family:var(--mono); font-size:.63rem; letter-spacing:.09em; text-transform:uppercase; font-weight:700;
+    padding:3px 8px; border-radius:5px; display:inline-block; white-space:nowrap;
+  }
+  .yes{color:var(--forest); border:1px solid color-mix(in srgb,var(--forest) 42%,transparent); background:color-mix(in srgb,var(--forest) 10%,transparent)}
+  .no{color:var(--muted); border:1px solid var(--line-2); background:transparent}
+  .part{color:var(--yellow-text); border:1px solid color-mix(in srgb,var(--yellow-text) 45%,transparent); background:color-mix(in srgb,var(--yellow-text) 10%,transparent)}
+  td .why{display:block; margin-top:5px; font-size:.8rem; color:var(--muted); line-height:1.45}
+
+  /* ---- recommendation ---- */
+  .rec{margin-top:30px; display:grid; gap:16px}
+  .card{
+    border:1px solid var(--line); border-radius:12px; background:var(--raised); padding:20px 22px;
+  }
+  .card.lead{border-left:3px solid var(--red)}
+  .card h3{font-size:1.06rem}
+  .card p{margin-top:9px; color:var(--dim); max-width:74ch}
+  .steps{list-style:none; margin:14px 0 0; padding:0; display:flex; flex-direction:column; gap:11px; counter-reset:s}
+  .steps li{position:relative; padding-left:34px; color:var(--dim); counter-increment:s}
+  .steps li::before{
+    content:counter(s); position:absolute; left:0; top:.06em;
+    width:22px; height:22px; border-radius:6px; display:grid; place-items:center;
+    font-family:var(--mono); font-size:.68rem; font-weight:700;
+    color:var(--red-text); border:1px solid color-mix(in srgb,var(--red) 40%,transparent);
+    background:color-mix(in srgb,var(--red) 8%,transparent);
+  }
+  .steps li b{color:var(--text); font-weight:700}
+
+  .caveats{margin-top:16px; display:flex; flex-direction:column; gap:10px}
+  .caveat{
+    display:flex; gap:11px; align-items:flex-start; padding:12px 14px;
+    border:1px solid var(--line); border-radius:9px; background:var(--sunk);
+  }
+  .caveat .k{
+    font-family:var(--mono); font-size:.6rem; letter-spacing:.12em; text-transform:uppercase;
+    font-weight:700; color:var(--muted); flex:0 0 92px; padding-top:.28em;
+  }
+  .caveat p{font-size:.9rem; color:var(--dim)}
+
+  footer.f{margin-top:60px; padding:22px 0 60px; border-top:1px solid var(--line)}
+  footer.f .col{display:flex; gap:14px; flex-wrap:wrap; font-family:var(--mono); font-size:.68rem; color:var(--muted)}
+  footer.f .sp{margin-left:auto}
+
+  @media (prefers-reduced-motion:reduce){
+    .live i,.state.hot{animation:none}
+    .bid{animation:none}
+    .stamp.on{animation:none; opacity:1}
+    .price{transition:none}
+  }
+</style>
+
+<header class="mast">
+  <div class="col">
+    <span class="eyebrow">SideStage · auction UI</span>
+    <h1>The Board vs The Panel</h1>
+    <p class="lede">
+      SideStage already ships a live-auction UI. The landing page grew a second one.
+      Below, both are driven by <b>the same auction</b> — same lot, same clock, same bids —
+      so the only thing that differs on screen is how each one presents it.
+    </p>
+    <div class="stamp-note">
+      <span class="k">Read first</span>
+      <p>
+        These are not two versions of the same thing. <b>The Panel is a working bidding UI</b>
+        wired to the server. <b>The Board is a scripted marketing animation</b> with no bidding
+        in it at all. The question is not which to keep — it is which parts of the Board's
+        visual language are worth moving into the Panel.
+      </p>
+    </div>
+  </div>
+</header>
+
+<section class="blk">
+  <div class="col">
+    <span class="eyebrow">Side by side</span>
+    <h2>One auction, two faces</h2>
+    <p class="intro">
+      Both panels below are reading the same simulated auction: a 10-second lot opening at $120,
+      with bids arriving on the same schedule and the same close.
+    </p>
+
+    <div class="mount">
+      <!-- ============ SPECIMEN A ============ -->
+      <div class="spec">
+        <div class="cap">
+          <span class="who">The Panel</span>
+          <span class="tag ship">In the app today</span>
+          <span class="src">apps/web/src/AuctionPanel.tsx</span>
+        </div>
+        <div class="plate">
+          <section class="auction-card" aria-label="The Panel — the app's current auction UI">
+            <div class="auction-card-heading">
+              <div>
+                <p class="eyebrow">Live auction</p>
+                <h3>1972 Selvedge Trucker</h3>
+                <p class="muted">The seller controls which item goes under the hammer.</p>
+              </div>
+              <span class="auction-sync"><span aria-hidden="true"></span> Realtime</span>
+            </div>
+            <div class="auction-metrics">
+              <div><span>Current bid</span><strong data-a="price">$120.00</strong></div>
+              <div><span>Time left</span><strong data-a="time">0:10</strong></div>
+              <div><span>Bids</span><strong data-a="count">0</strong></div>
+            </div>
+            <div class="auction-leader" data-a="leader">Opening bid is $120.00.</div>
+            <div class="auction-bid-form">
+              <label for="specimen-a-bid">Your bid</label>
+              <div class="auction-bid-row">
+                <span aria-hidden="true">$</span>
+                <input id="specimen-a-bid" data-a="draft" value="124.00" readonly>
+                <button class="button primary" type="button" tabindex="-1">Place bid</button>
+              </div>
+              <small>Bid more than <span data-a="min">$120.00</span>. The latest accepted bid syncs to every buyer.</small>
+            </div>
+          </section>
+        </div>
+      </div>
+
+      <!-- ============ SPECIMEN B ============ -->
+      <div class="spec">
+        <div class="cap">
+          <span class="who">The Board</span>
+          <span class="tag concept">Landing-page concept</span>
+          <span class="src">design/sidestage-landing-2026-08-14/landing.html</span>
+        </div>
+        <div class="plate">
+          <div class="stage" data-stage="board" aria-label="The Board — the landing page auction concept">
+            <div class="board">
+              <div class="heat"></div>
+              <div class="bhead">
+                <span class="live"><i></i>Live</span>
+                <span class="blab">Auction</span>
+                <span class="watch">214 watching</span>
+              </div>
+              <div class="bgrid">
+                <div class="bidcol">
+                  <div class="ring">
+                    <svg viewBox="0 0 100 100" aria-hidden="true">
+                      <circle class="trk" cx="50" cy="50" r="44"></circle>
+                      <circle class="arc" cx="50" cy="50" r="44" stroke-dasharray="276.5" stroke-dashoffset="0"></circle>
+                    </svg>
+                    <div class="inner">
+                      <span class="secs">10</span>
+                      <span class="blab" style="font-size:.52rem">seconds</span>
+                    </div>
+                  </div>
+                  <div class="price">$120</div>
+                  <div class="state">Bidding open</div>
+                </div>
+                <div class="feed"><span class="blab">Bids</span></div>
+              </div>
+              <div class="bfoot">
+                <span class="guard">Quantity held</span>
+                <span class="guard">Bids ordered server-side</span>
+              </div>
+            </div>
+            <div class="stamp">SOLD</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="clockbar">
+      <span class="dot" aria-hidden="true"></span>
+      <span>One simulation drives both panels —</span>
+      <b data-clock>lot open</b>
+      <span>· the difference you see is presentation, not data.</span>
+    </div>
+  </div>
+</section>
+
+<section class="blk">
+  <div class="col">
+    <span class="eyebrow">What each one has</span>
+    <h2>The split is function against feeling</h2>
+    <p class="intro">
+      The Panel owns everything that makes bidding work. The Board owns everything that makes
+      a close feel like a close. Neither has the other's half.
+    </p>
+
+    <div class="tablewrap">
+      <table>
+        <thead>
+          <tr><th scope="col">Capability</th><th scope="col">The Panel</th><th scope="col">The Board</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><b>Place a bid</b>Input, validation, submit, server round-trip</td>
+            <td><span class="yes">Yes</span></td>
+            <td><span class="no">None</span><span class="why">No input exists. Bids are invented by a script.</span></td>
+          </tr>
+          <tr>
+            <td><b>Live sync</b>SSE stream with polling fallback</td>
+            <td><span class="yes">Yes</span><span class="why">Shows a Realtime / Reconnecting / Polling chip.</span></td>
+            <td><span class="no">None</span></td>
+          </tr>
+          <tr>
+            <td><b>Empty, closed and error states</b></td>
+            <td><span class="yes">All three</span></td>
+            <td><span class="no">None</span><span class="why">It only ever depicts a healthy running auction.</span></td>
+          </tr>
+          <tr>
+            <td><b>Screen-reader support</b></td>
+            <td><span class="yes">Yes</span><span class="why">Labelled region, <code>aria-live</code> on the metrics, <code>aria-busy</code>, described bid field.</span></td>
+            <td><span class="no">Decorative</span></td>
+          </tr>
+          <tr>
+            <td><b>Time pressure you can feel</b></td>
+            <td><span class="part">Text only</span><span class="why">A <code>2:52</code> figure in a box. Nothing changes as it runs out.</span></td>
+            <td><span class="yes">Countdown ring</span><span class="why">Ring drains, colour walks green → yellow → red, panel warms.</span></td>
+          </tr>
+          <tr>
+            <td><b>Bid history</b></td>
+            <td><span class="part">Count only</span><span class="why">It holds the full bid array and renders one line from it. The rest is thrown away.</span></td>
+            <td><span class="yes">Live feed</span><span class="why">Last four bids stack, newest animating in.</span></td>
+          </tr>
+          <tr>
+            <td><b>The close</b></td>
+            <td><span class="part">A sentence</span><span class="why">The leader line switches to past tense.</span></td>
+            <td><span class="yes">Going once → SOLD</span><span class="why">Staged call, winning row turns green, stamp lands.</span></td>
+          </tr>
+          <tr>
+            <td><b>Price prominence</b></td>
+            <td><span class="part">One of three</span><span class="why">Current bid sits in a row with time and count, all equal weight.</span></td>
+            <td><span class="yes">The hero</span><span class="why">Yellow ticket band, tweens upward on every bid.</span></td>
+          </tr>
+          <tr>
+            <td><b>Trust claims on screen</b></td>
+            <td><span class="no">None</span></td>
+            <td><span class="yes">Guard chips</span><span class="why">Quantity held · bids ordered server-side.</span></td>
+          </tr>
+          <tr>
+            <td><b>On the new R3 theme</b></td>
+            <td><span class="yes">Yes</span><span class="why">auction.css was swept to tokens today — see the note below.</span></td>
+            <td><span class="yes">Yes</span><span class="why">Re-themed in this pass.</span></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<section class="blk">
+  <div class="col">
+    <span class="eyebrow">Recommendation</span>
+    <h2>Keep the Panel. Give it the Board's clock.</h2>
+
+    <div class="rec">
+      <div class="card lead">
+        <h3>Don't swap — graft</h3>
+        <p>
+          Replacing the Panel would mean rebuilding bidding, sync, the three non-happy states and
+          the accessibility work, to gain presentation. The cheaper and better trade is to move four
+          things from the Board into the Panel it already has. Three of them need no new data —
+          the Panel is already receiving everything they render.
+        </p>
+        <ol class="steps">
+          <li><b>The countdown ring replaces the "Time left" box.</b> Same number, but it drains and changes colour. This is the single biggest difference in how urgent the panel feels, and it is pure presentation.</li>
+          <li><b>The bid feed replaces the "Bids: 3" count.</b> No new data at all — <code>auction.bids</code> is already in hand and already ordered; the Panel renders <code>bids[0]</code> and discards the rest.</li>
+          <li><b>The price becomes the hero.</b> Lift current bid out of the three-up row onto the yellow ticket band, and tween it when it changes.</li>
+          <li><b>The close gets staged.</b> Going once / going twice / SOLD, winning row in green. The server already emits the close; only the presentation is missing.</li>
+        </ol>
+      </div>
+
+      <div class="card">
+        <h3>What I'd leave on the landing page</h3>
+        <p>
+          The guard chips (<i>quantity held</i>, <i>bids ordered server-side</i>) are marketing
+          claims aimed at a seller deciding whether to trust the platform. A buyer mid-auction does
+          not need reassuring about the reservation model — they need the price, the clock and the
+          button. Same for <i>214 watching</i>, which is real data in the app and should read from
+          the event stats rather than be decoration.
+        </p>
+      </div>
+    </div>
+
+    <div class="caveats">
+      <div class="caveat">
+        <span class="k">Timing</span>
+        <p>
+          <b>auction.css was swept to the R3 tokens today at 00:46:55Z</b>, by another agent, while I was
+          measuring it. If you saw the auction panel as a dark navy card on the cream page recently,
+          that is fixed — Specimen A above is the current stylesheet, and I confirmed the live app matches.
+        </p>
+      </div>
+      <div class="caveat">
+        <span class="k">Fidelity</span>
+        <p>
+          Specimen A is the component's own markup with <code>auction.css</code> verbatim from the current
+          working tree and its tokens resolved to their real <code>styles.css</code> values — not a redraw.
+          I also ran it live: started a real auction on <code>sunday-drop</code>, placed three bids,
+          confirmed the rendering, then closed the auction.
+        </p>
+      </div>
+      <div class="caveat">
+        <span class="k">Not verified</span>
+        <p>
+          I have not checked how the Board's layout behaves inside the buyer page's actual column width,
+          or against the seller dock — another agent is actively editing those right now. The estimate that
+          the graft is "presentation only" holds for items 1–3; the staged close (item 4) depends on the
+          panel reliably seeing the closed state, which I did not test under a dropped SSE connection.
+        </p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<footer class="f">
+  <div class="col">
+    <span>SideStage · auction UI comparison</span>
+    <span>R3 Ticket theme</span>
+    <span class="sp">Specimens pinned to the light palette they ship in</span>
+  </div>
+</footer>
+
+<script>
+(function(){
+  "use strict";
+  var REDUCE = matchMedia("(prefers-reduced-motion:reduce)").matches;
+
+  /* ---------- the one simulation both panels read ---------- */
+  var BIDDERS = ["dana_r","mike_t","kchen","ren__","tovah","bcarter","nina.p","j.alv"];
+  var MAX = 10;
+  var state = { price:120, secs:MAX, bids:[], phase:"open", winner:null };
+
+  /* ---------- specimen A: the app's Panel ---------- */
+  var A = {
+    price:  document.querySelector('[data-a="price"]'),
+    time:   document.querySelector('[data-a="time"]'),
+    count:  document.querySelector('[data-a="count"]'),
+    leader: document.querySelector('[data-a="leader"]'),
+    draft:  document.querySelector('[data-a="draft"]'),
+    min:    document.querySelector('[data-a="min"]')
+  };
+  function money(n){ return "$" + n.toFixed(2); }
+  function mmss(s){ var v = Math.max(0, Math.ceil(s)); return Math.floor(v/60) + ":" + String(v%60).padStart(2,"0"); }
+  function renderA(){
+    A.price.textContent = money(state.price);
+    A.time.textContent  = state.phase === "sold" ? "Closed" : mmss(state.secs);
+    A.count.textContent = state.bids.length;
+    A.min.textContent   = money(state.price);
+    A.draft.value       = (state.price + 4).toFixed(2);
+    var top = state.bids[state.bids.length-1];
+    if (state.phase === "sold"){
+      A.leader.textContent = top ? (top.who + " won at " + money(top.amt) + ".") : "The auction closed without a bid.";
+    } else if (top){
+      A.leader.textContent = top.who + " leads at " + money(top.amt) + ".";
+    } else {
+      A.leader.textContent = "Opening bid is " + money(state.price) + ".";
+    }
+  }
+
+  /* ---------- specimen B: the Board ---------- */
+  var stage = document.querySelector("[data-stage=board]");
+  var B = {
+    heat:  stage.querySelector(".heat"),
+    arc:   stage.querySelector(".arc"),
+    secs:  stage.querySelector(".secs"),
+    price: stage.querySelector(".price"),
+    state: stage.querySelector(".state"),
+    feed:  stage.querySelector(".feed"),
+    stamp: stage.querySelector(".stamp")
+  };
+  var CIRC = 276.5, tweenRaf = 0;
+  function renderB(){
+    var f = Math.max(0, state.secs / MAX);
+    B.arc.setAttribute("stroke-dashoffset", (CIRC*(1-f)).toFixed(1));
+    B.arc.style.stroke = state.secs <= 3 ? "#D62B1F" : state.secs <= 6 ? "#FFC400" : "#1E7F4F";
+    B.secs.textContent = Math.max(0, Math.ceil(state.secs));
+    B.heat.style.setProperty("--heat", (0.06 + 0.34*(1-f)).toFixed(3));
+  }
+  function tweenB(from, to){
+    if (REDUCE){ B.price.textContent = "$"+to; return; }
+    var s = performance.now(), dur = 420;
+    B.price.classList.add("up");
+    (function step(now){
+      var k = Math.min(1,(now-s)/dur), e = 1-Math.pow(1-k,3);
+      B.price.textContent = "$" + Math.round(from + (to-from)*e);
+      if (k < 1) tweenRaf = requestAnimationFrame(step);
+      else { B.price.textContent = "$"+to; B.price.classList.remove("up"); tweenRaf = 0; }
+    })(s);
+  }
+  function pushFeedB(who, amt){
+    var row = document.createElement("div");
+    row.className = "bid";
+    row.innerHTML = '<span></span><b></b>';
+    row.firstChild.textContent = who;
+    row.lastChild.textContent = "$" + amt;
+    B.feed.appendChild(row);
+    var rows = B.feed.querySelectorAll(".bid");
+    while (rows.length > 4){ rows[0].remove(); rows = B.feed.querySelectorAll(".bid"); }
+  }
+  function clearFeedB(){
+    var rows = B.feed.querySelectorAll(".bid");
+    for (var i=0;i<rows.length;i++) rows[i].remove();
+  }
+
+  /* ---------- the clock everything hangs off ---------- */
+  var clockLabel = document.querySelector("[data-clock]");
+  var timers = [], rafId = 0, running = false, lastBidder = -1;
+
+  function later(fn, ms){ var id = setTimeout(function(){ if (running) fn(); }, ms); timers.push(id); return id; }
+  function clearAll(){
+    timers.forEach(clearTimeout); timers = [];
+    if (rafId){ cancelAnimationFrame(rafId); rafId = 0; }
+    if (tweenRaf){ cancelAnimationFrame(tweenRaf); tweenRaf = 0; }
+  }
+  function say(t){ if (clockLabel) clockLabel.textContent = t; }
+
+  function reset(){
+    clearAll();
+    state = { price:120, secs:MAX, bids:[], phase:"open", winner:null };
+    lastBidder = -1;
+    B.price.textContent = "$120";
+    B.state.textContent = "Bidding open"; B.state.className = "state";
+    B.stamp.classList.remove("on");
+    clearFeedB();
+    renderA(); renderB();
+    say("lot open");
+  }
+  function nextBidder(){
+    var i; do { i = (Math.random()*BIDDERS.length)|0; } while (i === lastBidder);
+    lastBidder = i; return BIDDERS[i];
+  }
+  function bid(){
+    var was = state.price;
+    state.price += 3 + ((Math.random()*5)|0);
+    var who = nextBidder();
+    state.bids.push({ who: who, amt: state.price });
+    state.secs = Math.min(MAX, state.secs + 4.5);
+    state.phase = "open";
+    tweenB(was, state.price);
+    pushFeedB(who, state.price);
+    B.state.textContent = "Bidding open"; B.state.className = "state";
+    renderA(); renderB();
+    say("bid " + state.bids.length + " · $" + state.price);
+  }
+  function close(){
+    state.secs = 0; renderB();
+    B.state.textContent = "Going once"; B.state.className = "state hot";
+    say("going once");
+    later(function(){ B.state.textContent = "Going twice"; say("going twice"); }, 900);
+    later(function(){
+      state.phase = "sold";
+      var top = state.bids[state.bids.length-1];
+      B.state.textContent = top ? ("Sold · " + top.who) : "Passed in";
+      B.state.className = "state sold";
+      B.arc.style.stroke = "#1E7F4F";
+      B.heat.style.setProperty("--heat","0.38");
+      var rows = B.feed.querySelectorAll(".bid");
+      if (rows.length) rows[rows.length-1].classList.add("win");
+      B.stamp.classList.add("on");
+      renderA();
+      say(top ? ("sold to " + top.who + " · $" + top.amt) : "passed in");
+    }, 1850);
+    later(function(){ reset(); run(); }, 4600);
+  }
+  function countdown(){
+    var last = performance.now();
+    (function step(now){
+      if (!running) return;
+      state.secs -= (now-last)/1000; last = now;
+      renderB();
+      A.time.textContent = state.phase === "sold" ? "Closed" : mmss(state.secs);
+      if (state.secs > 0) rafId = requestAnimationFrame(step); else close();
+    })(last);
+  }
+  function run(){
+    countdown();
+    [900, 2200, 3600, 5200, 6900].forEach(function(ms){ later(bid, ms); });
+  }
+
+  reset();
+
+  if (REDUCE){
+    /* a settled, representative frame — no motion, both panels populated */
+    state.price = 141; state.secs = 4; state.phase = "open";
+    state.bids = [{who:"kchen",amt:132},{who:"tovah",amt:137},{who:"dana_r",amt:141}];
+    B.price.textContent = "$141";
+    clearFeedB();
+    state.bids.forEach(function(b){ pushFeedB(b.who, b.amt); });
+    B.state.textContent = "Going once"; B.state.className = "state hot";
+    renderA(); renderB();
+    say("going once · $141");
+  } else {
+    var io = ("IntersectionObserver" in window)
+      ? new IntersectionObserver(function(en){
+          en.forEach(function(x){
+            if (x.isIntersecting && !running){ running = true; reset(); run(); }
+            else if (!x.isIntersecting && running){ running = false; clearAll(); }
+          });
+        }, { threshold:.15 })
+      : null;
+    if (io) io.observe(document.querySelector(".mount"));
+    else { running = true; run(); }
+    document.addEventListener("visibilitychange", function(){
+      if (document.hidden && running){ running = false; clearAll(); }
+      else if (!document.hidden && !running){ running = true; reset(); run(); }
+    });
+  }
+})();
+</script>
+</body>
+</html>
