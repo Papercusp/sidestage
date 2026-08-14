@@ -42,7 +42,7 @@ const legacyAccessBudget = {
   'catalog.ts': { fetch: 2 },
   'events/api.ts': { fetch: 1 },
   'judge.ts': { fetch: 1 },
-  'rehearsals.ts': { fetch: 2, 'event-stream': 1 },
+  'rehearsals.ts': { fetch: 1, 'event-stream': 1 },
 } satisfies Record<string, Partial<Record<AccessKind, number>>>;
 
 function listProductionSources(directory: string): string[] {
@@ -130,5 +130,27 @@ describe('SideStage web sync contract', () => {
     expect(pricingHistory).toContain("queryName: 'event.pricingHistory'");
     expect(pricingHistory).toContain('args: { eventId, productId }');
     expect(pricingHistory).not.toMatch(/\bfetch\s*\(/);
+  });
+
+  it('routes rehearsal reads and commands through named sync seams while preserving measurement transports', () => {
+    const testTab = readFileSync(path.join(sourceRoot, 'TestTab.tsx'), 'utf8');
+    const systemTests = readFileSync(path.join(sourceRoot, 'SystemTestsTab.tsx'), 'utf8');
+    const readiness = readFileSync(path.join(sourceRoot, 'EventReadinessPanel.tsx'), 'utf8');
+    const rehearsals = readFileSync(path.join(sourceRoot, 'rehearsals.ts'), 'utf8');
+
+    expect(testTab).toContain("queryName: 'rehearsal.preflight'");
+    expect(testTab).toContain("'rehearsal.run'");
+    expect(testTab).toContain("'rehearsal.runAll'");
+    expect(systemTests).toContain("'rehearsal.run'");
+    expect(readiness).toContain("queryName: 'rehearsal.preflight'");
+    expect(testTab).not.toContain('fetchPreflight');
+    expect(readiness).not.toContain('fetchPreflight');
+    expect(rehearsals).not.toContain('fetchPreflight');
+
+    // These direct paths are the probes themselves, not server-state bypasses.
+    expect(rehearsals).toContain('/rehearsals/client-realtime/');
+    expect(rehearsals).toContain('/rehearsals/client-clock');
+    expect(rehearsals).toContain('createResilientEventSource({');
+    expect(rehearsals).toContain('mediaDevices.getUserMedia');
   });
 });
