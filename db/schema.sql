@@ -1123,3 +1123,158 @@ CREATE TABLE IF NOT EXISTS system_test_cleanup (
     CHECK (status IN ('not-started', 'pending', 'running', 'succeeded', 'failed')),
   CONSTRAINT system_test_cleanup_attempts_nonnegative CHECK (attempts >= 0)
 );
+
+-- ── Canonical payable orders (P-001, Stripe/order recovery plan) ────────────
+-- SideStage owns the complete purchase record. Payment processors contribute
+-- only an external reference and webhook evidence; cart, auction, and offer
+-- purchases all resolve through one source-unique application row.
+ALTER TABLE checkout_order ADD COLUMN IF NOT EXISTS buyer_id text;
+ALTER TABLE checkout_order ADD COLUMN IF NOT EXISTS source_kind text;
+ALTER TABLE checkout_order ADD COLUMN IF NOT EXISTS source_id text;
+ALTER TABLE checkout_order ADD COLUMN IF NOT EXISTS payment_state text;
+ALTER TABLE checkout_order ADD COLUMN IF NOT EXISTS stripe_payment_intent_id text;
+ALTER TABLE checkout_order ALTER COLUMN cart_id DROP NOT NULL;
+
+-- Existing checkout rows predate lifted identity/payment columns. Their JSON
+-- document remains the lossless source for this deterministic, repeatable lift.
+UPDATE checkout_order
+   SET buyer_id = COALESCE(NULLIF(btrim(buyer_id), ''), NULLIF(btrim(payload->>'buyerId'), ''), 'buyer-demo'),
+       source_kind = COALESCE(NULLIF(btrim(source_kind), ''), NULLIF(btrim(payload->>'sourceKind'), ''), 'cart'),
+       source_id = COALESCE(NULLIF(btrim(source_id), ''), NULLIF(btrim(payload->>'sourceId'), ''), cart_id, id),
+       payment_state = CASE COALESCE(NULLIF(btrim(payment_state), ''), NULLIF(btrim(payload->>'paymentState'), ''), status)
+         WHEN 'pending' THEN 'payment_required'
+         WHEN 'failed' THEN 'payment_failed'
+         WHEN 'payment_required' THEN 'payment_required'
+         WHEN 'payment_processing' THEN 'payment_processing'
+         WHEN 'paid' THEN 'paid'
+         WHEN 'payment_failed' THEN 'payment_failed'
+         WHEN 'cancelled' THEN 'cancelled'
+         WHEN 'expired' THEN 'expired'
+         ELSE 'payment_required'
+       END,
+       stripe_payment_intent_id = COALESCE(
+         NULLIF(btrim(stripe_payment_intent_id), ''),
+         NULLIF(btrim(payload->>'stripePaymentIntentId'), '')
+       );
+
+UPDATE checkout_order
+   SET payload = payload || jsonb_build_object(
+         'buyerId', buyer_id,
+         'sourceKind', source_kind,
+         'sourceId', source_id,
+         'paymentState', payment_state
+       ) || CASE
+         WHEN stripe_payment_intent_id IS NULL THEN '{}'::jsonb
+         ELSE jsonb_build_object('stripePaymentIntentId', stripe_payment_intent_id)
+       END;
+
+-- Auction winner orders used to exist only inside auction_state.payload. Copy
+-- them into the canonical order table without changing their order IDs, winning
+-- prices, quantities, buyer, event, or source snapshot. The legacy aggregate is
+-- retained for auction history; the source/id uniqueness below prevents forks.
+INSERT INTO checkout_order
+  (id, cart_id, buyer_id, source_kind, source_id, status, payment_state,
+   stripe_payment_intent_id, payload, updated_at)
+SELECT winner->>'id',
+       NULL,
+       winner->>'bidderId',
+       'auction',
+       COALESCE(NULLIF(winner->>'auctionId', ''), auction.id),
+       'pending',
+       'payment_required',
+       NULL,
+       jsonb_build_object(
+         'id', winner->>'id',
+         'buyerId', winner->>'bidderId',
+         'sourceKind', 'auction',
+         'sourceId', COALESCE(NULLIF(winner->>'auctionId', ''), auction.id),
+         'eventId', COALESCE(NULLIF(winner->>'eventId', ''), auction.event_id),
+         'subtotalCents', (winner->>'totalCents')::integer,
+         'shippingCents', 0,
+         'totalCents', (winner->>'totalCents')::integer,
+         'currency', 'USD',
+         'status', 'pending',
+         'paymentState', 'payment_required',
+         'createdAt', COALESCE(NULLIF(winner->>'createdAt', ''), auction.closed_at::text, auction.updated_at::text),
+         'items', jsonb_build_array(jsonb_build_object(
+           'productId', winner->>'productId',
+           'title', winner->>'productId',
+           'priceCents', (winner->>'unitPriceCents')::integer,
+           'quantity', (winner->>'quantity')::integer
+         )),
+         'sourceSnapshot', winner
+       ),
+       COALESCE(auction.closed_at, auction.updated_at)
+  FROM auction_state AS auction
+ CROSS JOIN LATERAL (SELECT auction.payload->'winnerOrder' AS winner) AS source
+ WHERE jsonb_typeof(winner) = 'object'
+   AND NULLIF(winner->>'id', '') IS NOT NULL
+   AND NULLIF(winner->>'bidderId', '') IS NOT NULL
+   AND NULLIF(winner->>'productId', '') IS NOT NULL
+   AND NULLIF(winner->>'totalCents', '') IS NOT NULL
+   AND NULLIF(winner->>'unitPriceCents', '') IS NOT NULL
+   AND NULLIF(winner->>'quantity', '') IS NOT NULL
+ON CONFLICT DO NOTHING;
+
+ALTER TABLE checkout_order ALTER COLUMN buyer_id SET NOT NULL;
+ALTER TABLE checkout_order ALTER COLUMN source_kind SET NOT NULL;
+ALTER TABLE checkout_order ALTER COLUMN source_id SET NOT NULL;
+ALTER TABLE checkout_order ALTER COLUMN payment_state SET NOT NULL;
+
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'checkout_order_buyer_nonempty') THEN
+    ALTER TABLE checkout_order ADD CONSTRAINT checkout_order_buyer_nonempty CHECK (btrim(buyer_id) <> '');
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'checkout_order_source_kind_check') THEN
+    ALTER TABLE checkout_order ADD CONSTRAINT checkout_order_source_kind_check
+      CHECK (source_kind IN ('cart', 'auction', 'offer'));
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'checkout_order_source_id_nonempty') THEN
+    ALTER TABLE checkout_order ADD CONSTRAINT checkout_order_source_id_nonempty CHECK (btrim(source_id) <> '');
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'checkout_order_payment_state_check') THEN
+    ALTER TABLE checkout_order ADD CONSTRAINT checkout_order_payment_state_check
+      CHECK (payment_state IN (
+        'payment_required', 'payment_processing', 'paid',
+        'payment_failed', 'cancelled', 'expired'
+      ));
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'checkout_order_stripe_intent_nonempty') THEN
+    ALTER TABLE checkout_order ADD CONSTRAINT checkout_order_stripe_intent_nonempty
+      CHECK (stripe_payment_intent_id IS NULL OR btrim(stripe_payment_intent_id) <> '');
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'checkout_order_payload_identity') THEN
+    ALTER TABLE checkout_order ADD CONSTRAINT checkout_order_payload_identity CHECK (
+      payload->>'buyerId' = buyer_id
+      AND payload->>'sourceKind' = source_kind
+      AND payload->>'sourceId' = source_id
+      AND payload->>'paymentState' = payment_state
+      AND NULLIF(payload->>'stripePaymentIntentId', '') IS NOT DISTINCT FROM stripe_payment_intent_id
+    );
+  END IF;
+END;
+$$;
+
+CREATE UNIQUE INDEX IF NOT EXISTS checkout_order_source_unique
+  ON checkout_order (source_kind, source_id);
+CREATE UNIQUE INDEX IF NOT EXISTS checkout_order_stripe_payment_intent_unique
+  ON checkout_order (stripe_payment_intent_id)
+  WHERE stripe_payment_intent_id IS NOT NULL;
+CREATE INDEX IF NOT EXISTS checkout_order_buyer_payment_state_idx
+  ON checkout_order (buyer_id, payment_state, updated_at DESC);
+
+DROP TRIGGER IF EXISTS checkout_order_preserve_buyer ON checkout_order;
+CREATE TRIGGER checkout_order_preserve_buyer
+BEFORE UPDATE OF buyer_id ON checkout_order
+FOR EACH ROW EXECUTE FUNCTION sidestage_preserve_owner('buyer_id');
+
+DROP TRIGGER IF EXISTS checkout_order_preserve_source_kind ON checkout_order;
+CREATE TRIGGER checkout_order_preserve_source_kind
+BEFORE UPDATE OF source_kind ON checkout_order
+FOR EACH ROW EXECUTE FUNCTION sidestage_preserve_owner('source_kind');
+
+DROP TRIGGER IF EXISTS checkout_order_preserve_source_id ON checkout_order;
+CREATE TRIGGER checkout_order_preserve_source_id
+BEFORE UPDATE OF source_id ON checkout_order
+FOR EACH ROW EXECUTE FUNCTION sidestage_preserve_owner('source_id');

@@ -15,6 +15,14 @@ export const ORDER_STORE = Symbol('ORDER_STORE');
 
 export type PaymentSessionStatus = 'ready' | 'needs-configuration';
 export type PaymentResultStatus = 'paid' | 'failed' | 'needs-configuration';
+export type PayableOrderSourceKind = 'cart' | 'auction' | 'offer';
+export type PayableOrderPaymentState =
+  | 'payment_required'
+  | 'payment_processing'
+  | 'paid'
+  | 'payment_failed'
+  | 'cancelled'
+  | 'expired';
 
 export interface PaymentSession {
   provider: 'square';
@@ -46,15 +54,18 @@ export type CheckoutOrderStatus = 'pending' | 'paid' | 'failed';
  */
 export interface OrderStore {
   get(id: string): Promise<CheckoutOrder | undefined>;
-  findPendingByCart(cartId: string, buyerId: string): Promise<CheckoutOrder | undefined>;
+  findBySource(sourceKind: PayableOrderSourceKind, sourceId: string): Promise<CheckoutOrder | undefined>;
+  findByPaymentIntent(paymentIntentId: string): Promise<CheckoutOrder | undefined>;
   listByBuyer(buyerId: string): Promise<CheckoutOrder[]>;
   set(order: CheckoutOrder): Promise<void>;
 }
 
 export interface CheckoutOrder {
   id: string;
-  cartId: string;
+  cartId?: string;
   buyerId: string;
+  sourceKind: PayableOrderSourceKind;
+  sourceId: string;
   eventId: string;
   email?: string;
   name?: string;
@@ -63,12 +74,15 @@ export interface CheckoutOrder {
   totalCents: number;
   currency: 'USD';
   status: CheckoutOrderStatus;
+  paymentState: PayableOrderPaymentState;
+  stripePaymentIntentId?: string;
   createdAt: string;
   items: Cart['items'];
   cartUpdatedAt?: string;
   shippingAddress?: NormalizedShippingAddress;
   selectedShippingRate?: AggregatedRate;
-  paymentSession: PaymentSession;
+  paymentSession?: PaymentSession;
+  sourceSnapshot?: Record<string, unknown>;
 }
 
 export interface CheckoutSessionInput {
@@ -178,9 +192,15 @@ export class InMemoryOrderStore implements OrderStore {
     return order ? cloneCheckoutOrder(order) : undefined;
   }
 
-  async findPendingByCart(cartId: string, buyerId: string): Promise<CheckoutOrder | undefined> {
+  async findBySource(sourceKind: PayableOrderSourceKind, sourceId: string): Promise<CheckoutOrder | undefined> {
     const order = [...this.orders.values()]
-      .find((candidate) => candidate.cartId === cartId && candidate.buyerId === buyerId && candidate.status === 'pending');
+      .find((candidate) => candidate.sourceKind === sourceKind && candidate.sourceId === sourceId);
+    return order ? cloneCheckoutOrder(order) : undefined;
+  }
+
+  async findByPaymentIntent(paymentIntentId: string): Promise<CheckoutOrder | undefined> {
+    const order = [...this.orders.values()]
+      .find((candidate) => candidate.stripePaymentIntentId === paymentIntentId);
     return order ? cloneCheckoutOrder(order) : undefined;
   }
 
@@ -192,6 +212,15 @@ export class InMemoryOrderStore implements OrderStore {
   }
 
   async set(order: CheckoutOrder): Promise<void> {
+    for (const existing of this.orders.values()) {
+      if (existing.id === order.id) continue;
+      if (existing.sourceKind === order.sourceKind && existing.sourceId === order.sourceId) {
+        throw new Error(`Payable order source ${order.sourceKind}:${order.sourceId} already belongs to ${existing.id}`);
+      }
+      if (order.stripePaymentIntentId && existing.stripePaymentIntentId === order.stripePaymentIntentId) {
+        throw new Error(`Stripe PaymentIntent ${order.stripePaymentIntentId} already belongs to ${existing.id}`);
+      }
+    }
     this.orders.set(order.id, cloneCheckoutOrder(order));
   }
 }
@@ -202,7 +231,8 @@ function cloneCheckoutOrder(order: CheckoutOrder): CheckoutOrder {
     items: order.items.map((item) => ({ ...item })),
     shippingAddress: order.shippingAddress ? { ...order.shippingAddress } : undefined,
     selectedShippingRate: order.selectedShippingRate ? { ...order.selectedShippingRate } : undefined,
-    paymentSession: { ...order.paymentSession },
+    paymentSession: order.paymentSession ? { ...order.paymentSession } : undefined,
+    sourceSnapshot: order.sourceSnapshot ? { ...order.sourceSnapshot } : undefined,
   };
 }
 
@@ -243,8 +273,14 @@ export class CheckoutService {
 
     const shippingCents = selectedShippingRate.totalCents;
     const totalCents = cart.subtotalCents + shippingCents;
-    const existing = await this.orders.findPendingByCart(cart.id, buyerId);
-    if (existing && this.sameCheckout(existing, cart, eventId, email, name, shippingAddress, selectedShippingRate)) {
+    const existing = await this.orders.findBySource('cart', cart.id);
+    if (existing?.buyerId !== undefined && existing.buyerId !== buyerId) {
+      throw new BadRequestException('Cart is already associated with another buyer order');
+    }
+    if (existing?.status === 'paid') {
+      throw new BadRequestException('Cart already has a paid order');
+    }
+    if (existing?.paymentSession && this.sameCheckout(existing, cart, eventId, email, name, shippingAddress, selectedShippingRate)) {
       const order = this.cloneOrder(existing);
       return { order, session: { ...order.paymentSession } };
     }
@@ -255,6 +291,8 @@ export class CheckoutService {
       id: orderId,
       cartId: cart.id,
       buyerId,
+      sourceKind: 'cart',
+      sourceId: cart.id,
       eventId,
       email,
       name,
@@ -263,6 +301,7 @@ export class CheckoutService {
       totalCents,
       currency: 'USD',
       status: 'pending',
+      paymentState: 'payment_required',
       createdAt: existing?.createdAt ?? new Date().toISOString(),
       items: cart.items.map((item) => ({ ...item })),
       cartUpdatedAt: cart.updatedAt,
@@ -279,6 +318,7 @@ export class CheckoutService {
     const order = await this.orders.get(input.orderId);
     if (!order) throw new Error('Order not found');
     if (order.status === 'paid') return { order: this.cloneOrder(order), payment: { status: 'paid' } };
+    if (!order.cartId) throw new BadRequestException('This order is not backed by a cart checkout');
     const cart = await this.requireCart(order.cartId);
     if (cart.updatedAt !== order.cartUpdatedAt || JSON.stringify(cart.items) !== JSON.stringify(order.items)) {
       throw new BadRequestException('Held items changed or expired before payment; review your held items and try again');
@@ -288,8 +328,12 @@ export class CheckoutService {
     if (payment.status === 'paid') {
       await this.carts.commit(order.cartId);
       order.status = 'paid';
+      order.paymentState = 'paid';
     }
-    if (payment.status === 'failed') order.status = 'failed';
+    if (payment.status === 'failed') {
+      order.status = 'failed';
+      order.paymentState = 'payment_failed';
+    }
     await this.orders.set(order);
     if (order.status !== previousStatus) this.invalidateOrderStatus(order);
     return { order: this.cloneOrder(order), payment };

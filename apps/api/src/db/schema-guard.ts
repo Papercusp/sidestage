@@ -103,6 +103,24 @@ export const REQUIRED_OWNERSHIP_STRUCTURES: readonly string[] = [
   'trigger:storefront_product_preserve_seller',
 ];
 
+/** Canonical payable-order structures introduced by the Stripe/order plan. */
+export const REQUIRED_ORDER_STRUCTURES: readonly string[] = [
+  'column:checkout_order.buyer_id',
+  'column:checkout_order.payment_state',
+  'column:checkout_order.source_id',
+  'column:checkout_order.source_kind',
+  'column:checkout_order.stripe_payment_intent_id',
+  'constraint:checkout_order_payment_state_check',
+  'constraint:checkout_order_payload_identity',
+  'constraint:checkout_order_source_kind_check',
+  'index:checkout_order_buyer_payment_state_idx',
+  'index:checkout_order_source_unique',
+  'index:checkout_order_stripe_payment_intent_unique',
+  'trigger:checkout_order_preserve_buyer',
+  'trigger:checkout_order_preserve_source_id',
+  'trigger:checkout_order_preserve_source_kind',
+];
+
 /** The remedy, in one place — it appears in the thrown message and the README. */
 export const SCHEMA_APPLY_REMEDY = 'npm run db:apply';
 
@@ -125,9 +143,9 @@ export async function findMissingTables(
 }
 
 /** Required P-002 ownership markers absent from the connected public schema. */
-export async function findMissingOwnershipStructures(
+export async function findMissingSchemaStructures(
   pool: SchemaQueryable,
-  required: readonly string[] = REQUIRED_OWNERSHIP_STRUCTURES,
+  required: readonly string[],
 ): Promise<string[]> {
   if (required.length === 0) return [];
   const { rows } = await pool.query(
@@ -143,12 +161,32 @@ export async function findMissingOwnershipStructures(
        SELECT 'trigger:' || trigger_name AS marker
          FROM information_schema.triggers
         WHERE trigger_schema = 'public'
+       UNION ALL
+       SELECT 'index:' || indexname AS marker
+         FROM pg_indexes
+        WHERE schemaname = 'public'
      )
      SELECT marker FROM present WHERE marker = ANY($1::text[])`,
     [[...required]],
   );
   const present = new Set(rows.map((row) => row.marker).filter((marker): marker is string => Boolean(marker)));
   return required.filter((marker) => !present.has(marker));
+}
+
+/** Required demo-principal ownership markers absent from the public schema. */
+export function findMissingOwnershipStructures(
+  pool: SchemaQueryable,
+  required: readonly string[] = REQUIRED_OWNERSHIP_STRUCTURES,
+): Promise<string[]> {
+  return findMissingSchemaStructures(pool, required);
+}
+
+/** Required canonical payable-order markers absent from the public schema. */
+export function findMissingOrderStructures(
+  pool: SchemaQueryable,
+  required: readonly string[] = REQUIRED_ORDER_STRUCTURES,
+): Promise<string[]> {
+  return findMissingSchemaStructures(pool, required);
 }
 
 /**
@@ -184,6 +222,19 @@ export function formatOwnershipDriftMessage(missing: readonly string[]): string 
   ].join('\n');
 }
 
+export function formatOrderDriftMessage(missing: readonly string[]): string {
+  return [
+    `schema drift — ${missing.length} payable-order structure(s) missing from the database:`,
+    ...missing.map((marker) => `    ${marker}`),
+    '',
+    'The checkout_order table exists, but this volume has not received the',
+    'canonical cart/auction/offer order migration. Starting would permit duplicate',
+    'sources or make payment recovery depend on unindexed JSON fields.',
+    '',
+    `  remedy: ${SCHEMA_APPLY_REMEDY}`,
+  ].join('\n');
+}
+
 /**
  * Throws when the connected database is missing tables the code queries.
  *
@@ -201,5 +252,9 @@ export async function assertSchemaCurrent(
   const missingOwnership = await findMissingOwnershipStructures(pool);
   if (missingOwnership.length > 0) {
     throw new Error(formatOwnershipDriftMessage(missingOwnership));
+  }
+  const missingOrder = await findMissingOrderStructures(pool);
+  if (missingOrder.length > 0) {
+    throw new Error(formatOrderDriftMessage(missingOrder));
   }
 }

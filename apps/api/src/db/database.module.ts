@@ -3,6 +3,7 @@ import { Pool } from 'pg';
 
 import {
   REQUIRED_OWNERSHIP_STRUCTURES,
+  REQUIRED_ORDER_STRUCTURES,
   REQUIRED_TABLES,
   assertSchemaCurrent,
 } from './schema-guard';
@@ -85,7 +86,9 @@ export async function createPoolOrNull(
 
   logger.log(
     `Postgres reachable — durable stores active (${url.replace(/:[^:@/]+@/, ':***@')}), ` +
-      `schema OK (${REQUIRED_TABLES.length}/${REQUIRED_TABLES.length} tables, ${REQUIRED_OWNERSHIP_STRUCTURES.length}/${REQUIRED_OWNERSHIP_STRUCTURES.length} ownership structures).`,
+      `schema OK (${REQUIRED_TABLES.length}/${REQUIRED_TABLES.length} tables, ` +
+      `${REQUIRED_OWNERSHIP_STRUCTURES.length}/${REQUIRED_OWNERSHIP_STRUCTURES.length} ownership structures, ` +
+      `${REQUIRED_ORDER_STRUCTURES.length}/${REQUIRED_ORDER_STRUCTURES.length} payable-order structures).`,
   );
   return pool;
 }

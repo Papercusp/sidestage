@@ -72,7 +72,12 @@ export class BuyerOrdersService {
       ...auctionOrders.map((order) => this.fromAuction(order, eventById.get(order.eventId))),
       ...this.actions.listOffersForBuyer(buyerId).map((offer) => this.fromOffer(offer, eventById.get(offer.eventId))),
     ];
-    return normalized.sort((left, right) => right.createdAt.localeCompare(left.createdAt)).slice(0, 200);
+    const canonical = new Map<string, BuyerOrder>();
+    for (const order of normalized) {
+      const key = `${order.source}:${order.id}`;
+      if (!canonical.has(key)) canonical.set(key, order);
+    }
+    return [...canonical.values()].sort((left, right) => right.createdAt.localeCompare(left.createdAt)).slice(0, 200);
   }
 
   private fromCheckout(order: CheckoutOrder, event?: EventSummary): BuyerOrder {
@@ -84,7 +89,8 @@ export class BuyerOrdersService {
       imageUrl: item.imageUrl,
     }));
     return this.build({
-      id: order.id, source: 'checkout', buyerId: order.buyerId, eventId: order.eventId,
+      id: order.id, source: order.sourceKind === 'cart' ? 'checkout' : order.sourceKind,
+      buyerId: order.buyerId, eventId: order.eventId,
       status: order.status, createdAt: order.createdAt, subtotalCents: order.subtotalCents,
       shippingCents: order.shippingCents, totalCents: order.totalCents, items, event,
     });

@@ -5,13 +5,16 @@ import { describe, expect, it } from 'vitest';
 
 import {
   REQUIRED_OWNERSHIP_STRUCTURES,
+  REQUIRED_ORDER_STRUCTURES,
   REQUIRED_TABLES,
   SCHEMA_APPLY_REMEDY,
   type SchemaQueryable,
   assertSchemaCurrent,
   findMissingOwnershipStructures,
+  findMissingOrderStructures,
   findMissingTables,
   formatOwnershipDriftMessage,
+  formatOrderDriftMessage,
   formatSchemaDriftMessage,
 } from './schema-guard';
 
@@ -27,13 +30,13 @@ function tablesDeclaredInSchemaSql(sql: string): string[] {
 /** A pg Pool stand-in that reports exactly `present` as existing. */
 function poolWithTables(
   present: readonly string[],
-  ownership: readonly string[] = REQUIRED_OWNERSHIP_STRUCTURES,
+  structures: readonly string[] = [...REQUIRED_OWNERSHIP_STRUCTURES, ...REQUIRED_ORDER_STRUCTURES],
 ): SchemaQueryable {
   return {
     query: async (sql: string, params: unknown[]) => {
       const asked = (params[0] as string[] | undefined) ?? [];
       if (sql.includes('WITH present AS')) {
-        return { rows: asked.filter((marker) => ownership.includes(marker)).map((marker) => ({ marker })) };
+        return { rows: asked.filter((marker) => structures.includes(marker)).map((marker) => ({ marker })) };
       }
       return { rows: asked.filter((table) => present.includes(table)).map((table_name) => ({ table_name })) };
     },
@@ -150,6 +153,38 @@ describe('ownership schema guard', () => {
 
   it('names the apply remedy for ownership drift', () => {
     expect(formatOwnershipDriftMessage(['column:scout_session.buyer_id'])).toContain(SCHEMA_APPLY_REMEDY);
+  });
+});
+
+describe('canonical payable-order schema guard', () => {
+  it('tracks lifted columns, uniqueness indexes, state constraints, and immutable source triggers', () => {
+    expect(REQUIRED_ORDER_STRUCTURES).toEqual(expect.arrayContaining([
+      'column:checkout_order.buyer_id',
+      'column:checkout_order.payment_state',
+      'column:checkout_order.source_id',
+      'column:checkout_order.source_kind',
+      'column:checkout_order.stripe_payment_intent_id',
+      'constraint:checkout_order_payment_state_check',
+      'constraint:checkout_order_payload_identity',
+      'index:checkout_order_source_unique',
+      'index:checkout_order_stripe_payment_intent_unique',
+      'trigger:checkout_order_preserve_source_id',
+    ]));
+  });
+
+  it('reports a partially-applied payable-order migration', async () => {
+    const present = [...REQUIRED_OWNERSHIP_STRUCTURES, ...REQUIRED_ORDER_STRUCTURES]
+      .filter((marker) => marker !== 'index:checkout_order_source_unique');
+    await expect(findMissingOrderStructures(poolWithTables(REQUIRED_TABLES, present))).resolves.toEqual([
+      'index:checkout_order_source_unique',
+    ]);
+    await expect(assertSchemaCurrent(poolWithTables(REQUIRED_TABLES, present))).rejects.toThrow(
+      /index:checkout_order_source_unique/,
+    );
+  });
+
+  it('names the idempotent schema apply remedy', () => {
+    expect(formatOrderDriftMessage(['column:checkout_order.source_kind'])).toContain(SCHEMA_APPLY_REMEDY);
   });
 });
 
