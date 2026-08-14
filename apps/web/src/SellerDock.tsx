@@ -1,4 +1,4 @@
-import { createContext, useContext, useMemo, useRef, type ReactNode } from 'react';
+import { createContext, useContext, useEffect, useMemo, useRef, type ReactNode } from 'react';
 import {
   DockWorkspace,
   type DockLayoutStore,
@@ -15,6 +15,7 @@ import {
 import { SELLER_DOCK_RESET_EVENT, createSellerDockStore } from './seller-dock-store';
 import { SellerDockBoard } from './SellerDockBoard';
 import { SellerDockToolbar } from './SellerDockToolbar';
+import { observeSellerDockAccessibility } from './seller-dock-accessibility';
 import type { SellerDockPanelContextValue } from './seller-dock-panel-props';
 
 /**
@@ -156,6 +157,11 @@ export function SellerDock({
     [foregroundPanelId, layoutSeed, store],
   );
   const shellRef = useRef<HTMLDivElement>(null);
+
+  useEffect(
+    () => observeSellerDockAccessibility(shellRef.current, layoutName),
+    [layoutName],
+  );
 
   return (
     <SellerDockContext.Provider value={panels}>
