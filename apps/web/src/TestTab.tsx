@@ -9,7 +9,6 @@ import { RehearsalPanel } from './RehearsalPanel';
 import { tabHref } from './app-routing';
 import {
   buildReadinessReport,
-  fetchPreflight,
   historyDelta,
   readHistory,
   readinessReportFilename,
@@ -211,17 +210,14 @@ export function TestTab() {
   }, [eventConfig?.name]);
 
   // ---- Server-side preflight (the config lint) --------------------------------
-  const [serverPreflight, setServerPreflight] = useState<PreflightReport | null>(null);
-  const [serverPreflightError, setServerPreflightError] = useState<string | null>(null);
-  const refreshServerPreflight = useCallback(() => {
-    void fetchPreflight(eventId)
-      .then((report) => { setServerPreflight(report); setServerPreflightError(null); })
-      .catch((error: unknown) => {
-        setServerPreflight(null);
-        setServerPreflightError(error instanceof Error ? error.message : 'The setup check could not be reached.');
-      });
-  }, [eventId]);
-  useEffect(() => { refreshServerPreflight(); }, [refreshServerPreflight]);
+  const serverPreflightQuery = useSyncQuery<PreflightReport>({
+    queryName: 'rehearsal.preflight',
+    args: { eventId },
+    pollIntervalMs: 30_000,
+  });
+  const serverPreflight = serverPreflightQuery.data?.[0] ?? null;
+  const serverPreflightError = serverPreflightQuery.error?.message ?? null;
+  const refreshServerPreflight = serverPreflightQuery.invalidate;
 
   // ---- Client-side preflight (actual SSE/media/clock measurements) ------------
   const [clientPreflight, setClientPreflight] = useState<ClientPreflightReport | null>(null);
@@ -304,11 +300,28 @@ export function TestTab() {
     setHistory(recordHistory(eventId, report));
   }, [eventId]);
 
+  const runRehearsalFallback = useCallback(
+    async (kind: RehearsalKind) => runRehearsal(kind),
+    [],
+  );
+  const mutateRehearsal = useSyncMutate<RehearsalKind, RehearsalReport>(
+    'rehearsal.run',
+    runRehearsalFallback,
+  );
+  const runDressFallback = useCallback(
+    async (_input: Record<string, never>) => runDressRehearsal(),
+    [],
+  );
+  const mutateDressRehearsal = useSyncMutate<Record<string, never>, DressRehearsalVerdict>(
+    'rehearsal.runAll',
+    runDressFallback,
+  );
+
   const runOne = useCallback(async (kind: RehearsalKind) => {
     setRunning((current) => ({ ...current, [kind]: true }));
     setErrors((current) => ({ ...current, [kind]: undefined }));
     try {
-      absorb(await runRehearsal(kind));
+      absorb(await mutateRehearsal(kind));
     } catch (error) {
       setErrors((current) => ({
         ...current,
@@ -317,13 +330,13 @@ export function TestTab() {
     } finally {
       setRunning((current) => ({ ...current, [kind]: false }));
     }
-  }, [absorb]);
+  }, [absorb, mutateRehearsal]);
 
   const runDress = useCallback(async () => {
     setDressRunning(true);
     setDressError(null);
     try {
-      const result = await runDressRehearsal();
+      const result = await mutateDressRehearsal({});
       setVerdict(result);
       result.reports.forEach(absorb);
       refreshSetup();
@@ -333,7 +346,7 @@ export function TestTab() {
     } finally {
       setDressRunning(false);
     }
-  }, [absorb, refreshSetup]);
+  }, [absorb, mutateDressRehearsal, refreshSetup]);
 
   const readinessReport = useMemo(
     () => buildReadinessReport({ eventId, preflight: serverPreflight, clientPreflight, verdict }),
