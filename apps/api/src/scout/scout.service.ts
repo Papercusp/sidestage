@@ -138,7 +138,7 @@ export class ScoutService {
     yield { type: 'tool_start', tool: SCOUT_TOOL_SEARCH_CATALOG };
     const [products, memories] = await Promise.all([
       this.catalog.search(message, productLimit(input)),
-      this.memory.recall(scopes, message),
+      this.safeRecall(scopes, message),
     ]);
     yield { type: 'products', products };
 
@@ -178,7 +178,30 @@ export class ScoutService {
    */
   private async rememberTurn(writeScope: string | null, message: string): Promise<void> {
     if (!writeScope) return;
-    await this.memory.remember(writeScope, message, 'turn');
+    try {
+      await this.memory.remember(writeScope, message, 'turn');
+    } catch {
+      /* see safeRecall: the guarantee lives here, not in the store */
+    }
+  }
+
+  /**
+   * Recall, with the degrade guarantee enforced HERE rather than trusted.
+   *
+   * `ScoutMemoryStore` documents that implementations swallow their own
+   * failures, and the two shipped stores do — but "memory never breaks a turn"
+   * is a property of the TURN, so it cannot rest on every present and future
+   * implementor remembering to honour a comment. A store that throws (a bug, a
+   * third-party one, a future embedding client) would otherwise take down a
+   * reply the customer is already watching stream in. Guarded by tests that
+   * drive the turn with a store throwing from both methods.
+   */
+  private async safeRecall(scopes: string[], query: string): Promise<ScoutMemory[]> {
+    try {
+      return await this.memory.recall(scopes, query);
+    } catch {
+      return [];
+    }
   }
 
   createSessionId(): string {
@@ -195,7 +218,7 @@ export class ScoutService {
     const cart = await this.carts.getCart(input.cartId);
     const [products, memories] = await Promise.all([
       this.catalog.search(message, productLimit(input)),
-      this.memory.recall(scopes, message),
+      this.safeRecall(scopes, message),
     ]);
     const reply = (
       await this.model.generate({ message, products, cart, eventId: input.eventId, memories })

@@ -1,0 +1,241 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>SideStage — Show Flow mockups</title>
+    <style>
+      :root {
+        color-scheme: light;
+        --ink: #2e2925;
+        --muted: #75685f;
+        --paper: #fffaf3;
+        --card: #fffdf9;
+        --line: #ead8c4;
+        --red: #b62b22;
+        --green: #117a4b;
+        font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      }
+
+      * { box-sizing: border-box; }
+
+      body {
+        margin: 0;
+        color: var(--ink);
+        background:
+          radial-gradient(circle at 12% 0%, rgb(182 43 34 / 7%), transparent 28rem),
+          var(--paper);
+      }
+
+      main {
+        width: min(1480px, calc(100% - 32px));
+        margin: 0 auto;
+        padding: 56px 0 72px;
+      }
+
+      header {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        align-items: end;
+        gap: 24px;
+        padding-bottom: 28px;
+        border-bottom: 1px solid var(--line);
+      }
+
+      .eyebrow,
+      .option-label {
+        margin: 0 0 10px;
+        color: var(--red);
+        font-size: 0.76rem;
+        font-weight: 800;
+        letter-spacing: 0.17em;
+        text-transform: uppercase;
+      }
+
+      h1 {
+        max-width: 900px;
+        margin: 0;
+        font-size: clamp(2.2rem, 5vw, 4.9rem);
+        line-height: 0.96;
+        letter-spacing: -0.055em;
+      }
+
+      .intro {
+        max-width: 720px;
+        margin: 20px 0 0;
+        color: var(--muted);
+        font-size: 1.02rem;
+        line-height: 1.65;
+      }
+
+      .recommendation {
+        align-self: start;
+        padding: 10px 14px;
+        border: 1px solid rgb(17 122 75 / 28%);
+        border-radius: 999px;
+        color: var(--green);
+        background: rgb(17 122 75 / 7%);
+        font-size: 0.85rem;
+        font-weight: 750;
+        white-space: nowrap;
+      }
+
+      .gallery {
+        display: grid;
+        grid-template-columns: repeat(12, minmax(0, 1fr));
+        gap: 28px;
+        padding-top: 36px;
+      }
+
+      article {
+        display: flex;
+        flex-direction: column;
+        grid-column: span 4;
+        min-width: 0;
+        overflow: hidden;
+        border: 1px solid var(--line);
+        border-radius: 22px;
+        background: rgb(255 253 249 / 88%);
+        box-shadow: 0 22px 60px rgb(91 58 35 / 9%);
+      }
+
+      .copy {
+        padding: 24px 24px 20px;
+      }
+
+      h2 {
+        margin: 0;
+        font-size: 1.35rem;
+        letter-spacing: -0.025em;
+      }
+
+      .summary {
+        min-height: 4.7em;
+        margin: 10px 0 0;
+        color: var(--muted);
+        font-size: 0.92rem;
+        line-height: 1.55;
+      }
+
+      .tradeoff {
+        display: inline-flex;
+        margin-top: 16px;
+        padding: 7px 10px;
+        border-radius: 999px;
+        background: #f7ede1;
+        color: #6f5140;
+        font-size: 0.78rem;
+        font-weight: 700;
+      }
+
+      figure {
+        display: grid;
+        flex: 1;
+        place-items: start center;
+        margin: 0;
+        padding: 16px;
+        border-top: 1px solid var(--line);
+        background: #f8f0e6;
+      }
+
+      a {
+        display: block;
+        width: 100%;
+        color: inherit;
+      }
+
+      img {
+        display: block;
+        width: 100%;
+        height: auto;
+        border: 1px solid #ecdcc8;
+        border-radius: 14px;
+        background: white;
+        box-shadow: 0 14px 40px rgb(91 58 35 / 12%);
+      }
+
+      .note {
+        margin: 30px 0 0;
+        color: var(--muted);
+        font-size: 0.82rem;
+        text-align: center;
+      }
+
+      @media (max-width: 1000px) {
+        header { grid-template-columns: 1fr; }
+        .recommendation { justify-self: start; }
+        article { grid-column: span 6; }
+        article:last-child { grid-column: 3 / span 8; }
+      }
+
+      @media (max-width: 680px) {
+        main { width: min(100% - 20px, 520px); padding-top: 32px; }
+        article,
+        article:last-child { grid-column: 1 / -1; }
+        .summary { min-height: auto; }
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <header>
+        <div>
+          <p class="eyebrow">SideStage Studio · design exploration</p>
+          <h1>One pane for the whole show flow.</h1>
+          <p class="intro">
+            Three ways to combine On Deck and Run of Show while keeping the current product,
+            timing, talking points, pricing context, and upcoming lineup in one operational view.
+            Select any image to open it at full resolution.
+          </p>
+        </div>
+        <div class="recommendation">Recommended · Option 1</div>
+      </header>
+
+      <section class="gallery" aria-label="Show Flow mockup options">
+        <article>
+          <div class="copy">
+            <p class="option-label">Option 1</p>
+            <h2>Stacked Show Flow</h2>
+            <p class="summary">The clearest On Stage → On Deck → Coming Up hierarchy and the safest fit for the existing narrow rail.</p>
+            <span class="tradeoff">Best clarity · more vertical space</span>
+          </div>
+          <figure>
+            <a href="option-1-stacked.png">
+              <img src="option-1-stacked.png" alt="Stacked Show Flow mockup with On Stage, On Deck, and Coming Up sections" />
+            </a>
+          </figure>
+        </article>
+
+        <article>
+          <div class="copy">
+            <p class="option-label">Option 2</p>
+            <h2>Now / Next Split</h2>
+            <p class="summary">Current and next products sit side by side for the fastest possible handoff during a live event.</p>
+            <span class="tradeoff">Fastest comparison · needs more width</span>
+          </div>
+          <figure>
+            <a href="option-2-split.png">
+              <img src="option-2-split.png" alt="Side-by-side Now and Next product cards with a Later queue below" />
+            </a>
+          </figure>
+        </article>
+
+        <article>
+          <div class="copy">
+            <p class="option-label">Option 3</p>
+            <h2>Expandable Timeline</h2>
+            <p class="summary">The densest chronological view, with the active slot expanded and the remaining show collapsed beneath it.</p>
+            <span class="tradeoff">Best for long shows · more interaction</span>
+          </div>
+          <figure>
+            <a href="option-3-timeline.png">
+              <img src="option-3-timeline.png" alt="Vertical Run of Show timeline with expanded current product and compact upcoming slots" />
+            </a>
+          </figure>
+        </article>
+      </section>
+
+      <p class="note">Preview-only design artifacts · no production Studio behavior changed.</p>
+    </main>
+  </body>
+</html>
