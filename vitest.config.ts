@@ -44,6 +44,9 @@ export default defineConfig({
         },
       },
       mergeConfig(webViteConfig, {
+        // A reviewer's local development ports must not change deterministic
+        // unit-test expectations for the default public configuration.
+        envDir: false,
         test: {
           name: 'sidestage-web',
           root: path.join(repositoryRoot, 'apps/web'),

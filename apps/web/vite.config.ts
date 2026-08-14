@@ -24,20 +24,21 @@ export function resolveDevServerEnvironment(env: Record<string, string | undefin
   return { apiOrigin, webPort };
 }
 
-export default defineConfig(({ mode }) => {
-  const env = loadEnv(mode, repositoryRoot, '');
-  const { apiOrigin, webPort } = resolveDevServerEnvironment(env);
+const isTest = process.env.NODE_ENV === 'test' || process.env.VITEST === 'true';
+const environment = isTest
+  ? {}
+  : loadEnv(process.env.NODE_ENV ?? 'development', repositoryRoot, '');
+const { apiOrigin, webPort } = resolveDevServerEnvironment(environment);
 
-  return {
-    envDir: repositoryRoot,
-    plugins: [react()],
-    server: {
-      host: '0.0.0.0',
-      port: webPort,
-      strictPort: true,
-      proxy: {
-        '/api': apiOrigin,
-      },
+export default defineConfig({
+  envDir: isTest ? false : repositoryRoot,
+  plugins: [react()],
+  server: {
+    host: '0.0.0.0',
+    port: webPort,
+    strictPort: true,
+    proxy: {
+      '/api': apiOrigin,
     },
-  };
+  },
 });
