@@ -13,6 +13,21 @@
  *
  * `--dv-*` are dockview's own theming variables; this block is the single seam
  * that maps them onto SideStage tokens.
+ *
+ * P-011 found the seam was only half-connected, in two ways a stylesheet cannot
+ * report on its own — both now pinned by `seller-dock-chrome.test.ts`:
+ *
+ *   1. A variable name that dockview does not define is INERT. CSS has no such
+ *      thing as an unknown-custom-property error, so `--dv-tabs-container-height`
+ *      (never a dockview variable) sat here looking correct and did nothing.
+ *      The guard asserts every `--dv-*` set here is one dockview really reads.
+ *
+ *   2. dockview defines its variables inside its THEME CLASSES, not on :root.
+ *      The dock root therefore has to carry a base theme class as well as this
+ *      one — see SELLER_DOCK_CLASS_NAME in SellerDock.tsx. Without it, the
+ *      variables this file does not happen to override resolve to nothing. The
+ *      guard asserts no variable dockview's generic rules consume is left
+ *      undefined by the base-theme + this-file pair.
  */
 
 .seller-dock-theme {
@@ -30,20 +45,51 @@
   --dv-inactivegroup-visiblepanel-tab-color: var(--muted);
   --dv-inactivegroup-hiddenpanel-tab-color: var(--muted);
 
-  /* Separators, sashes and drag affordances ride the brand accent. */
+  /* Separators, sashes and drag affordances ride the brand accent.
+   *
+   * The IDLE sash is deliberately given a colour. dockview's own themes leave
+   * `--dv-sash-color: transparent`, so the resize seams between panels are
+   * invisible until you are already dragging one — which hides the single
+   * affordance this whole port exists to deliver (D-001, owner: "so they are
+   * draggable and reziable"). A hairline in the border token makes the seam
+   * discoverable at rest; the accent still calls out the ACTIVE drag. */
   --dv-separator-border: var(--border);
   --dv-tab-divider-color: var(--border);
+  --dv-sash-color: var(--border);
   --dv-active-sash-color: var(--accent);
   --dv-drag-over-background-color: var(--surface-raised);
   --dv-drag-over-border: 2px solid var(--accent);
+  --dv-drag-over-border-color: var(--accent);
   --dv-paneview-active-outline-color: var(--accent);
+  --dv-paneview-header-border-color: var(--border);
 
   /* Icons / hover affordances. */
   --dv-icon-hover-background-color: var(--bg);
-  --dv-floating-box-shadow: 0 18px 50px rgb(0 0 0 / 17%);
+  --dv-floating-box-shadow: var(--shadow-float);
+  --dv-floating-border: 1px solid var(--border);
 
-  /* Match the grid's gutter so the dock reads at the same rhythm. */
-  --dv-tabs-container-height: var(--ss-control-h);
+  /*
+   * The six variables dockview's generic rules consume that NO dockview theme
+   * defines — they resolve to nothing unless a consumer supplies them, so they
+   * are bound to tokens here rather than left to chance.
+   */
+  --dv-context-menu-background-color: var(--surface);
+  --dv-context-menu-color: var(--text);
+  --dv-scrollbar-background-color: var(--muted);
+  --dv-tabs-container-scrollbar-color: var(--muted);
+  --dv-tab-group-color: var(--surface-raised);
+  --dv-transition-duration: 0.15s;
+
+  /*
+   * Match the grid's gutter so the dock reads at the same rhythm.
+   *
+   * The name matters: this was `--dv-tabs-container-height`, which dockview has
+   * never defined — the declaration was inert and the tab strip silently kept
+   * the theme default. The variable dockview actually applies (dockview.css,
+   * `height: var(--dv-tabs-and-actions-container-height)`) is this one.
+   */
+  --dv-tabs-and-actions-container-height: var(--ss-control-h);
+  --dv-tabs-and-actions-container-font-size: var(--ss-font);
 
   height: 100%;
   min-height: 0;
@@ -73,6 +119,37 @@
   height: 100%;
   overflow: auto;
   padding: var(--ss-pad);
+}
+
+/*
+ * Keyboard focus rings (P-011).
+ *
+ * dockview ships NO focus treatment for its tabs: grep dockview.css for
+ * `focus` and the only hits are `--dv-paneview-active-outline-color`, which is
+ * the ACTIVE-group outline, not a focus ring. Tabs are reachable by keyboard,
+ * so without this a keyboard user has no visible indication of where they are.
+ *
+ * `:focus-visible` (not `:focus`) so a pointer click does not leave a ring
+ * behind. The ring is drawn INSIDE the tab (`outline-offset: -2px`) because the
+ * tab strip clips its overflow — an outset ring is cropped on the first and
+ * last tab, which is exactly where it matters most.
+ */
+.seller-dock-theme .dv-tab:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+
+/*
+ * Same treatment for the tab-strip action buttons dockview renders beside the
+ * tabs, and for anything focusable inside a panel body that has not opted into
+ * its own ring. Scoped under the dock so it cannot leak onto the fixed Buyer
+ * tab (D-002).
+ */
+.seller-dock-theme .dv-tabs-and-actions-container button:focus-visible,
+.seller-dock-theme .dv-default-tab-action:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+  border-radius: 0.25rem;
 }
 
 /* Fallback shown when a layout names a panel this build cannot render. */

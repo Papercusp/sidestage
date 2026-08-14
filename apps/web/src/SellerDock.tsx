@@ -81,6 +81,33 @@ export function useSellerDockPanels(): SellerDockPanelContextValue {
  */
 const isDeferredPanelType = (_type: string): boolean => false;
 
+/**
+ * The class applied to the dockview root (P-011).
+ *
+ * BOTH halves are load-bearing, and the first one is easy to lose:
+ *
+ *   `dockview-theme-light` — dockview defines its ~110 `--dv-*` variables
+ *     INSIDE its theme classes, not on :root. `DockWorkspace` renders
+ *     `className ?? 'dockview-theme-dark'`, so a consumer that passes a
+ *     className REPLACES the base theme rather than adding to it. SideStage is
+ *     the first consumer to pass one, and it silently did exactly that: 29 of
+ *     the 47 `--dv-*` variables dockview's generic rules consume resolved to
+ *     nothing — including `--dv-sash-color` (the resize handles), the tab-strip
+ *     height, tab font-size, radii and every transition. Naming the light theme
+ *     (SideStage is a light, cream-ground app — `--bg: #FFF8EF`) supplies sane
+ *     structural defaults for all but 6 of them; the colour layer below then
+ *     re-points everything visible at SideStage tokens.
+ *
+ *   `seller-dock-theme` — that token layer, in ./seller-dock.css. It must come
+ *     AFTER the base theme: both are single-class selectors, so equal
+ *     specificity makes source order the tiebreak, and seller-dock.css is
+ *     imported after dock-workbench (which imports dockview.css).
+ *
+ * Exported so the chrome guard test can assert the pairing directly, rather
+ * than the test restating a literal that could drift from this one.
+ */
+export const SELLER_DOCK_CLASS_NAME = 'dockview-theme-light seller-dock-theme';
+
 export interface SellerDockProps {
   /** Panel props bundle, supplied to panels via context (never via params). */
   panels: SellerDockPanelContextValue;
@@ -121,7 +148,7 @@ export function SellerDock({ panels, registry, store, missingComponent }: Seller
             layoutName={SELLER_DOCK_LAYOUT_NAME}
             store={layoutStore}
             registry={registry}
-            className="seller-dock-theme"
+            className={SELLER_DOCK_CLASS_NAME}
             resetEventName={SELLER_DOCK_RESET_EVENT}
             isDeferredPanelType={isDeferredPanelType}
             missingComponent={missingComponent}
