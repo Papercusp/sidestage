@@ -73,6 +73,9 @@ services:
       args:
         SIDESTAGE_SHA: ${SIDESTAGE_SHA:-unknown}
     restart: unless-stopped
+    ports:
+      # Deploy health probes run on the host; keep the API private to loopback.
+      - "127.0.0.1:3100:3100"
     environment:
       NODE_ENV: production
       API_PREFIX: api

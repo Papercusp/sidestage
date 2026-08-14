@@ -26,6 +26,18 @@ PROD_DIR="/opt/SideStage"
 COMPOSE="docker compose -f docker-compose.prod.yml --env-file .env.production"
 DEPLOYED_SHA_FILE="$PROD_DIR/.deployed-sha"
 HISTORY_FILE="$PROD_DIR/.deploy-history"
+# The api container EXPOSES 3100 but deliberately does NOT publish it to the
+# host: Traefik reaches it over the `coolify` docker network (see the traefik.*
+# labels on the api service in docker-compose.prod.yml, which route
+# Host(...) && (PathPrefix(/api) || Path(/healthz)) to container port 3100).
+# So the PUBLIC url -- never a host-loopback port -- is the real health
+# contract, and /healthz is routed for exactly that purpose. Probing
+# http://127.0.0.1:3100 from the prod host fails exit 7 on a PERFECTLY HEALTHY
+# prod; every probe here did that until 2026-08-14, silently falling through to
+# the container leg. Prod's .env.production does not define PUBLIC_HOSTNAME, so
+# default it to the same value docker-compose.prod.yml defaults to.
+PUBLIC_HOSTNAME="${PUBLIC_HOSTNAME:-sidestage.buyrestart.com}"
+HEALTH_URL="https://$PUBLIC_HOSTNAME/healthz"
 DRY_RUN=false
 [[ "${1:-}" == "--dry-run" ]] && DRY_RUN=true
 
@@ -100,9 +112,13 @@ say "Build + up on prod (SIDESTAGE_SHA=${SHA:0:7}, previous=${PREV_SHA:0:7})"
 say "Health check"
 healthy=false
 for attempt in $(seq 1 20); do
-  if "${SSH[@]}" "curl -sf --max-time 4 http://127.0.0.1:3100/healthz -H 'Host: sidestage'" >/dev/null 2>&1 \
-     || "${SSH[@]}" "cd $PROD_DIR && SIDESTAGE_SHA=$SHA $COMPOSE exec -T api node -e 'fetch(\"http://127.0.0.1:3100/healthz\").then(r=>{if(!r.ok)throw 0})'" >/dev/null 2>&1; then
-    say "API healthy (attempt $attempt)"
+  if "${SSH[@]}" "curl -sf --max-time 4 http://127.0.0.1:3100/healthz -H 'Host: sidestage'" >/dev/null 2>&1; then
+    say "API healthy via host loopback (attempt $attempt)"
+    healthy=true
+    break
+  fi
+  if "${SSH[@]}" "cd $PROD_DIR && SIDESTAGE_SHA=$SHA $COMPOSE exec -T api node -e 'fetch(\"http://127.0.0.1:3100/healthz\").then(r=>{if(!r.ok)throw 0})'" >/dev/null 2>&1; then
+    say "API healthy via container fallback (attempt $attempt)"
     healthy=true
     break
   fi
