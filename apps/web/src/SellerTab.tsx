@@ -23,8 +23,8 @@ import {
 import type { SellerDockPanelContextValue } from './seller-dock-panel-props';
 import { SellerDockMissingPanel, sellerPanelRegistry } from './seller-dock-panels';
 import type { CatalogProduct } from './seller-products';
-import { type TranscriptProductOption } from './TranscriptPane';
 import { connectPublisher, createEventRoom, type EventRoom, type PublisherSession } from './streaming';
+import { useLiveTranscript, type TranscriptProductOption } from './use-live-transcript';
 import './studio.css';
 
 export const STUDIO_VIEW_TABS = [
@@ -122,6 +122,15 @@ export function SellerTab({
     transcriptProducts,
     apiBaseUrl: import.meta.env.VITE_API_URL,
   });
+  const transcript = useLiveTranscript({
+    active: Boolean(stream.session?.localStream),
+    mediaStream: stream.session?.localStream,
+    deepgramToken: import.meta.env.VITE_DEEPGRAM_TOKEN,
+    products: transcriptProducts,
+    activeProductId: selectedProductId,
+    onActiveProductChange,
+    onFinalSegment: recordTranscriptMoment,
+  });
 
   const startEvent = async () => {
     let nextRoom: EventRoom;
@@ -192,6 +201,7 @@ export function SellerTab({
       shareDisabled: !room,
       copyState,
       chat: <EventChat {...eventChatProps} surface="audience-overlay" />,
+      transcript,
     },
     transcript: {
       className: 'seller-transcript',

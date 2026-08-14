@@ -1,5 +1,7 @@
 import type { ReactNode, Ref } from 'react';
 import { streamLabel, type CopyState, type StreamState } from '../hooks';
+import { LiveTranscriptOverlay } from '../LiveTranscriptOverlay';
+import type { LiveTranscriptController } from '../use-live-transcript';
 import { VideoChatOverlay } from '../VideoChatOverlay';
 
 export interface StageStatusPanelProps {
@@ -24,6 +26,8 @@ export interface StageStatusPanelProps {
   copyState: CopyState;
   /** Live EventChat content kept mounted inside the camera surface. */
   chat: ReactNode;
+  /** Long-lived transcript runtime rendered as captions over the camera surface. */
+  transcript: LiveTranscriptController;
 }
 
 /**
@@ -49,6 +53,7 @@ export function StageStatusPanel({
   shareDisabled,
   copyState,
   chat,
+  transcript,
 }: StageStatusPanelProps) {
   return (
     <section className="stage-panel stage-primary" aria-labelledby="stage-status-title">
@@ -64,6 +69,7 @@ export function StageStatusPanel({
         <VideoChatOverlay className="seller-video-chat-overlay">
           {chat}
         </VideoChatOverlay>
+        <LiveTranscriptOverlay transcript={transcript} />
       </div>
       <label className="field-label" htmlFor="seller-event-id">Event room id</label>
       <input
