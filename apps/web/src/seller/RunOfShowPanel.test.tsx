@@ -7,7 +7,7 @@ import {
   type RunOfShowEntry,
 } from '../run-of-show';
 import { RunOfShowPanelView } from './RunOfShowPanel';
-import { RunOfShowPlannerView } from './RunOfShowPlannerPanel';
+import { appendProductToDraft, RunOfShowPlannerView } from './RunOfShowPlannerPanel';
 
 const T0 = 1_000_000_000_000;
 
@@ -52,6 +52,15 @@ describe('RunOfShowPanelView', () => {
 });
 
 describe('RunOfShowPlannerView', () => {
+  it('adds a product at most once across rapid batched clicks', () => {
+    const once = appendProductToDraft([], 'c');
+    const twice = appendProductToDraft(once, 'c');
+    const threeTimes = appendProductToDraft(twice, 'c');
+
+    expect(threeTimes).toBe(once);
+    expect(threeTimes).toEqual([{ productId: 'c', minutes: '', notes: '' }]);
+  });
+
   it('renders ordered rows with minutes + notes fields and the unplanned list', () => {
     const html = renderToStaticMarkup(
       <RunOfShowPlannerView

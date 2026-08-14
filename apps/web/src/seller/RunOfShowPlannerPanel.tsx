@@ -25,6 +25,12 @@ interface DraftRow {
   notes: string;
 }
 
+/** Append a product at most once, including across batched state updates. */
+export function appendProductToDraft(current: DraftRow[], productId: string): DraftRow[] {
+  if (current.some((row) => row.productId === productId)) return current;
+  return [...current, { productId, minutes: '', notes: '' }];
+}
+
 function toDraft(entry: RunOfShowEntry): DraftRow {
   return {
     productId: entry.productId,
@@ -232,7 +238,7 @@ export function RunOfShowPlannerPanel({ eventId, apiBaseUrl }: RunOfShowPlannerP
       error={error}
       onMove={move}
       onRemove={(index) => { setStatus('idle'); setRows((current) => current.filter((_, i) => i !== index)); }}
-      onAdd={(productId) => { setStatus('idle'); setRows((current) => [...current, { productId, minutes: '', notes: '' }]); }}
+      onAdd={(productId) => { setStatus('idle'); setRows((current) => appendProductToDraft(current, productId)); }}
       onMinutes={(index, minutes) => { setStatus('idle'); setRows((current) => current.map((row, i) => (i === index ? { ...row, minutes } : row))); }}
       onNotes={(index, notes) => { setStatus('idle'); setRows((current) => current.map((row, i) => (i === index ? { ...row, notes } : row))); }}
       onSave={() => void save()}
