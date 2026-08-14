@@ -1,4 +1,8 @@
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { defineConfig } from 'vitest/config';
+
+const repositoryRoot = fileURLToPath(new URL('.', import.meta.url));
 
 const sourceExclude = [
   '**/node_modules/**',
@@ -20,7 +24,7 @@ export default defineConfig({
       {
         test: {
           name: 'sidestage-deploy',
-          root: '.',
+          root: repositoryRoot,
           sequence: { groupOrder: 0 },
           environment: 'node',
           include: ['deploy/**/*.test.mjs'],
@@ -30,7 +34,7 @@ export default defineConfig({
       {
         test: {
           name: 'sidestage-node',
-          root: '.',
+          root: repositoryRoot,
           sequence: { groupOrder: 1 },
           environment: 'node',
           include: ['apps/api/src/**/*.{test,spec}.ts'],
@@ -38,10 +42,10 @@ export default defineConfig({
         },
       },
       {
-        extends: './apps/web/vite.config.ts',
+        extends: path.join(repositoryRoot, 'apps/web/vite.config.ts'),
         test: {
           name: 'sidestage-web',
-          root: './apps/web',
+          root: path.join(repositoryRoot, 'apps/web'),
           sequence: { groupOrder: 2 },
           include: ['src/**/*.{test,spec}.{ts,tsx}'],
           exclude: sourceExclude,
