@@ -25,7 +25,7 @@ describe('P-005 product card and shell', () => {
     const markup = renderToStaticMarkup(<ProductCard {...product} onSelect={() => undefined} />);
     expect(markup).toContain('Barista Pro Espresso Machine');
     expect(markup).toContain('Add to stage');
-    expect(markup).toContain('data-product-id="demo-espresso-new"');
+    expect(markup).toContain('data-product-id="demo-espresso-matte-black"');
   });
 
   it('renders all six tab destinations in the app shell', () => {
