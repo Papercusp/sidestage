@@ -17,6 +17,7 @@ export class ChatSyncQueries implements OnModuleInit {
 
   onModuleInit(): void {
     this.queries.register('event.chat.messages', (args) => this.chat.getMessages(eventIdFrom(args)));
+    this.queries.register('event.chat.transcript', (args) => this.chat.getTranscript(eventIdFrom(args)));
     this.queries.register('event.chat.presence', (args) => this.chat.getPresence(eventIdFrom(args)));
     this.queries.register('event.chat.stats', (args) => [this.chat.getStats(eventIdFrom(args))]);
     this.queries.register('event.replay.chapters', (args) => this.chat.getReplayChapters(eventIdFrom(args)));
