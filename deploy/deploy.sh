@@ -46,8 +46,27 @@ fi
 
 "${SSH[@]}" "mkdir -p $PROD_DIR"
 
+# Prod-side state: files that live in $PROD_DIR but are NOT part of the source
+# snapshot, so `rsync --delete` deletes every one of them unless excluded.
+#   .env.production  secrets, created once by hand on prod
+#   .deployed-sha    what is actually live -- rollback.sh targets it, and
+#                    PREV_SHA (below) reads it to get an auto-rollback target
+#   .deploy-history  the rollback menu
+# Before 2026-08-14 only .env.production was excluded, so EVERY deploy wiped
+# .deployed-sha and .deploy-history moments before PREV_SHA read them. Two
+# silent consequences: PREV_SHA was always empty, making the auto-rollback on
+# an unhealthy deploy inert (nothing to restore TO); and .deploy-history never
+# held more than the single entry the running deploy had just appended, so
+# `rollback.sh` with no --to could never find a previous sha. Both failures are
+# invisible until the incident when you need them. Guarded by rollback.test.mjs.
+PROD_STATE_FILES=(.env.production .deployed-sha .deploy-history)
+RSYNC_EXCLUDES=()
+for state_file in "${PROD_STATE_FILES[@]}"; do
+  RSYNC_EXCLUDES+=(--exclude="/$state_file")
+done
+
 say "rsync immutable working-tree snapshot ($SNAPSHOT_FILE_COUNT files)"
-rsync -az --delete --exclude='/.env.production' \
+rsync -az --delete "${RSYNC_EXCLUDES[@]}" \
   -e "ssh -i $PROD_SSH_KEY" "$SNAPSHOT_DIR/" "root@$PROD_HOST:$PROD_DIR/"
 
 say "Checking .env.production exists on prod"
