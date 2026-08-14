@@ -1,0 +1,218 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <title>SideStage Studio · Event Chat concepts</title>
+  <link rel="stylesheet" href="../sidestage-page-redesign-2026-08-14/mockups/shared.css">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <a class="skip-link" href="#comparison">Skip to Event Chat concepts</a>
+  <header class="app-header">
+    <div class="app-header-inner">
+      <a class="brand" href="#comparison" aria-label="SideStage home">
+        <span class="brand-mark" aria-hidden="true">S</span>
+        <span class="brand-copy"><strong>SideStage</strong><small>Live commerce studio</small></span>
+      </a>
+      <nav class="primary-nav" aria-label="SideStage pages">
+        <span class="nav-cluster"><a class="nav-link" href="#comparison">Watch</a><a class="nav-link" href="#comparison">Orders</a></span>
+        <span class="nav-cluster"><a class="nav-link" aria-current="page" href="#comparison">Studio</a><a class="nav-link" href="#comparison">Releases</a><a class="nav-link" href="#comparison">Tests</a></span>
+      </nav>
+      <div class="header-actions"><span class="status live">Preview</span><span class="avatar" aria-label="Signed in as Avi">AV</span></div>
+    </div>
+  </header>
+
+  <main id="comparison" class="comparison-shell">
+    <header class="study-head">
+      <div>
+        <span class="page-kicker">Studio interaction study</span>
+        <h1>Make Event Chat useful while the room is moving.</h1>
+        <p>Three high-fidelity directions replace the passive, stat-heavy rail with a seller workflow: notice the right question, understand its context, answer safely, and keep the room’s energy visible.</p>
+      </div>
+      <div class="study-meta" aria-label="Study status">
+        <span class="badge red">3 concepts</span>
+        <span class="badge">Desktop + mobile</span>
+        <span class="badge">Preview only</span>
+      </div>
+    </header>
+
+    <section class="current-read card" aria-labelledby="current-read-title">
+      <div>
+        <span class="eyebrow">What the current rail gets wrong</span>
+        <h2 id="current-read-title">The chat exists, but the seller’s next move does not.</h2>
+      </div>
+      <div class="finding-grid">
+        <article><span>01</span><strong>Too much setup chrome</strong><p>Title, three stat pills, triage summary, empty state, read-only notice, and participants consume the rail before useful messages appear.</p></article>
+        <article><span>02</span><strong>Priorities lack actions</strong><p>“Focused” changes the list, but the seller cannot reply, resolve, pin, or hand a question to Copilot from the message itself.</p></article>
+        <article><span>03</span><strong>Room tone disappears</strong><p>Important questions and social momentum are split into competing modes, so the seller loses either urgency or the feeling of the room.</p></article>
+      </div>
+    </section>
+
+    <section class="concept-picker card" aria-labelledby="concept-picker-title">
+      <div class="concept-picker-copy"><span class="eyebrow">Compare directions</span><h2 id="concept-picker-title">Choose how the seller should work</h2></div>
+      <div class="concept-tabs" role="tablist" aria-label="Event Chat design concepts">
+        <button id="concept-tab-queue" class="concept-tab" type="button" role="tab" aria-selected="true" aria-controls="concept-answer-queue" data-concept="answer-queue">
+          <span class="concept-number">01</span><span><strong>Answer Queue</strong><small>Recommended · action first</small></span>
+        </button>
+        <button id="concept-tab-split" class="concept-tab" type="button" role="tab" aria-selected="false" aria-controls="concept-split-room" tabindex="-1" data-concept="split-room">
+          <span class="concept-number">02</span><span><strong>Conversation + Focus</strong><small>Best room awareness</small></span>
+        </button>
+        <button id="concept-tab-pulse" class="concept-tab" type="button" role="tab" aria-selected="false" aria-controls="concept-live-pulse" tabindex="-1" data-concept="live-pulse">
+          <span class="concept-number">03</span><span><strong>Live Pulse</strong><small>Smallest layout change</small></span>
+        </button>
+      </div>
+    </section>
+
+    <section id="concept-answer-queue" class="concept-panel" role="tabpanel" aria-labelledby="concept-tab-queue" data-concept-panel="answer-queue">
+      <div class="concept-summary">
+        <div><span class="recommendation">Recommended</span><h2>Turn chat into an answerable queue</h2><p>Questions arrive already grouped by urgency and live product. One click opens a grounded reply draft; sending or resolving advances the seller to the next buyer.</p></div>
+        <dl class="concept-facts"><div><dt>Best at</dt><dd>Fast resolution</dd></div><div><dt>Trade-off</dt><dd>Less social chat</dd></div><div><dt>Build size</dt><dd>Medium</dd></div></dl>
+      </div>
+
+      <article class="studio-frame" aria-label="Answer Queue Event Chat mockup">
+        <header class="studio-frame-head">
+          <div><span class="eyebrow">Seller view / active event</span><h3>Keep the room moving.</h3><p>Sunday vintage drop · live for 18:42</p></div>
+          <div class="frame-actions"><span class="status live">Live · 18 active</span><button class="button" type="button" data-action="Reset layout">Reset layout</button></div>
+        </header>
+        <nav class="studio-ia" aria-label="Studio navigation"><button type="button">Inventory</button><button type="button">Event Manager</button><button type="button" aria-current="page">Active Event</button></nav>
+
+        <div class="queue-workspace">
+          <aside class="show-context" aria-label="Current show context">
+            <div class="context-preview">
+              <div class="preview-top"><span class="live-label"><i></i> On air</span><span>18:42</span></div>
+              <div class="preview-product"><span class="product-monogram">W</span><div><small>On stage</small><strong>Hand-finished weekender</strong><span>$148 · 4 left</span></div></div>
+            </div>
+            <div class="context-section"><span class="eyebrow">Coming next</span><strong>Studio brass catchall</strong><p>$58 · 20 available · in ~4 min</p></div>
+            <div class="context-section"><span class="eyebrow">Room pulse</span><div class="pulse-metrics"><span><strong>18</strong><small>active</small></span><span><strong>6</strong><small>orders</small></span><span><strong>3</strong><small>questions</small></span></div></div>
+          </aside>
+
+          <section class="chat-surface answer-queue" aria-labelledby="answer-queue-title">
+            <header class="chat-title-row"><div><span class="eyebrow">Event chat</span><h3 id="answer-queue-title">Answer queue</h3><p>Buyer questions that still need a human response.</p></div><button class="icon-action" type="button" aria-label="More Event Chat options" data-action="Open chat options">•••</button></header>
+            <div class="attention-banner" role="status"><span class="banner-icon" aria-hidden="true">!</span><div><strong>3 buyers are waiting</strong><p>Oldest question arrived 1m ago. Copilot found live-product context for all three.</p></div><button class="button small" type="button" data-action="Open oldest question">Oldest first</button></div>
+            <div class="queue-toolbar">
+              <div class="segmented" role="tablist" aria-label="Answer queue view">
+                <button class="active" type="button" role="tab" aria-selected="true" data-queue-view="waiting">Needs answer <span>3</span></button>
+                <button type="button" role="tab" aria-selected="false" data-queue-view="all">All chat <span>18</span></button>
+                <button type="button" role="tab" aria-selected="false" data-queue-view="handled">Handled <span>12</span></button>
+              </div>
+              <button class="filter-button" type="button" data-action="Filter messages"><span aria-hidden="true">≡</span> Filter</button>
+            </div>
+
+            <div class="question-list" data-queue-list>
+              <article class="question-card priority" data-question="fit">
+                <div class="message-avatar red">M</div>
+                <div class="message-main"><div class="message-meta"><strong>Mara L.</strong><span>32s</span><span class="signal high">High intent</span></div><p>Does the medium fit someone who’s 5′8″ with a long torso?</p><div class="context-chips"><span>↗ Hand-finished weekender</span><span>Size question</span><span>Asked twice</span></div></div>
+                <div class="message-actions"><button class="button primary small" type="button" data-draft-for="fit">Draft answer</button><button class="button ghost small" type="button" data-resolve="fit">Mark answered</button></div>
+              </article>
+              <article class="question-card" data-question="shipping">
+                <div class="message-avatar blue">L</div>
+                <div class="message-main"><div class="message-meta"><strong>Leo P.</strong><span>46s</span><span class="signal warning">Checkout risk</span></div><p>Can you ship this to Canada? Checkout only shows US addresses.</p><div class="context-chips"><span>Checkout</span><span>Shipping</span><span>3 similar</span></div></div>
+                <div class="message-actions"><button class="button primary small" type="button" data-draft-for="shipping">Draft answer</button><button class="button ghost small" type="button" data-resolve="shipping">Mark answered</button></div>
+              </article>
+              <article class="question-card" data-question="strap">
+                <div class="message-avatar yellow">D</div>
+                <div class="message-main"><div class="message-meta"><strong>Dana R.</strong><span>1m</span><span class="signal">Product detail</span></div><p>Is the leather shoulder strap included or sold separately?</p><div class="context-chips"><span>↗ Hand-finished weekender</span><span>Accessory</span></div></div>
+                <div class="message-actions"><button class="button primary small" type="button" data-draft-for="strap">Draft answer</button><button class="button ghost small" type="button" data-resolve="strap">Mark answered</button></div>
+              </article>
+              <div class="queue-empty" hidden data-queue-empty><span>✓</span><strong>Every buyer has an answer.</strong><p>New questions will appear here automatically.</p></div>
+            </div>
+
+            <aside class="reply-drawer" aria-label="Grounded reply draft" hidden data-reply-drawer>
+              <div class="reply-head"><div><span class="eyebrow">Grounded reply</span><strong data-reply-recipient>Reply to Mara L.</strong></div><button class="close-button" type="button" aria-label="Close reply draft" data-close-reply>×</button></div>
+              <div class="source-note"><span aria-hidden="true">✦</span><div><strong>Copilot used live event facts</strong><p data-reply-source>Size notes · Hand-finished weekender</p></div></div>
+              <label class="reply-field"><span>Message to the room</span><textarea rows="3" data-reply-text>The medium has a 22-inch body and adjustable straps, so it should sit comfortably at 5′8″. I’m holding it up now so you can see the length.</textarea></label>
+              <div class="reply-foot"><span>Seller replies are visible to everyone.</span><div><button class="button small" type="button" data-action="Copy reply">Copy</button><button class="button primary small" type="button" data-send-reply>Send to room</button></div></div>
+            </aside>
+          </section>
+        </div>
+      </article>
+    </section>
+
+    <section id="concept-split-room" class="concept-panel" role="tabpanel" aria-labelledby="concept-tab-split" data-concept-panel="split-room" hidden>
+      <div class="concept-summary">
+        <div><span class="recommendation neutral">Room-aware</span><h2>Keep the conversation and the work side by side</h2><p>The chronological room stays visible on the left while a focused question lane stays pinned on the right. Social proof never disappears when the seller filters for urgency.</p></div>
+        <dl class="concept-facts"><div><dt>Best at</dt><dd>Room awareness</dd></div><div><dt>Trade-off</dt><dd>Needs more width</dd></div><div><dt>Build size</dt><dd>Large</dd></div></dl>
+      </div>
+
+      <article class="studio-frame" aria-label="Conversation and Focus Event Chat mockup">
+        <header class="studio-frame-head"><div><span class="eyebrow">Seller view / active event</span><h3>Keep the room moving.</h3><p>Sunday vintage drop · live for 18:42</p></div><div class="frame-actions"><span class="status live">Live · 18 active</span><button class="button" type="button" data-action="Reset layout">Reset layout</button></div></header>
+        <nav class="studio-ia" aria-label="Studio navigation"><button type="button">Inventory</button><button type="button">Event Manager</button><button type="button" aria-current="page">Active Event</button></nav>
+        <section class="chat-surface split-chat" aria-labelledby="split-chat-title">
+          <header class="split-head"><div><span class="eyebrow">Event chat</span><h3 id="split-chat-title">Room conversation</h3></div><div class="room-summary"><span><i></i> 18 active</span><span>7 buyers</span><span>1 host</span><button class="icon-action" type="button" aria-label="More Event Chat options" data-action="Open chat options">•••</button></div></header>
+          <div class="split-body">
+            <div class="conversation-pane">
+              <div class="conversation-tools"><label class="search-field"><span aria-hidden="true">⌕</span><input type="search" placeholder="Search the room" aria-label="Search room conversation"></label><button class="filter-button" type="button" data-action="Filter conversation">All messages⌄</button></div>
+              <div class="conversation-stream" aria-live="polite">
+                <div class="time-divider"><span>18:40</span></div>
+                <article class="chat-line social"><div class="message-avatar green">A</div><div><div class="message-meta"><strong>Asha V.</strong><span>2m</span><span class="signal good">Purchased</span></div><p>Just ordered the olive one 🎉</p><div class="line-actions"><button type="button" data-action="Celebrate purchase">Celebrate</button><button type="button" data-action="Pin purchase">Pin</button></div></div></article>
+                <article class="chat-line question selected"><div class="message-avatar red">M</div><div><div class="message-meta"><strong>Mara L.</strong><span>32s</span><span class="signal high">Needs answer</span></div><p>Does the medium fit someone who’s 5′8″ with a long torso?</p><div class="line-context">↗ Hand-finished weekender · Size question</div></div></article>
+                <article class="chat-line"><div class="message-avatar ink">J</div><div><div class="message-meta"><strong>Jules M.</strong><span>28s</span></div><p>The waxed canvas looks so good on camera.</p></div></article>
+                <article class="chat-line question"><div class="message-avatar blue">L</div><div><div class="message-meta"><strong>Leo P.</strong><span>18s</span><span class="signal warning">Checkout risk</span></div><p>Can you ship this to Canada? Checkout only shows US addresses.</p><div class="line-context">Checkout · 3 similar shipping questions</div></div></article>
+                <article class="chat-line answered"><div class="message-avatar yellow">D</div><div><div class="message-meta"><strong>Dana R.</strong><span>10s</span><span class="signal good">Answered</span></div><p>Perfect, thanks for showing the inside pocket!</p></div></article>
+              </div>
+              <div class="conversation-foot"><span>Following newest messages</span><button class="button ghost small" type="button" data-action="Jump to latest">Jump to latest ↓</button></div>
+            </div>
+
+            <aside class="focus-pane" aria-label="Questions needing attention">
+              <div class="focus-head"><div><span class="eyebrow">Focus lane</span><h4>3 need an answer</h4></div><span class="oldest-pill">Oldest · 1m</span></div>
+              <div class="focus-tabs" role="tablist" aria-label="Focus lane filter"><button class="active" type="button" role="tab" aria-selected="true">Questions <span>3</span></button><button type="button" role="tab" aria-selected="false">Risks <span>1</span></button><button type="button" role="tab" aria-selected="false">Wins <span>4</span></button></div>
+              <article class="focus-card active"><div class="focus-card-head"><span class="message-avatar red">M</span><div><strong>Mara L.</strong><small>Fit · current product</small></div><span>32s</span></div><p>Does the medium fit someone who’s 5′8″ with a long torso?</p><div class="source-inline"><span>✦</span><p><strong>Answer ready</strong> from size notes + live product</p></div><button class="button primary" type="button" data-action="Review Mara reply">Review reply</button></article>
+              <article class="focus-card compact"><div class="focus-card-head"><span class="message-avatar blue">L</span><div><strong>Leo P.</strong><small>Checkout · shipping</small></div><span>46s</span></div><p>Can you ship this to Canada?</p><button class="button small" type="button" data-action="Open Leo question">Open question</button></article>
+              <article class="focus-card compact"><div class="focus-card-head"><span class="message-avatar yellow">D</span><div><strong>Dana R.</strong><small>Product · accessory</small></div><span>1m</span></div><p>Is the leather strap included?</p><button class="button small" type="button" data-action="Open Dana question">Open question</button></article>
+              <footer class="focus-foot"><button class="button ghost small" type="button" data-action="Open triage settings">Triage settings</button><span>Auto-ranked by urgency</span></footer>
+            </aside>
+          </div>
+        </section>
+      </article>
+    </section>
+
+    <section id="concept-live-pulse" class="concept-panel" role="tabpanel" aria-labelledby="concept-tab-pulse" data-concept-panel="live-pulse" hidden>
+      <div class="concept-summary">
+        <div><span class="recommendation low-change">Smallest change</span><h2>Make the existing rail dramatically denser</h2><p>Keep Event Chat in today’s narrow dock, remove redundant headings and passive participant chips, and turn each row into a compact signal with one obvious next action.</p></div>
+        <dl class="concept-facts"><div><dt>Best at</dt><dd>Fast migration</dd></div><div><dt>Trade-off</dt><dd>Less reply space</dd></div><div><dt>Build size</dt><dd>Small</dd></div></dl>
+      </div>
+
+      <article class="studio-frame" aria-label="Live Pulse Event Chat mockup">
+        <header class="studio-frame-head"><div><span class="eyebrow">Seller view / active event</span><h3>Keep the room moving.</h3><p>Sunday vintage drop · live for 18:42</p></div><div class="frame-actions"><span class="status live">Live · 18 active</span><button class="button" type="button" data-action="Reset layout">Reset layout</button></div></header>
+        <nav class="studio-ia" aria-label="Studio navigation"><button type="button">Inventory</button><button type="button">Event Manager</button><button type="button" aria-current="page">Active Event</button></nav>
+        <div class="pulse-workspace">
+          <section class="stage-skeleton" aria-label="Live console context">
+            <div class="stage-skeleton-head"><div><span class="eyebrow">Live console</span><h3>Sunday vintage drop</h3></div><span class="status pass">Preview ready</span></div>
+            <div class="stage-video"><div class="video-status"><span><i></i> Live preview</span><span>18:42</span></div><div class="stage-product"><span class="product-monogram">W</span><div><small>On stage · 4 left</small><strong>Hand-finished weekender</strong></div></div></div>
+            <div class="stage-lower"><article><span class="eyebrow">Copilot</span><strong>One grounded reply is ready</strong><p>Review it from Event Chat before it reaches the room.</p></article><article><span class="eyebrow">Run of show</span><strong>Studio brass catchall</strong><p>Next · in about 4 minutes.</p></article></div>
+          </section>
+
+          <aside class="pulse-rail" aria-labelledby="pulse-title">
+            <header class="pulse-head"><div><span class="eyebrow">Event chat</span><h3 id="pulse-title">Room pulse</h3></div><button class="icon-action" type="button" aria-label="More Event Chat options" data-action="Open chat options">•••</button></header>
+            <div class="pulse-status"><button class="active" type="button"><strong>3</strong><span>Need answer</span></button><button type="button"><strong>4</strong><span>Handled</span></button><button type="button"><strong>18</strong><span>Active</span></button></div>
+            <div class="signal-filters" role="group" aria-label="Message signals"><button class="active" type="button">Focus</button><button type="button">Questions</button><button type="button">Orders</button><button type="button">All</button></div>
+            <div class="pulse-stream">
+              <article class="pulse-card urgent"><div class="pulse-card-top"><span class="message-avatar red">M</span><div><strong>Mara L.</strong><small>32s · size question</small></div><span class="priority-dot" aria-label="High priority"></span></div><p>Does the medium fit someone who’s 5′8″ with a long torso?</p><div class="pulse-card-foot"><span>↗ Current product</span><button class="button primary small" type="button" data-action="Open Mara reply">Reply</button></div></article>
+              <article class="pulse-cluster"><div><span class="cluster-icon">3</span><div><strong>Canada shipping</strong><small>Leo + 2 more buyers</small></div></div><button class="button small" type="button" data-action="Answer shipping cluster">Answer once</button></article>
+              <article class="pulse-card win"><div class="pulse-card-top"><span class="message-avatar green">A</span><div><strong>Asha V.</strong><small>1m · purchased</small></div><span class="signal good">Order</span></div><p>Just ordered the olive one 🎉</p><div class="pulse-card-foot"><span>$148 order</span><button class="button ghost small" type="button" data-action="Celebrate Asha purchase">Celebrate</button></div></article>
+              <article class="pulse-card"><div class="pulse-card-top"><span class="message-avatar yellow">D</span><div><strong>Dana R.</strong><small>1m · accessory</small></div></div><p>Is the leather strap included?</p><div class="pulse-card-foot"><span>↗ Current product</span><button class="button small" type="button" data-action="Open Dana question">Open</button></div></article>
+            </div>
+            <footer class="pulse-composer"><button class="composer-prompt" type="button" data-action="Ask Copilot for a room update"><span>✦</span><span><strong>Ask Copilot for a room update</strong><small>Grounded in the live event</small></span></button><button class="button primary small" type="button" data-action="Draft broadcast">Draft</button></footer>
+          </aside>
+        </div>
+      </article>
+    </section>
+
+    <section class="decision-card card" aria-labelledby="decision-title">
+      <div><span class="eyebrow">Recommendation</span><h2 id="decision-title">Start with Answer Queue, borrow Live Pulse’s density.</h2><p>The biggest product gap is not message styling; it is completing the loop from buyer question to safe seller response. Answer Queue makes that loop explicit. Its rows should adopt Live Pulse’s compact metadata so the panel still works when docked narrow.</p></div>
+      <div class="decision-grid">
+        <article class="decision-option recommended"><span>01</span><h3>Answer Queue</h3><p>Best default because every priority message has a next action and an end state.</p><strong>Recommended foundation</strong></article>
+        <article class="decision-option"><span>02</span><h3>Conversation + Focus</h3><p>Use when the Event Chat panel can own a wide workspace or a full-screen mode.</p><strong>Best expanded mode</strong></article>
+        <article class="decision-option"><span>03</span><h3>Live Pulse</h3><p>Ship first if the implementation must remain inside the current 380px dock rail.</p><strong>Best incremental release</strong></article>
+      </div>
+    </section>
+
+    <footer class="prototype-foot"><span>Preview-only design study · SideStage Studio · 14 Aug 2026</span><span>Reuses current cream / paper / ink / red / yellow / green tokens</span></footer>
+  </main>
+
+  <div class="toast" role="status" aria-live="polite" hidden></div>
+  <script src="app.js"></script>
+</body>
+</html>

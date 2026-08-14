@@ -1,0 +1,104 @@
+{
+  "irVersion": "0.1",
+  "surface": "sidestage-studio-event-chat-comparison",
+  "ecosystem": "*",
+  "layout": {
+    "kind": "stack",
+    "direction": "vertical",
+    "children": [
+      {
+        "kind": "header",
+        "title": { "key": "studio.chat.study.title", "default": "Make Event Chat useful while the room is moving" },
+        "slots": {
+          "status": { "kind": "badge", "label": { "key": "studio.chat.study.status", "default": "Preview only" } }
+        }
+      },
+      {
+        "kind": "tabs",
+        "label": { "key": "studio.chat.concepts", "default": "Answer Queue, Conversation and Focus, or Live Pulse" },
+        "interactions": ["select"],
+        "a11y": { "role": "tablist", "ariaLabel": { "key": "studio.chat.concepts.a11y", "default": "Event Chat design concepts" } }
+      },
+      {
+        "kind": "card",
+        "title": { "key": "studio.chat.queue.title", "default": "Answer Queue" },
+        "slots": {
+          "attention": { "kind": "component", "ref": "waiting-banner" },
+          "views": {
+            "kind": "tabs",
+            "label": { "key": "studio.chat.queue.views", "default": "Needs answer, all chat, or handled" },
+            "interactions": ["select"],
+            "a11y": { "role": "tablist", "ariaLabel": { "key": "studio.chat.queue.views.a11y", "default": "Choose answer queue view" } }
+          },
+          "questions": {
+            "kind": "list",
+            "binding": { "slot": "unansweredQuestions", "repeats": true, "shape": "TriagedChatMessage" },
+            "item": {
+              "kind": "card",
+              "slots": {
+                "buyer": { "kind": "heading", "copy": { "key": "studio.chat.queue.buyer", "default": "Buyer display name" } },
+                "message": { "kind": "text", "copy": { "key": "studio.chat.queue.message", "default": "Buyer question" } },
+                "context": { "kind": "text", "copy": { "key": "studio.chat.queue.context", "default": "Live product and triage context" } },
+                "draft": { "kind": "component", "ref": "draft-answer" },
+                "resolve": { "kind": "component", "ref": "mark-answered" }
+              }
+            }
+          },
+          "reply": {
+            "kind": "drawer",
+            "title": { "key": "studio.chat.reply.title", "default": "Grounded reply" },
+            "slots": {
+              "source": { "kind": "text", "copy": { "key": "studio.chat.reply.source", "default": "Live event facts used for this draft" } },
+              "message": { "kind": "textarea", "label": { "key": "studio.chat.reply.message", "default": "Message to the room" }, "interactions": ["input"], "a11y": { "role": "textbox", "ariaLabel": { "key": "studio.chat.reply.message.a11y", "default": "Edit the seller reply before sending it to the room" } } },
+              "send": { "kind": "component", "ref": "send-reply" }
+            }
+          }
+        }
+      },
+      {
+        "kind": "card",
+        "title": { "key": "studio.chat.split.title", "default": "Conversation and Focus" },
+        "slots": {
+          "conversation": {
+            "kind": "list",
+            "binding": { "slot": "roomMessages", "repeats": true, "shape": "ChatMessage" },
+            "item": { "kind": "text", "copy": { "key": "studio.chat.split.message", "default": "Chronological room message" } }
+          },
+          "focus": {
+            "kind": "list",
+            "binding": { "slot": "focusMessages", "repeats": true, "shape": "TriagedChatMessage" },
+            "item": { "kind": "card", "slots": { "message": { "kind": "text", "copy": { "key": "studio.chat.split.focusMessage", "default": "Question needing attention" } }, "review": { "kind": "component", "ref": "review-reply" } } }
+          }
+        }
+      },
+      {
+        "kind": "card",
+        "title": { "key": "studio.chat.pulse.title", "default": "Live Pulse" },
+        "slots": {
+          "summary": { "kind": "text", "copy": { "key": "studio.chat.pulse.summary", "default": "Questions, handled messages, and active viewers" } },
+          "signals": {
+            "kind": "list",
+            "binding": { "slot": "roomSignals", "repeats": true, "shape": "ChatSignal" },
+            "item": { "kind": "card", "slots": { "message": { "kind": "text", "copy": { "key": "studio.chat.pulse.message", "default": "Compact message or clustered signal" } }, "action": { "kind": "component", "ref": "open-question" } } }
+          },
+          "broadcast": { "kind": "component", "ref": "draft-broadcast" }
+        }
+      }
+    ]
+  },
+  "components": [
+    { "id": "waiting-banner", "registry": "feedback.banner", "props": { "tone": "warning", "children": "Three buyers are waiting for an answer" } },
+    { "id": "draft-answer", "registry": "action.primary", "props": { "label": "Draft answer" } },
+    { "id": "mark-answered", "registry": "action.secondary", "props": { "label": "Mark answered" } },
+    { "id": "send-reply", "registry": "action.primary", "props": { "label": "Send to room" } },
+    { "id": "review-reply", "registry": "action.primary", "props": { "label": "Review reply" } },
+    { "id": "open-question", "registry": "action.secondary", "props": { "label": "Open question" } },
+    { "id": "draft-broadcast", "registry": "action.primary", "props": { "label": "Draft broadcast" } }
+  ],
+  "states": {
+    "loading": { "kind": "spinner", "label": { "key": "studio.chat.loading", "default": "Loading event chat" }, "a11y": { "role": "status", "ariaLive": "polite" } },
+    "empty": { "kind": "text", "copy": { "key": "studio.chat.empty", "default": "Every buyer has an answer. New questions will appear automatically." } },
+    "error": { "kind": "stack", "children": [{ "kind": "text", "copy": { "key": "studio.chat.error", "default": "Event Chat could not reconnect." } }, { "kind": "button", "label": { "key": "studio.chat.retry", "default": "Reconnect" }, "interactions": ["retry"], "a11y": { "role": "button" } }] }
+  },
+  "a11y": { "landmark": "main", "headingLevel": 1 }
+}
