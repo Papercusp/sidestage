@@ -39,8 +39,10 @@ describe('PgCatalogSource', () => {
       page: 1,
       includeFields: ['id', 'groupId'],
     });
-    expect(poolQuery).toHaveBeenCalledWith(expect.stringContaining('COALESCE(v.group_id, v.id) = ANY($1)'), [
-      ['group-1'],
-    ]);
+    const [query, params] = poolQuery.mock.calls[0] as [string, unknown[]];
+    expect(query).toContain('v.group_id = ANY($1)');
+    expect(query).toContain('v.group_id IS NULL AND v.id = ANY($1)');
+    expect(query).not.toContain('COALESCE(v.group_id, v.id) = ANY($1)');
+    expect(params).toEqual([['group-1']]);
   });
 });

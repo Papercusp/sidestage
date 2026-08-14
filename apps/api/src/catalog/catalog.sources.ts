@@ -150,7 +150,11 @@ export class PgCatalogSource implements CatalogSource {
             `SELECT ${VARIANT_COLUMNS}
              FROM storefront_product v
              LEFT JOIN product_catalog c ON c.group_id = v.group_id AND c.region = v.region
-             WHERE v.active AND COALESCE(v.group_id, v.id) = ANY($1)
+             WHERE v.active
+               AND (
+                 v.group_id = ANY($1)
+                 OR (v.group_id IS NULL AND v.id = ANY($1))
+               )
              ORDER BY array_position($1, COALESCE(v.group_id, v.id)), v."availableQty" > 0 DESC, v.id`,
             [groupKeys],
           );
