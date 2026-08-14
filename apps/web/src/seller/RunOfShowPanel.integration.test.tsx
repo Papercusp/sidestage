@@ -28,6 +28,7 @@ vi.mock('../events/api', () => ({
 }));
 
 import { RunOfShowPanel } from './RunOfShowPanel';
+import { emptyStageLog, stageLogOnProductChange } from '../run-of-show';
 
 describe('RunOfShowPanel integration', () => {
   it('stages a planned id even when its commerce detail is outside the catalog window', async () => {
@@ -37,10 +38,11 @@ describe('RunOfShowPanel integration', () => {
 
     try {
       await act(async () => {
+        const stageLog = stageLogOnProductChange(emptyStageLog(), 'planned-a', Date.now());
         root.render(
           <RunOfShowPanel
             eventId="demo-room"
-            activeProductId="planned-a"
+            stageLog={stageLog}
             activeProduct={null}
             onActiveProductChange={() => undefined}
           />,

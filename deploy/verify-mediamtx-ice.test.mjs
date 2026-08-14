@@ -22,6 +22,24 @@ describe('MediaMTX public ICE configuration', () => {
     expect(setting).not.toContain('PUBLIC_HOSTNAME');
   });
 
+  it('provides authenticated TURN over TLS/TCP 443 when direct UDP is blocked', () => {
+    const compose = readFileSync(path.join(repositoryRoot, 'docker-compose.prod.yml'), 'utf8');
+    const turnUrl = compose
+      .split('\n')
+      .find((line) => line.includes('MTX_WEBRTCICESERVERS2_0_URL:'));
+    const turnSecretUses = compose
+      .split('\n')
+      .filter((line) => line.includes('${TURN_AUTH_SECRET:?'));
+
+    expect(turnUrl).toContain('turns:media.${PUBLIC_HOSTNAME:-sidestage.buyrestart.com}:443?transport=tcp');
+    expect(compose).toContain('MTX_WEBRTCICESERVERS2_0_USERNAME: AUTH_SECRET');
+    expect(compose).toContain('MTX_WEBRTCICESERVERS2_0_CLIENTONLY: "yes"');
+    expect(turnSecretUses).toHaveLength(2);
+    expect(compose).toContain('image: coturn/coturn:4.15.0-r0');
+    expect(compose).toContain('traefik.tcp.routers.sidestage-turn.entrypoints=https');
+    expect(compose).toContain('!ALPN(`h2`) && !ALPN(`http/1.1`)');
+  });
+
   it('finds the expected public candidate in a real SDP-shaped answer', () => {
     const sdp = [
       'v=0',

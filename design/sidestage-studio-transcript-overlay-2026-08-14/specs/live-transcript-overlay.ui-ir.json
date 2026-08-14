@@ -1,0 +1,170 @@
+{
+  "irVersion": "0.1",
+  "surface": "sidestage-studio-live-transcript-overlay",
+  "ecosystem": "*",
+  "layout": {
+    "kind": "stack",
+    "direction": "vertical",
+    "children": [
+      {
+        "kind": "text",
+        "copy": {
+          "key": "studio.liveTranscript.caption",
+          "default": "Latest live caption"
+        },
+        "binding": {
+          "slot": "currentCaption",
+          "shape": "TranscriptCaption"
+        },
+        "a11y": {
+          "role": "status",
+          "ariaLive": "polite"
+        }
+      },
+      {
+        "kind": "stack",
+        "direction": "horizontal",
+        "justify": "space-between",
+        "children": [
+          {
+            "kind": "badge",
+            "label": {
+              "key": "studio.liveTranscript.status",
+              "default": "Captions start with the event"
+            },
+            "binding": {
+              "slot": "transcriptionStatus",
+              "shape": "TranscriptionState"
+            }
+          },
+          {
+            "kind": "text",
+            "copy": {
+              "key": "studio.liveTranscript.activeProduct",
+              "default": "On stage: active product"
+            },
+            "binding": {
+              "slot": "activeProduct",
+              "shape": "TranscriptProductOption"
+            }
+          },
+          {
+            "kind": "button",
+            "label": {
+              "key": "studio.liveTranscript.history.toggle",
+              "default": "Transcript"
+            },
+            "interactions": [
+              "toggle-history"
+            ],
+            "a11y": {
+              "role": "button",
+              "ariaLabel": {
+                "key": "studio.liveTranscript.history.toggle.a11y",
+                "default": "Open transcript history"
+              }
+            }
+          }
+        ]
+      },
+      {
+        "kind": "list",
+        "binding": {
+          "slot": "transcriptHistory",
+          "repeats": true,
+          "shape": "TranscriptSegment"
+        },
+        "item": {
+          "kind": "text",
+          "copy": {
+            "key": "studio.liveTranscript.history.item",
+            "default": "Timestamped transcript segment"
+          }
+        },
+        "emptyState": {
+          "kind": "text",
+          "copy": {
+            "key": "studio.liveTranscript.history.empty",
+            "default": "Spoken captions will appear when the event starts."
+          }
+        },
+        "a11y": {
+          "role": "region",
+          "ariaLabel": {
+            "key": "studio.liveTranscript.history.a11y",
+            "default": "Transcript history"
+          },
+          "focusOrder": 1
+        }
+      },
+      {
+        "kind": "stack",
+        "direction": "horizontal",
+        "children": [
+          {
+            "kind": "button",
+            "label": {
+              "key": "studio.liveTranscript.suggestion.stage",
+              "default": "Stage mentioned product"
+            },
+            "binding": {
+              "slot": "suggestedProduct",
+              "shape": "TranscriptProductOption"
+            },
+            "interactions": [
+              "stage-product"
+            ],
+            "a11y": {
+              "role": "button",
+              "ariaLabel": {
+                "key": "studio.liveTranscript.suggestion.stage.a11y",
+                "default": "Stage product mentioned in the transcript"
+              }
+            }
+          },
+          {
+            "kind": "button",
+            "label": {
+              "key": "studio.liveTranscript.suggestion.dismiss",
+              "default": "Dismiss"
+            },
+            "interactions": [
+              "dismiss-suggestion"
+            ],
+            "a11y": {
+              "role": "button",
+              "ariaLabel": {
+                "key": "studio.liveTranscript.suggestion.dismiss.a11y",
+                "default": "Dismiss product mention"
+              }
+            }
+          }
+        ]
+      },
+      {
+        "kind": "text",
+        "copy": {
+          "key": "studio.liveTranscript.error",
+          "default": "Captions need attention"
+        },
+        "binding": {
+          "slot": "transcriptionError",
+          "shape": "ErrorMessage"
+        },
+        "a11y": {
+          "role": "alert",
+          "ariaLive": "assertive"
+        }
+      }
+    ],
+    "responsive": {
+      "viewport.mobile": {
+        "direction": "vertical"
+      }
+    }
+  },
+  "a11y": {
+    "landmark": "region",
+    "headingLevel": 2
+  }
+}

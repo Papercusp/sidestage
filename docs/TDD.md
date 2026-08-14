@@ -117,4 +117,10 @@ catch-all, `/api` + `/healthz` to the API (`API_PREFIX=api`), and
 `media.sidestage.buyrestart.com` (DNS-only) to MediaMTX for WebRTC. Secrets
 live only in the on-box `.env.production`. That file also supplies
 `MEDIAMTX_PUBLIC_IP` as a literal IPv4 address: MediaMTX 1.9.3 copies the value
-into ICE candidates and does not resolve the public DNS hostname there.
+into ICE candidates and does not resolve the public DNS hostname there. Direct
+UDP `8189` remains the preferred media path. Networks that block arbitrary UDP
+or high ports fall back to authenticated TURN over TLS/TCP on the already-open
+`media.sidestage.buyrestart.com:443`; Traefik distinguishes TURN from HTTPS by
+SNI plus the absence of HTTP ALPN, terminates TLS, and forwards the raw TURN
+stream to coturn. `TURN_AUTH_SECRET` is required only in the host-side env and
+MediaMTX uses it to mint expiring TURN REST credentials for browsers.

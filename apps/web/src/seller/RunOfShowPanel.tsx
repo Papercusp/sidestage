@@ -2,10 +2,8 @@ import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { useSyncQuery } from '@papercusp/sync';
 import {
   buildRunOfShowView,
-  emptyStageLog,
   formatClock,
   formatPace,
-  stageLogOnProductChange,
   type RunOfShowPlan,
   type RunOfShowView,
   type StageLog,
@@ -26,8 +24,8 @@ import '../run-of-show.css';
 
 export interface RunOfShowPanelProps {
   eventId: string;
-  /** The staged product identity survives even when commerce detail is not in the catalog window. */
-  activeProductId: string | null;
+  /** Seller-owned history persists when desktop/mobile panel hosts remount. */
+  stageLog: StageLog;
   /** The product currently on stage, including the live card's commerce detail. */
   activeProduct: CatalogProduct | null;
   /** One-tap advisory staging: the seller chose to follow the plan. */
@@ -180,7 +178,7 @@ export function RunOfShowPanelView({
 
 export function RunOfShowPanel({
   eventId,
-  activeProductId,
+  stageLog: log,
   activeProduct,
   onActiveProductChange,
   apiBaseUrl,
@@ -194,7 +192,6 @@ export function RunOfShowPanel({
   const entries = useMemo(() => planQuery.data?.[0]?.entries ?? [], [planQuery.data]);
 
   const [titles, setTitles] = useState<Record<string, string>>({});
-  const [log, setLog] = useState<StageLog>(emptyStageLog);
   const [nowMs, setNowMs] = useState(() => Date.now());
 
   /** Lineup titles: one read through the budgeted events/api transport. */
@@ -214,17 +211,12 @@ export function RunOfShowPanel({
   const loaded = !planQuery.loading;
   const error = planQuery.error ? 'The show plan could not be loaded.' : null;
 
-  /** Fold stage changes into the log — pure transition, tested in run-of-show.test.ts. */
-  useEffect(() => {
-    setLog((current) => stageLogOnProductChange(current, activeProductId, Date.now()));
-  }, [activeProductId]);
-
   /** A soft 1s clock, only while something is on stage. */
   useEffect(() => {
-    if (!activeProductId) return undefined;
+    if (!log.activeProductId) return undefined;
     const timer = setInterval(() => setNowMs(Date.now()), 1000);
     return () => clearInterval(timer);
-  }, [activeProductId]);
+  }, [log.activeProductId]);
 
   const view = useMemo(
     () => buildRunOfShowView({ entries, titles, log, nowMs }),
