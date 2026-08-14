@@ -89,6 +89,7 @@ describe('transcription transport', () => {
     });
 
     const started = session.start();
+    await vi.waitFor(() => expect(webSocketFactory).toHaveBeenCalledOnce());
     socket.open();
     await started;
 

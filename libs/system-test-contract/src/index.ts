@@ -19,7 +19,38 @@ export const SYSTEM_TEST_SUITE_IDS = [
 
 export type SystemTestSuiteId = (typeof SYSTEM_TEST_SUITE_IDS)[number];
 export type SystemTestProfile = 'smoke' | 'full' | 'sandbox' | 'load';
-export type SystemTestRunStatus = 'passed' | 'failed' | 'blocked' | 'cancelled';
+export const SYSTEM_TEST_RUN_PHASES = [
+  'queued',
+  'provisioning',
+  'running',
+  'collecting',
+  'cleaning',
+] as const;
+
+export const SYSTEM_TEST_RUN_OUTCOMES = [
+  'passed',
+  'failed',
+  'blocked',
+  'cancelled',
+  'timed-out',
+  'cleanup-failed',
+] as const;
+
+/**
+ * Public lifecycle vocabulary shared by the Tests tab, API, and trusted
+ * worker. A run occupies a phase until it reaches one durable outcome.
+ * `cleanup-failed` is intentionally an outcome: cleanup failure overrides an
+ * earlier pass/fail/blocked/cancelled result so leaked infrastructure can
+ * never be displayed as an ordinary completed run.
+ */
+export const SYSTEM_TEST_RUN_STATES = [
+  ...SYSTEM_TEST_RUN_PHASES,
+  ...SYSTEM_TEST_RUN_OUTCOMES,
+] as const;
+
+export type SystemTestRunPhase = (typeof SYSTEM_TEST_RUN_PHASES)[number];
+export type SystemTestRunStatus = (typeof SYSTEM_TEST_RUN_OUTCOMES)[number];
+export type SystemTestRunState = (typeof SYSTEM_TEST_RUN_STATES)[number];
 export type SystemTestCaseStatus = 'passed' | 'failed' | 'blocked' | 'not-run';
 export type SystemTestEvidenceKind =
   | 'http'
@@ -271,7 +302,7 @@ export interface SystemTestCaseResult {
 }
 
 export interface SystemTestTransition {
-  state: 'queued' | 'provisioning' | 'running' | 'collecting' | 'cleaning' | 'finished';
+  state: SystemTestRunState;
   at: string;
 }
 
@@ -287,7 +318,7 @@ export interface SystemTestSubstitution {
 }
 
 export interface SystemTestCleanupResult {
-  status: 'succeeded' | 'failed' | 'pending' | 'not-started';
+  status: 'succeeded' | 'failed' | 'running' | 'pending' | 'not-started';
   finishedAt?: string;
   summary: string;
 }
@@ -334,7 +365,8 @@ const EVIDENCE_KINDS = new Set<SystemTestEvidenceKind>([
   'external-sandbox', 'remote-model', 'metric', 'log', 'screenshot',
 ]);
 const PROFILES = new Set<SystemTestProfile>(['smoke', 'full', 'sandbox', 'load']);
-const RUN_STATUSES = new Set<SystemTestRunStatus>(['passed', 'failed', 'blocked', 'cancelled']);
+const RUN_STATUSES = new Set<SystemTestRunStatus>(SYSTEM_TEST_RUN_OUTCOMES);
+const RUN_STATES = new Set<SystemTestRunState>(SYSTEM_TEST_RUN_STATES);
 const CASE_STATUSES = new Set<SystemTestCaseStatus>(['passed', 'failed', 'blocked', 'not-run']);
 
 function record(value: unknown, path: string, issues: string[]): Record<string, unknown> {
@@ -410,6 +442,14 @@ function isoDate(value: unknown, path: string, issues: string[]): string {
 
 export function isSystemTestSuiteId(value: unknown): value is SystemTestSuiteId {
   return typeof value === 'string' && SYSTEM_TEST_SUITE_IDS.includes(value as SystemTestSuiteId);
+}
+
+export function isSystemTestRunState(value: unknown): value is SystemTestRunState {
+  return typeof value === 'string' && RUN_STATES.has(value as SystemTestRunState);
+}
+
+export function isSystemTestRunOutcome(value: unknown): value is SystemTestRunStatus {
+  return typeof value === 'string' && RUN_STATUSES.has(value as SystemTestRunStatus);
 }
 
 export function getSystemTestSuiteManifest(suiteId: string): SystemTestSuiteManifest {
@@ -604,7 +644,7 @@ export function parseSystemTestRunResult(value: unknown): SystemTestRunResult {
   for (const [index, entry] of transitions.entries()) {
     const item = record(entry, `result.transitions[${index}]`, issues);
     exactKeys(item, ['state', 'at'], `result.transitions[${index}]`, issues);
-    if (!['queued', 'provisioning', 'running', 'collecting', 'cleaning', 'finished'].includes(String(item.state))) {
+    if (!isSystemTestRunState(item.state)) {
       issues.push(`result.transitions[${index}].state is unknown`);
     }
     isoDate(item.at, `result.transitions[${index}].at`, issues);
@@ -658,7 +698,7 @@ export function parseSystemTestRunResult(value: unknown): SystemTestRunResult {
 
   const cleanup = record(input.cleanup, 'result.cleanup', issues);
   exactKeys(cleanup, ['status', 'finishedAt', 'summary'], 'result.cleanup', issues);
-  if (!['succeeded', 'failed', 'pending', 'not-started'].includes(String(cleanup.status))) {
+  if (!['succeeded', 'failed', 'running', 'pending', 'not-started'].includes(String(cleanup.status))) {
     issues.push('result.cleanup.status is unknown');
   }
   if (cleanup.finishedAt !== undefined) isoDate(cleanup.finishedAt, 'result.cleanup.finishedAt', issues);
@@ -682,6 +722,12 @@ export function parseSystemTestRunResult(value: unknown): SystemTestRunResult {
   }
   if (status === 'blocked' && blockedReasons.length === 0) {
     issues.push('blocked result requires at least one blocked reason');
+  }
+  if (status === 'timed-out' && cleanup.status !== 'pending' && cleanup.status !== 'failed') {
+    issues.push('timed-out result requires pending or failed cleanup');
+  }
+  if (status === 'cleanup-failed' && cleanup.status !== 'failed') {
+    issues.push('cleanup-failed result requires failed cleanup');
   }
 
   if (issues.length > 0) throw new SystemTestContractError(issues);
