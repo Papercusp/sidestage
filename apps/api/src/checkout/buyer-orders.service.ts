@@ -66,11 +66,20 @@ export class BuyerOrdersService {
       this.auctions.listWinnerOrdersForBuyer(buyerId),
       this.events.listForGuide(),
     ]);
+    const offers = this.actions.listOffersForBuyer(buyerId);
+    const eventIds = [...new Set([
+      ...checkoutOrders.map((order) => order.eventId),
+      ...auctionOrders.map((order) => order.eventId),
+      ...offers.map((offer) => offer.eventId),
+    ])];
+    const chaptersByEvent = new Map(await Promise.all(eventIds.map(async (eventId) => (
+      [eventId, await this.chat.getReplayChapters(eventId)] as const
+    ))));
     const eventById = new Map(events.map((event) => [event.eventId, event]));
     const normalized = [
-      ...checkoutOrders.map((order) => this.fromCheckout(order, eventById.get(order.eventId))),
-      ...auctionOrders.map((order) => this.fromAuction(order, eventById.get(order.eventId))),
-      ...this.actions.listOffersForBuyer(buyerId).map((offer) => this.fromOffer(offer, eventById.get(offer.eventId))),
+      ...checkoutOrders.map((order) => this.fromCheckout(order, eventById.get(order.eventId), chaptersByEvent.get(order.eventId) ?? [])),
+      ...auctionOrders.map((order) => this.fromAuction(order, eventById.get(order.eventId), chaptersByEvent.get(order.eventId) ?? [])),
+      ...offers.map((offer) => this.fromOffer(offer, eventById.get(offer.eventId), chaptersByEvent.get(offer.eventId) ?? [])),
     ];
     const canonical = new Map<string, BuyerOrder>();
     for (const order of normalized) {
@@ -80,7 +89,7 @@ export class BuyerOrdersService {
     return [...canonical.values()].sort((left, right) => right.createdAt.localeCompare(left.createdAt)).slice(0, 200);
   }
 
-  private fromCheckout(order: CheckoutOrder, event?: EventSummary): BuyerOrder {
+  private fromCheckout(order: CheckoutOrder, event: EventSummary | undefined, chapters: ReplayChapter[]): BuyerOrder {
     const items = order.items.map((item) => ({
       productId: item.productId,
       title: item.title,
@@ -92,12 +101,12 @@ export class BuyerOrdersService {
       id: order.id, source: order.sourceKind === 'cart' ? 'checkout' : order.sourceKind,
       buyerId: order.buyerId, eventId: order.eventId,
       status: order.status, createdAt: order.createdAt, subtotalCents: order.subtotalCents,
-      shippingCents: order.shippingCents, totalCents: order.totalCents, items, event,
+      shippingCents: order.shippingCents, totalCents: order.totalCents, items, event, chapters,
     });
   }
 
-  private fromAuction(order: AuctionWinnerOrder, event?: EventSummary): BuyerOrder {
-    const chapter = this.chapterFor(order.eventId, order.productId);
+  private fromAuction(order: AuctionWinnerOrder, event: EventSummary | undefined, chapters: ReplayChapter[]): BuyerOrder {
+    const chapter = this.chapterFor(chapters, order.productId);
     const items = [{
       productId: order.productId,
       title: chapter?.productTitle ?? order.productId,
@@ -107,12 +116,12 @@ export class BuyerOrdersService {
     return this.build({
       id: order.id, source: 'auction', buyerId: order.bidderId, eventId: order.eventId,
       status: order.status, createdAt: order.createdAt, subtotalCents: order.totalCents,
-      shippingCents: 0, totalCents: order.totalCents, items, event,
+      shippingCents: 0, totalCents: order.totalCents, items, event, chapters,
     });
   }
 
-  private fromOffer(offer: TargetedOffer, event?: EventSummary): BuyerOrder {
-    const chapter = this.chapterFor(offer.eventId, offer.productId);
+  private fromOffer(offer: TargetedOffer, event: EventSummary | undefined, chapters: ReplayChapter[]): BuyerOrder {
+    const chapter = this.chapterFor(chapters, offer.productId);
     const totalCents = offer.priceCents * offer.quantity;
     const items = [{
       productId: offer.productId,
@@ -123,21 +132,22 @@ export class BuyerOrdersService {
     return this.build({
       id: offer.id, source: 'offer', buyerId: offer.buyerId, eventId: offer.eventId,
       status: offer.status, createdAt: offer.createdAt ?? new Date(0).toISOString(),
-      subtotalCents: totalCents, shippingCents: 0, totalCents, items, event,
+      subtotalCents: totalCents, shippingCents: 0, totalCents, items, event, chapters,
     });
   }
 
-  private build(input: Omit<BuyerOrder, 'eventTitle' | 'sellerName' | 'currency' | 'videoSnapshots'> & { event?: EventSummary }): BuyerOrder {
+  private build(input: Omit<BuyerOrder, 'eventTitle' | 'sellerName' | 'currency' | 'videoSnapshots'> & { event?: EventSummary; chapters: ReplayChapter[] }): BuyerOrder {
     const eventTitle = input.event?.title ?? input.eventId;
+    const { chapters, ...order } = input;
     return {
-      ...input,
+      ...order,
       eventTitle,
       sellerName: input.event?.sellerName,
       currency: 'USD',
       videoSnapshots: input.items.flatMap((item) => {
-        const chapters = this.chaptersFor(input.eventId, item.productId);
-        return chapters.length > 0
-          ? chapters.map((chapter) => this.snapshot(input.eventId, eventTitle, input.event, item, chapter))
+        const itemChapters = this.chaptersFor(chapters, item.productId);
+        return itemChapters.length > 0
+          ? itemChapters.map((chapter) => this.snapshot(input.eventId, eventTitle, input.event, item, chapter))
           : [this.snapshot(input.eventId, eventTitle, input.event, item)];
       }),
     };
@@ -166,12 +176,12 @@ export class BuyerOrdersService {
     };
   }
 
-  private chapterFor(eventId: string, productId: string): ReplayChapter | undefined {
-    return this.chaptersFor(eventId, productId)[0];
+  private chapterFor(chapters: ReplayChapter[], productId: string): ReplayChapter | undefined {
+    return this.chaptersFor(chapters, productId)[0];
   }
 
-  private chaptersFor(eventId: string, productId: string): ReplayChapter[] {
-    return this.chat.getReplayChapters(eventId).filter((chapter) => chapter.productId === productId);
+  private chaptersFor(chapters: ReplayChapter[], productId: string): ReplayChapter[] {
+    return chapters.filter((chapter) => chapter.productId === productId);
   }
 
   private readBuyerId(value: string): string {

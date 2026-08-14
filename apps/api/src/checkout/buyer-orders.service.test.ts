@@ -134,7 +134,7 @@ describe('BuyerOrdersService', () => {
     } as unknown as OrderStore;
     const auctions = { listWinnerOrdersForBuyer: vi.fn().mockResolvedValue([auctionOrder]) };
     const actions = { listOffersForBuyer: vi.fn().mockReturnValue([offer]) };
-    const chat = { getReplayChapters: vi.fn().mockReturnValue(chapters) };
+    const chat = { getReplayChapters: vi.fn().mockResolvedValue(chapters) };
     const events = { listForGuide: vi.fn().mockResolvedValue([event]) };
     const service = new BuyerOrdersService(
       orders,
@@ -149,6 +149,8 @@ describe('BuyerOrdersService', () => {
     expect(orders.listByBuyer).toHaveBeenCalledWith('buyer-1');
     expect(auctions.listWinnerOrdersForBuyer).toHaveBeenCalledWith('buyer-1');
     expect(actions.listOffersForBuyer).toHaveBeenCalledWith('buyer-1');
+    expect(chat.getReplayChapters).toHaveBeenCalledOnce();
+    expect(chat.getReplayChapters).toHaveBeenCalledWith('event-1');
     expect(result.map((order) => order.source)).toEqual(['offer', 'auction', 'checkout']);
     expect(result[0]).toMatchObject({
       id: 'offer-1',
@@ -179,7 +181,7 @@ describe('BuyerOrdersService', () => {
       { listByBuyer: vi.fn().mockResolvedValue([canonicalAuctionOrder]) } as unknown as OrderStore,
       { listWinnerOrdersForBuyer: vi.fn().mockResolvedValue([auctionOrder]) } as never,
       { listOffersForBuyer: vi.fn().mockReturnValue([]) } as never,
-      { getReplayChapters: vi.fn().mockReturnValue(chapters) } as never,
+      { getReplayChapters: vi.fn().mockResolvedValue(chapters) } as never,
       { listForGuide: vi.fn().mockResolvedValue([event]) } as never,
     );
 
