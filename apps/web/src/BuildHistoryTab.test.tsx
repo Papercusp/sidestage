@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { SyncContext } from '@papercusp/sync';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -11,6 +12,8 @@ import {
   summarizeBuildItemEvidence,
   type BuildHistoryPlan,
 } from './BuildHistoryTab';
+
+const historyCss = readFileSync(new URL('./build-history.css', import.meta.url), 'utf8');
 
 afterEach(() => vi.unstubAllGlobals());
 
@@ -68,6 +71,11 @@ describe('BuildHistoryList', () => {
     expect(markup).toContain('Changed files: apps/web/src/BuyerCheckout.tsx · apps/web/src/orders.css');
     expect(markup).toContain('View full evidence');
     expect(markup).not.toContain('&quot;testsRun&quot;');
+  });
+
+  it('keeps nested history grids inside a narrow site column', () => {
+    expect(historyCss).toMatch(/\.build-history-page\s*\{[^}]*grid-template-columns:\s*minmax\(0, 1fr\);[^}]*min-width:\s*0;/s);
+    expect(historyCss).toMatch(/\.build-plan-list\s*\{[^}]*grid-template-columns:\s*minmax\(0, 1fr\);[^}]*min-width:\s*0;/s);
   });
 });
 
