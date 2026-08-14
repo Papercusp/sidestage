@@ -627,6 +627,8 @@ a.app-badge:hover { transform: translateY(-1px); border-color: color-mix(in srgb
 .setup-check-list { display: grid; gap: .6rem; margin: 1.25rem 0; }
 .setup-check { padding: .8rem .85rem; border: 1px solid var(--border); border-left-width: 3px; border-radius: .6rem; background: var(--surface-sunken); }
 .setup-check p { margin: .4rem 0 0; color: var(--muted); font-size: .74rem; line-height: 1.5; }
+.setup-check p strong { color: var(--text); }
+.setup-check-expectation { padding-top: .2rem; border-top: 1px solid color-mix(in srgb, var(--border) 72%, transparent); }
 .setup-check-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 1rem; }
 .setup-check-heading strong { font-size: .78rem; }
 .setup-check-heading > span { flex: 0 0 auto; font-size: .66rem; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; }
