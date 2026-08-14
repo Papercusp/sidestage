@@ -39,7 +39,7 @@ export interface EventChatStats {
   totalMessages: number;
 }
 
-interface MessageInput {
+export interface EventChatMessageInput {
   userId: string;
   displayName: string;
   role: EventChatRole;
@@ -90,6 +90,21 @@ async function requestJson<T>(url: string, init: RequestInit): Promise<T> {
   return response.json() as Promise<T>;
 }
 
+/** The one chat write seam shared by the room composer and seller copilot. */
+export function useEventChatSender({
+  eventId,
+  apiBaseUrl,
+}: Pick<EventChatProps, 'eventId' | 'apiBaseUrl'>) {
+  const apiOrigin = resolveApiOrigin(apiBaseUrl);
+  const fallback = useCallback(async (input: EventChatMessageInput) => {
+    return requestJson<EventChatMessage>(`${apiOrigin}/chat/events/${encodeURIComponent(eventId)}/messages`, {
+      method: 'POST',
+      body: JSON.stringify(input),
+    });
+  }, [apiOrigin, eventId]);
+  return useSyncMutate<EventChatMessageInput, EventChatMessage>('chat.sendMessage', fallback);
+}
+
 function formatTimestamp(value: string): string {
   const timestamp = Date.parse(value);
   if (!Number.isFinite(timestamp)) return 'now';
@@ -131,13 +146,7 @@ function EventChatSurface({
   const [presenceError, setPresenceError] = useState<string | null>(null);
   const [queueView, setQueueView] = useState<QueueView>(role === 'seller' ? 'focused' : 'all');
 
-  const sendMessageFallback = useCallback(async (input: MessageInput) => {
-    return requestJson<EventChatMessage>(`${apiOrigin}/chat/events/${encodeURIComponent(eventId)}/messages`, {
-      method: 'POST',
-      body: JSON.stringify(input),
-    });
-  }, [apiOrigin, eventId]);
-  const sendMessage = useSyncMutate<MessageInput, EventChatMessage>('chat.sendMessage', sendMessageFallback);
+  const sendMessage = useEventChatSender({ eventId, apiBaseUrl });
 
   useEffect(() => {
     let stopped = false;
