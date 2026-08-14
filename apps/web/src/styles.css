@@ -285,10 +285,23 @@ h1 { margin: 0; max-width: 720px; font-size: clamp(3rem, 7vw, 5.8rem); line-heig
 .seller-stream-preview { max-width: 600px; margin-top: 1.5rem; }
 .stream-video { display: block; width: 100%; min-height: 220px; aspect-ratio: 16 / 9; object-fit: cover; background: radial-gradient(circle at 50% 45%, color-mix(in srgb, var(--brand-red) 14%, transparent), transparent 34%), var(--video-inset-bg); }
 .stream-video-overlay { position: absolute; right: 1rem; bottom: 1rem; left: 1rem; display: flex; align-items: center; gap: .75rem; padding: .7rem .8rem; border: 1px solid var(--border); border-radius: .65rem; background: color-mix(in srgb, var(--video-inset-bg) 82%, transparent); backdrop-filter: blur(14px); }
-/* Theme island: rebinding the semantic tokens on the container re-themes every descendant at
-   once — the paragraph, the slug, and the .button, which reads --text/--border/--surface like
-   any other button — instead of overriding each child and missing the ones added later. */
-.stream-video-overlay { --text: var(--on-video); --muted: var(--on-video-muted); --border: var(--on-video-border); --surface: var(--on-video-surface); --surface-glass: var(--on-video-surface); --red-text: var(--on-video-red); --accent-strong: var(--on-video-red); color: var(--on-video); }
+/* THEME ISLAND — the live-video insets, the one dark region on the light page (D-004).
+   Keyed on the containers that carry --video-inset-bg, i.e. on being a dark inset, so a new
+   one inherits the treatment instead of needing its own override. Rebinding the SEMANTIC
+   tokens here re-themes every descendant at once — the badge, the caption, and the .button,
+   which reads --text/--border/--surface exactly like every other button — rather than
+   patching each child and missing whichever one is added next. */
+.buyer-player-card, .buyer-stream-preview, .seller-stream-preview {
+  --text: var(--on-video);
+  --muted: var(--on-video-muted);
+  --border: var(--on-video-border);
+  --surface: var(--on-video-surface);
+  --surface-glass: var(--on-video-surface);
+  --surface-sunken: var(--on-video-surface);
+  --red-text: var(--on-video-red);
+  --accent-strong: var(--on-video-red);
+  color: var(--on-video);
+}
 .stream-video-overlay p { flex: 1; margin: 0; color: var(--muted); font-size: .74rem; line-height: 1.45; }
 .stream-video-overlay .button { flex: 0 0 auto; padding: .52rem .72rem; font-size: .72rem; }
 .field-help { margin: .4rem 0 0 !important; color: var(--muted); font-size: .7rem !important; }
@@ -417,6 +430,18 @@ a.app-badge:hover { transform: translateY(-1px); border-color: color-mix(in srgb
 .buyer-player-overlay { position: absolute; right: 1rem; bottom: 1rem; left: 1rem; display: flex; align-items: center; gap: .75rem; padding: .7rem .8rem; border: 1px solid var(--border); border-radius: .65rem; background: color-mix(in srgb, var(--video-inset-bg) 82%, transparent); backdrop-filter: blur(14px); }
 .buyer-player-overlay p { flex: 1; margin: 0; color: var(--muted); font-size: .74rem; line-height: 1.45; }
 .buyer-player-overlay .button { flex: 0 0 auto; padding: .52rem .72rem; font-size: .72rem; }
+.replay-chapters { margin-top: .8rem; padding: .9rem; border: 1px solid var(--border); border-radius: .75rem; background: var(--surface-glass); }
+.replay-chapters-heading { display: flex; align-items: flex-end; justify-content: space-between; gap: 1rem; }
+.replay-chapters-heading .eyebrow { margin: 0 0 .35rem; }
+.replay-chapters-heading h3 { margin: 0; font-size: 1rem; letter-spacing: -.025em; }
+.replay-chapters-heading > span { color: var(--muted); font-size: .68rem; }
+.replay-chapters ol { display: grid; gap: .45rem; margin: .75rem 0 0; padding: 0; list-style: none; }
+.replay-chapters button { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: start; gap: .7rem; width: 100%; border: 1px solid var(--border); border-radius: .6rem; padding: .65rem; color: var(--text); background: var(--surface-sunken); text-align: left; cursor: pointer; }
+.replay-chapters button:hover { border-color: color-mix(in srgb, var(--brand-red) 55%, transparent); background: var(--surface-hover); }
+.replay-chapter-time { min-width: 3rem; border-radius: .4rem; padding: .3rem .4rem; color: var(--on-brand-red); background: var(--brand-red); font-size: .68rem; font-weight: 750; text-align: center; }
+.replay-chapters button > span:last-child { display: grid; gap: .2rem; min-width: 0; }
+.replay-chapters strong { font-size: .8rem; }
+.replay-chapters small { overflow: hidden; color: var(--muted); font-size: .68rem; line-height: 1.35; text-overflow: ellipsis; white-space: nowrap; }
 .buyer-stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: .65rem; margin-top: .8rem; }
 .buyer-stats > div { display: flex; flex-direction: column; gap: .25rem; padding: .75rem .85rem; border: 1px solid var(--border); border-radius: .65rem; background: var(--surface-glass); }
 .buyer-stats strong { font-size: 1rem; }

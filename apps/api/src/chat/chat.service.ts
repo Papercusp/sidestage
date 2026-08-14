@@ -29,13 +29,26 @@ export interface TranscriptMomentInput {
   text?: unknown;
   startMs?: unknown;
   endMs?: unknown;
+  productId?: unknown;
+  productTitle?: unknown;
 }
 
-interface TranscriptMoment {
+export interface TranscriptMoment {
   id: string;
   text: string;
   startMs?: number;
   endMs?: number;
+  productId?: string;
+  productTitle?: string;
+}
+
+export interface ReplayChapter {
+  id: string;
+  productId: string;
+  productTitle: string;
+  startMs: number;
+  endMs?: number;
+  previewText: string;
 }
 
 export interface ChatPresence {
@@ -147,6 +160,31 @@ export class ChatService {
     };
   }
 
+  getReplayChapters(eventId: string): ReplayChapter[] {
+    const chapters: ReplayChapter[] = [];
+    let activeChapter: ReplayChapter | undefined;
+    for (const moment of this.getEvent(eventId).transcript) {
+      if (!moment.productId || !moment.productTitle || moment.startMs === undefined) {
+        activeChapter = undefined;
+        continue;
+      }
+      if (activeChapter?.productId === moment.productId) {
+        activeChapter.endMs = moment.endMs ?? activeChapter.endMs;
+        continue;
+      }
+      activeChapter = {
+        id: moment.id,
+        productId: moment.productId,
+        productTitle: moment.productTitle,
+        startMs: moment.startMs,
+        endMs: moment.endMs,
+        previewText: moment.text,
+      };
+      chapters.push(activeChapter);
+    }
+    return chapters;
+  }
+
   addMessage(eventId: string, input: ChatMessageInput): ChatMessage {
     const state = this.getEvent(eventId);
     const userId = this.readBoundedString(input.userId, 'userId', MAX_USER_ID_LENGTH);
@@ -217,11 +255,14 @@ export class ChatService {
       text,
       startMs: this.readOptionalMilliseconds(input.startMs, 'startMs'),
       endMs: this.readOptionalMilliseconds(input.endMs, 'endMs'),
+      productId: this.readOptionalBoundedString(input.productId, 'productId', MAX_USER_ID_LENGTH),
+      productTitle: this.readOptionalBoundedString(input.productTitle, 'productTitle', MAX_DISPLAY_NAME_LENGTH),
     };
     state.transcript.push(moment);
     if (state.transcript.length > MAX_TRANSCRIPT_MOMENTS) {
       state.transcript.splice(0, state.transcript.length - MAX_TRANSCRIPT_MOMENTS);
     }
+    this.emitInvalidation(eventId, 'event.replay.chapters');
     return { ...moment };
   }
 
@@ -315,6 +356,11 @@ export class ChatService {
     if (!result) throw new BadRequestException(`${field} is required`);
     if (result.length > maxLength) throw new BadRequestException(`${field} must be ${maxLength} characters or fewer`);
     return result;
+  }
+
+  private readOptionalBoundedString(value: unknown, field: string, maxLength: number): string | undefined {
+    if (value === undefined || value === null) return undefined;
+    return this.readBoundedString(value, field, maxLength);
   }
 
   private readRole(value: unknown): ChatRole {

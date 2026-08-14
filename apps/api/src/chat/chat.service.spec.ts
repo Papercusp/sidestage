@@ -63,6 +63,47 @@ describe('ChatService', () => {
     expect(service.getStats('demo-event').totalMessages).toBe(2);
   });
 
+  it('indexes product-tagged transcript moments as replay chapters and invalidates sync', () => {
+    const service = new ChatService();
+    const events: string[] = [];
+    service.updates('demo-event').subscribe((event) => {
+      events.push(JSON.parse(event.data).name as string);
+    });
+
+    service.addTranscriptMoment('demo-event', {
+      text: 'Here is the hand-painted detail on the Aurora cup.',
+      startMs: 83_000,
+      endMs: 98_000,
+      productId: 'aurora-cup',
+      productTitle: 'Aurora cup',
+    });
+    service.addTranscriptMoment('demo-event', {
+      text: 'The base carries the same glaze.',
+      startMs: 99_000,
+      endMs: 105_000,
+      productId: 'aurora-cup',
+      productTitle: 'Aurora cup',
+    });
+    service.addTranscriptMoment('demo-event', {
+      text: 'This general update is not tied to a listing.',
+      startMs: 106_000,
+    });
+
+    expect(service.getReplayChapters('demo-event')).toEqual([{
+      id: expect.stringMatching(/^transcript-demo-event-/),
+      productId: 'aurora-cup',
+      productTitle: 'Aurora cup',
+      startMs: 83_000,
+      endMs: 105_000,
+      previewText: 'Here is the hand-painted detail on the Aurora cup.',
+    }]);
+    expect(events).toEqual([
+      'event.replay.chapters',
+      'event.replay.chapters',
+      'event.replay.chapters',
+    ]);
+  });
+
   it('rejects blank or oversized messages before mutating state', () => {
     const service = new ChatService();
     expect(() => service.addMessage('demo-event', {

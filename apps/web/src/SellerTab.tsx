@@ -26,6 +26,7 @@ export function SellerTab({
   const { copyState, copy } = useCopyState();
   const recordTranscriptMoment = useCallback((segment: { text: string; startMs?: number; endMs?: number }) => {
     const transcriptEventId = room?.eventId ?? chatEventId(eventId);
+    const product = transcriptProducts.find((candidate) => candidate.id === selectedProductId);
     return fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3100'}/chat/events/${encodeURIComponent(transcriptEventId)}/transcript`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
@@ -33,11 +34,13 @@ export function SellerTab({
         text: segment.text,
         startMs: segment.startMs,
         endMs: segment.endMs,
+        productId: product?.id,
+        productTitle: product?.label,
       }),
     }).then((response) => {
       if (!response.ok) throw new Error(`Transcript grounding failed (${response.status})`);
     }).catch(() => undefined);
-  }, [eventId, room?.eventId]);
+  }, [eventId, room?.eventId, selectedProductId, transcriptProducts]);
 
   const startEvent = async () => {
     let nextRoom: EventRoom;
