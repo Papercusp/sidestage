@@ -97,7 +97,14 @@ describe('BuyerCartPanel', () => {
 
   it('disables the line controls while a cart write is in flight', () => {
     const html = renderToStaticMarkup(<BuyerCartPanel {...props({ busy: true })} />);
-    expect(html).toContain('aria-label="Increase Aurora mug quantity" disabled');
-    expect(html).toContain('aria-label="Release the hold on Aurora mug" disabled');
+    for (const control of [
+      'Increase Aurora mug quantity',
+      'Decrease Aurora mug quantity',
+      'Aurora mug quantity',
+      'Release the hold on Aurora mug',
+    ]) {
+      expect(html, `${control} must be disabled mid-write`)
+        .toMatch(new RegExp(`disabled=""[^>]*aria-label="${control}"`));
+    }
   });
 });
