@@ -233,7 +233,7 @@ export function SellerTab({
     },
     'run-of-show': {
       eventId,
-      activeProductId: selectedProductId,
+      activeProduct: selectedProduct,
       onActiveProductChange,
       apiBaseUrl: import.meta.env.VITE_API_URL,
     },
