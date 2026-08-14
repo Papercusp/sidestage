@@ -1,4 +1,4 @@
-import { createContext, useContext, useMemo, type ReactNode } from 'react';
+import { createContext, useContext, useMemo, useRef, type ReactNode } from 'react';
 import {
   DockWorkspace,
   type DockLayoutStore,
@@ -132,11 +132,12 @@ export function SellerDock({ panels, registry, store, missingComponent }: Seller
   // A fresh store per mount would re-seed and drop the user's saved layout, so
   // it is memoised for the life of the component.
   const layoutStore = useMemo(() => store ?? createSellerDockStore(), [store]);
+  const shellRef = useRef<HTMLDivElement>(null);
 
   return (
     <SellerDockContext.Provider value={panels}>
-      <div className="seller-dock-shell">
-        <SellerDockToolbar />
+      <div ref={shellRef} className="seller-dock-shell">
+        <SellerDockToolbar fullscreenTargetRef={shellRef} />
         {/*
           P-015 wraps the host in a resize frame. It is a WRAPPER, not a
           replacement: .seller-dock-host keeps the geometry P-007/P-011 gave it

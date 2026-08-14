@@ -160,6 +160,47 @@
 }
 
 /*
+ * Seller workbench page geometry (WI-38724).
+ *
+ * The other tabs keep the centered editorial page shell from styles.css. The
+ * Seller tab is an operator workbench: the top navigation remains, while its
+ * hero, footer, outer gutter, and page scroll move out of the board's way.
+ */
+.app-shell--seller {
+  display: flex;
+  flex-direction: column;
+  height: 100dvh;
+  min-height: 100vh;
+  overflow: hidden;
+}
+
+.app-shell--seller > .topbar {
+  flex: 0 0 auto;
+}
+
+.content.content-seller {
+  display: flex;
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 0;
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  overflow: auto;
+}
+
+.content-seller > .tab-layout {
+  display: flex;
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 0;
+}
+
+.content-seller > .tab-layout > .tab-header {
+  display: none;
+}
+
+/*
  * Dock shell + toolbar (P-010).
  *
  * The toolbar is a SIBLING above .seller-dock-host, not a child of it. Nesting
@@ -178,6 +219,13 @@
   margin-top: var(--ss-section-gap);
 }
 
+.content-seller .seller-dock-shell {
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 100%;
+  margin-top: 0;
+}
+
 /* The shell now owns the gap above the dock, so the host must not add a second. */
 .seller-dock-shell .seller-dock-host {
   margin-top: 0;
@@ -191,13 +239,23 @@
   margin-bottom: 0.5rem;
 }
 
+.content-seller .seller-dock-toolbar,
+.seller-dock-shell:fullscreen .seller-dock-toolbar {
+  flex: 0 0 auto;
+  margin: 0;
+  padding: 0.5rem 0.75rem;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg);
+}
+
 /*
  * Reset control. Styled as a quiet secondary action: it is a recovery
  * affordance, so it should be findable without competing with the primary
  * stage controls. P-011 owns the final chrome — these are token-only structural
  * defaults with no hardcoded colours, per the no-hex rule at the top of this file.
  */
-.seller-dock-reset {
+.seller-dock-reset,
+.seller-dock-fullscreen {
   height: var(--ss-control-h);
   padding: 0 0.75rem;
   font-size: var(--ss-font);
@@ -208,14 +266,22 @@
   cursor: pointer;
 }
 
-.seller-dock-reset:hover {
+.seller-dock-reset:hover,
+.seller-dock-fullscreen:hover {
   color: var(--text);
   background: var(--surface-raised);
 }
 
-.seller-dock-reset:focus-visible {
+.seller-dock-reset:focus-visible,
+.seller-dock-fullscreen:focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
+}
+
+.seller-dock-fullscreen-error {
+  margin-right: auto;
+  color: var(--danger);
+  font-size: var(--ss-font);
 }
 
 /*
@@ -244,6 +310,57 @@
    * than pushing a horizontal scrollbar onto the whole seller tab.
    */
   max-width: 100%;
+}
+
+/* The untouched board fills the viewport; a user-resized board keeps its saved size. */
+.content-seller .seller-dock-board:not([style]) {
+  flex: 1 1 auto;
+  width: 100%;
+}
+
+.content-seller .seller-dock-board[style] {
+  flex: 0 0 auto;
+}
+
+.content-seller .seller-dock-board:not([style]) > .seller-dock-host {
+  height: 100%;
+  border-right: 0;
+  border-left: 0;
+  border-radius: 0;
+}
+
+/*
+ * Native whole-board fullscreen. Inline width/height carry the persisted user
+ * size, so these important overrides are deliberate: fullscreen borrows the
+ * viewport without rewriting that stored size, and exit restores it unchanged.
+ */
+.seller-dock-shell:fullscreen {
+  width: 100vw;
+  height: 100vh;
+  min-width: 0;
+  min-height: 0;
+  margin: 0;
+  overflow: hidden;
+  background: var(--bg);
+}
+
+.seller-dock-shell:fullscreen .seller-dock-board {
+  flex: 1 1 auto !important;
+  width: 100% !important;
+  height: auto !important;
+  max-width: none;
+}
+
+.seller-dock-shell:fullscreen .seller-dock-host {
+  height: 100%;
+  border-right: 0;
+  border-left: 0;
+  border-radius: 0;
+}
+
+/* A hidden geometry change must not overwrite the size restored on exit. */
+.seller-dock-shell:fullscreen .seller-dock-board-handle {
+  display: none;
 }
 
 /*
