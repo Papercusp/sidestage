@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 
 import { SYSTEM_TEST_CONTRACT_VERSION, SYSTEM_TEST_SUITE_MANIFESTS } from '@papercusp/system-test-contract';
@@ -52,6 +53,30 @@ afterAll(async () => {
 });
 
 describe('PostgresSystemTestRunStore', () => {
+  it('re-applies the production schema idempotently with all normalized run tables intact', async () => {
+    const schema = readFileSync(SCHEMA_SQL, 'utf8');
+    await pool.query(schema);
+    await pool.query(schema);
+
+    const tables = await pool.query<{ table_name: string }>(
+      `SELECT table_name
+         FROM information_schema.tables
+        WHERE table_schema = 'public' AND table_name LIKE 'system_test_%'
+        ORDER BY table_name`,
+    );
+    expect(tables.rows.map((row) => row.table_name)).toEqual([
+      'system_test_artifact',
+      'system_test_cancellation',
+      'system_test_case',
+      'system_test_cleanup',
+      'system_test_environment',
+      'system_test_retention',
+      'system_test_run',
+      'system_test_suite',
+      'system_test_transition',
+    ]);
+  });
+
   it('creates one normalized, idempotent snapshot for one allow-listed suite launch', async () => {
     const input = launch('run-create-1', 'launch-create-1');
     const first = await store.createRun(input);

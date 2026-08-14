@@ -214,6 +214,31 @@ export interface PurgedSystemTestRuns {
   runs: number;
 }
 
+/**
+ * Trusted-worker reporting seam. P-004 can depend on this interface while the
+ * PostgreSQL implementation remains the single durable ledger.
+ */
+export interface SystemTestRunReporter {
+  createRun(input: CreateSystemTestRunInput): Promise<StoredSystemTestRunSnapshot>;
+  advanceRun(
+    runId: string,
+    state: SystemTestRunState,
+    options?: { reason?: string; at?: Date },
+  ): Promise<StoredSystemTestRunSnapshot>;
+  heartbeat(runId: string, at?: Date): Promise<void>;
+  setDeploymentEvidence(runId: string, deployedSha: string, at?: Date): Promise<void>;
+  recordCase(runId: string, input: RecordSystemTestCaseInput): Promise<void>;
+  recordArtifact(runId: string, input: RecordSystemTestArtifactInput): Promise<void>;
+  recordEnvironment(runId: string, input: RecordSystemTestEnvironmentInput): Promise<void>;
+  requestCancellation(
+    runId: string,
+    input: { requestedBy: SystemTestActor; reason: string; at?: Date },
+  ): Promise<StoredSystemTestRunSnapshot>;
+  acknowledgeCancellation(runId: string, at?: Date): Promise<StoredSystemTestRunSnapshot>;
+  recordCleanup(runId: string, input: RecordSystemTestCleanupInput): Promise<StoredSystemTestRunSnapshot>;
+  getRun(runId: string): Promise<StoredSystemTestRunSnapshot | null>;
+}
+
 interface LockedRunRow {
   id: string;
   state: SystemTestRunState;
@@ -401,7 +426,7 @@ async function appendTransition(
   run.state = to;
 }
 
-export class PostgresSystemTestRunStore {
+export class PostgresSystemTestRunStore implements SystemTestRunReporter {
   readonly #pool: Pool;
 
   constructor(pool: Pool) {

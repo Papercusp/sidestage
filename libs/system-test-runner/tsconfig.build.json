@@ -4,6 +4,7 @@
     "declaration": true,
     "module": "CommonJS",
     "moduleResolution": "Node",
+    "allowImportingTsExtensions": false,
     "noEmit": false,
     "outDir": "dist"
   },
