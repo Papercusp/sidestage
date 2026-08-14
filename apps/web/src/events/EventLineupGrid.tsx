@@ -150,7 +150,10 @@ export function EventLineupGrid({
       columns={columns}
       rows={[...items]}
       getRowId={(item) => item.productId}
-      rowProps={({ row }) => ({ 'data-testid': `event-item-${row.productId}` })}
+      rowProps={({ row }) => ({
+        'data-testid': `event-item-${row.productId}`,
+        'aria-label': `${row.title}, ${row.availableQty} available${row.onStage ? ', on stage' : ''}`,
+      })}
       topSlot={(
         <div className="event-grid-note">
           <span><strong>Live lineup</strong> · every mutation is guarded and audited</span>
