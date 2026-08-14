@@ -1,0 +1,73 @@
+/**
+ * SideStage-only additions to the shared cart drawer (P-006).
+ *
+ * Everything inside the pane is already styled by `@papercusp/cart-drawer`'s
+ * `.cd-*` token CSS, which resolves through the mappings in
+ * `shared-drawer-theme.css`. Only two things are SideStage's own: the per-hold
+ * countdown rendered into the line card's slot (holds are not a shared-library
+ * concept) and the rail trigger pill.
+ *
+ * Values reference SideStage TOKENS, never the hexes behind them — same rule as
+ * the theme sheet, so a retheme moves these with everything else.
+ */
+
+/* Per-item hold countdown — the drawer's most time-critical text, so it takes
+   the brand accent and tabular numerals (digits must not reflow each second). */
+.cd-line-card .buyer-hold-countdown {
+  display: flex;
+  align-items: baseline;
+  gap: .3rem;
+  margin: .5rem 0 0;
+  color: var(--brand-red);
+  font-size: .72rem;
+}
+
+.cd-line-card .buyer-hold-countdown strong {
+  font-variant-numeric: tabular-nums;
+  font-size: .9rem;
+}
+
+/* The footer CTA that hands off to the checkout flow. */
+.buyer-cart-checkout {
+  width: 100%;
+}
+
+/* Rail trigger: the drawer-stack portals this into the shared right-edge column
+   it also gives the scout launcher, so the two side surfaces stack rather than
+   each inventing a floating button. */
+.buyer-cart-rail {
+  display: flex;
+  align-items: center;
+  gap: .4rem;
+  padding: .55rem .8rem;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface);
+  box-shadow: 0 .5rem 1.25rem color-mix(in srgb, var(--ink) 14%, transparent);
+  color: var(--text);
+  font: inherit;
+  font-size: .8rem;
+  cursor: pointer;
+}
+
+.buyer-cart-rail:hover,
+.buyer-cart-rail[data-open] {
+  border-color: var(--brand-red);
+}
+
+.buyer-cart-rail-count {
+  min-width: 1.25rem;
+  padding: 0 .3rem;
+  border-radius: 999px;
+  background: var(--brand-red);
+  color: var(--on-brand-red);
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+  text-align: center;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .buyer-cart-rail {
+    transition: none;
+  }
+}

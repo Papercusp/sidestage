@@ -34,6 +34,30 @@ export interface BuyerCartAdapter {
 export const MIN_HELD_QUANTITY = 1;
 export const MAX_HELD_QUANTITY = 99;
 
+/** What a requested line quantity means for the hold behind it. */
+export type HoldWrite =
+  | { kind: 'set'; quantity: number }
+  | { kind: 'release' }
+  | { kind: 'reject'; reason: string };
+
+/**
+ * Decide what a requested quantity does to a hold, BEFORE any request.
+ *
+ * The shared line card's stepper is a generic 0..n control, but a hold is not a
+ * quantity that can sit at zero — the server rejects anything outside 1..99, and
+ * a line the buyer stepped down to nothing means "release this hold", not "hold
+ * zero of it". Kept pure and separate from the component so the rule is
+ * assertable without a DOM, and so the request layer never has to re-derive it.
+ */
+export function planHoldWrite(next: number): HoldWrite {
+  if (!Number.isInteger(next)) return { kind: 'reject', reason: 'Enter a whole number of items.' };
+  if (next < MIN_HELD_QUANTITY) return { kind: 'release' };
+  if (next > MAX_HELD_QUANTITY) {
+    return { kind: 'reject', reason: `You can hold at most ${MAX_HELD_QUANTITY} of one item.` };
+  }
+  return { kind: 'set', quantity: next };
+}
+
 /**
  * Map SideStage's cart onto the library's structural `CartData`.
  *
