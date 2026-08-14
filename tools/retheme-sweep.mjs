@@ -100,6 +100,8 @@ const EXACT = [
    'background: var(--panel-grad);'],
   ['background: linear-gradient(150deg, rgba(24, 60, 96, .86), rgba(13, 27, 52, .9));',
    'background: var(--panel-grad);'],
+  ['background: linear-gradient(145deg,rgba(10,30,47,.96),rgba(20,18,49,.94));',
+   'background: var(--panel-grad);'],
   // --- text on a brand fill: follows the fill, not the old literal ---------------------------
   ['.button.primary { color: #061525; background: var(--accent); border-color: var(--accent); box-shadow: 0 8px 28px rgba(98, 216, 255, .19); }',
    '.button.primary { color: var(--on-brand-red); background: var(--brand-red); border-color: var(--brand-red); box-shadow: 0 8px 28px color-mix(in srgb, var(--brand-red) 26%, transparent); }'],
