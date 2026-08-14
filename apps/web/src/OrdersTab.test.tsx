@@ -158,7 +158,7 @@ describe('OrdersTab', () => {
 
     expect(useDataImpl).toHaveBeenCalledWith({
       queryName: 'orders.byBuyer',
-      args: { buyerId: 'demo-server-render' },
+      args: { buyerId: 'buyer-demo-server-render' },
       staleTime: 0,
     });
     expect(html).toContain('Aurora cup');
@@ -189,7 +189,7 @@ describe('OrdersTab', () => {
       </SyncContext.Provider>,
     );
 
-    expect(renderState({ loading: true })).toContain('Loading orders for demo-server-render…');
+    expect(renderState({ loading: true })).toContain('Loading orders for buyer-demo-server-render…');
     expect(renderState({})).toContain('No orders yet');
     const errorHtml = renderState({ error: new Error('sync unavailable') });
     expect(errorHtml).toContain('Orders could not be loaded.');
