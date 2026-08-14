@@ -2,7 +2,6 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   buildClientPreflightReport,
   buildReadinessReport,
-  fetchPreflight,
   historyDelta,
   probeClockSkew,
   probeMediaLoopback,
@@ -478,16 +477,4 @@ describe('rehearsal API client', () => {
     expect(spy.mock.calls[0]?.[0]).toBe('http://api.test/rehearsals/all');
   });
 
-  it('url-encodes the event id when fetching preflight', async () => {
-    const spy = stubFetch(() => jsonResponse({
-      eventId: 'a/b', ranAt: 'now', ready: true, blockers: 0, warnings: 0, unknowns: 0, checks: [],
-    }));
-    await fetchPreflight('a/b', 'http://api.test');
-    expect(spy.mock.calls[0]?.[0]).toBe('http://api.test/rehearsals/preflight/a%2Fb');
-  });
-
-  it('surfaces the server message when preflight fails', async () => {
-    stubFetch(() => jsonResponse({ message: 'No such event' }, false, 404));
-    await expect(fetchPreflight('missing', 'http://api.test')).rejects.toThrow('No such event');
-  });
 });

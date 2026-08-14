@@ -1,27 +1,55 @@
 import { BadRequestException } from '@nestjs/common';
 import { firstValueFrom, take } from 'rxjs';
 import { describe, expect, it, vi } from 'vitest';
-import type { GuardedActionService } from '../actions/action.service';
-import type { EventConfigService } from '../config/event-config.service';
-import type { EventPolicyResolver } from '../config/event-policy-resolver';
 import { SyncInvalidationService } from '../sync/sync-invalidation.service';
+import { SyncQueryRegistry } from '../sync/sync-query.registry';
 import { CLIENT_REALTIME_PROBE_EVENT } from './preflight';
+import type { RehearsalPreflightService } from './rehearsal-preflight.service';
 import { RehearsalController } from './rehearsal.controller';
+import { RehearsalSyncQueries } from './rehearsal.module';
 import type { RehearsalService } from './rehearsal.service';
 
-function createController(invalidations = new SyncInvalidationService()) {
+function createController(
+  invalidations = new SyncInvalidationService(),
+  preflights = { read: vi.fn() } as unknown as RehearsalPreflightService,
+) {
   return {
     controller: new RehearsalController(
       {} as RehearsalService,
-      {} as EventConfigService,
-      {} as GuardedActionService,
-      {} as EventPolicyResolver,
-      null,
+      preflights,
       invalidations,
     ),
     invalidations,
   };
 }
+
+describe('Rehearsal preflight sync query', () => {
+  it('registers a scoped rehearsal.preflight query and shares the REST service', async () => {
+    const report = {
+      eventId: 'event-1',
+      ranAt: '2026-08-14T16:00:00.000Z',
+      ready: true,
+      blockers: 0,
+      warnings: 0,
+      unknowns: 0,
+      checks: [],
+    };
+    const preflights = { read: vi.fn().mockResolvedValue(report) };
+    const queries = new SyncQueryRegistry();
+    new RehearsalSyncQueries(preflights as unknown as RehearsalPreflightService, queries).onModuleInit();
+
+    await expect(queries.resolve('rehearsal.preflight', { eventId: ' event-1 ' })).resolves.toEqual([report]);
+    expect(preflights.read).toHaveBeenCalledWith('event-1');
+    await expect(queries.resolve('rehearsal.preflight', {})).resolves.toEqual([]);
+
+    const { controller } = createController(
+      new SyncInvalidationService(),
+      preflights as unknown as RehearsalPreflightService,
+    );
+    await expect(controller.preflight('event-1')).resolves.toEqual(report);
+    expect(preflights.read).toHaveBeenLastCalledWith('event-1');
+  });
+});
 
 describe('RehearsalController client probes', () => {
   it('returns the API wall clock measured at request time', () => {
