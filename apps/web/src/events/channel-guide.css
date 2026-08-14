@@ -1,24 +1,36 @@
-/* Buyer "What's on" Channel Guide sidebar — P-118 / D-019.
+/* Buyer "What's on" Channel Guide drawer — P-118 / D-019.
  *
  * Every colour resolves through an R3 :root token (retheme D-004). There is
  * deliberately no hex literal in this file: D-019 requires the guide to adopt
  * the retheme tokens, and a local hex would survive the next palette change
  * as a stale island. */
 
+.channel-guide-layer {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: flex;
+  justify-content: flex-end;
+  pointer-events: none;
+}
+
 .channel-guide-panel {
-  position: sticky;
-  top: 4.25rem;
-  align-self: start;
+  position: relative;
   display: flex;
   flex-direction: column;
-  min-width: 0;
-  width: 100%;
-  height: calc(100vh - 4.25rem);
-  margin-top: clamp(-5rem, -6vw, -2.75rem);
+  width: min(26rem, calc(100vw - 2.5rem));
+  height: 100%;
   overflow: hidden;
-  border-right: 1px solid var(--border);
+  pointer-events: auto;
+  border-left: 1px solid var(--border);
   background: var(--surface);
   box-shadow: var(--shadow-float);
+  animation: channel-guide-slide 180ms cubic-bezier(.22, .61, .36, 1);
+}
+
+@keyframes channel-guide-slide {
+  from { transform: translateX(1.5rem); opacity: 0; }
+  to   { transform: translateX(0);      opacity: 1; }
 }
 
 .channel-guide-header {
@@ -112,6 +124,7 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .channel-guide-panel,
   .channel-guide-live-dot { animation: none; }
 }
 
@@ -206,21 +219,4 @@
   color: var(--brand-red);
   font-size: .9rem;
   font-weight: 700;
-}
-
-@media (max-width: 900px) {
-  .channel-guide-panel {
-    position: static;
-    height: auto;
-    max-height: none;
-    margin-top: 0;
-    border-top: 1px solid var(--border);
-    border-right: 0;
-    border-bottom: 1px solid var(--border);
-    box-shadow: none;
-  }
-
-  .channel-guide-body {
-    max-height: min(28rem, 55vh);
-  }
 }

@@ -43,7 +43,7 @@ export function App() {
   const [activeEventId, setActiveEventId] = useState(browserEventId);
 
   /* P-118 / D-019: one live directory powers the site-wide guide. Keeping the
-     query at this shell boundary means the rail and its data remain mounted as
+     query at this shell boundary means the drawer and its data remain mounted as
      the user moves among Watch, Orders, Studio, Releases, and Tests. */
   const guideQuery = useSyncQuery<GuideEvent>({
     queryName: 'events.guide',
@@ -111,46 +111,42 @@ export function App() {
       </header>
 
       <main className={layout.contentClassName} id="main-content" tabIndex={-1}>
-        <div className="app-content-layout">
-          <ChannelGuide
-            events={guideEvents}
-            currentEventId={activeEventId}
-            onSelect={selectEvent}
-            loading={guideQuery.loading}
-            error={guideError}
-          />
+        <ChannelGuide
+          events={guideEvents}
+          currentEventId={activeEventId}
+          onSelect={selectEvent}
+          loading={guideQuery.loading}
+          error={guideError}
+        />
 
-          <div className="app-page-column">
-            {tab === 'buyer' ? (
-              <BuyerCheckoutProvider eventId={activeEventId}>
-                <BuyerTab
-                  eventId={activeEventId}
-                  eventTitle={DEFAULT_EVENT_TITLE}
-                  mediaBaseUrl={mediaBaseUrl()}
-                  guideEvents={guideEvents}
-                />
-              </BuyerCheckoutProvider>
-            ) : null}
-            {tab === 'orders' ? <OrdersTab /> : null}
-            {tab === 'seller' ? (
-              <SellerTab
-                selectedProduct={selectedProduct}
-                selectedProductId={selectedProductId}
-                transcriptProducts={transcriptProducts}
-                onActiveProductChange={setSelectedProductId}
-              />
-            ) : null}
-            {tab === 'history' ? <BuildHistoryTab /> : null}
-            {tab === 'test' ? <SystemTestsTab /> : null}
-            {layout.showFooter ? (
-              <footer className="footer">
-                <span>SideStage preview</span>
-                <AppDownloadButtons />
-                <span>Built for the live-selling floor</span>
-              </footer>
-            ) : null}
-          </div>
-        </div>
+        {tab === 'buyer' ? (
+          <BuyerCheckoutProvider eventId={activeEventId}>
+            <BuyerTab
+              eventId={activeEventId}
+              eventTitle={DEFAULT_EVENT_TITLE}
+              mediaBaseUrl={mediaBaseUrl()}
+              guideEvents={guideEvents}
+            />
+          </BuyerCheckoutProvider>
+        ) : null}
+        {tab === 'orders' ? <OrdersTab /> : null}
+        {tab === 'seller' ? (
+          <SellerTab
+            selectedProduct={selectedProduct}
+            selectedProductId={selectedProductId}
+            transcriptProducts={transcriptProducts}
+            onActiveProductChange={setSelectedProductId}
+          />
+        ) : null}
+        {tab === 'history' ? <BuildHistoryTab /> : null}
+        {tab === 'test' ? <SystemTestsTab /> : null}
+        {layout.showFooter ? (
+          <footer className="footer">
+            <span>SideStage preview</span>
+            <AppDownloadButtons />
+            <span>Built for the live-selling floor</span>
+          </footer>
+        ) : null}
       </main>
     </div>
   );

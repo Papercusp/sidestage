@@ -53,8 +53,9 @@ function render(props: Partial<React.ComponentProps<typeof ChannelGuide>> = {}) 
 }
 
 describe('ChannelGuide (P-118 / D-019)', () => {
-  it('always renders as the shared app shell\'s What\'s on sidebar', () => {
+  it('always renders as the shared app shell\'s What\'s on overlay drawer', () => {
     const markup = render({ events: [] });
+    expect(markup).toContain('class="channel-guide-layer"');
     expect(markup).toContain('<aside');
     expect(markup).toContain('class="channel-guide-panel"');
     expect(markup).toContain('aria-labelledby="channel-guide-title"');
@@ -66,13 +67,14 @@ describe('ChannelGuide (P-118 / D-019)', () => {
     expect(markup).toContain('href="/?tab=buyer&amp;event=tuesday-tool-run"');
   });
 
-  it('uses sticky, space-taking rail geometry with a narrow stacked fallback', () => {
-    expect(channelGuideCss).toMatch(/\.channel-guide-panel\s*\{[^}]*position:\s*sticky/);
-    expect(channelGuideCss).toMatch(/\.channel-guide-panel\s*\{[^}]*height:\s*calc\(100vh - 4\.25rem\)/);
-    expect(channelGuideCss).toMatch(/\.channel-guide-panel\s*\{[^}]*border-right:\s*1px solid var\(--border\)/);
-    expect(channelGuideCss).not.toMatch(/\.channel-guide-panel\s*\{[^}]*border-radius/);
-    expect(channelGuideCss).toMatch(/@media \(max-width: 900px\)[\s\S]*?\.channel-guide-panel\s*\{[^}]*position:\s*static/);
-    expect(channelGuideCss).not.toContain('.channel-guide-layer');
+  it('uses fixed overlay geometry without reserving or blocking the page', () => {
+    expect(channelGuideCss).toMatch(/\.channel-guide-layer\s*\{[^}]*position:\s*fixed/);
+    expect(channelGuideCss).toMatch(/\.channel-guide-layer\s*\{[^}]*inset:\s*0/);
+    expect(channelGuideCss).toMatch(/\.channel-guide-layer\s*\{[^}]*pointer-events:\s*none/);
+    expect(channelGuideCss).toMatch(/\.channel-guide-panel\s*\{[^}]*width:\s*min\(26rem, calc\(100vw - 2\.5rem\)\)/);
+    expect(channelGuideCss).toMatch(/\.channel-guide-panel\s*\{[^}]*pointer-events:\s*auto/);
+    expect(channelGuideCss).toMatch(/\.channel-guide-panel\s*\{[^}]*border-left:\s*1px solid var\(--border\)/);
+    expect(channelGuideCss).toMatch(/\.channel-guide-panel\s*\{[^}]*box-shadow:\s*var\(--shadow-float\)/);
     expect(channelGuideCss).not.toContain('.channel-guide-scrim');
   });
 
@@ -130,7 +132,7 @@ describe('ChannelGuide (P-118 / D-019)', () => {
     expect(empty).not.toContain('Loading events…');
   });
 
-  it('is a complementary landmark rather than a modal dialog', () => {
+  it('is a complementary landmark rather than a page-blocking modal dialog', () => {
     const markup = render();
     expect(markup).toContain('<aside');
     expect(markup).toContain('id="channel-guide-title"');
