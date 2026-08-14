@@ -119,15 +119,14 @@ export function App() {
           error={guideError}
         />
 
+        <BuyerCheckoutProvider eventId={activeEventId}>
         {tab === 'buyer' ? (
-          <BuyerCheckoutProvider eventId={activeEventId}>
             <BuyerTab
               eventId={activeEventId}
               eventTitle={DEFAULT_EVENT_TITLE}
               mediaBaseUrl={mediaBaseUrl()}
               guideEvents={guideEvents}
             />
-          </BuyerCheckoutProvider>
         ) : null}
         {tab === 'orders' ? <OrdersTab /> : null}
         {tab === 'seller' ? (
@@ -147,6 +146,7 @@ export function App() {
             <span>Built for the live-selling floor</span>
           </footer>
         ) : null}
+        </BuyerCheckoutProvider>
       </main>
     </div>
   );
