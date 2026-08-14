@@ -1,6 +1,8 @@
 import { renderToStaticMarkup } from 'react-dom/server';
-import { describe, expect, it } from 'vitest';
+import { SyncContext } from '@papercusp/sync';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
+  BuildHistoryTab,
   BuildHistoryList,
   filterBuildHistory,
   formatBuildDate,
@@ -9,6 +11,8 @@ import {
   summarizeBuildItemEvidence,
   type BuildHistoryPlan,
 } from './BuildHistoryTab';
+
+afterEach(() => vi.unstubAllGlobals());
 
 const NOW = new Date('2026-08-14T12:00:00Z');
 const HISTORY: BuildHistoryPlan[] = [{
@@ -64,6 +68,63 @@ describe('BuildHistoryList', () => {
     expect(markup).toContain('Changed files: apps/web/src/BuyerCheckout.tsx · apps/web/src/orders.css');
     expect(markup).toContain('View full evidence');
     expect(markup).not.toContain('&quot;testsRun&quot;');
+  });
+});
+
+describe('BuildHistoryTab live query', () => {
+  it('renders named-query data without a normal refresh or direct fetch path', () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal('fetch', fetchMock);
+    const useDataImpl = vi.fn().mockReturnValue({
+      data: HISTORY,
+      loading: false,
+      fetching: false,
+      transport: 'SSE',
+      invalidate: vi.fn(),
+      error: null,
+    });
+
+    const markup = renderToStaticMarkup(
+      <SyncContext.Provider value={{ transport: 'SSE', useDataImpl, prefetch: vi.fn() } as never}>
+        <BuildHistoryTab />
+      </SyncContext.Provider>,
+    );
+
+    expect(useDataImpl).toHaveBeenCalledWith({
+      queryName: 'build.history',
+      args: {},
+      pollIntervalMs: 60_000,
+      staleTime: 30_000,
+    });
+    expect(markup).toContain('SideStage checkout');
+    expect(markup).toContain('View live site');
+    expect(markup).not.toContain('Refresh history');
+    expect(markup).not.toContain('Try again');
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('offers retry only when the live query reports an error', () => {
+    const markup = renderToStaticMarkup(
+      <SyncContext.Provider value={{
+        transport: 'SSE',
+        prefetch: vi.fn(),
+        useDataImpl: vi.fn().mockReturnValue({
+          data: [],
+          loading: false,
+          fetching: false,
+          transport: 'SSE',
+          invalidate: vi.fn(),
+          error: new Error('history sync unavailable'),
+        }),
+      } as never}>
+        <BuildHistoryTab />
+      </SyncContext.Provider>,
+    );
+
+    expect(markup).toContain('Build history is unavailable.');
+    expect(markup).toContain('history sync unavailable');
+    expect(markup).toContain('Try again');
+    expect(markup).not.toContain('Refresh history');
   });
 });
 

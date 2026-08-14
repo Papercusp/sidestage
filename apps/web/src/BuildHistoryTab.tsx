@@ -599,9 +599,6 @@ export function BuildHistoryTab() {
           copy="A release digest first, raw work evidence second. Every result deep-links without expanding the archive by default."
         />
         <div className="build-history-head-actions">
-          <button className="button secondary" type="button" onClick={query.invalidate} disabled={query.fetching}>
-            {query.fetching ? 'Refreshing…' : 'Refresh history'}
-          </button>
           <a className="button primary" href={LIVE_SITE_URL} target="_blank" rel="noreferrer">View live site</a>
         </div>
       </div>
@@ -609,7 +606,7 @@ export function BuildHistoryTab() {
         <div className="build-history-error" role="alert">
           <strong>Build history is unavailable.</strong>
           <span>{query.error.message}</span>
-          <button className="button small" type="button" onClick={query.invalidate}>Refresh history</button>
+          <button className="button small" type="button" onClick={query.invalidate}>Try again</button>
         </div>
       ) : query.loading ? (
         <p className="build-history-loading" role="status">Gathering completed work…</p>
