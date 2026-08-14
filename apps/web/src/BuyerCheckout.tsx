@@ -391,7 +391,7 @@ export function BuyerCheckoutProvider({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string>();
   const [nowMs, setNowMs] = useState(() => Date.now());
-  const expiryRefreshInFlight = useRef<string>();
+  const expiryRefreshInFlight = useRef<string | undefined>(undefined);
 
   const cartQuery = useSyncQuery<BuyerCart>({
     queryName: 'cart.byId',
