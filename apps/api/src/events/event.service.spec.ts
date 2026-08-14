@@ -39,6 +39,9 @@ class StubStore implements EventStore {
   async publish(): Promise<void> {
     throw new Error('StubStore.publish is not under test here — use InMemoryEventStore');
   }
+  async unpublish(): Promise<boolean> {
+    throw new Error('StubStore.unpublish is not under test here — use InMemoryEventStore');
+  }
 }
 
 describe('event directory (P-118 / D-019)', () => {
@@ -241,5 +244,29 @@ describe('seller-created events reach the guide (EI-20426845001666103 / P-014)',
     // The lifecycle survives a config re-save: still live, start time kept.
     expect(event.status).toBe('live');
     expect(event.startsAt).toBe('2026-08-14T10:00:00.000Z');
+  });
+
+  it('withdraws only the owning seller\'s event and can publish the draft again', async () => {
+    const store = new InMemoryEventStore([
+      record({ eventId: 'release-probe', sellerId: 'seller-a', status: 'live' }),
+    ]);
+    const service = new EventService(store, new ChatService());
+
+    await expect(service.unpublish('release-probe', 'seller-b')).resolves.toBe(false);
+    await expect(service.unpublish('release-probe', 'seller-a')).resolves.toBe(true);
+    await expect(service.listForGuide()).resolves.toEqual([]);
+
+    await store.publish({
+      eventId: 'release-probe',
+      title: 'Re-published probe',
+      sellerId: 'seller-a',
+      sellerName: 'Seller A',
+    });
+    const [republished] = await service.listForGuide();
+    expect(republished).toMatchObject({
+      eventId: 'release-probe',
+      title: 'Re-published probe',
+      status: 'scheduled',
+    });
   });
 });

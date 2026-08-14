@@ -41,7 +41,9 @@ describe('create → GET /events (EI-20426845001666103 / P-014)', () => {
       thumbnailUrl: 'data:image/png;base64,AAAA',
     });
 
-    const guide = await new EventController(events).list();
+    const guide = await new EventController(events, {
+      invalidate: () => undefined,
+    } as unknown as SyncInvalidationService).list();
     expect(guide.events).toHaveLength(1);
     expect(guide.events[0]).toMatchObject({
       eventId: 'acceptance-dock-thumbnail-2026-08-14',
