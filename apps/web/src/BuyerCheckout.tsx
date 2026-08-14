@@ -30,6 +30,7 @@ import {
 } from './buyer-checkout-api';
 import { useBuyerIdentity } from './buyer-identity';
 import { BuyerCartDrawer } from './BuyerCartDrawer';
+import { BuyerScoutDrawer } from './BuyerScoutDrawer';
 import { holdRemainingMs, type BuyerCartAdapter } from './buyer-cart-adapter';
 import './buyer-checkout.css';
 
@@ -610,6 +611,13 @@ export function BuyerCheckoutProvider({
   return (
     <BuyerCheckoutContext.Provider value={contextValue}>
       {children}
+      <BuyerScoutDrawer
+        eventId={eventId}
+        cartId={cartId}
+        heldProductIds={contextValue.heldProductIds}
+        onHoldProduct={addHeldProduct}
+        onOpenHeldItems={openHeldItems}
+      />
       <BuyerCartDrawer
         open={cartOpen}
         onOpenChange={setCartOpen}

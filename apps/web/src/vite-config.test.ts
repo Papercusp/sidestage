@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { resolveDevServerEnvironment } from '../vite.config';
+import { resolveDevServerEnvironment, stripDevApiPrefix } from '../vite.config';
 
 describe('resolveDevServerEnvironment', () => {
   it('uses the reviewer-facing default ports', () => {
@@ -41,5 +41,13 @@ describe('resolveDevServerEnvironment', () => {
     expect(() => resolveDevServerEnvironment({ [name]: value })).toThrow(
       `${name} must be an integer between 1 and 65535`,
     );
+  });
+});
+
+describe('stripDevApiPrefix', () => {
+  it('maps same-origin production API paths onto the bare local Nest routes', () => {
+    expect(stripDevApiPrefix('/api/scout/chat/stream')).toBe('/scout/chat/stream');
+    expect(stripDevApiPrefix('/api')).toBe('/');
+    expect(stripDevApiPrefix('/catalog')).toBe('/catalog');
   });
 });

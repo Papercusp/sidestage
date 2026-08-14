@@ -24,6 +24,11 @@ export function resolveDevServerEnvironment(env: Record<string, string | undefin
   return { apiOrigin, webPort };
 }
 
+/** Production keeps Nest under `/api`; local Nest is bare on :3100. */
+export function stripDevApiPrefix(path: string): string {
+  return path.replace(/^\/api(?=\/|$)/, '') || '/';
+}
+
 const isTest = process.env.NODE_ENV === 'test' || process.env.VITEST === 'true';
 const environment = isTest
   ? {}
@@ -38,7 +43,11 @@ export default defineConfig({
     port: webPort,
     strictPort: true,
     proxy: {
-      '/api': apiOrigin,
+      '/api': {
+        target: apiOrigin,
+        changeOrigin: true,
+        rewrite: stripDevApiPrefix,
+      },
     },
   },
 });
