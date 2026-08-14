@@ -1,8 +1,8 @@
 import type { ReactNode, Ref } from 'react';
 import { streamLabel, type CopyState, type StreamState } from '../hooks';
-import { LiveTranscriptOverlay } from '../LiveTranscriptOverlay';
+import { liveTranscriptPresentation } from '../LiveTranscriptOverlay';
 import type { LiveTranscriptController } from '../use-live-transcript';
-import { VideoChatOverlay } from '../VideoChatOverlay';
+import { VideoEngagementOverlay } from '../VideoEngagementOverlay';
 
 export interface StageStatusPanelProps {
   /** Headline for the live console — the event currently on stage. */
@@ -24,7 +24,7 @@ export interface StageStatusPanelProps {
   /** True before a room exists, when there is no share URL to copy. */
   shareDisabled: boolean;
   copyState: CopyState;
-  /** Live EventChat content kept mounted inside the camera surface. */
+  /** Live EventChat content kept mounted inside the shared video engagement surface. */
   chat: ReactNode;
   /** Long-lived transcript runtime rendered as captions over the camera surface. */
   transcript: LiveTranscriptController;
@@ -66,10 +66,11 @@ export function StageStatusPanel({
           <span className="live-badge">{roomEventId ?? 'room not started'}</span>
           <p>{streamError ?? (streamState === 'live' ? 'Your camera and microphone are live.' : 'Camera preview appears here after you start the event.')}</p>
         </div>
-        <VideoChatOverlay className="seller-video-chat-overlay">
-          {chat}
-        </VideoChatOverlay>
-        <LiveTranscriptOverlay transcript={transcript} />
+        <VideoEngagementOverlay
+          className="seller-video-engagement-overlay"
+          chat={chat}
+          transcript={liveTranscriptPresentation(transcript)}
+        />
       </div>
       <label className="field-label" htmlFor="seller-event-id">Event room id</label>
       <input
