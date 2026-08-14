@@ -1,10 +1,41 @@
-import { useEffect, useId, useMemo, useRef, useState } from 'react';
+import { useEffect, useId, useRef, useState, type ReactNode } from 'react';
 
 import type { LiveTranscriptController } from './use-live-transcript';
 import './live-transcript-overlay.css';
 
 export interface LiveTranscriptOverlayProps {
   transcript: LiveTranscriptController;
+}
+
+export interface TranscriptOverlaySegment {
+  id: string;
+  text: string;
+  startMs?: number;
+}
+
+export interface TranscriptOverlayProduct {
+  id: string;
+  label: string;
+  price?: string;
+}
+
+/** Role-neutral transcript data rendered by the shared video engagement surface. */
+export interface TranscriptOverlayPresentation {
+  state: LiveTranscriptController['state'];
+  segments: readonly TranscriptOverlaySegment[];
+  interim?: string;
+  error?: string | null;
+  activeProduct?: TranscriptOverlayProduct | null;
+  suggestedProduct?: TranscriptOverlayProduct | null;
+  onStageProduct?: (productId: string) => void;
+  onDismissSuggestion?: () => void;
+  statusLabel?: string;
+  emptyLabel?: string;
+}
+
+export interface TranscriptOverlayViewProps {
+  transcript: TranscriptOverlayPresentation;
+  toolbarActions?: ReactNode;
 }
 
 export function liveTranscriptStateLabel(state: LiveTranscriptController['state']): string {
@@ -20,15 +51,31 @@ function segmentTime(startMs: number | undefined): string | null {
   return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`;
 }
 
-/** Accessible captions and transcript history composed directly into the seller video. */
-export function LiveTranscriptOverlay({ transcript }: LiveTranscriptOverlayProps) {
+/** Preserve the seller controller as the capture authority while sharing its presentation. */
+export function liveTranscriptPresentation(
+  transcript: LiveTranscriptController,
+): TranscriptOverlayPresentation {
+  return {
+    state: transcript.state,
+    segments: transcript.finalSegments,
+    interim: transcript.interim,
+    error: transcript.error,
+    activeProduct: transcript.activeProduct,
+    suggestedProduct: transcript.suggestedProduct,
+    onStageProduct: transcript.stageProduct,
+    onDismissSuggestion: transcript.dismissSuggestion,
+  };
+}
+
+/** Accessible captions and transcript history shared by seller and buyer video surfaces. */
+export function TranscriptOverlayView({ transcript, toolbarActions }: TranscriptOverlayViewProps) {
   const [historyOpen, setHistoryOpen] = useState(false);
   const historyId = useId();
   const historyRef = useRef<HTMLDivElement>(null);
-  const latestFinal = transcript.finalSegments.at(-1)?.text ?? '';
+  const latestFinal = transcript.segments.at(-1)?.text ?? '';
   const caption = transcript.interim || latestFinal;
-  const statusLabel = liveTranscriptStateLabel(transcript.state);
-  const history = useMemo(() => transcript.finalSegments, [transcript.finalSegments]);
+  const statusLabel = transcript.statusLabel ?? liveTranscriptStateLabel(transcript.state);
+  const history = transcript.segments;
 
   useEffect(() => {
     if (historyOpen && historyRef.current) {
@@ -48,7 +95,9 @@ export function LiveTranscriptOverlay({ transcript }: LiveTranscriptOverlayProps
           tabIndex={0}
         >
           {history.length === 0 && !transcript.interim ? (
-            <p className="live-transcript-empty">Spoken captions will appear when the event starts.</p>
+            <p className="live-transcript-empty">
+              {transcript.emptyLabel ?? 'Spoken captions will appear when the event starts.'}
+            </p>
           ) : null}
           {history.map((segment) => (
             <p className="live-transcript-history-line" key={segment.id}>
@@ -65,13 +114,13 @@ export function LiveTranscriptOverlay({ transcript }: LiveTranscriptOverlayProps
           <button
             type="button"
             className="live-transcript-mention"
-            onClick={() => transcript.stageProduct(transcript.suggestedProduct!.id)}
+            onClick={() => transcript.onStageProduct?.(transcript.suggestedProduct!.id)}
           >
             <span aria-hidden="true">✦</span>
             <span>Stage {transcript.suggestedProduct.label}</span>
             {transcript.suggestedProduct.price ? <strong>{transcript.suggestedProduct.price}</strong> : null}
           </button>
-          <button type="button" className="live-transcript-dismiss" onClick={transcript.dismissSuggestion} aria-label="Dismiss product mention">×</button>
+          <button type="button" className="live-transcript-dismiss" onClick={transcript.onDismissSuggestion} aria-label="Dismiss product mention">×</button>
         </div>
       ) : null}
 
@@ -93,12 +142,18 @@ export function LiveTranscriptOverlay({ transcript }: LiveTranscriptOverlayProps
           >
             {historyOpen ? 'Close transcript' : 'Transcript'}
           </button>
+          {toolbarActions}
         </div>
       </div>
 
       {transcript.error ? <p className="live-transcript-error" role="alert">{transcript.error}</p> : null}
     </div>
   );
+}
+
+/** Compatibility wrapper for consumers that still render seller captions without chat. */
+export function LiveTranscriptOverlay({ transcript }: LiveTranscriptOverlayProps) {
+  return <TranscriptOverlayView transcript={liveTranscriptPresentation(transcript)} />;
 }
 
 export default LiveTranscriptOverlay;
