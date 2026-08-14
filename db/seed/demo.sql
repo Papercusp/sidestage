@@ -3,8 +3,8 @@
 -- Restart's production catalog can be exported with
 -- scripts/export-restart-catalog.sh; this fixture keeps the public demo
 -- runnable without shipping private or million-row production data. The
--- option rows intentionally cover a two-axis cross product, a sold-out
--- combination, and a no-option base product.
+-- option rows intentionally cover a single-axis colour product, a two-axis
+-- cross product, a sold-out combination, and a no-option base product.
 
 BEGIN;
 
@@ -118,6 +118,21 @@ ON CONFLICT (group_id, region) DO UPDATE SET
   dimensions = EXCLUDED.dimensions,
   updated_at = now();
 
+-- The four demo products used to split on Restart's resale axis
+-- (condition + handling days). SideStage sells live from a seller's own
+-- inventory, where the buyer picks a COLOURWAY, so each product now offers two
+-- colours and `condition`/`handling` are held constant within a group — they
+-- are import-compatibility columns, not the variant axis (WI-38716). Renaming
+-- the ids means a demo database seeded before that change keeps its old rows
+-- unless they are dropped here, which would show fourteen variants across four
+-- products. Both tables that reference a variant (storefront_product_option,
+-- inventory_reservation) cascade on delete.
+DELETE FROM storefront_product
+WHERE id IN (
+  'demo-espresso-new', 'demo-espresso-refurbished', 'demo-headphones-black',
+  'demo-camera-body', 'demo-camera-kit', 'demo-desk-bamboo', 'demo-desk-open-box'
+);
+
 -- All variant writes intentionally leave reserved_qty untouched on conflict.
 -- Re-running the seed updates catalog facts but never releases a live hold.
 INSERT INTO storefront_product (
@@ -125,14 +140,14 @@ INSERT INTO storefront_product (
   option_signature, variant_images, qty
 )
 VALUES
-  ('demo-espresso-new', 'barista-pro-espresso-new', 'US', 'BH-ESP-200-NEW', 49999, true, 'demo-espresso-machine', 'NEW', 2, 'condition=new|handling=2', '[]', 12),
-  ('demo-espresso-refurbished', 'barista-pro-espresso-refurbished', 'US', 'BH-ESP-200-REF', 34999, true, 'demo-espresso-machine', 'REFURBISHED', 4, 'condition=refurbished|handling=4', '[]', 4),
-  ('demo-headphones-black', 'cloud-anc-black', 'US', 'NSA-CLOUD-BLK', 19999, true, 'demo-wireless-headphones', 'NEW', 2, 'condition=new|handling=2', '[]', 24),
-  ('demo-headphones-sand', 'cloud-anc-sand', 'US', 'NSA-CLOUD-SND', 20999, true, 'demo-wireless-headphones', 'NEW', 2, 'condition=new|handling=2|legacy=sand', '[]', 8),
-  ('demo-camera-body', 'creator-4k-body', 'US', 'FF-C4K-BODY', 89999, true, 'demo-creator-camera', 'NEW', 3, 'condition=new|handling=3', '[]', 6),
-  ('demo-camera-kit', 'creator-4k-kit', 'US', 'FF-C4K-KIT', 109999, true, 'demo-creator-camera', 'NEW', 5, 'condition=new|handling=5', '[]', 3),
-  ('demo-desk-bamboo', 'lift-desk-bamboo', 'US', 'FO-LIFT-BAMBOO', 54999, true, 'demo-standing-desk', 'NEW', 7, 'condition=new|handling=7', '[]', 10),
-  ('demo-desk-open-box', 'lift-desk-open-box', 'US', 'FO-LIFT-OPEN', 39999, true, 'demo-standing-desk', 'USED', 9, 'condition=used|handling=9', '[]', 2),
+  ('demo-espresso-matte-black', 'barista-pro-espresso-matte-black', 'US', 'BH-ESP-200-BLK', 49999, true, 'demo-espresso-machine', 'NEW', 2, 'color=matte-black', '[{"url":"https://placehold.co/640x640/2f3033/ffffff/png?text=Barista+Pro+Matte+Black","alt":"Barista Pro espresso machine in matte black","isPrimary":true}]', 12),
+  ('demo-espresso-cream', 'barista-pro-espresso-cream', 'US', 'BH-ESP-200-CRM', 49999, true, 'demo-espresso-machine', 'NEW', 2, 'color=cream', '[{"url":"https://placehold.co/640x640/efe6d5/3a352c/png?text=Barista+Pro+Cream","alt":"Barista Pro espresso machine in cream","isPrimary":true}]', 5),
+  ('demo-headphones-midnight', 'cloud-anc-midnight', 'US', 'NSA-CLOUD-MID', 19999, true, 'demo-wireless-headphones', 'NEW', 2, 'color=midnight', '[{"url":"https://placehold.co/640x640/1b2033/ffffff/png?text=Cloud+ANC+Midnight","alt":"Cloud ANC wireless headphones in midnight","isPrimary":true}]', 24),
+  ('demo-headphones-sand', 'cloud-anc-sand', 'US', 'NSA-CLOUD-SND', 19999, true, 'demo-wireless-headphones', 'NEW', 2, 'color=sand', '[{"url":"https://placehold.co/640x640/d8c6a8/3a3226/png?text=Cloud+ANC+Sand","alt":"Cloud ANC wireless headphones in sand","isPrimary":true}]', 8),
+  ('demo-camera-black', 'creator-4k-black', 'US', 'FF-C4K-BLK', 89999, true, 'demo-creator-camera', 'NEW', 3, 'color=black', '[{"url":"https://placehold.co/640x640/26262a/ffffff/png?text=Creator+4K+Black","alt":"Creator 4K mirrorless camera in black","isPrimary":true}]', 6),
+  ('demo-camera-silver', 'creator-4k-silver', 'US', 'FF-C4K-SLV', 89999, true, 'demo-creator-camera', 'NEW', 3, 'color=silver', '[{"url":"https://placehold.co/640x640/c9ccd1/2b2e33/png?text=Creator+4K+Silver","alt":"Creator 4K mirrorless camera in silver","isPrimary":true}]', 3),
+  ('demo-desk-natural-oak', 'lift-desk-natural-oak', 'US', 'FO-LIFT-OAK', 54999, true, 'demo-standing-desk', 'NEW', 7, 'color=natural-oak', '[{"url":"https://placehold.co/640x640/c8a97a/3a2c18/png?text=Lift+Desk+Natural+Oak","alt":"Lift electric standing desk with a natural oak top","isPrimary":true}]', 10),
+  ('demo-desk-walnut', 'lift-desk-walnut', 'US', 'FO-LIFT-WAL', 54999, true, 'demo-standing-desk', 'NEW', 7, 'color=walnut', '[{"url":"https://placehold.co/640x640/5b3a2a/ffffff/png?text=Lift+Desk+Walnut","alt":"Lift electric standing desk with a walnut top","isPrimary":true}]', 2),
   ('linen-hoodie-red-s', 'linen-hoodie-red-s', 'US', 'LINEN-HOODIE-RED-S', 6800, true, 'linen-hoodie', 'NEW', 2, 'color=red|size=s', '[{"url":"https://placehold.co/800x800/png?text=Red+S","alt":"Linen hoodie in red, size S","isPrimary":true}]', 7),
   ('linen-hoodie-red-m', 'linen-hoodie-red-m', 'US', 'LINEN-HOODIE-RED-M', 6800, true, 'linen-hoodie', 'NEW', 2, 'color=red|size=m', '[{"url":"https://placehold.co/800x800/png?text=Red+M","alt":"Linen hoodie in red, size M","isPrimary":true}]', 5),
   ('linen-hoodie-blue-s', 'linen-hoodie-blue-s', 'US', 'LINEN-HOODIE-BLUE-S', 6800, true, 'linen-hoodie', 'NEW', 2, 'color=blue|size=s', '[{"url":"https://placehold.co/800x800/png?text=Blue+S","alt":"Linen hoodie in blue, size S","isPrimary":true}]', 3),
@@ -158,6 +173,10 @@ ON CONFLICT (id) DO UPDATE SET
 
 INSERT INTO product_option_axes (id, group_id, region, slug, label, position, required)
 VALUES
+  ('demo-espresso-machine-color', 'demo-espresso-machine', 'US', 'color', 'Color', 0, true),
+  ('demo-wireless-headphones-color', 'demo-wireless-headphones', 'US', 'color', 'Color', 0, true),
+  ('demo-creator-camera-color', 'demo-creator-camera', 'US', 'color', 'Color', 0, true),
+  ('demo-standing-desk-color', 'demo-standing-desk', 'US', 'color', 'Color', 0, true),
   ('linen-hoodie-color', 'linen-hoodie', 'US', 'color', 'Color', 0, true),
   ('linen-hoodie-size', 'linen-hoodie', 'US', 'size', 'Size', 1, true),
   ('stoneware-mug-finish', 'stoneware-mug', 'US', 'finish', 'Finish', 0, true),
@@ -169,6 +188,14 @@ ON CONFLICT (id) DO UPDATE SET
 
 INSERT INTO product_option_values (id, axis_id, slug, label, position, metadata)
 VALUES
+  ('demo-espresso-machine-color-matte-black', 'demo-espresso-machine-color', 'matte-black', 'Matte Black', 0, '{"swatch":"#2f3033"}'),
+  ('demo-espresso-machine-color-cream', 'demo-espresso-machine-color', 'cream', 'Cream', 1, '{"swatch":"#efe6d5"}'),
+  ('demo-wireless-headphones-color-midnight', 'demo-wireless-headphones-color', 'midnight', 'Midnight', 0, '{"swatch":"#1b2033"}'),
+  ('demo-wireless-headphones-color-sand', 'demo-wireless-headphones-color', 'sand', 'Sand', 1, '{"swatch":"#d8c6a8"}'),
+  ('demo-creator-camera-color-black', 'demo-creator-camera-color', 'black', 'Black', 0, '{"swatch":"#26262a"}'),
+  ('demo-creator-camera-color-silver', 'demo-creator-camera-color', 'silver', 'Silver', 1, '{"swatch":"#c9ccd1"}'),
+  ('demo-standing-desk-color-natural-oak', 'demo-standing-desk-color', 'natural-oak', 'Natural Oak', 0, '{"swatch":"#c8a97a"}'),
+  ('demo-standing-desk-color-walnut', 'demo-standing-desk-color', 'walnut', 'Walnut', 1, '{"swatch":"#5b3a2a"}'),
   ('linen-hoodie-color-red', 'linen-hoodie-color', 'red', 'Red', 0, '{"swatch":"#c95b61"}'),
   ('linen-hoodie-color-blue', 'linen-hoodie-color', 'blue', 'Blue', 1, '{"swatch":"#4d79b8"}'),
   ('linen-hoodie-size-s', 'linen-hoodie-size', 's', 'S', 0, '{}'),
@@ -186,6 +213,14 @@ ON CONFLICT (id) DO UPDATE SET
 
 INSERT INTO storefront_product_option (variant_id, axis_id, value_id)
 VALUES
+  ('demo-espresso-matte-black', 'demo-espresso-machine-color', 'demo-espresso-machine-color-matte-black'),
+  ('demo-espresso-cream', 'demo-espresso-machine-color', 'demo-espresso-machine-color-cream'),
+  ('demo-headphones-midnight', 'demo-wireless-headphones-color', 'demo-wireless-headphones-color-midnight'),
+  ('demo-headphones-sand', 'demo-wireless-headphones-color', 'demo-wireless-headphones-color-sand'),
+  ('demo-camera-black', 'demo-creator-camera-color', 'demo-creator-camera-color-black'),
+  ('demo-camera-silver', 'demo-creator-camera-color', 'demo-creator-camera-color-silver'),
+  ('demo-desk-natural-oak', 'demo-standing-desk-color', 'demo-standing-desk-color-natural-oak'),
+  ('demo-desk-walnut', 'demo-standing-desk-color', 'demo-standing-desk-color-walnut'),
   ('linen-hoodie-red-s', 'linen-hoodie-color', 'linen-hoodie-color-red'),
   ('linen-hoodie-red-s', 'linen-hoodie-size', 'linen-hoodie-size-s'),
   ('linen-hoodie-red-m', 'linen-hoodie-color', 'linen-hoodie-color-red'),

@@ -3,6 +3,7 @@ import { TABS, tabHref, useUrlTab } from './app-routing';
 import { AppDownloadButtons } from './components/AppDownloadButtons';
 import { BuildHistoryTab } from './BuildHistoryTab';
 import { BuyerTab } from './BuyerTab';
+import { BuyerCheckoutProvider } from './BuyerCheckout';
 import { ConfigTab } from './ConfigTab';
 import { browserEventId, DEFAULT_EVENT_TITLE, mediaBaseUrl } from './event-identity';
 import { OrdersTab } from './OrdersTab';
@@ -75,12 +76,14 @@ export function App() {
 
       <main className="content">
         {tab === 'buyer' ? (
-          <BuyerTab
-            eventId={activeEventId}
-            eventTitle={DEFAULT_EVENT_TITLE}
-            mediaBaseUrl={mediaBaseUrl()}
-            onEventChange={selectEvent}
-          />
+          <BuyerCheckoutProvider eventId={activeEventId}>
+            <BuyerTab
+              eventId={activeEventId}
+              eventTitle={DEFAULT_EVENT_TITLE}
+              mediaBaseUrl={mediaBaseUrl()}
+              onEventChange={selectEvent}
+            />
+          </BuyerCheckoutProvider>
         ) : null}
         {tab === 'orders' ? <OrdersTab /> : null}
         {tab === 'seller' ? (

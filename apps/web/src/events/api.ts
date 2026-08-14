@@ -250,6 +250,9 @@ function itemFromVariant(
       sku: variant.sku,
       brand: variant.brand,
       productType: variant.productType,
+      // Colour is the variant axis: a staged item without it is indistinguishable
+      // from its sibling colorway in the buyer rail and the transcript (WI-38716).
+      ...(variant.color ? { color: variant.color } : {}),
       condition: variant.condition ?? 'NEW',
       basePriceCents: variant.priceCents,
       groupId: variant.groupId ?? variant.id,
