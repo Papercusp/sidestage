@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useSyncMutate, useSyncQuery } from '@papercusp/sync';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useSyncQuery } from '@papercusp/sync';
 
 import {
   availableBuyerProducts,
@@ -43,19 +43,6 @@ export interface BuyerTabProps {
   /** Supplied by tests; otherwise fetched from GET /events. */
   guideEvents?: readonly GuideEvent[];
 }
-
-interface InventoryHoldMutation {
-  productId: string;
-  quantity: number;
-  sourceKind: 'cart';
-  sourceId: string;
-}
-
-interface InventoryHoldResult {
-  snapshot?: { availableQty: number };
-}
-
-class InventoryHoldConflict extends Error {}
 
 const EMPTY_BUYER_STATS: BuyerStats = { viewers: 0, itemsSold: 0, totalRaisedCents: 0 };
 export const BUYER_PRODUCT_PREVIEW_LIMIT = 3;
@@ -185,24 +172,7 @@ export function BuyerTab({
   // action consumes the same persisted id, and the Orders tab imports the same
   // hook rather than inventing a second notion of "current user".
   const { userId, impersonate } = useDemoIdentity();
-  const addHeldProductToCheckout = useBuyerCheckout();
-  const lastQueuedHold = useRef<string | null>(null);
-
-  const holdProductFallback = useCallback(async (input: InventoryHoldMutation): Promise<InventoryHoldResult> => {
-    const response = await fetch(`${resolveApiBaseUrl()}/inventory/${encodeURIComponent(input.productId)}/hold`, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({
-        quantity: input.quantity,
-        sourceKind: input.sourceKind,
-        sourceId: input.sourceId,
-      }),
-    });
-    if (response.status === 409) throw new InventoryHoldConflict();
-    if (!response.ok) throw new Error(`HTTP ${response.status}`);
-    return (await response.json()) as InventoryHoldResult;
-  }, []);
-  const mutateHold = useSyncMutate<InventoryHoldMutation, InventoryHoldResult>('inventory.hold', holdProductFallback);
+  const buyerCheckout = useBuyerCheckout();
 
   useEffect(() => {
     return () => stream.stop();
@@ -242,20 +212,17 @@ export function BuyerTab({
   const reserveProduct = async (product: BuyerProduct) => {
     if (product.availableQty <= 0) return;
     try {
-      const result = await mutateHold({
-        productId: product.id,
-        quantity: 1,
-        sourceKind: 'cart',
-        sourceId: userId,
-      });
+      if (!buyerCheckout) throw new Error('Buyer checkout is unavailable');
+      await buyerCheckout.holdProduct(product);
       setSelectedProductId(product.id);
       setHoldNotice(`${product.title} is held for you.`);
-      if (result.snapshot) {
-        setHoldOverrides((current) => ({ ...current, [product.id]: result.snapshot!.availableQty }));
-      }
+      setHoldOverrides((current) => ({
+        ...current,
+        [product.id]: Math.max(0, (current[product.id] ?? product.availableQty) - 1),
+      }));
       catalogQuery.invalidate?.();
     } catch (error) {
-      if (error instanceof InventoryHoldConflict) {
+      if (error instanceof Error && /insufficient available quantity/i.test(error.message)) {
         setHoldNotice(`${product.title} just sold out.`);
         setHoldOverrides((current) => ({ ...current, [product.id]: 0 }));
         catalogQuery.invalidate?.();
@@ -278,18 +245,6 @@ export function BuyerTab({
   const displayedProducts = showAllProducts
     ? productsWithLiveQuantity
     : upcomingProducts.slice(0, BUYER_PRODUCT_PREVIEW_LIMIT);
-
-  useEffect(() => {
-    if (!selectedProductId) {
-      lastQueuedHold.current = null;
-      return;
-    }
-    if (!addHeldProductToCheckout || lastQueuedHold.current === selectedProductId) return;
-    const heldProduct = productsWithLiveQuantity.find((product) => product.id === selectedProductId);
-    if (!heldProduct) return;
-    lastQueuedHold.current = selectedProductId;
-    void addHeldProductToCheckout(heldProduct);
-  }, [addHeldProductToCheckout, productsWithLiveQuantity, selectedProductId]);
 
   return (
     <section className="buyer-tab density-roomy" id="buyer" aria-labelledby="buyer-title">
@@ -325,6 +280,11 @@ export function BuyerTab({
           <button className="button secondary" type="button" onClick={copyShareUrl}>
             {copyState === 'copied' ? 'Link copied' : copyState === 'failed' ? 'Copy failed' : 'Share room'}
           </button>
+          {buyerCheckout ? (
+            <button className="button secondary buyer-held-items-button" type="button" onClick={buyerCheckout.openHeldItems}>
+              Held items <span aria-label={`${buyerCheckout.heldItemCount} held items`}>{buyerCheckout.heldItemCount}</span>
+            </button>
+          ) : null}
           <div className="buyer-account-control">
             <DemoIdentityControl
               userId={userId}
@@ -411,7 +371,7 @@ export function BuyerTab({
                     : `Hold ${currentProduct.title} · ${formatBuyerPrice(currentProduct.priceCents)}`}
               </button>
               <div className="buyer-current-offer-trust">
-                <span>12-minute hold</span><span>Secure checkout</span><span>Easy returns</span>
+                <span>2-minute hold</span><span>Secure checkout</span><span>Easy returns</span>
               </div>
             </>
           ) : (

@@ -7,6 +7,7 @@ export interface BuyerCartItem {
   priceCents: number;
   quantity: number;
   imageUrl?: string;
+  expiresAt?: string;
 }
 
 export interface BuyerCart {

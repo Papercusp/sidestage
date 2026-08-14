@@ -11,9 +11,13 @@
 .buyer-checkout-error { margin: 1rem 1.4rem 0; padding: .8rem 1rem; border: 1px solid color-mix(in srgb, var(--danger) 45%, var(--line)); border-radius: var(--radius); background: color-mix(in srgb, var(--danger) 8%, var(--surface)); color: var(--danger); }
 .buyer-checkout-body { display: grid; gap: 1rem; padding: 1.4rem; }
 .buyer-checkout-cart { display: grid; gap: .7rem; margin: 0; padding: 0; list-style: none; }
-.buyer-checkout-cart li { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: center; gap: .8rem; padding: .9rem; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface-sunken); }
+.buyer-checkout-cart li { display: grid; grid-template-columns: 3.5rem minmax(0, 1fr) auto auto; align-items: center; gap: .8rem; padding: .9rem; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface-sunken); }
+.buyer-held-item-image { display: grid; place-items: center; width: 3.5rem; aspect-ratio: 1; overflow: hidden; border-radius: calc(var(--radius) * .75); background: var(--surface); color: var(--muted); font-weight: 800; }
+.buyer-held-item-image img { width: 100%; height: 100%; object-fit: cover; }
 .buyer-checkout-cart li > div { display: grid; gap: .25rem; min-width: 0; }
 .buyer-checkout-cart li span { color: var(--muted); font-size: .75rem; }
+.buyer-checkout-cart .buyer-hold-countdown { display: flex; align-items: baseline; gap: .3rem; color: var(--brand-red); }
+.buyer-checkout-cart .buyer-hold-countdown strong { font-variant-numeric: tabular-nums; font-size: .9rem; }
 .buyer-checkout-cart label { display: grid; gap: .2rem; font-size: .65rem; color: var(--muted); }
 .buyer-checkout-cart input { width: 4rem; }
 .buyer-checkout-cart li > button { border: 0; background: transparent; color: var(--danger); cursor: pointer; }
@@ -45,7 +49,7 @@
   .buyer-checkout-drawer { width: 100%; }
   .buyer-checkout-form { grid-template-columns: 1fr; }
   .buyer-checkout-form label.wide, .buyer-checkout-form .wide { grid-column: auto; }
-  .buyer-checkout-cart li { grid-template-columns: 1fr auto; }
+  .buyer-checkout-cart li { grid-template-columns: 3.5rem 1fr auto; }
   .buyer-checkout-cart li > button { grid-column: 1 / -1; justify-self: start; }
   .buyer-checkout-progress span { display: none; }
 }

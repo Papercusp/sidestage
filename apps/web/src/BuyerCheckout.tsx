@@ -48,12 +48,31 @@ const EMPTY_DRAFT: CheckoutDraft = {
   phone: '',
 };
 
-type AddHeldProduct = (product: BuyerProduct) => Promise<void>;
-const BuyerCheckoutContext = createContext<AddHeldProduct | null>(null);
+export interface BuyerCheckoutActions {
+  holdProduct: (product: BuyerProduct) => Promise<BuyerCart>;
+  openHeldItems: () => void;
+  heldItemCount: number;
+}
+
+const BuyerCheckoutContext = createContext<BuyerCheckoutActions | null>(null);
 
 /** Optional by design: BuyerProductRail is also rendered in isolated tests and embeds. */
-export function useBuyerCheckout(): AddHeldProduct | null {
+export function useBuyerCheckout(): BuyerCheckoutActions | null {
   return useContext(BuyerCheckoutContext);
+}
+
+export function holdRemainingMs(expiresAt: string | undefined, nowMs: number): number | null {
+  if (!expiresAt) return null;
+  const deadline = Date.parse(expiresAt);
+  if (!Number.isFinite(deadline)) return 0;
+  return Math.max(0, deadline - nowMs);
+}
+
+export function formatHoldCountdown(remainingMs: number | null): string {
+  if (remainingMs === null) return 'Reserved';
+  const totalSeconds = Math.max(0, Math.ceil(remainingMs / 1000));
+  const minutes = Math.floor(totalSeconds / 60);
+  return `${minutes}:${String(totalSeconds % 60).padStart(2, '0')}`;
 }
 
 interface SquareTokenResult {
@@ -178,6 +197,7 @@ export interface BuyerCheckoutDrawerProps {
   checkout: BuyerCheckoutSessionResponse | null;
   completedOrder: BuyerCheckoutOrder | null;
   busy: boolean;
+  nowMs: number;
   error?: string;
   onClose: () => void;
   onStep: (step: BuyerCheckoutStep) => void;
@@ -196,12 +216,12 @@ function stepTitle(step: BuyerCheckoutStep): string {
   if (step === 'shipping') return 'Choose shipping';
   if (step === 'payment') return 'Square sandbox';
   if (step === 'success') return 'Order confirmed';
-  return 'Your cart';
+  return 'Held items';
 }
 
 export function BuyerCheckoutDrawer(props: BuyerCheckoutDrawerProps) {
   const {
-    open, step, cart, draft, rates, selectedRateId, checkout, completedOrder, busy, error,
+    open, step, cart, draft, rates, selectedRateId, checkout, completedOrder, busy, nowMs, error,
     onClose, onStep, onDraft, onLoadRates, onSelectRate, onStartCheckout, onConfirm,
     onQuantity, onRemove, onError,
   } = props;
@@ -221,7 +241,7 @@ export function BuyerCheckoutDrawer(props: BuyerCheckoutDrawerProps) {
       <section className="buyer-checkout-drawer" role="dialog" aria-modal="true" aria-labelledby="buyer-checkout-title">
         <header className="buyer-checkout-header">
           <div>
-            <p className="eyebrow">Buyer checkout</p>
+            <p className="eyebrow">{step === 'cart' ? 'Reserved for 2 minutes' : 'Buyer checkout'}</p>
             <h2 id="buyer-checkout-title">{stepTitle(step)}</h2>
           </div>
           <button className="button secondary" type="button" onClick={onClose}>Close</button>
@@ -237,11 +257,22 @@ export function BuyerCheckoutDrawer(props: BuyerCheckoutDrawerProps) {
 
         {step === 'cart' ? (
           <div className="buyer-checkout-body">
-            {!cart?.items.length ? <p>Your cart is empty. Hold an item from the live rail to begin.</p> : (
-              <ul className="buyer-checkout-cart" aria-label="Cart items">
-                {cart.items.map((item) => (
+            {!cart?.items.length ? <p>No held items yet. Hold an item from the live rail to reserve it for two minutes.</p> : (
+              <ul className="buyer-checkout-cart" aria-label="Held items">
+                {cart.items.map((item) => {
+                  const remaining = holdRemainingMs(item.expiresAt, nowMs);
+                  return (
                   <li key={item.productId}>
-                    <div><strong>{item.title}</strong><span>{formatBuyerPrice(item.priceCents)} each</span></div>
+                    <span className="buyer-held-item-image" aria-hidden="true">
+                      {item.imageUrl ? <img src={item.imageUrl} alt="" width="56" height="56" /> : item.title.slice(0, 1)}
+                    </span>
+                    <div>
+                      <strong>{item.title}</strong>
+                      <span>{formatBuyerPrice(item.priceCents)} each</span>
+                      <span className="buyer-hold-countdown" role="timer" aria-label={`${item.title} hold time remaining`}>
+                        <strong>{formatHoldCountdown(remaining)}</strong> remaining
+                      </span>
+                    </div>
                     <label>
                       <span>Quantity</span>
                       <input
@@ -255,12 +286,13 @@ export function BuyerCheckoutDrawer(props: BuyerCheckoutDrawerProps) {
                     </label>
                     <button type="button" onClick={() => void onRemove(item.productId)} disabled={busy}>Remove</button>
                   </li>
-                ))}
+                  );
+                })}
               </ul>
             )}
             <div className="buyer-checkout-total"><span>Subtotal</span><strong>{formatBuyerPrice(cart?.subtotalCents ?? 0)}</strong></div>
             <button className="button primary" type="button" disabled={!cart?.items.length || busy} onClick={() => onStep('address')}>
-              Continue to address
+              Checkout
             </button>
           </div>
         ) : null}
@@ -354,6 +386,8 @@ export function BuyerCheckoutProvider({
   const [completedOrder, setCompletedOrder] = useState<BuyerCheckoutOrder | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string>();
+  const [nowMs, setNowMs] = useState(() => Date.now());
+  const expiryRefreshInFlight = useRef(false);
 
   useEffect(() => {
     const cartId = readBuyerCartId(buyerId);
@@ -365,7 +399,7 @@ export function BuyerCheckoutProvider({
     if (!cartId) return;
     let cancelled = false;
     void fetchBuyerCart(cartId, apiBaseUrl)
-      .then((value) => { if (!cancelled) setCart(value); })
+      .then((value) => { if (!cancelled) { setCart(value); setNowMs(Date.now()); } })
       .catch(() => undefined);
     return () => { cancelled = true; };
   }, [apiBaseUrl, buyerId]);
@@ -374,19 +408,51 @@ export function BuyerCheckoutProvider({
     setError(caught instanceof Error ? caught.message : 'Checkout could not continue');
   }, []);
 
-  const addHeldProduct = useCallback<AddHeldProduct>(async (product) => {
+  const addHeldProduct = useCallback(async (product: BuyerProduct): Promise<BuyerCart> => {
     setOpen(true);
     setStep('cart');
     setBusy(true);
     setError(undefined);
     try {
-      setCart(await addHeldProductToCart(buyerId, product, apiBaseUrl));
+      const heldCart = await addHeldProductToCart(buyerId, product, apiBaseUrl);
+      setCart(heldCart);
+      setNowMs(Date.now());
+      return heldCart;
     } catch (caught) {
       fail(caught);
+      throw caught;
     } finally {
       setBusy(false);
     }
   }, [apiBaseUrl, buyerId, fail]);
+
+  const activeDeadlines = useMemo(() => cart?.items
+    .map((item) => item.expiresAt ? Date.parse(item.expiresAt) : Number.NaN)
+    .filter(Number.isFinite) ?? [], [cart]);
+
+  useEffect(() => {
+    if (activeDeadlines.length === 0) return;
+    const timer = window.setTimeout(() => setNowMs(Date.now()), 1_000);
+    return () => window.clearTimeout(timer);
+  }, [activeDeadlines, nowMs]);
+
+  useEffect(() => {
+    if (!cart || expiryRefreshInFlight.current) return;
+    const hasExpiredItem = cart.items.some((item) => holdRemainingMs(item.expiresAt, nowMs) === 0);
+    if (!hasExpiredItem) return;
+    expiryRefreshInFlight.current = true;
+    void fetchBuyerCart(cart.id, apiBaseUrl)
+      .then((freshCart) => {
+        setCart(freshCart);
+        setRates([]);
+        setSelectedRateId('');
+        setCheckout(null);
+        setStep('cart');
+        setError('A two-minute hold expired. The item is available to other buyers again.');
+      })
+      .catch(fail)
+      .finally(() => { expiryRefreshInFlight.current = false; });
+  }, [apiBaseUrl, cart, fail, nowMs]);
 
   const address: BuyerShippingAddress = useMemo(() => ({
     name: draft.name,
@@ -451,6 +517,7 @@ export function BuyerCheckoutProvider({
         throw new Error(result.payment.errorMessage ?? 'Square did not complete the payment');
       }
       setCompletedOrder(result.order);
+      setCart((current) => current ? { ...current, items: [], subtotalCents: 0, updatedAt: new Date().toISOString() } : current);
       setStep('success');
     } catch (caught) {
       fail(caught);
@@ -483,8 +550,14 @@ export function BuyerCheckoutProvider({
     }
   };
 
+  const contextValue = useMemo<BuyerCheckoutActions>(() => ({
+    holdProduct: addHeldProduct,
+    openHeldItems: () => { setStep('cart'); setOpen(true); setError(undefined); },
+    heldItemCount: cart?.items.reduce((sum, item) => sum + item.quantity, 0) ?? 0,
+  }), [addHeldProduct, cart]);
+
   return (
-    <BuyerCheckoutContext.Provider value={addHeldProduct}>
+    <BuyerCheckoutContext.Provider value={contextValue}>
       {children}
       <BuyerCheckoutDrawer
         open={open}
@@ -496,6 +569,7 @@ export function BuyerCheckoutProvider({
         checkout={checkout}
         completedOrder={completedOrder}
         busy={busy}
+        nowMs={nowMs}
         error={error}
         onClose={() => setOpen(false)}
         onStep={setStep}
