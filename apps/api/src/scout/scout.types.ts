@@ -133,6 +133,68 @@ export interface ScoutSessionStore {
   append(id: string, messages: readonly ScoutMessage[]): Promise<ScoutSession>;
 }
 
+// ─── Long-term memory (P-012, D-008) ─────────────────────────────────────────
+
+export interface ScoutMemory {
+  id: string;
+  /** `user:<buyerId>` for one buyer's own memories, `store` for shared facts. */
+  scope: string;
+  kind: string;
+  text: string;
+}
+
+/**
+ * Scope-keyed long-term memory.
+ *
+ * The CONTRACT is ported from Restart's MemoryService; the MECHANISM is not
+ * (D-008). Restart recalls by pgvector cosine distance over OpenAI embeddings;
+ * SideStage has neither extension nor embedding provider, so the Postgres
+ * implementation recalls LEXICALLY over the full-text/trigram machinery this
+ * schema already uses. Callers must not assume paraphrase-tolerant recall.
+ *
+ * **Degrade-safe is the load-bearing property, not an optimization.** Memory is
+ * an enhancement layer on a turn, never a dependency of one: every method
+ * swallows its own failures, so `recall` yields `[]` and `remember` drops the
+ * write rather than letting a slow or broken store take down a reply the
+ * customer is already watching stream in. (The catalog search path is the
+ * opposite — fail-loud — because a wrong product IS a wrong answer.)
+ */
+export interface ScoutMemoryStore {
+  /** Persist one memory. Best-effort: failure is swallowed, never thrown. */
+  remember(scope: string, text: string, kind?: string): Promise<void>;
+  /** Top-k memories across `scopes` matching `query`. Failure yields `[]`. */
+  recall(scopes: readonly string[], query: string, k?: number): Promise<ScoutMemory[]>;
+}
+
+// ─── Identity (P-012, D-009) ─────────────────────────────────────────────────
+
+/**
+ * Who the server believes is asking — resolved from the REQUEST, never from
+ * the request body.
+ *
+ * `buyerId` null means "no continuity identity" (a guest): memory is then read
+ * store-scoped and written nowhere.
+ *
+ * ⚠ Read D-009 before treating this as a security boundary. Today the id comes
+ * from an UNSIGNED cookie, so it is self-asserted: this delivers per-visitor
+ * CONTINUITY, not authentication. Nothing sensitive belongs in scout memory
+ * until this resolver is backed by a verified session.
+ */
+export interface ScoutIdentity {
+  buyerId: string | null;
+}
+
+/**
+ * The seam D-009 establishes so the trust boundary exists structurally BEFORE
+ * SideStage has auth. Swapping this one provider for a session-verifying
+ * implementation is the whole future auth change; no service code moves.
+ */
+export interface ScoutIdentityResolver {
+  resolve(headers: Record<string, string | string[] | undefined>): ScoutIdentity;
+}
+
 export const SCOUT_CATALOG = Symbol('SCOUT_CATALOG');
 export const SCOUT_REPLY_MODEL = Symbol('SCOUT_REPLY_MODEL');
 export const SCOUT_SESSION_STORE = Symbol('SCOUT_SESSION_STORE');
+export const SCOUT_MEMORY_STORE = Symbol('SCOUT_MEMORY_STORE');
+export const SCOUT_IDENTITY_RESOLVER = Symbol('SCOUT_IDENTITY_RESOLVER');

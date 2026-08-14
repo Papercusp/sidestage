@@ -2,9 +2,11 @@ import { describe, expect, it } from 'vitest';
 import { CartService, InMemoryCartStore } from '../cart/cart.service';
 import { FixtureCatalogSource } from '../catalog/catalog.sources';
 import { scoutCatalogFrom } from './scout-catalog.adapter';
+import { InMemoryScoutMemoryStore } from './scout-memory';
 import { InMemoryScoutSessionStore } from './scout-session.store';
 import { DeterministicScoutReplyModel, ScoutService, chunkReply } from './scout.service';
 import type {
+  ScoutMemoryStore,
   ScoutReplyModel,
   ScoutReplyRequest,
   ScoutSessionStore,
@@ -12,11 +14,19 @@ import type {
   ScoutStreamRequest,
 } from './scout.types';
 
-function service(opts: { sessions?: ScoutSessionStore; model?: ScoutReplyModel } = {}) {
+function service(
+  opts: {
+    sessions?: ScoutSessionStore;
+    model?: ScoutReplyModel;
+    memory?: ScoutMemoryStore;
+    carts?: CartService;
+  } = {},
+) {
   return new ScoutService(
     scoutCatalogFrom(new FixtureCatalogSource()),
     opts.model ?? new DeterministicScoutReplyModel(),
-    new CartService(new InMemoryCartStore()),
+    opts.carts ?? new CartService(new InMemoryCartStore()),
+    opts.memory ?? new InMemoryScoutMemoryStore(),
     opts.sessions ?? new InMemoryScoutSessionStore(),
   );
 }
@@ -156,6 +166,7 @@ describe('ScoutService.stream — cart resolution', () => {
       scoutCatalogFrom(new FixtureCatalogSource()),
       new DeterministicScoutReplyModel(),
       carts,
+      new InMemoryScoutMemoryStore(),
       new InMemoryScoutSessionStore(),
     );
     let minted: string | null = null;
@@ -183,6 +194,7 @@ describe('ScoutService.stream — cart resolution', () => {
       scoutCatalogFrom(new FixtureCatalogSource()),
       model,
       carts,
+      new InMemoryScoutMemoryStore(),
       new InMemoryScoutSessionStore(),
     );
 

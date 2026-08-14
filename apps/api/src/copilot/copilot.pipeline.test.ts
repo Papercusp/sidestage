@@ -151,6 +151,33 @@ describe('GroundedCopilotPipeline', () => {
     expect(response.action?.execution).toEqual(execution);
   });
 
+  it('caps auto policy at confirmation in a durable review-queue composition', async () => {
+    const autoContext: GroundingContext = {
+      ...context,
+      policy: { ...policy, automationLevel: 'auto', allowAutoActions: true },
+    };
+    const pipeline = new GroundedCopilotPipeline({
+      retriever: { retrieve: async () => autoContext },
+      model: {
+        generate: async () => ({
+          reply: 'I prepared a verified offer.',
+          citations: ['policy:event'],
+          confidence: 0.99,
+          action: {
+            kind: 'targeted-offer', productId: 'p-1', buyerId: 'buyer-1',
+            quantity: 1, priceCents: 1_400, reason: 'buyer asked during the live event',
+          },
+        }),
+      },
+      automationCeiling: 'confirm',
+    });
+
+    const response = await pipeline.respond({ eventId: 'event-1', message: 'Can I get an offer?' });
+
+    expect(response.action?.disposition).toBe('awaiting-confirmation');
+    expect(response.action?.execution).toBeUndefined();
+  });
+
   it('uses the server guard by default and blocks a below-floor action with an explanation', async () => {
     const pipeline = new GroundedCopilotPipeline({
       retriever: { retrieve: async () => context },

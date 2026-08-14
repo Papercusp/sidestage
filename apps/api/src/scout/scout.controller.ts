@@ -3,6 +3,7 @@ import { randomUUID } from 'node:crypto';
 import { bridgeChannel, sseResponse, sseResponseToNode } from '@papercusp/sse';
 import { ScoutService } from './scout.service';
 import { ScoutTurnBusService } from './scout-turn-bus.service';
+import { stripClientIdentity } from './scout-identity';
 import {
   ifNoneMatchMatches,
   transcriptEtag,
@@ -10,8 +11,10 @@ import {
   visibleTranscript,
 } from './scout-session.store';
 import {
+  SCOUT_IDENTITY_RESOLVER,
   SCOUT_SESSION_STORE,
   type ScoutChatRequest,
+  type ScoutIdentityResolver,
   type ScoutSessionStore,
   type ScoutStreamEvent,
   type ScoutStreamRequest,
@@ -61,11 +64,25 @@ export class ScoutController {
     @Inject(ScoutService) private readonly scout: ScoutService,
     @Inject(ScoutTurnBusService) private readonly turnBus: ScoutTurnBusService,
     @Inject(SCOUT_SESSION_STORE) private readonly sessions: ScoutSessionStore,
+    @Inject(SCOUT_IDENTITY_RESOLVER) private readonly identity: ScoutIdentityResolver,
   ) {}
 
+  /**
+   * Resolve WHO is asking, from request headers only (D-009).
+   *
+   * This controller is SideStage's trust boundary for scout identity: Restart
+   * establishes it in an `/api/scout` proxy, but this API is the edge, so it
+   * happens here. Every handler resolves identity from headers and hands the
+   * service a body with the client's identity keys STRIPPED — so a client-sent
+   * `buyerId` cannot key another buyer's memory even if a future edit starts
+   * reading one off the payload.
+   */
   @Post('chat')
-  chat(@Body() body: ScoutChatRequest) {
-    return this.scout.chat(body);
+  chat(
+    @Headers() headers: Record<string, string | string[] | undefined>,
+    @Body() body: ScoutChatRequest,
+  ) {
+    return this.scout.chat(stripClientIdentity(body), this.identity.resolve(headers));
   }
 
   /**
@@ -96,7 +113,15 @@ export class ScoutController {
       turnId = body.turnId; // resume an in-flight (or just-finished, still-buffered) turn
     } else {
       turnId = randomUUID();
-      this.turnBus.run(turnId, this.scout.stream(body ?? { message: '' })); // detached
+      // Identity is resolved HERE, per turn, and passed as an argument — the
+      // detached turn never sees the client's own idea of who it is.
+      this.turnBus.run(
+        turnId,
+        this.scout.stream(
+          stripClientIdentity(body ?? { message: '' }),
+          this.identity.resolve(req.headers),
+        ),
+      ); // detached
     }
     const channel = this.turnBus.channel(turnId);
 
