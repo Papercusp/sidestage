@@ -1,6 +1,7 @@
 import { Inject, Injectable, Module, type OnModuleInit } from '@nestjs/common';
 import type { Pool } from 'pg';
 import { DatabaseModule, PG_POOL } from '../db/database.module';
+import { EventModule } from '../events/event.module';
 import { PolicyModule } from '../policies/policy.module';
 import { PolicyService } from '../policies/policy.service';
 import { SyncModule } from '../sync/sync.module';
@@ -31,7 +32,7 @@ export class EventConfigSyncQueries implements OnModuleInit {
 }
 
 @Module({
-  imports: [DatabaseModule, PolicyModule, SyncModule],
+  imports: [DatabaseModule, EventModule, PolicyModule, SyncModule],
   controllers: [EventConfigController],
   providers: [
     EventConfigService,

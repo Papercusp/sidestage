@@ -1,4 +1,5 @@
 import { Body, Controller, Get, Inject, Param, Put } from '@nestjs/common';
+import { EventService } from '../events/event.service';
 import { DEFAULT_SELLER_ID, PolicyService } from '../policies/policy.service';
 import { SyncInvalidationService } from '../sync/sync-invalidation.service';
 import { EventConfigService, policyFromConfig, type EventConfig } from './event-config.service';
@@ -28,6 +29,7 @@ export class EventConfigController {
     @Inject(EventConfigService) private readonly configs: EventConfigService,
     @Inject(PolicyService) private readonly policies: PolicyService,
     @Inject(SyncInvalidationService) private readonly invalidations: SyncInvalidationService,
+    @Inject(EventService) private readonly events: EventService,
   ) {}
 
   /**
@@ -47,6 +49,11 @@ export class EventConfigController {
     @Body() body: Partial<Omit<EventConfig, 'eventId' | 'updatedAt'>>,
   ) {
     const config = await this.configs.save(eventId, body);
+    // EI-20426845001666103 / P-014: saving the config IS the seller's
+    // create/update act, so the directory row is published here — before this,
+    // nothing ever inserted it and a created event was invisible in the buyer
+    // Channel Guide (GET /events stayed []) while its direct link worked.
+    await this.events.publishFromConfig(config);
     this.invalidations.invalidate('event.config', { eventId: config.eventId });
     return { ...config, policy: policyFromConfig(config) };
   }
