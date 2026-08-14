@@ -4,6 +4,7 @@ import {
   validateLayoutDoc,
   type DockLayoutRow,
   type DockLayoutStore,
+  type LayoutDoc,
 } from '@papercusp/dock-workbench';
 
 import { SELLER_DOCK_LAYOUT_NAME, sellerDockDefaultLayout } from './seller-dock-layout';
@@ -67,7 +68,9 @@ export function sellerDockStorageKey(
  * Namespaced because it is dispatched on `window`, which is shared with every
  * other listener in the app.
  */
-export const SELLER_DOCK_RESET_EVENT = 'sidestage:seller-dock:reset-layout';
+export const SELLER_ACTIVE_DOCK_RESET_EVENT = 'sidestage:seller-dock:active-event:reset-layout';
+export const SELLER_MANAGER_DOCK_RESET_EVENT = 'sidestage:seller-dock:event-manager:reset-layout';
+export const SELLER_DOCK_RESET_EVENT = SELLER_ACTIVE_DOCK_RESET_EVENT;
 
 /** The subset of `Storage` this module needs; keeps tests from faking all of it. */
 export type LayoutStorage = Pick<Storage, 'removeItem'>;
@@ -80,9 +83,12 @@ export type LayoutStorage = Pick<Storage, 'removeItem'>;
  * rather than `CustomEvent`: no detail is needed, and `Event` is available in
  * every runtime this code has to build under.
  */
-export function requestSellerDockLayoutReset(target: EventTarget | undefined = globalThis.window): boolean {
+export function requestSellerDockLayoutReset(
+  target: EventTarget | undefined = globalThis.window,
+  eventName: string = SELLER_DOCK_RESET_EVENT,
+): boolean {
   if (!target) return false;
-  target.dispatchEvent(new Event(SELLER_DOCK_RESET_EVENT));
+  target.dispatchEvent(new Event(eventName));
   return true;
 }
 
@@ -91,6 +97,8 @@ export interface SellerDockStoreOptions {
   keyPrefix?: string;
   /** Storage used to DROP an unreadable row. Defaults to `localStorage`. */
   storage?: LayoutStorage | null;
+  /** Seed for this named Studio board. Defaults to the Active Event board. */
+  seed?: () => LayoutDoc;
   /**
    * Called when an unreadable row was discarded and the default reseeded.
    *
@@ -124,7 +132,7 @@ export function createSellerDockStore(opts: SellerDockStoreOptions = {}): DockLa
   const keyPrefix = opts.keyPrefix ?? SELLER_DOCK_STORAGE_PREFIX;
   const inner = createLocalStorageDockLayoutStore({
     keyPrefix,
-    seed: () => sellerDockDefaultLayout(),
+    seed: opts.seed ?? sellerDockDefaultLayout,
   });
   const onRecover = opts.onRecover ?? defaultOnRecover;
 

@@ -1,5 +1,6 @@
-import type { Ref } from 'react';
+import type { ReactNode, Ref } from 'react';
 import { streamLabel, type CopyState, type StreamState } from '../hooks';
+import { VideoChatOverlay } from '../VideoChatOverlay';
 
 export interface StageStatusPanelProps {
   /** Headline for the live console — the event currently on stage. */
@@ -21,6 +22,8 @@ export interface StageStatusPanelProps {
   /** True before a room exists, when there is no share URL to copy. */
   shareDisabled: boolean;
   copyState: CopyState;
+  /** Live EventChat content kept mounted inside the camera surface. */
+  chat: ReactNode;
 }
 
 /**
@@ -45,6 +48,7 @@ export function StageStatusPanel({
   onShareRoom,
   shareDisabled,
   copyState,
+  chat,
 }: StageStatusPanelProps) {
   return (
     <section className="stage-panel stage-primary" aria-labelledby="stage-status-title">
@@ -57,6 +61,9 @@ export function StageStatusPanel({
           <span className="live-badge">{roomEventId ?? 'room not started'}</span>
           <p>{streamError ?? (streamState === 'live' ? 'Your camera and microphone are live.' : 'Camera preview appears here after you start the event.')}</p>
         </div>
+        <VideoChatOverlay className="seller-video-chat-overlay">
+          {chat}
+        </VideoChatOverlay>
       </div>
       <label className="field-label" htmlFor="seller-event-id">Event room id</label>
       <input

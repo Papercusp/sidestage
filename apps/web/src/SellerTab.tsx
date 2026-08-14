@@ -2,14 +2,27 @@ import { useCallback, useState } from 'react';
 import { DemoIdentityControl } from './BuyerIdentityControl';
 import { useDemoIdentity } from './buyer-identity';
 import { TabHeader } from './components/TabHeader';
+import { EventChat } from './EventChat';
 import { chatEventId, DEFAULT_EVENT_ID, DEFAULT_EVENT_TITLE, mediaBaseUrl } from './event-identity';
 import { useCopyState, useStreamSession } from './hooks';
+import { studioViewHref, useUrlStudioView } from './app-routing';
 import { SellerDock } from './SellerDock';
+import {
+  SELLER_ACTIVE_DOCK_LAYOUT_NAME,
+  SELLER_MANAGER_DOCK_LAYOUT_NAME,
+  sellerActiveEventDockDefaultLayout,
+  sellerEventManagerDockDefaultLayout,
+} from './seller-dock-layout';
+import {
+  SELLER_ACTIVE_DOCK_RESET_EVENT,
+  SELLER_MANAGER_DOCK_RESET_EVENT,
+} from './seller-dock-store';
 import type { SellerDockPanelContextValue } from './seller-dock-panel-props';
 import { SellerDockMissingPanel, sellerPanelRegistry } from './seller-dock-panels';
 import type { CatalogProduct } from './seller-products';
 import { type TranscriptProductOption } from './TranscriptPane';
 import { connectPublisher, createEventRoom, type EventRoom, type PublisherSession } from './streaming';
+import './studio.css';
 
 export function SellerTab({
   selectedProduct,
@@ -26,7 +39,8 @@ export function SellerTab({
   const [room, setRoom] = useState<EventRoom | null>(null);
   const stream = useStreamSession<PublisherSession>();
   const { copyState, copy } = useCopyState();
-  const { userId, impersonate } = useDemoIdentity();
+  const { userId, impersonate } = useDemoIdentity('seller');
+  const [studioView, navigateStudioView] = useUrlStudioView();
   const recordTranscriptMoment = useCallback((segment: { text: string; startMs?: number; endMs?: number }) => {
     const transcriptEventId = room?.eventId ?? chatEventId(eventId);
     const product = transcriptProducts.find((candidate) => candidate.id === selectedProductId);
@@ -89,6 +103,15 @@ export function SellerTab({
    * either be defeated by its own dependencies or risk closing over stale
    * state. Rebuilding the object preserves today's behavior exactly.
    */
+  const eventChatProps: SellerDockPanelContextValue['event-chat'] = {
+    eventId: room?.eventId ?? chatEventId(eventId),
+    role: 'seller',
+    userId,
+    displayName: userId,
+    eventTitle: DEFAULT_EVENT_TITLE,
+    apiBaseUrl: import.meta.env.VITE_API_URL,
+  };
+
   const panels: SellerDockPanelContextValue = {
     'stage-status': {
       eventTitle: DEFAULT_EVENT_TITLE,
@@ -104,6 +127,7 @@ export function SellerTab({
       onShareRoom: () => room && void copy(room.shareUrl),
       shareDisabled: !room,
       copyState,
+      chat: <EventChat {...eventChatProps} />,
     },
     transcript: {
       className: 'seller-transcript',
@@ -119,14 +143,7 @@ export function SellerTab({
       apiBaseUrl: import.meta.env.VITE_API_URL,
       eventId: room?.eventId ?? chatEventId(eventId),
     },
-    'event-chat': {
-      eventId: room?.eventId ?? chatEventId(eventId),
-      role: 'seller',
-      userId,
-      displayName: userId,
-      eventTitle: DEFAULT_EVENT_TITLE,
-      apiBaseUrl: import.meta.env.VITE_API_URL,
-    },
+    'event-chat': eventChatProps,
     'event-manager': {
       eventId,
       actorId: userId,
@@ -141,6 +158,21 @@ export function SellerTab({
     },
   };
 
+  const activeBoard = studioView === 'active-event';
+  const layoutName = activeBoard
+    ? SELLER_ACTIVE_DOCK_LAYOUT_NAME
+    : SELLER_MANAGER_DOCK_LAYOUT_NAME;
+  const layoutSeed = activeBoard
+    ? sellerActiveEventDockDefaultLayout
+    : sellerEventManagerDockDefaultLayout;
+  const resetEventName = activeBoard
+    ? SELLER_ACTIVE_DOCK_RESET_EVENT
+    : SELLER_MANAGER_DOCK_RESET_EVENT;
+  const hrefFor = (view: 'active-event' | 'event-manager') => studioViewHref(
+    view,
+    typeof window === 'undefined' ? '/' : window.location.href,
+  );
+
   return (
     <div className="tab-layout density-console">
       <TabHeader
@@ -148,9 +180,32 @@ export function SellerTab({
         title="Keep the room moving."
         copy="Your live context stays one glance away: what is on deck, what buyers are asking, and what the copilot can safely suggest."
       />
+      <nav className="studio-subtabs" aria-label="Studio boards">
+        {([
+          ['active-event', 'Active Event'],
+          ['event-manager', 'Event Manager'],
+        ] as const).map(([view, label]) => (
+          <a
+            key={view}
+            className="studio-subtab"
+            href={hrefFor(view)}
+            aria-current={studioView === view ? 'page' : undefined}
+            onClick={(event) => {
+              event.preventDefault();
+              navigateStudioView(view);
+            }}
+          >
+            {label}
+          </a>
+        ))}
+      </nav>
       <SellerDock
+        key={layoutName}
         panels={panels}
         registry={sellerPanelRegistry}
+        layoutName={layoutName}
+        layoutSeed={layoutSeed}
+        resetEventName={resetEventName}
         missingComponent={SellerDockMissingPanel}
       >
         <DemoIdentityControl

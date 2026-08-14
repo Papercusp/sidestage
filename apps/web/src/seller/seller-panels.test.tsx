@@ -23,6 +23,7 @@ function stageProps(overrides: Partial<StageStatusPanelProps> = {}): StageStatus
     onShareRoom: noop,
     shareDisabled: true,
     copyState: 'idle',
+    chat: <p>Seller room chat</p>,
     ...overrides,
   };
 }
@@ -44,6 +45,8 @@ describe('StageStatusPanel', () => {
     expect(markup).toContain('<p class="field-help" id="seller-event-help">');
     expect(markup).toContain('aria-label="Seller camera preview"');
     expect(markup).toContain('<span class="live-badge">room not started</span>');
+    expect(markup).toContain('seller-video-chat-overlay');
+    expect(markup).toContain('Seller room chat');
   });
 
   it('labels each stream state and offers Start before a session exists', () => {

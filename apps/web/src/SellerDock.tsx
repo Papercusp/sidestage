@@ -2,12 +2,14 @@ import { createContext, useContext, useMemo, useRef, type ReactNode } from 'reac
 import {
   DockWorkspace,
   type DockLayoutStore,
+  type LayoutDoc,
   type PanelComponent,
   type PanelRegistry,
 } from '@papercusp/dock-workbench';
 import './seller-dock.css';
 import {
   SELLER_DOCK_LAYOUT_NAME,
+  sellerDockDefaultLayout,
   type SellerPanelId,
 } from './seller-dock-layout';
 import { SELLER_DOCK_RESET_EVENT, createSellerDockStore } from './seller-dock-store';
@@ -116,6 +118,12 @@ export interface SellerDockProps {
   registry?: PanelRegistry;
   /** Layout store. Defaults to localStorage seeded with the default layout. */
   store?: DockLayoutStore;
+  /** Stable persistence identity for this Studio board. */
+  layoutName?: string;
+  /** Default panel geometry for this Studio board. */
+  layoutSeed?: () => LayoutDoc;
+  /** Reset event scoped to this board, so sibling boards keep their layout. */
+  resetEventName?: string;
   /**
    * Rendered when a persisted layout names a panel this build cannot render.
    *
@@ -128,16 +136,30 @@ export interface SellerDockProps {
   children?: ReactNode;
 }
 
-export function SellerDock({ panels, registry, store, missingComponent, children }: SellerDockProps) {
+export function SellerDock({
+  panels,
+  registry,
+  store,
+  layoutName = SELLER_DOCK_LAYOUT_NAME,
+  layoutSeed = sellerDockDefaultLayout,
+  resetEventName = SELLER_DOCK_RESET_EVENT,
+  missingComponent,
+  children,
+}: SellerDockProps) {
   // A fresh store per mount would re-seed and drop the user's saved layout, so
   // it is memoised for the life of the component.
-  const layoutStore = useMemo(() => store ?? createSellerDockStore(), [store]);
+  const layoutStore = useMemo(
+    () => store ?? createSellerDockStore({ seed: layoutSeed }),
+    [layoutSeed, store],
+  );
   const shellRef = useRef<HTMLDivElement>(null);
 
   return (
     <SellerDockContext.Provider value={panels}>
       <div ref={shellRef} className="seller-dock-shell">
-        <SellerDockToolbar fullscreenTargetRef={shellRef}>{children}</SellerDockToolbar>
+        <SellerDockToolbar fullscreenTargetRef={shellRef} resetEventName={resetEventName}>
+          {children}
+        </SellerDockToolbar>
         {/*
           P-015 wraps the host in a resize frame. It is a WRAPPER, not a
           replacement: .seller-dock-host keeps the geometry P-007/P-011 gave it
@@ -146,7 +168,8 @@ export function SellerDock({ panels, registry, store, missingComponent, children
           same reasoning as P-010's toolbar — a later lane adds a layer around
           this block rather than editing decisions that belong to an earlier one.
         */}
-        <SellerDockBoard><div className="seller-dock-host">
+        <SellerDockBoard layoutName={layoutName} resetEventName={resetEventName}>
+          <div className="seller-dock-host">
           {/*
             `registry` and `missingComponent` are supplied by the caller rather
             than defaulted here. Defaulting them would mean importing
@@ -155,15 +178,16 @@ export function SellerDock({ panels, registry, store, missingComponent, children
             props-module split above deliberately decoupled it from.
           */}
           <DockWorkspace
-            layoutName={SELLER_DOCK_LAYOUT_NAME}
+            layoutName={layoutName}
             store={layoutStore}
             registry={registry}
             className={SELLER_DOCK_CLASS_NAME}
-            resetEventName={SELLER_DOCK_RESET_EVENT}
+            resetEventName={resetEventName}
             isDeferredPanelType={isDeferredPanelType}
             missingComponent={missingComponent}
           />
-        </div></SellerDockBoard>
+          </div>
+        </SellerDockBoard>
       </div>
     </SellerDockContext.Provider>
   );

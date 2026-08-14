@@ -1,5 +1,6 @@
 import { useEffect, useState, type ReactNode, type RefObject } from 'react';
 import { requestSellerDockLayoutReset } from './seller-dock-store';
+import { SELLER_DOCK_RESET_EVENT } from './seller-dock-store';
 
 /**
  * Seller dock toolbar (P-010 + WI-38724) — layout reset and whole-board
@@ -28,6 +29,8 @@ export interface SellerDockToolbarProps {
    * mounted.
    */
   onResetLayout?: () => void;
+  /** Board-scoped reset event. */
+  resetEventName?: string;
   /** The whole shell, including this toolbar and the persisted dock board. */
   fullscreenTargetRef?: RefObject<HTMLDivElement | null>;
   /** Seller-wide controls that belong above every dock panel. */
@@ -70,6 +73,7 @@ export async function toggleSellerDockFullscreen(
 
 export function SellerDockToolbar({
   onResetLayout,
+  resetEventName = SELLER_DOCK_RESET_EVENT,
   fullscreenTargetRef,
   children,
 }: SellerDockToolbarProps = {}) {
@@ -95,7 +99,7 @@ export function SellerDockToolbar({
       onResetLayout();
       return;
     }
-    requestSellerDockLayoutReset();
+    requestSellerDockLayoutReset(undefined, resetEventName);
   };
 
   const toggleFullscreen = async () => {
