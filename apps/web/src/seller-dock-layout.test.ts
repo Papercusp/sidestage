@@ -46,7 +46,6 @@ describe('Studio dock board seeds', () => {
     expect(placed).toEqual([
       'stage-status',
       'copilot',
-      'transcript',
       'event-chat',
       'run-of-show',
     ]);
@@ -55,6 +54,7 @@ describe('Studio dock board seeds', () => {
     expect(placed).not.toContain('event-manager');
     expect(placed).not.toContain('event-settings');
     expect(placed).not.toContain('on-deck');
+    expect(placed).not.toContain('transcript');
   });
 
   it('puts Event Manager and Event settings in one tab strip on the manager board', () => {

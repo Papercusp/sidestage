@@ -8,7 +8,6 @@ import type { OnDeckPanel } from './seller/OnDeckPanel';
 import type { RunOfShowPanel } from './seller/RunOfShowPanel';
 import type { RunOfShowPlannerPanel } from './seller/RunOfShowPlannerPanel';
 import type { StageStatusPanel } from './seller/StageStatusPanel';
-import type { TranscriptPane } from './TranscriptPane';
 
 /**
  * The props bundle every docked seller panel reads from context (P-009).
@@ -43,7 +42,6 @@ import type { TranscriptPane } from './TranscriptPane';
  */
 export type SellerDockPanelContextValue = {
   'stage-status': ComponentProps<typeof StageStatusPanel>;
-  transcript: ComponentProps<typeof TranscriptPane>;
   'on-deck': ComponentProps<typeof OnDeckPanel>;
   copilot: ComponentProps<typeof CopilotPanel>;
   'event-chat': ComponentProps<typeof EventChat>;

@@ -14,7 +14,6 @@ import { OnDeckPanel } from './seller/OnDeckPanel';
 import { RunOfShowPanel } from './seller/RunOfShowPanel';
 import { RunOfShowPlannerPanel } from './seller/RunOfShowPlannerPanel';
 import { StageStatusPanel } from './seller/StageStatusPanel';
-import { TranscriptPane } from './TranscriptPane';
 
 /**
  * Seller panel registration (P-009).
@@ -39,7 +38,7 @@ import { TranscriptPane } from './TranscriptPane';
  * pick up the grid's padding rhythm without any component changing.
  *
  * The wrapper also owns the SCROLL boundary. Dockview gives a panel a fixed
- * box; without `overflow:auto` here, a tall panel (transcript, event chat)
+ * box; without `overflow:auto` here, a tall panel (for example event chat)
  * would overflow its group rather than scroll inside it.
  */
 function PanelBody({ children }: { children: ReactNode }) {
@@ -52,8 +51,8 @@ function PanelBody({ children }: { children: ReactNode }) {
  * These are module-scope function declarations, NOT inline arrows built during
  * render. Dockview keys a panel's React tree by its component identity, so a
  * component recreated each render remounts the panel on every parent render —
- * which for these panels means tearing down the video preview, the transcript
- * socket and the chat subscription. Module scope makes the identity permanent.
+ * which for these panels means tearing down the video preview or chat
+ * subscription. Module scope makes the identity permanent.
  */
 
 const StageStatusDockPanel: PanelComponent = function StageStatusDockPanel() {
@@ -61,15 +60,6 @@ const StageStatusDockPanel: PanelComponent = function StageStatusDockPanel() {
   return (
     <PanelBody>
       <StageStatusPanel {...panels['stage-status']} />
-    </PanelBody>
-  );
-};
-
-const TranscriptDockPanel: PanelComponent = function TranscriptDockPanel() {
-  const panels = useSellerDockPanels();
-  return (
-    <PanelBody>
-      <TranscriptPane {...panels.transcript} />
     </PanelBody>
   );
 };
@@ -148,7 +138,6 @@ const RunOfShowPlannerDockPanel: PanelComponent = function RunOfShowPlannerDockP
  */
 export const SELLER_PANEL_COMPONENTS: Record<SellerPanelId, PanelComponent> = {
   'stage-status': StageStatusDockPanel,
-  transcript: TranscriptDockPanel,
   'on-deck': OnDeckDockPanel,
   copilot: CopilotDockPanel,
   'event-chat': EventChatDockPanel,

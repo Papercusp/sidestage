@@ -3,53 +3,15 @@ import type { LayoutDoc, PanelInstance, TabStrip } from '@papercusp/dock-workben
 /**
  * Default dock layout for the Seller tab (P-007).
  *
- * Expressed as a dock-workbench `LayoutDoc` (D-007: adapt the workbench, do not
- * hand-roll DockviewReact wiring). Keeping it as data is deliberate: it is the
- * `seed` handed to the layout store, P-010 diffs a restored layout against it,
- * and P-012 can assert the mapping below with no DOM.
- *
- * ── Provenance: the styles.css rules this layout reproduces ───────────────
- *   .seller-grid   { display: grid; grid-template-columns: 1.2fr .8fr; }
- *   .stage-primary { grid-row: span 2; min-height: 330px; }
- *
- * `.seller-grid` has six children, auto-placed row-major into two columns.
- * Because `.stage-primary` spans two rows, the cell map today is:
- *
- *   row 1 | stage-status (spans 1-2) | transcript    |
- *   row 2 |            ""            | on-deck       |
- *   row 3 | copilot                  | event-chat    |
- *   row 4 | event-manager            | (empty cell)  |
- *
- * So the columns are NOT interchangeable: which column a panel sits in, and its
- * order within that column, is what "mirrors the seller-grid exactly" means
- * (D-003: first paint must be identical to the grid it replaces).
- *
- * ── Sizing ───────────────────────────────────────────────────────────────
- * Sizes pass straight through `toDockviewJson` into dockview's serialized grid,
- * which rescales a branch to whatever the container actually is. Only the
- * RATIOS survive, so these are nominal units on a 1000x1000 basis rather than
- * real pixels.
- *
- * Widths come from `1.2fr .8fr` -> 600 / 400.
- *
- * Heights are expressed against the grid's four row-units so the row LINES
- * still align across the two columns — which CSS grid gives for free (rows are
- * shared between columns) and which a naive "just split the rail into thirds"
- * would quietly break:
- *
- *   primary: stage-status 2/4, copilot 1/4, event-manager 1/4
- *   rail:    transcript   1/4, on-deck  1/4, event-chat 1/4 + the empty row-4
- *            cell, which has no dock equivalent — a dock column always fills,
- *            so the trailing panel absorbs it (1/4 + 1/4 = 1/2).
- *
- * The shared boundary at the halfway mark therefore lands in the same place in
- * both columns, exactly as it does in the grid today.
+ * The Live console owns camera, audience chat, captions, and transcript history
+ * as one persistent surface. The rail therefore contains only the seller chat
+ * and run-of-show tools; transcription is not an independently dockable panel.
+ * Sizes are nominal ratios consumed by dock-workbench serialization.
  */
 
 /** Stable panel ids. P-009 registers a component against each of these. */
 export type SellerPanelId =
   | 'stage-status'
-  | 'transcript'
   | 'on-deck'
   | 'copilot'
   | 'event-chat'
@@ -61,7 +23,6 @@ export type SellerPanelId =
 /** The complete seller panel inventory (D-004). */
 export const SELLER_PANEL_IDS: readonly SellerPanelId[] = [
   'stage-status',
-  'transcript',
   'on-deck',
   'copilot',
   'event-chat',
@@ -74,7 +35,6 @@ export const SELLER_PANEL_IDS: readonly SellerPanelId[] = [
 /** Tab-strip labels, keyed by panel id. */
 export const SELLER_PANEL_TITLES: Readonly<Record<SellerPanelId, string>> = {
   'stage-status': 'Live console',
-  transcript: 'Transcript',
   'on-deck': 'On deck',
   copilot: 'Copilot',
   'event-chat': 'Event chat',
@@ -87,7 +47,6 @@ export const SELLER_PANEL_TITLES: Readonly<Record<SellerPanelId, string>> = {
 /** Panels on the default Active Event board. Audience chat is embedded; management remains docked. */
 export const SELLER_ACTIVE_PANEL_IDS = [
   'stage-status',
-  'transcript',
   'copilot',
   'event-chat',
   'run-of-show',
@@ -155,7 +114,7 @@ export function sellerActiveEventDockDefaultLayout(): LayoutDoc {
           direction: 'col',
           size: 380,
           children: [
-            strip(['transcript', 'event-chat'], 450, 'transcript'),
+            solo('event-chat', 450),
             solo('run-of-show', 550),
           ],
         },
