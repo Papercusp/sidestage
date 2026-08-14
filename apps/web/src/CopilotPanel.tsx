@@ -1,4 +1,6 @@
 import { FormEvent, useState } from 'react';
+import { useBuyerIdentity } from './buyer-identity';
+import { browserEventId } from './event-identity';
 
 interface ProductCard {
   productId: string;
@@ -30,6 +32,7 @@ interface CheckoutResponse {
 
 export interface CopilotPanelProps {
   apiBaseUrl?: string;
+  eventId?: string;
 }
 
 const money = (cents: number) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(cents / 100);
@@ -38,7 +41,8 @@ const money = (cents: number) => new Intl.NumberFormat('en-US', { style: 'curren
  * Small browser adapter for the P-004 contracts. The live-selling tabs can
  * compose this panel without owning cart state or payment-provider details.
  */
-export function CopilotPanel({ apiBaseUrl = '' }: CopilotPanelProps) {
+export function CopilotPanel({ apiBaseUrl = '', eventId = browserEventId() }: CopilotPanelProps) {
+  const { buyerId } = useBuyerIdentity();
   const [message, setMessage] = useState('');
   const [cartId, setCartId] = useState<string>();
   const [reply, setReply] = useState('Ask about a product in the verified catalog.');
@@ -99,7 +103,10 @@ export function CopilotPanel({ apiBaseUrl = '' }: CopilotPanelProps) {
     setBusy(true);
     setError(undefined);
     try {
-      setCheckout(await request<CheckoutResponse>('/checkout/sessions', { method: 'POST', body: JSON.stringify({ cartId }) }));
+      setCheckout(await request<CheckoutResponse>('/checkout/sessions', {
+        method: 'POST',
+        body: JSON.stringify({ cartId, buyerId, eventId }),
+      }));
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : 'Unable to start checkout');
     } finally {
