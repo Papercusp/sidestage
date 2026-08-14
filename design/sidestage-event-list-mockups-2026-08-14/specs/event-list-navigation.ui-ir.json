@@ -1,0 +1,109 @@
+{
+  "irVersion": "0.1",
+  "surface": "sidestage-studio-event-list-navigation-comparison",
+  "ecosystem": "*",
+  "layout": {
+    "kind": "stack",
+    "direction": "vertical",
+    "children": [
+      {
+        "kind": "header",
+        "title": { "key": "studio.events.study.title", "default": "Where should sellers find their events?" },
+        "slots": {
+          "status": { "kind": "badge", "label": { "key": "studio.events.study.status", "default": "Preview only" } }
+        }
+      },
+      {
+        "kind": "tabs",
+        "label": { "key": "studio.events.concepts", "default": "Four Studio tabs, Events hub, or Event Manager" },
+        "interactions": ["select"],
+        "a11y": { "role": "tablist", "ariaLabel": { "key": "studio.events.concepts.a11y", "default": "Event navigation concepts" } }
+      },
+      {
+        "kind": "card",
+        "title": { "key": "studio.events.fourTabs.title", "default": "Four Studio tabs" },
+        "slots": {
+          "studioNavigation": {
+            "kind": "tabs",
+            "label": { "key": "studio.events.fourTabs.navigation", "default": "Inventory, Create Event, Events, Active Event" },
+            "interactions": ["select"],
+            "a11y": { "role": "tablist", "ariaLabel": { "key": "studio.events.fourTabs.navigation.a11y", "default": "Four-tab Studio navigation" } }
+          },
+          "search": {
+            "kind": "input",
+            "label": { "key": "studio.events.search", "default": "Search events" },
+            "interactions": ["input"],
+            "a11y": { "role": "searchbox", "ariaLabel": { "key": "studio.events.search.a11y", "default": "Search seller events" } }
+          },
+          "events": {
+            "kind": "list",
+            "binding": { "slot": "sellerEvents", "repeats": true, "shape": "SellerEvent" },
+            "item": {
+              "kind": "card",
+              "slots": {
+                "name": { "kind": "heading", "copy": { "key": "studio.events.item.name", "default": "Seller event" } },
+                "status": { "kind": "badge", "label": { "key": "studio.events.item.status", "default": "Draft, scheduled, live, or ended" } },
+                "manage": { "kind": "component", "ref": "manage-event" }
+              }
+            }
+          },
+          "create": { "kind": "component", "ref": "create-event" }
+        }
+      },
+      {
+        "kind": "card",
+        "title": { "key": "studio.events.hub.title", "default": "Consolidated Events hub" },
+        "slots": {
+          "studioNavigation": {
+            "kind": "tabs",
+            "label": { "key": "studio.events.hub.navigation", "default": "Inventory, Events, Active Event" },
+            "interactions": ["select"],
+            "a11y": { "role": "tablist", "ariaLabel": { "key": "studio.events.hub.navigation.a11y", "default": "Consolidated Studio navigation" } }
+          },
+          "summary": { "kind": "text", "copy": { "key": "studio.events.hub.summary", "default": "Live, upcoming, needs work, and 30-day sales metrics" } },
+          "events": {
+            "kind": "list",
+            "binding": { "slot": "currentEvents", "repeats": true, "shape": "SellerEvent" },
+            "item": { "kind": "card", "slots": { "name": { "kind": "heading", "copy": { "key": "studio.events.hub.item", "default": "Current seller event" } }, "manage": { "kind": "component", "ref": "manage-event" } } }
+          },
+          "create": { "kind": "component", "ref": "create-event" }
+        }
+      },
+      {
+        "kind": "card",
+        "title": { "key": "studio.events.manager.title", "default": "Expanded Event Manager" },
+        "slots": {
+          "studioNavigation": {
+            "kind": "tabs",
+            "label": { "key": "studio.events.manager.navigation", "default": "Inventory, Event Manager, Active Event" },
+            "interactions": ["select"],
+            "a11y": { "role": "tablist", "ariaLabel": { "key": "studio.events.manager.navigation.a11y", "default": "Current Studio navigation" } }
+          },
+          "managerNavigation": {
+            "kind": "tabs",
+            "label": { "key": "studio.events.manager.localNavigation", "default": "My events or Create event" },
+            "interactions": ["select"],
+            "a11y": { "role": "tablist", "ariaLabel": { "key": "studio.events.manager.localNavigation.a11y", "default": "Event Manager view" } }
+          },
+          "events": {
+            "kind": "list",
+            "binding": { "slot": "sellerEvents", "repeats": true, "shape": "SellerEvent" },
+            "item": { "kind": "card", "slots": { "name": { "kind": "heading", "copy": { "key": "studio.events.manager.item", "default": "Seller event" } }, "select": { "kind": "component", "ref": "manage-event" } } }
+          },
+          "detail": { "kind": "component", "ref": "event-detail" }
+        }
+      }
+    ]
+  },
+  "components": [
+    { "id": "create-event", "registry": "action.primary", "props": { "label": "Create event" } },
+    { "id": "manage-event", "registry": "action.secondary", "props": { "label": "Manage event" } },
+    { "id": "event-detail", "registry": "action.secondary", "props": { "label": "Open event details" } }
+  ],
+  "states": {
+    "loading": { "kind": "spinner", "label": { "key": "studio.events.loading", "default": "Loading seller events" }, "a11y": { "role": "status", "ariaLive": "polite" } },
+    "empty": { "kind": "text", "copy": { "key": "studio.events.empty", "default": "No events match this search." } },
+    "error": { "kind": "stack", "children": [{ "kind": "text", "copy": { "key": "studio.events.error", "default": "Events could not be loaded." } }, { "kind": "button", "label": { "key": "studio.events.retry", "default": "Try again" }, "interactions": ["retry"], "a11y": { "role": "button" } }] }
+  },
+  "a11y": { "landmark": "main", "headingLevel": 1 }
+}
