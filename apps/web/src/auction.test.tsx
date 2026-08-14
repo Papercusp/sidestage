@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { SyncContext } from '@papercusp/sync';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -30,6 +31,7 @@ describe('buyer auction model', () => {
 });
 
 const PRODUCTS = [{ id: 'stoneware-mug-matte-12oz', title: 'Stoneware mug', subtitle: 'Matte · 12 oz' }];
+const auctionCss = readFileSync(new URL('./auction.css', import.meta.url), 'utf8');
 
 afterEach(() => vi.unstubAllGlobals());
 
@@ -78,6 +80,11 @@ function clockLabel(markup: string): string {
 }
 
 describe('AuctionPanel', () => {
+  it('can shrink inside the narrow mobile column beside the persistent channel guide', () => {
+    expect(auctionCss).toMatch(/\.auction-card\s*\{[^}]*grid-template-columns:\s*minmax\(0,\s*1fr\)[^}]*min-width:\s*0/);
+    expect(auctionCss).toMatch(/\.auction-card\s*>\s*\*\s*\{[^}]*min-width:\s*0/);
+  });
+
   it('maps the event.auction.active named-query rows into the existing view shape', () => {
     expect(activeAuctionFromSyncRows([ACTIVE_AUCTION])).toBe(ACTIVE_AUCTION);
     expect(activeAuctionFromSyncRows([])).toBeNull();

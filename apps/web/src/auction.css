@@ -1,7 +1,8 @@
-.auction-card { position: relative; display: grid; gap: 1rem; padding: 1.1rem; border: 1px solid color-mix(in srgb, var(--brand-red) 24%, transparent); border-radius: 1.15rem; background: var(--panel-grad); box-shadow: 0 20px 52px rgb(var(--shadow-hue) / 28%); }
+.auction-card { position: relative; display: grid; grid-template-columns: minmax(0,1fr); min-width: 0; gap: 1rem; padding: 1.1rem; border: 1px solid color-mix(in srgb, var(--brand-red) 24%, transparent); border-radius: 1.15rem; background: var(--panel-grad); box-shadow: 0 20px 52px rgb(var(--shadow-hue) / 28%); }
+.auction-card > * { min-width: 0; }
 .auction-card-heading,.auction-bid-row,.auction-leader { display: flex; align-items: center; }
 .auction-card-heading { justify-content: space-between; gap: 1rem; }
-.auction-card-heading h3,.auction-card-heading p { margin: 0; }
+.auction-card-heading h3,.auction-card-heading p { margin: 0; overflow-wrap: anywhere; }
 .auction-sync { display: inline-flex; align-items: center; gap: .45rem; padding: .4rem .7rem; border: 1px solid color-mix(in srgb, var(--success) 20%, transparent); border-radius: 999px; color: var(--text); font-size: .76rem; font-weight: 700; letter-spacing: .04em; }
 .auction-sync > span { width: .5rem; height: .5rem; border-radius: 50%; background: var(--success); box-shadow: 0 0 12px color-mix(in srgb, var(--success) 80%, transparent); }
 .auction-sync-reconnecting > span,.auction-sync-connecting > span { background: var(--brand-yellow); box-shadow: 0 0 12px color-mix(in srgb, var(--brand-yellow) 70%, transparent); }
