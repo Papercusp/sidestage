@@ -8,6 +8,7 @@ import {
 
 export const DEEPGRAM_FETCH = Symbol('DEEPGRAM_FETCH');
 export const DEEPGRAM_GRANT_URL = 'https://api.deepgram.com/v1/auth/grant';
+export const DEEPGRAM_GRANT_TIMEOUT_MS = 5_000;
 
 export interface DeepgramTemporaryToken {
   accessToken: string;
@@ -50,6 +51,7 @@ export class DeepgramTokenService {
           Accept: 'application/json',
           Authorization: `Token ${apiKey}`,
         },
+        signal: AbortSignal.timeout(DEEPGRAM_GRANT_TIMEOUT_MS),
       });
     } catch {
       throw new BadGatewayException({
@@ -77,7 +79,7 @@ export class DeepgramTokenService {
 
     const accessToken = typeof body.access_token === 'string' ? body.access_token.trim() : '';
     const expiresIn = typeof body.expires_in === 'number' ? body.expires_in : Number.NaN;
-    if (!accessToken || !Number.isFinite(expiresIn) || expiresIn <= 0) {
+    if (!accessToken || !Number.isInteger(expiresIn) || expiresIn <= 0 || expiresIn > 3_600) {
       throw new BadGatewayException({
         code: 'deepgram_invalid_response',
         message: 'Deepgram token service returned an invalid response.',

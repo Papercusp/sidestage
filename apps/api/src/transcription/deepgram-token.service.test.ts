@@ -1,6 +1,6 @@
 import { BadGatewayException, ServiceUnavailableException } from '@nestjs/common';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { DEEPGRAM_GRANT_URL, DeepgramTokenService } from './deepgram-token.service';
+import { DEEPGRAM_GRANT_TIMEOUT_MS, DEEPGRAM_GRANT_URL, DeepgramTokenService } from './deepgram-token.service';
 
 describe('DeepgramTokenService', () => {
   afterEach(() => {
@@ -22,6 +22,9 @@ describe('DeepgramTokenService', () => {
     expect(url).toBe(DEEPGRAM_GRANT_URL);
     expect(init.method).toBe('POST');
     expect(new Headers(init.headers).get('authorization')).toBe('Token server-only-key');
+    expect(init.signal).toBeInstanceOf(AbortSignal);
+    expect((init.signal as AbortSignal).aborted).toBe(false);
+    expect(DEEPGRAM_GRANT_TIMEOUT_MS).toBe(5_000);
     expect(JSON.stringify(await service.mint())).not.toContain('server-only-key');
   });
 
@@ -58,6 +61,18 @@ describe('DeepgramTokenService', () => {
       ok: true,
       status: 200,
       json: vi.fn().mockResolvedValue({ access_token: '', expires_in: 0 }),
+    } as unknown as Response);
+    const service = new DeepgramTokenService(fetchImpl as unknown as typeof fetch);
+
+    await expect(service.mint()).rejects.toBeInstanceOf(BadGatewayException);
+  });
+
+  it('rejects an unexpectedly long-lived credential instead of forwarding it to the browser', async () => {
+    vi.stubEnv('DEEPGRAM_API_KEY', 'server-only-key');
+    const fetchImpl = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: vi.fn().mockResolvedValue({ access_token: 'not-short-lived', expires_in: 3_601 }),
     } as unknown as Response);
     const service = new DeepgramTokenService(fetchImpl as unknown as typeof fetch);
 

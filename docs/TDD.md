@@ -68,8 +68,10 @@ degrade-gracefully shape as the wholesale grid.
   `EventChat` component.
 - **Auctions** — server-ordered bids; SSE stream per event with heartbeats.
 - **Streaming** — MediaMTX WHIP/WHEP WebRTC: seller publishes, buyers view;
-  live transcript via Deepgram with product-alias mention detection driving
-  the seller's on-deck slot.
+  the API exchanges its server-only Deepgram project key for a short-lived JWT
+  after seller authentication, and the publisher browser uses that JWT for one
+  direct live-transcription session. Buyers consume the shared event transcript
+  and never create their own transcription sessions.
 
 ## Guardrails and the depth area (agentic-write safety)
 

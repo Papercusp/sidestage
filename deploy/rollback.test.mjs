@@ -139,6 +139,7 @@ describe('production checkout configuration fails closed', () => {
     'SQUARE_APP_ID',
     'SQUARE_LOCATION_ID',
     'SQUARE_ACCESS_TOKEN',
+    'DEEPGRAM_API_KEY',
   ];
 
   it.each(requiredCheckoutVariables)('requires %s instead of defaulting it empty', (name) => {

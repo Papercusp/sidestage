@@ -156,6 +156,7 @@ services:
       SQUARE_WEBHOOK_NOTIFICATION_URL: ${SQUARE_WEBHOOK_NOTIFICATION_URL:-}
       SIDESTAGE_AUCTION_SELLER_TOKEN: ${SIDESTAGE_AUCTION_SELLER_TOKEN:?set in .env.production}
       SIDESTAGE_AUCTION_SIGNING_SECRET: ${SIDESTAGE_AUCTION_SIGNING_SECRET:?set in .env.production}
+      DEEPGRAM_API_KEY: ${DEEPGRAM_API_KEY:?set in .env.production}
     depends_on:
       postgres:
         condition: service_healthy
