@@ -1,10 +1,15 @@
 import { describe, expect, it } from 'vitest';
 import {
   SYSTEM_TEST_CONTRACT_VERSION,
+  SYSTEM_TEST_RUN_OUTCOMES,
+  SYSTEM_TEST_RUN_PHASES,
+  SYSTEM_TEST_RUN_STATES,
   SYSTEM_TEST_SUITE_IDS,
   SYSTEM_TEST_SUITE_MANIFESTS,
   SystemTestContractError,
   type SystemTestRunResult,
+  isSystemTestRunOutcome,
+  isSystemTestRunState,
   parseSystemTestRunRequest,
   parseSystemTestRunResult,
   parseSystemTestSuiteManifest,
@@ -77,6 +82,37 @@ describe('system-test suite manifest', () => {
       ...SYSTEM_TEST_SUITE_MANIFESTS.actions,
       id: 'arbitrary-command',
     })).toThrow(/allow-listed suite ID/);
+  });
+});
+
+describe('system-test run lifecycle', () => {
+  it('exports one browser-safe state vocabulary with explicit terminal outcomes', () => {
+    expect(SYSTEM_TEST_RUN_STATES).toEqual([
+      ...SYSTEM_TEST_RUN_PHASES,
+      ...SYSTEM_TEST_RUN_OUTCOMES,
+    ]);
+    expect(isSystemTestRunState('collecting')).toBe(true);
+    expect(isSystemTestRunOutcome('timed-out')).toBe(true);
+    expect(isSystemTestRunOutcome('running')).toBe(false);
+    expect(isSystemTestRunState('finished')).toBe(false);
+  });
+
+  it('requires timeout and cleanup-failure results to expose cleanup state honestly', () => {
+    const timedOut = passingResult();
+    timedOut.status = 'timed-out';
+    timedOut.transitions.at(-1)!.state = 'timed-out';
+    timedOut.cases = timedOut.cases.map((entry) => ({ ...entry, status: 'not-run', evidence: [] }));
+    timedOut.cleanup = { status: 'pending', summary: 'Stale run requires cleanup.' };
+    expect(parseSystemTestRunResult(timedOut).status).toBe('timed-out');
+
+    timedOut.cleanup = { status: 'succeeded', summary: 'Incorrectly declared complete.' };
+    expect(() => parseSystemTestRunResult(timedOut)).toThrow(/timed-out result requires pending or failed cleanup/);
+
+    const cleanupFailed = passingResult();
+    cleanupFailed.status = 'cleanup-failed';
+    cleanupFailed.transitions.at(-1)!.state = 'cleanup-failed';
+    cleanupFailed.cleanup = { status: 'failed', summary: 'Compose teardown failed.' };
+    expect(parseSystemTestRunResult(cleanupFailed).status).toBe('cleanup-failed');
   });
 });
 
