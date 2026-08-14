@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react';
 
-export type TabId = 'buyer' | 'seller' | 'config' | 'test';
+export type TabId = 'buyer' | 'orders' | 'seller' | 'config' | 'test';
 
 export const TABS: ReadonlyArray<{ id: TabId; label: string; description: string }> = [
   { id: 'buyer', label: 'Buyer', description: 'Browse the live catalog' },
+  { id: 'orders', label: 'Orders', description: 'Review purchases and product moments' },
   { id: 'seller', label: 'Seller', description: 'Run the stage' },
   { id: 'config', label: 'Config', description: 'Set event guardrails' },
   { id: 'test', label: 'Test', description: 'Check your setup' },
