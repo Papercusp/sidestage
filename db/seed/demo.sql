@@ -254,62 +254,67 @@ CREATE TEMP TABLE event_demo_manifest (
   title text NOT NULL,
   product_type text NOT NULL,
   brand text NOT NULL,
-  base_price_cents integer NOT NULL
+  base_price_cents integer NOT NULL,
+  image_filename text NOT NULL UNIQUE CHECK (
+    image_filename ~ '^[a-z0-9-]+\\.webp$'
+  )
 ) ON COMMIT DROP;
 
 -- BEGIN EVENT_DEMO_MANIFEST (catalog.fixture.test.ts counts these source rows)
-INSERT INTO event_demo_manifest (product_number, title, product_type, brand, base_price_cents)
+INSERT INTO event_demo_manifest (
+  product_number, title, product_type, brand, base_price_cents, image_filename
+)
 VALUES
-  (1, 'Harbor Kettle', 'KITCHEN', 'Hearthline', 7400),
-  (2, 'Cloud ANC Headphones', 'AUDIO', 'Northstar Audio', 19900),
-  (3, 'Arc Table Lamp', 'HOME', 'Field & Form', 12800),
-  (4, 'Daily Pour Carafe', 'KITCHEN', 'BrewHaus', 4600),
-  (5, 'Woven Market Tote', 'BAGS', 'SideStage Studio', 4200),
-  (6, 'Pocket Power Bank', 'TECH', 'Relay Works', 5900),
-  (7, 'Cloud Knit Throw', 'HOME', 'Common Thread', 8800),
-  (8, 'Flow Yoga Mat', 'FITNESS', 'North Loop', 6400),
-  (9, 'Travel Vanity Case', 'BEAUTY', 'Morrow', 7600),
-  (10, 'Focus Desk Tray', 'OFFICE', 'Field Office', 3900),
-  (11, 'Stoneware Planter', 'HOME', 'Kiln & Coast', 5200),
-  (12, 'Weekender Toaster', 'KITCHEN', 'Hearthline', 9800),
-  (13, 'Pocket Bluetooth Speaker', 'AUDIO', 'Northstar Audio', 8900),
-  (14, 'Studio Sunglasses', 'ACCESSORIES', 'Morrow', 6800),
-  (15, 'Linen Cushion Cover', 'HOME', 'Common Thread', 3400),
-  (16, 'Click Wireless Mouse', 'TECH', 'Relay Works', 4900),
-  (17, 'Insulated Lunch Jar', 'KITCHEN', 'Trail Table', 4400),
-  (18, 'Everyday Card Wallet', 'ACCESSORIES', 'Atelier June', 5600),
-  (19, 'Bedside Alarm Clock', 'HOME', 'Field & Form', 7200),
-  (20, 'Steel Water Bottle', 'FITNESS', 'North Loop', 3800),
-  (21, 'Linen Hoodie', 'APPAREL', 'SideStage Studio', 6800),
-  (22, 'Ribbed Crew Tee', 'APPAREL', 'Common Thread', 3200),
-  (23, 'Court Low Sneaker', 'FOOTWEAR', 'North Loop', 11000),
-  (24, 'Canvas Chore Jacket', 'APPAREL', 'Workshop Union', 13800),
-  (25, 'Sunday Lounge Pant', 'APPAREL', 'Soft Hours', 7200),
-  (26, 'Classic Leather Belt', 'ACCESSORIES', 'Atelier June', 5800),
-  (27, 'Merino Base Layer', 'APPAREL', 'North Loop', 8400),
-  (28, 'Trail Knit Runner', 'FOOTWEAR', 'North Loop', 12400),
-  (29, 'Relaxed Oxford Shirt', 'APPAREL', 'Common Thread', 7600),
-  (30, 'Utility Cargo Short', 'APPAREL', 'Workshop Union', 6900),
-  (31, 'Studio Apron', 'APPAREL', 'Hearthline', 5400),
-  (32, 'Training Grip Glove', 'FITNESS', 'North Loop', 3600),
-  (33, 'Everyday Sock Set', 'APPAREL', 'Soft Hours', 2800),
-  (34, 'Packable Rain Shell', 'APPAREL', 'Trail Table', 11800),
-  (35, 'Felt Brim Hat', 'ACCESSORIES', 'Atelier June', 6400),
-  (36, 'Coastal Wrap Dress', 'APPAREL', 'Atelier June', 14800),
-  (37, 'Washed Denim Jacket', 'APPAREL', 'Blue Loom', 15600),
-  (38, 'Harbor Deck Shoe', 'FOOTWEAR', 'North Loop', 12000),
-  (39, 'Soft Terry Sweatshirt', 'APPAREL', 'Soft Hours', 7800),
-  (40, 'Tailored Work Trouser', 'APPAREL', 'Workshop Union', 11200),
-  (41, 'Alpine Puffer Vest', 'APPAREL', 'Trail Table', 13200),
-  (42, 'Ribbed Knit Dress', 'APPAREL', 'Common Thread', 9800),
-  (43, 'City Chelsea Boot', 'FOOTWEAR', 'Atelier June', 17800),
-  (44, 'Camp Collar Shirt', 'APPAREL', 'Blue Loom', 7200),
-  (45, 'Quilted House Robe', 'APPAREL', 'Soft Hours', 10800),
-  (46, 'Studio Training Short', 'FITNESS', 'North Loop', 6200),
-  (47, 'Heritage Rugby Top', 'APPAREL', 'Workshop Union', 8800),
-  (48, 'Lightweight Field Parka', 'APPAREL', 'Trail Table', 16400),
-  (49, 'Pleated Midi Skirt', 'APPAREL', 'Atelier June', 9400),
-  (50, 'Brushed Flannel Overshirt', 'APPAREL', 'Blue Loom', 10200);
+  (1, 'Harbor Kettle', 'KITCHEN', 'Hearthline', 7400, 'event-demo-01-harbor-kettle.webp'),
+  (2, 'Cloud ANC Headphones', 'AUDIO', 'Northstar Audio', 19900, 'cloud-anc-midnight.webp'),
+  (3, 'Arc Table Lamp', 'HOME', 'Field & Form', 12800, 'event-demo-03-arc-table-lamp.webp'),
+  (4, 'Daily Pour Carafe', 'KITCHEN', 'BrewHaus', 4600, 'event-demo-04-daily-pour-carafe.webp'),
+  (5, 'Woven Market Tote', 'BAGS', 'SideStage Studio', 4200, 'event-demo-05-woven-market-tote.webp'),
+  (6, 'Pocket Power Bank', 'TECH', 'Relay Works', 5900, 'event-demo-06-pocket-power-bank.webp'),
+  (7, 'Cloud Knit Throw', 'HOME', 'Common Thread', 8800, 'event-demo-07-cloud-knit-throw.webp'),
+  (8, 'Flow Yoga Mat', 'FITNESS', 'North Loop', 6400, 'event-demo-08-flow-yoga-mat.webp'),
+  (9, 'Travel Vanity Case', 'BEAUTY', 'Morrow', 7600, 'event-demo-09-travel-vanity-case.webp'),
+  (10, 'Focus Desk Tray', 'OFFICE', 'Field Office', 3900, 'event-demo-10-focus-desk-tray.webp'),
+  (11, 'Stoneware Planter', 'HOME', 'Kiln & Coast', 5200, 'event-demo-11-stoneware-planter.webp'),
+  (12, 'Weekender Toaster', 'KITCHEN', 'Hearthline', 9800, 'event-demo-12-weekender-toaster.webp'),
+  (13, 'Pocket Bluetooth Speaker', 'AUDIO', 'Northstar Audio', 8900, 'event-demo-13-pocket-bluetooth-speaker.webp'),
+  (14, 'Studio Sunglasses', 'ACCESSORIES', 'Morrow', 6800, 'event-demo-14-studio-sunglasses.webp'),
+  (15, 'Linen Cushion Cover', 'HOME', 'Common Thread', 3400, 'event-demo-15-linen-cushion-cover.webp'),
+  (16, 'Click Wireless Mouse', 'TECH', 'Relay Works', 4900, 'event-demo-16-click-wireless-mouse.webp'),
+  (17, 'Insulated Lunch Jar', 'KITCHEN', 'Trail Table', 4400, 'event-demo-17-insulated-lunch-jar.webp'),
+  (18, 'Everyday Card Wallet', 'ACCESSORIES', 'Atelier June', 5600, 'event-demo-18-everyday-card-wallet.webp'),
+  (19, 'Bedside Alarm Clock', 'HOME', 'Field & Form', 7200, 'event-demo-19-bedside-alarm-clock.webp'),
+  (20, 'Steel Water Bottle', 'FITNESS', 'North Loop', 3800, 'event-demo-20-steel-water-bottle.webp'),
+  (21, 'Linen Hoodie', 'APPAREL', 'SideStage Studio', 6800, 'event-demo-21-linen-hoodie.webp'),
+  (22, 'Ribbed Crew Tee', 'APPAREL', 'Common Thread', 3200, 'event-demo-22-ribbed-crew-tee.webp'),
+  (23, 'Court Low Sneaker', 'FOOTWEAR', 'North Loop', 11000, 'event-demo-23-court-low-sneaker.webp'),
+  (24, 'Canvas Chore Jacket', 'APPAREL', 'Workshop Union', 13800, 'event-demo-24-canvas-chore-jacket.webp'),
+  (25, 'Sunday Lounge Pant', 'APPAREL', 'Soft Hours', 7200, 'event-demo-25-sunday-lounge-pant.webp'),
+  (26, 'Classic Leather Belt', 'ACCESSORIES', 'Atelier June', 5800, 'event-demo-26-classic-leather-belt.webp'),
+  (27, 'Merino Base Layer', 'APPAREL', 'North Loop', 8400, 'event-demo-27-merino-base-layer.webp'),
+  (28, 'Trail Knit Runner', 'FOOTWEAR', 'North Loop', 12400, 'event-demo-28-trail-knit-runner.webp'),
+  (29, 'Relaxed Oxford Shirt', 'APPAREL', 'Common Thread', 7600, 'event-demo-29-relaxed-oxford-shirt.webp'),
+  (30, 'Utility Cargo Short', 'APPAREL', 'Workshop Union', 6900, 'event-demo-30-utility-cargo-short.webp'),
+  (31, 'Studio Apron', 'APPAREL', 'Hearthline', 5400, 'event-demo-31-studio-apron.webp'),
+  (32, 'Training Grip Glove', 'FITNESS', 'North Loop', 3600, 'event-demo-32-training-grip-glove.webp'),
+  (33, 'Everyday Sock Set', 'APPAREL', 'Soft Hours', 2800, 'event-demo-33-everyday-sock-set.webp'),
+  (34, 'Packable Rain Shell', 'APPAREL', 'Trail Table', 11800, 'event-demo-34-packable-rain-shell.webp'),
+  (35, 'Felt Brim Hat', 'ACCESSORIES', 'Atelier June', 6400, 'event-demo-35-felt-brim-hat.webp'),
+  (36, 'Coastal Wrap Dress', 'APPAREL', 'Atelier June', 14800, 'event-demo-36-coastal-wrap-dress.webp'),
+  (37, 'Washed Denim Jacket', 'APPAREL', 'Blue Loom', 15600, 'event-demo-37-washed-denim-jacket.webp'),
+  (38, 'Harbor Deck Shoe', 'FOOTWEAR', 'North Loop', 12000, 'event-demo-38-harbor-deck-shoe.webp'),
+  (39, 'Soft Terry Sweatshirt', 'APPAREL', 'Soft Hours', 7800, 'event-demo-39-soft-terry-sweatshirt.webp'),
+  (40, 'Tailored Work Trouser', 'APPAREL', 'Workshop Union', 11200, 'event-demo-40-tailored-work-trouser.webp'),
+  (41, 'Alpine Puffer Vest', 'APPAREL', 'Trail Table', 13200, 'event-demo-41-alpine-puffer-vest.webp'),
+  (42, 'Ribbed Knit Dress', 'APPAREL', 'Common Thread', 9800, 'event-demo-42-ribbed-knit-dress.webp'),
+  (43, 'City Chelsea Boot', 'FOOTWEAR', 'Atelier June', 17800, 'event-demo-43-city-chelsea-boot.webp'),
+  (44, 'Camp Collar Shirt', 'APPAREL', 'Blue Loom', 7200, 'event-demo-44-camp-collar-shirt.webp'),
+  (45, 'Quilted House Robe', 'APPAREL', 'Soft Hours', 10800, 'event-demo-45-quilted-house-robe.webp'),
+  (46, 'Studio Training Short', 'FITNESS', 'North Loop', 6200, 'event-demo-46-studio-training-short.webp'),
+  (47, 'Heritage Rugby Top', 'APPAREL', 'Workshop Union', 8800, 'event-demo-47-heritage-rugby-top.webp'),
+  (48, 'Lightweight Field Parka', 'APPAREL', 'Trail Table', 16400, 'event-demo-48-lightweight-field-parka.webp'),
+  (49, 'Pleated Midi Skirt', 'APPAREL', 'Atelier June', 9400, 'event-demo-49-pleated-midi-skirt.webp'),
+  (50, 'Brushed Flannel Overshirt', 'APPAREL', 'Blue Loom', 10200, 'event-demo-50-brushed-flannel-overshirt.webp');
 -- END EVENT_DEMO_MANIFEST
 
 CREATE TEMP TABLE event_demo_color_palette (
@@ -337,6 +342,7 @@ SELECT
   manifest.product_type,
   manifest.brand,
   manifest.base_price_cents,
+  manifest.image_filename,
   format('event-demo-%s', to_char(manifest.product_number, 'FM00')) AS group_id,
   variant.variant_number,
   format('event-demo-%s-v%s', to_char(manifest.product_number, 'FM00'), variant.variant_number) AS variant_id,
@@ -407,10 +413,7 @@ SELECT
     'sidestageCollection', 'event-demo-200'
   ),
   jsonb_build_array(jsonb_build_object(
-    'url', format(
-      'https://placehold.co/800x800/eee4d2/2a211c/png?text=%s',
-      replace(title, ' ', '+')
-    ),
+    'url', '/demo-products/' || image_filename,
     'alt', title,
     'isPrimary', true
   )),
@@ -472,16 +475,8 @@ SELECT
     CASE WHEN size_slug IS NOT NULL THEN 'size=' || size_slug END
   ),
   jsonb_build_array(jsonb_build_object(
-    'url', format(
-      'https://placehold.co/640x640/%s/2a211c/png?text=%s',
-      replace(coalesce(color_swatch, '#eee4d2'), '#', ''),
-      concat_ws('+',
-        replace(title, ' ', '+'),
-        replace(color_label, ' ', '+'),
-        replace(size_label, ' ', '+')
-      )
-    ),
-    'alt', title || ' — ' || concat_ws(', ', color_label, size_label),
+    'url', '/demo-products/' || image_filename,
+    'alt', title,
     'isPrimary', true
   )),
   CASE
@@ -626,6 +621,9 @@ DECLARE
   combined_group_count integer;
   color_assignment_count integer;
   size_assignment_count integer;
+  group_image_count integer;
+  variant_image_count integer;
+  invalid_image_count integer;
 BEGIN
   SELECT
     count(*),
@@ -636,12 +634,30 @@ BEGIN
   FROM product_catalog
   WHERE properties->>'sidestageCollection' = 'event-demo-200';
 
-  SELECT count(*)
-  INTO variant_count
+  SELECT
+    count(*),
+    count(DISTINCT catalog.images->0->>'url'),
+    count(DISTINCT variant.variant_images->0->>'url')
+  INTO variant_count, group_image_count, variant_image_count
   FROM storefront_product AS variant
   JOIN product_catalog AS catalog
     ON catalog.group_id = variant.group_id AND catalog.region = variant.region
   WHERE catalog.properties->>'sidestageCollection' = 'event-demo-200';
+
+  SELECT count(*)
+  INTO invalid_image_count
+  FROM storefront_product AS variant
+  JOIN product_catalog AS catalog
+    ON catalog.group_id = variant.group_id AND catalog.region = variant.region
+  WHERE catalog.properties->>'sidestageCollection' = 'event-demo-200'
+    AND (
+      jsonb_array_length(catalog.images) <> 1
+      OR jsonb_array_length(variant.variant_images) <> 1
+      OR catalog.images->0->>'url' !~ '^/demo-products/[a-z0-9-]+\\.webp$'
+      OR variant.variant_images->0->>'url' IS DISTINCT FROM catalog.images->0->>'url'
+      OR catalog.images->0->>'alt' IS DISTINCT FROM catalog.title
+      OR variant.variant_images->0->>'alt' IS DISTINCT FROM catalog.title
+    );
 
   SELECT
     count(*) FILTER (WHERE axis.slug = 'color'),
@@ -668,6 +684,16 @@ BEGIN
     RAISE EXCEPTION
       'event-demo-200 option mapping failed: expected 140 color / 120 size, got % / %',
       color_assignment_count, size_assignment_count;
+  END IF;
+  IF group_image_count <> 50 OR variant_image_count <> 50 THEN
+    RAISE EXCEPTION
+      'event-demo-200 image invariant failed: expected 50 distinct group images reused across 200 variants, got % / %',
+      group_image_count, variant_image_count;
+  END IF;
+  IF invalid_image_count <> 0 THEN
+    RAISE EXCEPTION
+      'event-demo-200 owned-image invariant failed: % variant row(s) lack one matching local group WebP and stable title alt',
+      invalid_image_count;
   END IF;
   IF EXISTS (
     SELECT 1

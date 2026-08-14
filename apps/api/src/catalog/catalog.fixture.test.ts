@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import type { Pool } from 'pg';
@@ -33,20 +34,28 @@ interface EventDemoManifestRow {
   productType: string;
   brand: string;
   basePriceCents: number;
+  imageFilename: string;
 }
 
 function eventDemoManifest(sql: string): EventDemoManifestRow[] {
   const section = sql.match(
     /-- BEGIN EVENT_DEMO_MANIFEST[\s\S]*?\n([\s\S]*?)-- END EVENT_DEMO_MANIFEST/,
   )?.[1] ?? '';
-  const row = /^\s*\((\d+),\s*'([^']+)',\s*'([^']+)',\s*'([^']+)',\s*(\d+)\)[,;]?$/gm;
+  const row = /^\s*\((\d+),\s*'([^']+)',\s*'([^']+)',\s*'([^']+)',\s*(\d+),\s*'([a-z0-9-]+\.webp)'\)[,;]?$/gm;
   return [...section.matchAll(row)].map((match) => ({
     productNumber: Number(match[1]),
     title: match[2],
     productType: match[3],
     brand: match[4],
     basePriceCents: Number(match[5]),
+    imageFilename: match[6],
   }));
+}
+
+function eventDemoSeed(sql: string): string {
+  return sql.match(
+    /-- ── Curated Event Manager catalog[\s\S]*?(?=-- ── Event directory)/,
+  )?.[0] ?? '';
 }
 
 /**
@@ -246,6 +255,7 @@ describe('DEMO_CATALOG_FIXTURE tracks db/seed/demo.sql', () => {
 
 describe('the curated Event Manager seed', () => {
   const manifest = eventDemoManifest(DEMO_SQL);
+  const imageDirectory = join(__dirname, '../../../../apps/web/public/demo-products');
 
   it('authors exactly 50 distinct product groups numbered without gaps', () => {
     expect(manifest.map((row) => row.productNumber)).toEqual(
@@ -253,6 +263,36 @@ describe('the curated Event Manager seed', () => {
     );
     expect(new Set(manifest.map((row) => row.title)).size).toBe(50);
     expect(manifest.every((row) => row.productType && row.brand && row.basePriceCents > 0)).toBe(true);
+  });
+
+  it('authors one stable, distinct, project-owned WebP filename per group', () => {
+    expect(new Set(manifest.map((row) => row.imageFilename)).size).toBe(50);
+    expect(manifest.map((row) => row.imageFilename)).toContain('cloud-anc-midnight.webp');
+
+    for (const row of manifest) {
+      expect(row.imageFilename).toMatch(/^[a-z0-9-]+\.webp$/);
+
+      const image = readFileSync(join(imageDirectory, row.imageFilename));
+      expect(image.byteLength, `${row.imageFilename} is suspiciously small`).toBeGreaterThan(20_000);
+      expect(image.subarray(0, 4).toString('ascii')).toBe('RIFF');
+      expect(image.subarray(8, 12).toString('ascii')).toBe('WEBP');
+    }
+  });
+
+  it('reuses the exact approved Cloud asset', () => {
+    const cloud = readFileSync(join(imageDirectory, 'cloud-anc-midnight.webp'));
+    expect(createHash('sha256').update(cloud).digest('hex'))
+      .toBe('75f3221085ba39d23ecb79967d2a5b3b46e78483e4b6959c1f16840bd703e9b5');
+  });
+
+  it('writes the same local group image and title alt onto all four variants', () => {
+    const seed = eventDemoSeed(DEMO_SQL);
+
+    expect(seed).not.toContain('placehold.co');
+    expect(seed.match(/'url', '\/demo-products\/' \|\| image_filename/g)).toHaveLength(2);
+    expect(seed.match(/'alt', title/g)).toHaveLength(2);
+    expect(seed).toContain('expected 50 distinct group images reused across 200 variants');
+    expect(seed).toContain('lack one matching local group WebP and stable title alt');
   });
 
   it('derives four variants per group and pins the executable database invariants', () => {
