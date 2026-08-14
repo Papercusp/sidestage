@@ -69,5 +69,8 @@ describe('seller dock fullscreen', () => {
     expect(css).toMatch(
       /\.seller-dock-shell:fullscreen \.seller-dock-board\s*\{[^}]*width:\s*100% !important;[^}]*height:\s*auto !important;/s,
     );
+    expect(css).toMatch(
+      /\.seller-dock-toolbar-actions\s*\{[^}]*order:\s*-1;[^}]*margin-left:\s*0;/s,
+    );
   });
 });

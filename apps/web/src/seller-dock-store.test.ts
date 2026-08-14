@@ -2,9 +2,15 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { CURRENT_LAYOUT_SCHEMA_VERSION, type LayoutDoc } from '@papercusp/dock-workbench';
 
-import { SELLER_DOCK_LAYOUT_NAME, sellerDockDefaultLayout } from './seller-dock-layout';
+import {
+  SELLER_DOCK_LAYOUT_NAME,
+  SELLER_MANAGER_DOCK_LAYOUT_NAME,
+  sellerDockDefaultLayout,
+  sellerEventManagerDockDefaultLayout,
+} from './seller-dock-layout';
 import {
   SELLER_DOCK_RESET_EVENT,
+  SELLER_MANAGER_DOCK_RESET_EVENT,
   SELLER_DOCK_STORAGE_PREFIX,
   createSellerDockStore,
   requestSellerDockLayoutReset,
@@ -66,6 +72,15 @@ describe('createSellerDockStore — round trip', () => {
 
     expect(row.layoutJson).toEqual(sellerDockDefaultLayout());
     expect(store.has(KEY)).toBe(true);
+  });
+
+  it('seeds a second board under its own layout name and default geometry', async () => {
+    const manager = createSellerDockStore({ seed: sellerEventManagerDockDefaultLayout });
+    const row = await manager.load(SELLER_MANAGER_DOCK_LAYOUT_NAME);
+
+    expect(row.layoutJson).toEqual(sellerEventManagerDockDefaultLayout());
+    expect(store.has(sellerDockStorageKey(SELLER_MANAGER_DOCK_LAYOUT_NAME))).toBe(true);
+    expect(sellerDockStorageKey(SELLER_MANAGER_DOCK_LAYOUT_NAME)).not.toBe(KEY);
   });
 
   it('restores a saved layout instead of reseeding — the whole point of persistence', async () => {
@@ -200,6 +215,18 @@ describe('requestSellerDockLayoutReset', () => {
 
     expect(requestSellerDockLayoutReset(target)).toBe(true);
     expect(heard).toHaveBeenCalledTimes(1);
+  });
+
+  it('can target one Studio board without resetting its sibling', () => {
+    const target = new EventTarget();
+    const active = vi.fn();
+    const manager = vi.fn();
+    target.addEventListener(SELLER_DOCK_RESET_EVENT, active);
+    target.addEventListener(SELLER_MANAGER_DOCK_RESET_EVENT, manager);
+
+    expect(requestSellerDockLayoutReset(target, SELLER_MANAGER_DOCK_RESET_EVENT)).toBe(true);
+    expect(manager).toHaveBeenCalledOnce();
+    expect(active).not.toHaveBeenCalled();
   });
 
   it('reports false instead of throwing when there is no window to dispatch on', () => {

@@ -5,7 +5,7 @@ import { TabHeader } from './components/TabHeader';
 import { EventChat } from './EventChat';
 import { chatEventId, DEFAULT_EVENT_ID, DEFAULT_EVENT_TITLE, mediaBaseUrl } from './event-identity';
 import { useCopyState, useStreamSession } from './hooks';
-import { studioViewHref, useUrlStudioView } from './app-routing';
+import { studioViewHref, useUrlStudioView, type StudioView } from './app-routing';
 import { SellerDock } from './SellerDock';
 import {
   SELLER_ACTIVE_DOCK_LAYOUT_NAME,
@@ -23,6 +23,20 @@ import type { CatalogProduct } from './seller-products';
 import { type TranscriptProductOption } from './TranscriptPane';
 import { connectPublisher, createEventRoom, type EventRoom, type PublisherSession } from './streaming';
 import './studio.css';
+
+export function studioBoardConfig(view: StudioView) {
+  return view === 'active-event'
+    ? {
+        layoutName: SELLER_ACTIVE_DOCK_LAYOUT_NAME,
+        layoutSeed: sellerActiveEventDockDefaultLayout,
+        resetEventName: SELLER_ACTIVE_DOCK_RESET_EVENT,
+      }
+    : {
+        layoutName: SELLER_MANAGER_DOCK_LAYOUT_NAME,
+        layoutSeed: sellerEventManagerDockDefaultLayout,
+        resetEventName: SELLER_MANAGER_DOCK_RESET_EVENT,
+      };
+}
 
 export function SellerTab({
   selectedProduct,
@@ -158,16 +172,7 @@ export function SellerTab({
     },
   };
 
-  const activeBoard = studioView === 'active-event';
-  const layoutName = activeBoard
-    ? SELLER_ACTIVE_DOCK_LAYOUT_NAME
-    : SELLER_MANAGER_DOCK_LAYOUT_NAME;
-  const layoutSeed = activeBoard
-    ? sellerActiveEventDockDefaultLayout
-    : sellerEventManagerDockDefaultLayout;
-  const resetEventName = activeBoard
-    ? SELLER_ACTIVE_DOCK_RESET_EVENT
-    : SELLER_MANAGER_DOCK_RESET_EVENT;
+  const { layoutName, layoutSeed, resetEventName } = studioBoardConfig(studioView);
   const hrefFor = (view: 'active-event' | 'event-manager') => studioViewHref(
     view,
     typeof window === 'undefined' ? '/' : window.location.href,
