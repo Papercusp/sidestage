@@ -75,6 +75,7 @@ export class EventController {
     if (!unpublished) {
       throw new NotFoundException('Event not found for this seller.');
     }
+    this.invalidations.invalidate('event.lineup.items', { eventId });
     this.invalidations.invalidate('events.guide');
     this.invalidations.invalidate('events.mine', undefined, { principal: principalHeader });
     return { eventId, status: 'draft' };

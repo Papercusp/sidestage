@@ -296,6 +296,10 @@ export class PgAuctionStore implements AuctionStore {
   }
 
   private async closeLocked(client: PoolClient, auction: Auction): Promise<AuctionCloseResult> {
+    // Legacy payloads predate allocationState. Infer while the aggregate is
+    // still active; changing status first would make a no-bid auction look as
+    // though its event allocation had already been released.
+    auction.allocationState = this.allocationState(auction);
     auction.status = 'closed';
     auction.closedAt = new Date().toISOString();
     auction.closeReason = 'settled';

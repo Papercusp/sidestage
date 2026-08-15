@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { GuardedActionService } from './action.service';
 import type { ActionEventItem } from './action.types';
 import type { CopilotPolicy } from '../copilot/copilot.types';
@@ -8,8 +8,10 @@ import { SyncQueryRegistry } from '../sync/sync-query.registry';
 import { ActionSyncQueries } from './action.module';
 import { ChatService } from '../chat/chat.service';
 import { EventOwnershipGuard } from '../events/event-ownership.guard';
+import { EventVisibilityGuard } from '../events/event-visibility.guard';
 import { EventService, InMemoryEventStore } from '../events/event.service';
 import { InMemoryOrderStore } from '../checkout/checkout.service';
+import { FixtureCatalogSource } from '../catalog/catalog.sources';
 
 const policy: CopilotPolicy = {
   automationLevel: 'auto',
@@ -41,8 +43,7 @@ describe('GuardedActionService', () => {
   it('registers the seller lineup as the event.actions.items named query', async () => {
     const actions = await service();
     const queries = new SyncQueryRegistry();
-    const ownership = new EventOwnershipGuard(new EventService(
-      new InMemoryEventStore([{
+    const eventStore = new InMemoryEventStore([{
         eventId: 'event-1',
         title: 'Event one',
         sellerId: 'seller-1',
@@ -50,10 +51,11 @@ describe('GuardedActionService', () => {
         status: 'live',
         startsAt: null,
         endedAt: null,
-      }]),
-      new ChatService(),
-    ));
-    new ActionSyncQueries(actions, queries, ownership).onModuleInit();
+      }]);
+    const ownership = new EventOwnershipGuard(new EventService(eventStore, new ChatService()));
+    const visibility = new EventVisibilityGuard(eventStore);
+    const catalog = new FixtureCatalogSource([]);
+    new ActionSyncQueries(actions, queries, ownership, visibility, catalog).onModuleInit();
 
     await expect(queries.resolve(
       'event.actions.items',
@@ -67,6 +69,66 @@ describe('GuardedActionService', () => {
       { eventId: 'event-1' },
       { principal: 'seller-2' },
     )).rejects.toThrow('Event not found for this seller.');
+  });
+
+  it('publishes a buyer-safe lineup with event authority and current catalog labels', async () => {
+    const actions = await service();
+    await actions.registerEvent('event-draft', {
+      policy,
+      items: [{ ...item, eventId: 'event-draft', eventItemId: 'event-draft:mug' }],
+    });
+    const queries = new SyncQueryRegistry();
+    const eventStore = new InMemoryEventStore([
+      {
+        eventId: 'event-1', title: 'Published', sellerId: 'seller-1', sellerName: 'Seller one',
+        status: 'scheduled', startsAt: null, endedAt: null,
+      },
+      {
+        eventId: 'event-draft', title: 'Draft', sellerId: 'seller-1', sellerName: 'Seller one',
+        status: 'draft', startsAt: null, endedAt: null,
+      },
+    ]);
+    const events = new EventService(eventStore, new ChatService());
+    const catalog = new FixtureCatalogSource([{
+      id: 'mug', groupId: 'cups', title: 'Catalog mug', brand: 'Kiln & Coast', productType: 'HOME',
+      sku: 'MUG-BLUE', color: 'Ocean blue', size: '12 oz', condition: 'NEW', handlingDays: 2,
+      priceCents: 9_999, qty: 90, reservedQty: 10, availableQty: 80, imageUrl: '/mug-blue.webp',
+    }]);
+    const listItems = vi.spyOn(actions, 'listItems');
+    const readVariant = vi.spyOn(catalog, 'variant');
+    new ActionSyncQueries(
+      actions,
+      queries,
+      new EventOwnershipGuard(events),
+      new EventVisibilityGuard(eventStore),
+      catalog,
+    ).onModuleInit();
+
+    await expect(queries.resolve('event.lineup.items', { eventId: 'event-1' })).resolves.toEqual([{
+      eventId: 'event-1',
+      eventItemId: 'event-1:mug',
+      productId: 'mug',
+      title: 'Blue mug',
+      referencePriceCents: 1_500,
+      priceCents: 1_500,
+      quantity: 5,
+      availableQty: 5,
+      position: 0,
+      stageState: 'queued',
+      imageUrl: '/mug-blue.webp',
+      brand: 'Kiln & Coast',
+      productType: 'HOME',
+      sku: 'MUG-BLUE',
+      color: 'Ocean blue',
+      size: '12 oz',
+      condition: 'NEW',
+    }]);
+    await expect(queries.resolve('event.lineup.items', { eventId: 'event-draft' }))
+      .rejects.toThrow('Unknown event: event-draft');
+    await expect(queries.resolve('event.lineup.items', { eventId: 'missing' }))
+      .rejects.toThrow('Unknown event: missing');
+    expect(listItems).toHaveBeenCalledTimes(1);
+    expect(readVariant).toHaveBeenCalledTimes(1);
   });
 
   it('invalidates the event-scoped lineup after registration, action, and rollback writes', async () => {
@@ -84,6 +146,11 @@ describe('GuardedActionService', () => {
     subscription.unsubscribe();
 
     expect(published.filter(({ name }) => name === 'event.actions.items').map(({ args }) => args)).toEqual([
+      { eventId: 'event-1' },
+      { eventId: 'event-1' },
+      { eventId: 'event-1' },
+    ]);
+    expect(published.filter(({ name }) => name === 'event.lineup.items').map(({ args }) => args)).toEqual([
       { eventId: 'event-1' },
       { eventId: 'event-1' },
       { eventId: 'event-1' },

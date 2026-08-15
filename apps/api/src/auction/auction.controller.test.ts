@@ -29,4 +29,36 @@ describe('AuctionController active auction response', () => {
 
     expect(response.json).toHaveBeenCalledWith(auction);
   });
+
+  it('authorizes seller cancellation against the auction event owner', async () => {
+    const auction = { id: 'auction-1', eventId: 'event-1', status: 'closed', closeReason: 'seller-cancelled' };
+    const auctions = {
+      getAuction: vi.fn().mockResolvedValue({ ...auction, status: 'active' }),
+      cancelAuction: vi.fn().mockResolvedValue(auction),
+    };
+    const access = {
+      requireSellerPrincipal: vi.fn().mockReturnValue({ sellerId: 'seller-1' }),
+      consumeRateLimit: vi.fn(),
+    };
+    const audit = { record: vi.fn(), reasonCode: vi.fn() };
+    const ownership = { requireOwnedForSeller: vi.fn().mockResolvedValue(undefined) };
+    const controller = new AuctionController(
+      auctions as never,
+      access as never,
+      audit as never,
+      ownership as never,
+    );
+
+    await expect(controller.cancel('auction-1', { 'x-sidestage-principal': 'seller-1' }, '127.0.0.1'))
+      .resolves.toEqual(auction);
+    expect(ownership.requireOwnedForSeller).toHaveBeenCalledWith('event-1', 'seller-1');
+    expect(auctions.cancelAuction).toHaveBeenCalledWith('auction-1');
+    expect(audit.record).toHaveBeenCalledWith(expect.objectContaining({
+      action: 'auction.cancel',
+      outcome: 'accepted',
+      reasonCode: 'AUCTION_CANCELLED',
+      auctionId: 'auction-1',
+      eventId: 'event-1',
+    }));
+  });
 });

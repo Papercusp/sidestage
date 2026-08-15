@@ -49,10 +49,16 @@ describe('EventController seller teardown', () => {
       status: 'draft',
     });
     expect(invalidated.map(({ name }) => name)).toEqual([
+      'event.lineup.items',
       'events.guide',
       'events.mine',
+      'event.lineup.items',
       'events.guide',
       'events.mine',
+    ]);
+    expect(invalidated.filter(({ name }) => name === 'event.lineup.items')).toEqual([
+      { name: 'event.lineup.items', args: { eventId: PROBE.eventId }, context: undefined },
+      { name: 'event.lineup.items', args: { eventId: PROBE.eventId }, context: undefined },
     ]);
     expect(invalidated.filter(({ name }) => name === 'events.mine')).toEqual([
       { name: 'events.mine', args: undefined, context: { principal: PROBE.sellerId } },
