@@ -67,6 +67,23 @@ describe('transcript product-focus policy', () => {
     });
   });
 
+  it('strengthens a stable different-product focus repeated across finalized segments', () => {
+    expect(detectTranscriptProductFocus({
+      segments: [
+        { id: 'one', text: 'The linen hoodie has an oversized fit.' },
+        { id: 'two', text: 'This linen hoodie also has reinforced cuffs.' },
+      ],
+      products: PRODUCTS,
+      activeProductId: 'mug',
+    })).toMatchObject({
+      kind: 'suggest',
+      product: { id: 'hoodie' },
+      reason: 'repeated-focus',
+      confidence: 0.99,
+      evidenceSegmentIds: ['one', 'two'],
+    });
+  });
+
   it('resolves a transition cue across adjacent finalized segments', () => {
     expect(detectTranscriptProductFocus({
       segments: [
