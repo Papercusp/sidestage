@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useSyncQuery } from '@papercusp/sync';
 
 import {
@@ -150,7 +150,17 @@ export function BuyerTab({
   const [showAllProducts, setShowAllProducts] = useState(false);
   const [buyerMode, setBuyerMode] = useState<BuyerMode>('shop');
   const stream = useStreamSession<ViewerSession>();
-  const { streamState, setStreamState, streamError, session, videoRef } = stream;
+  const {
+    streamState,
+    setStreamState,
+    streamError,
+    session,
+    videoRef,
+    start: startStream,
+    stop: stopStream,
+  } = stream;
+  const selectedRoomRef = useRef(room);
+  selectedRoomRef.current = room;
   const { copyState, copy } = useCopyState();
   // D-013: this is deliberately an auth-free demo identity. Every buyer-side
   // action consumes the same persisted id, and the Orders tab imports the same
@@ -161,22 +171,18 @@ export function BuyerTab({
   const heldProductIdSet = useMemo(() => new Set(heldProductIds), [heldProductIds]);
 
   useEffect(() => {
-    return () => stream.stop();
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- teardown per room change only
-  }, [eventId]);
-
-  useEffect(() => {
     setShowAllProducts(false);
     setBuyerMode('shop');
   }, [eventId]);
 
-  const connectStream = () =>
-    stream.start(
+  const connectStream = useCallback(() =>
+    startStream(
       () =>
         connectViewer({
           room,
           mediaBaseUrl,
           onTrack: (mediaStream) => {
+            if (selectedRoomRef.current !== room) return;
             if (videoRef.current && videoRef.current.srcObject !== mediaStream) {
               videoRef.current.srcObject = mediaStream;
             }
@@ -188,9 +194,14 @@ export function BuyerTab({
         attach: (viewer) => viewer.stream,
         fallbackError: 'The stream could not be connected.',
       },
-    );
+    ), [mediaBaseUrl, room, setStreamState, startStream, videoRef]);
 
-  const disconnectStream = () => stream.stop();
+  useEffect(() => {
+    void connectStream();
+    return stopStream;
+  }, [connectStream, stopStream]);
+
+  const disconnectStream = stopStream;
 
   const copyShareUrl = () => void copy(shareUrl);
 
@@ -280,11 +291,11 @@ export function BuyerTab({
             <p>{streamState === 'error' ? streamError : 'The seller stream appears here when the room is live.'}</p>
             {session ? (
               <button className="button secondary" type="button" onClick={disconnectStream}>Disconnect</button>
-            ) : (
-              <button className="button primary" type="button" onClick={() => void connectStream()} disabled={streamState === 'connecting'}>
-                {streamState === 'connecting' ? 'Connecting…' : 'Connect to stream'}
+            ) : streamState === 'error' ? (
+              <button className="button primary" type="button" onClick={() => void connectStream()}>
+                Retry stream
               </button>
-            )}
+            ) : null}
           </div>
           <VideoEngagementOverlay
             className="buyer-video-engagement-overlay"
