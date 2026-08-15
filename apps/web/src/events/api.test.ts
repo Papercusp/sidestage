@@ -4,8 +4,11 @@ import {
   adjustSellerEventStock,
   closeSellerAuction,
   executeSellerAction,
+  fetchSellerEvent,
+  saveRunOfShowPlan,
   setupSellerEvent,
   startSellerAuction,
+  verifySellerAuctionAccess,
   type SellerEventItem,
 } from './api';
 
@@ -66,8 +69,10 @@ describe('seller event API orchestration', () => {
     expect(calls.some((call) => call.url.endsWith('/inventory/mug/hold'))).toBe(true);
     const configPut = calls.find((call) => call.url.endsWith('/events/sunday-drop/config') && call.init?.method === 'PUT');
     const configGet = calls.find((call) => call.url.endsWith('/events/sunday-drop/config') && !call.init?.method);
+    const register = calls.find((call) => call.url.endsWith('/actions/events/sunday-drop/register'));
     expect(new Headers(configPut?.init?.headers).get(DEMO_PRINCIPAL_HEADER)).toBe('demo-27');
     expect(new Headers(configGet?.init?.headers).get(DEMO_PRINCIPAL_HEADER)).toBe('demo-27');
+    expect(new Headers(register?.init?.headers).get(DEMO_PRINCIPAL_HEADER)).toBe('demo-27');
     expect(new Headers(configPut?.init?.headers).get('x-seller-id')).toBeNull();
     expect(new Headers(configPut?.init?.headers).get('x-seller-name')).toBe('Studio 27');
   });
@@ -144,12 +149,14 @@ describe('seller event API orchestration', () => {
       throw new Error(`Unexpected URL ${url}`);
     }));
 
-    const result = await adjustSellerEventStock('drop', 'seller-stock-27', ITEM, 2);
+    const result = await adjustSellerEventStock('drop', 'seller-stock-27', ITEM, 2, undefined, 'demo-27');
     expect(result.state.quantity).toBe(2);
     expect(urls).toEqual([
       'http://localhost:3100/inventory/mug/hold',
       'http://localhost:3100/actions/events/drop/execute',
     ]);
+    const executeCall = vi.mocked(fetch).mock.calls.find(([input]) => String(input).endsWith('/actions/events/drop/execute'));
+    expect(new Headers(executeCall?.[1]?.headers).get(DEMO_PRINCIPAL_HEADER)).toBe('demo-27');
   });
 
   it('keeps seller-entered quantity in auction and targeted-offer requests', async () => {
@@ -208,18 +215,52 @@ describe('seller event API orchestration', () => {
       throw new Error(`Unexpected URL ${url}`);
     }));
 
-    await startSellerAuction('drop', ITEM, 1, 1_100, undefined, 'seller-secret');
-    await closeSellerAuction('auction-secure', undefined, 'seller-secret');
+    await startSellerAuction('drop', ITEM, 1, 1_100, undefined, 'seller-secret', 'demo-27');
+    await closeSellerAuction('auction-secure', undefined, 'seller-secret', 'demo-27');
 
     expect(calls).toHaveLength(2);
     for (const call of calls) {
       expect(call.init?.headers).toEqual(expect.objectContaining({ authorization: 'Bearer seller-secret' }));
+      expect(new Headers(call.init?.headers).get(DEMO_PRINCIPAL_HEADER)).toBe('demo-27');
       expect(String(call.init?.body ?? '')).not.toContain('seller-secret');
     }
     expect(calls[1]).toMatchObject({
       url: 'http://localhost:3100/auctions/auction-secure/close',
       init: { method: 'POST' },
     });
+  });
+
+  it('attaches the canonical principal to seller reads, run-of-show saves, and credential checks', async () => {
+    const calls: Array<{ url: string; init?: RequestInit }> = [];
+    vi.stubGlobal('fetch', vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
+      const url = String(input);
+      calls.push({ url, init });
+      if (url.endsWith('/events/drop/config')) {
+        return json({
+          eventId: 'drop',
+          name: 'Drop',
+          policy: {
+            automationLevel: 'confirm', allowAutoActions: false,
+            priceFloorCentsByProduct: {}, maxMarkdownPercent: 20,
+            blockedActionKinds: [], tone: 'warm',
+          },
+        });
+      }
+      if (url.endsWith('/actions/events/drop/items')) return json({ items: [ITEM] });
+      if (url.endsWith('/events/drop/run-of-show')) return json({ eventId: 'drop', entries: [] });
+      if (url.endsWith('/auctions/access/seller')) return json({ sellerId: 'seller-27' });
+      throw new Error(`Unexpected URL ${url}`);
+    }));
+
+    await fetchSellerEvent('drop', undefined, 'demo-27');
+    await saveRunOfShowPlan('drop', [], undefined, 'demo-27');
+    await verifySellerAuctionAccess('seller-secret', undefined, 'demo-27');
+
+    expect(calls).toHaveLength(4);
+    for (const call of calls) {
+      expect(new Headers(call.init?.headers).get(DEMO_PRINCIPAL_HEADER)).toBe('demo-27');
+    }
+    expect(new Headers(calls.at(-1)?.init?.headers).get('authorization')).toBe('Bearer seller-secret');
   });
 });
 
