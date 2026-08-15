@@ -173,33 +173,41 @@ export async function addHeldProductToCart(
       eventItemId: product.eventItemId,
       idempotencyKey: `cart-hold:${globalThis.crypto.randomUUID()}`,
     } : {}),
-  }), apiBaseUrl);
+  }), apiBaseUrl, buyerId);
   persistBuyerCartId(buyerId, cart.id, storage);
   return cart;
 }
 
-export function fetchBuyerCart(cartId: string, apiBaseUrl?: string): Promise<BuyerCart> {
-  return requestJson<BuyerCart>(`/cart/${encodeURIComponent(cartId)}`, {}, apiBaseUrl);
+export function fetchBuyerCart(cartId: string, buyerId: string, apiBaseUrl?: string): Promise<BuyerCart> {
+  return requestJson<BuyerCart>(`/cart/${encodeURIComponent(cartId)}`, {}, apiBaseUrl, buyerId);
 }
 
 export function setBuyerCartQuantity(
   cartId: string,
   productId: string,
   quantity: number,
+  buyerId: string,
   apiBaseUrl?: string,
 ): Promise<BuyerCart> {
   return requestJson<BuyerCart>(
     `/cart/${encodeURIComponent(cartId)}/items/${encodeURIComponent(productId)}`,
     { ...jsonPost({ quantity }), method: 'PATCH' },
     apiBaseUrl,
+    buyerId,
   );
 }
 
-export function removeBuyerCartItem(cartId: string, productId: string, apiBaseUrl?: string): Promise<BuyerCart> {
+export function removeBuyerCartItem(
+  cartId: string,
+  productId: string,
+  buyerId: string,
+  apiBaseUrl?: string,
+): Promise<BuyerCart> {
   return requestJson<BuyerCart>(
     `/cart/${encodeURIComponent(cartId)}/items/${encodeURIComponent(productId)}`,
     { method: 'DELETE' },
     apiBaseUrl,
+    buyerId,
   );
 }
 

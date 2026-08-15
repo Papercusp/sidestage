@@ -46,6 +46,16 @@ describe('VideoEngagementOverlay', () => {
     expect(markup).toContain('The live transcript is temporarily unavailable.');
   });
 
+  it('keeps an empty transcript in its loading state while the principal-scoped query rebinds', () => {
+    const transcript = remoteTranscriptPresentation([], new Error('stale principal error'), true);
+
+    expect(transcript).toMatchObject({
+      state: 'idle',
+      error: null,
+      statusLabel: 'Waiting for captions',
+    });
+  });
+
   it('renders a transcript-only surface without empty chat controls', () => {
     const markup = renderToStaticMarkup(
       <VideoEngagementOverlay

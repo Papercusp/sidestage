@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { forwardRef, Module } from '@nestjs/common';
 import type { Pool } from 'pg';
 import { AUCTION_INVENTORY, InMemoryAuctionInventory } from '../auction/auction.service';
 import { CatalogModule } from '../catalog/catalog.module';
@@ -14,7 +14,7 @@ import { InventoryController } from './inventory.controller';
  * quantity limits all share it — a hold is a hold, whoever places it.
  */
 @Module({
-  imports: [DatabaseModule, SyncModule, CatalogModule, EventModule],
+  imports: [DatabaseModule, SyncModule, CatalogModule, forwardRef(() => EventModule)],
   controllers: [InventoryController],
   providers: [
     {

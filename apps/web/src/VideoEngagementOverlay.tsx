@@ -29,9 +29,10 @@ export interface VideoEngagementOverlayProps {
 export function remoteTranscriptPresentation(
   moments: readonly EventTranscriptMoment[],
   error?: unknown,
+  loading = false,
 ): TranscriptOverlayPresentation {
   const latestProduct = [...moments].reverse().find((moment) => moment.productId && moment.productTitle);
-  const unavailable = Boolean(error) && moments.length === 0;
+  const unavailable = !loading && Boolean(error) && moments.length === 0;
   return {
     state: unavailable ? 'error' : moments.length > 0 ? 'listening' : 'idle',
     segments: moments,

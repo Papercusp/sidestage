@@ -1,6 +1,9 @@
 import { describe, expect, it, vi } from 'vitest';
 import Stripe from 'stripe';
+import { InMemoryActionItemStore } from '../actions/action-item.store';
+import { InMemoryAuctionInventory } from '../auction/auction.service';
 import { CartService, InMemoryCartStore } from '../cart/cart.service';
+import { InMemoryEventStore } from '../events/event.service';
 import {
   ShippingService,
   type AggregatedRate,
@@ -360,6 +363,77 @@ describe('CheckoutService', () => {
     expect(late.order?.paymentState).toBe('paid');
     expect(release).not.toHaveBeenCalled();
     expect(commit).toHaveBeenCalledTimes(1);
+  });
+
+  it('derives event identity from an event cart and terminally releases it on payment failure', async () => {
+    const eventItems = new InMemoryActionItemStore();
+    await eventItems.register('event-checkout', [{
+      eventId: 'event-checkout', eventItemId: 'event-checkout:mug', productId: 'mug',
+      title: 'Checkout mug', referencePriceCents: 2_000, priceCents: 1_500,
+      quantity: 2, availableQty: 2, position: 0, stageState: 'on-stage', onStage: true,
+      attributes: {},
+    }]);
+    const inventory = new InMemoryAuctionInventory();
+    await inventory.seed('mug', 2);
+    const carts = new CartService(
+      new InMemoryCartStore(
+        eventItems,
+        new InMemoryEventStore([{
+          eventId: 'event-checkout', title: 'Checkout event', sellerId: 'seller-1', sellerName: 'Seller',
+          status: 'live', startsAt: '2026-08-14T05:00:00Z', endedAt: null,
+        }]),
+        inventory,
+      ),
+      inventory,
+    );
+    const cart = await carts.holdItem({
+      cartId: 'cart-event-checkout', eventId: 'event-checkout', eventItemId: 'event-checkout:mug',
+      productId: 'mug', title: 'ignored', priceCents: 1, idempotencyKey: 'checkout-hold-1',
+    });
+    const sourceService = sources(carts);
+    const release = vi.spyOn(sourceService, 'release');
+    const commit = vi.spyOn(sourceService, 'commit');
+    const payments = providerHarness();
+    const checkout = new CheckoutService(payments.provider, new InMemoryOrderStore(), sourceService, shipping());
+
+    await expect(checkout.createSession(input(cart.id, { eventId: 'event-other' })))
+      .rejects.toThrow('Cart belongs to a different event');
+    const session = await checkout.createSession(input(cart.id, { eventId: undefined }));
+    expect(session.order).toMatchObject({
+      eventId: 'event-checkout',
+      sourceCommitment: { kind: 'event-cart', state: 'active', revision: expect.any(String) },
+    });
+
+    payments.deliver(stripeEvent(session.order, {
+      id: 'evt_event_cart_failed', type: 'failed', amountReceivedCents: undefined, errorMessage: 'declined',
+    }));
+    const failed = await checkout.handleWebhook(Buffer.from('{}'), 'signed');
+    expect(failed).toMatchObject({
+      handled: true,
+      order: {
+        status: 'failed', paymentState: 'payment_failed',
+        sourceCommitment: { kind: 'event-cart', state: 'released' },
+      },
+    });
+    expect(release).toHaveBeenCalledTimes(1);
+    expect(commit).not.toHaveBeenCalled();
+    await expect(carts.findCart(cart.id)).resolves.toMatchObject({
+      items: [], eventTerminalTransition: expect.objectContaining({ state: 'released' }),
+    });
+    await expect(eventItems.list('event-checkout')).resolves.toMatchObject([{ availableQty: 2 }]);
+    await expect(inventory.get('mug')).resolves.toMatchObject({ reservedQty: 0, availableQty: 2 });
+
+    await expect(checkout.createSession({
+      orderId: session.order.id,
+      buyerId: session.order.buyerId,
+      shippingAddress: ADDRESS,
+      shippingRateId: RATE.id,
+    })).rejects.toThrow('Order is no longer payable');
+    payments.deliver(stripeEvent(session.order, { id: 'evt_event_cart_late_success', created: 1_786_751_001 }));
+    const late = await checkout.handleWebhook(Buffer.from('{}'), 'signed');
+    expect(late.handled).toBe(false);
+    expect(late.order?.sourceCommitment?.state).toBe('released');
+    expect(commit).not.toHaveBeenCalled();
   });
 
   it('rejects signed events whose SideStage identity or amount disagrees', async () => {

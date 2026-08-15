@@ -3,9 +3,12 @@ import {
   addHeldProductToCart,
   buyerCartStorageKey,
   createBuyerCheckoutSession,
+  fetchBuyerCart,
   fetchBuyerOrder,
   fetchBuyerOrderShippingRates,
   fetchBuyerShippingRates,
+  removeBuyerCartItem,
+  setBuyerCartQuantity,
   type BuyerCart,
   type BuyerCheckoutSessionResponse,
   type BuyerShippingAddress,
@@ -55,6 +58,7 @@ describe('buyer checkout API adapter', () => {
     expect(JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body))).toEqual(expect.objectContaining({
       cartId: 'cart-existing', productId: 'mug', priceCents: 2500, quantity: 1,
     }));
+    expect(new Headers(fetchMock.mock.calls[0]?.[1]?.headers).get('x-demo-principal')).toBe('demo buyer');
     expect(cartStorage.setItem).toHaveBeenCalledWith(key, 'cart-existing');
   });
 
@@ -88,7 +92,29 @@ describe('buyer checkout API adapter', () => {
       eventItemId: 'event-1:mug',
     });
     expect(body.idempotencyKey).toMatch(/^cart-hold:/);
+    expect(new Headers(fetchMock.mock.calls[0]?.[1]?.headers).get('x-demo-principal')).toBe('buyer-event');
     expect(cartStorage.setItem).toHaveBeenCalledWith(buyerCartStorageKey('buyer-event'), held.id);
+  });
+
+  it('sends the selected buyer principal on every cart REST fallback', async () => {
+    const cart = {
+      id: 'cart-1', currency: 'USD', items: [], subtotalCents: 0, updatedAt: '2026-08-14T06:00:00Z',
+    };
+    const fetchMock = vi.fn().mockResolvedValue(response(cart));
+    vi.stubGlobal('fetch', fetchMock);
+
+    await fetchBuyerCart('cart-1', 'buyer-1', 'https://api.example.test');
+    await setBuyerCartQuantity('cart-1', 'mug', 2, 'buyer-1', 'https://api.example.test');
+    await removeBuyerCartItem('cart-1', 'mug', 'buyer-1', 'https://api.example.test');
+
+    expect(fetchMock.mock.calls.map(([url]) => url)).toEqual([
+      'https://api.example.test/cart/cart-1',
+      'https://api.example.test/cart/cart-1/items/mug',
+      'https://api.example.test/cart/cart-1/items/mug',
+    ]);
+    for (const [, init] of fetchMock.mock.calls) {
+      expect(new Headers(init.headers).get('x-demo-principal')).toBe('buyer-1');
+    }
   });
 
   it('requests live rates with cart id plus the normalized address contract', async () => {

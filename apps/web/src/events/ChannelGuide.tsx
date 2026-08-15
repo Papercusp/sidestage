@@ -7,6 +7,10 @@ import {
   groupGuideEvents,
   rowMetaLabel,
 } from './channel-guide';
+import {
+  ChannelGuideActiveNow,
+  channelGuideActiveNowRowClass,
+} from './ChannelGuideActiveNow';
 import './channel-guide.css';
 
 export interface ChannelGuideProps {
@@ -102,7 +106,7 @@ export function ChannelGuide({
                               event.eventId,
                               typeof window === 'undefined' ? '/' : window.location.href,
                             )}
-                            className={`channel-guide-row${current ? ' is-current' : ''}`}
+                            className={`channel-guide-row${channelGuideActiveNowRowClass(event.status)}${current ? ' is-current' : ''}`}
                             onClick={(click) => {
                               if (
                                 click.button !== 0
@@ -125,7 +129,9 @@ export function ChannelGuide({
                               <span className="channel-guide-row-title">{event.title}</span>
                               <span className="channel-guide-row-seller">{event.sellerName}</span>
                               <span className={`channel-guide-row-meta channel-guide-meta-${event.status}`}>
-                                {exactStart && event.startsAt ? (
+                                {event.status === 'live' ? (
+                                  <ChannelGuideActiveNow watchingLabel={metaLabel} />
+                                ) : exactStart && event.startsAt ? (
                                   <time
                                     dateTime={event.startsAt}
                                     title={`Scheduled for ${exactStart}`}

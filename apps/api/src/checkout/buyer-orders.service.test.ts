@@ -223,8 +223,21 @@ describe('BuyerOrdersService', () => {
       paymentState: 'payment_processing' as const,
       createdAt: '2026-08-14T05:00:00.000Z',
     };
+    const releasedEventCart = {
+      ...checkoutOrder,
+      id: 'checkout-event-failed',
+      sourceId: 'cart-event-failed',
+      status: 'failed' as const,
+      paymentState: 'payment_failed' as const,
+      sourceCommitment: {
+        kind: 'event-cart' as const,
+        state: 'released' as const,
+        revision: 'cart-event-failed:1:2026-08-14T05:30:00.000Z',
+      },
+      createdAt: '2026-08-14T05:30:00.000Z',
+    };
     const service = new BuyerOrdersService(
-      { listByBuyer: vi.fn().mockResolvedValue([failed, processing]) } as unknown as OrderStore,
+      { listByBuyer: vi.fn().mockResolvedValue([failed, processing, releasedEventCart]) } as unknown as OrderStore,
       { listWinnerOrdersForBuyer: vi.fn().mockResolvedValue([]) } as never,
       { listOffersForBuyer: vi.fn().mockReturnValue([]) } as never,
       { getReplayChapters: vi.fn().mockResolvedValue([]) } as never,
@@ -234,6 +247,11 @@ describe('BuyerOrdersService', () => {
     const result = await service.listForBuyer('buyer-1');
     expect(result.map(({ id, paymentState, checkoutCapability }) => ({ id, paymentState, checkoutCapability })))
       .toEqual([
+        {
+          id: 'checkout-event-failed',
+          paymentState: 'payment_failed',
+          checkoutCapability: null,
+        },
         { id: 'checkout-processing', paymentState: 'payment_processing', checkoutCapability: null },
         {
           id: 'checkout-failed',

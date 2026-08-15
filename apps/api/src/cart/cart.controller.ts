@@ -1,4 +1,5 @@
-import { Inject, Body, Controller, Get, Param, Patch, Post, Delete } from '@nestjs/common';
+import { BadRequestException, Inject, Body, Controller, Delete, Get, Headers, Param, Patch, Post } from '@nestjs/common';
+import { DEMO_PRINCIPAL_HEADER, rolePrincipal } from '../sync/sync-request-context';
 import { CartService } from './cart.service';
 
 @Controller('cart')
@@ -6,8 +7,11 @@ export class CartController {
   constructor(@Inject(CartService) private readonly carts: CartService) {}
 
   @Get(':id')
-  getCart(@Param('id') id: string) {
-    return this.carts.findCart(id);
+  getCart(
+    @Param('id') id: string,
+    @Headers(DEMO_PRINCIPAL_HEADER) principal?: string,
+  ) {
+    return this.carts.findCartForBuyer(id, this.buyerId(principal));
   }
 
   @Post('items')
@@ -21,17 +25,32 @@ export class CartController {
     eventId?: string;
     eventItemId?: string;
     idempotencyKey?: string;
-  }) {
-    return this.carts.holdItem(body);
+  }, @Headers(DEMO_PRINCIPAL_HEADER) principal?: string) {
+    return this.carts.holdItemForBuyer(body, this.buyerId(principal));
   }
 
   @Patch(':cartId/items/:productId')
-  setQuantity(@Param('cartId') cartId: string, @Param('productId') productId: string, @Body() body: { quantity: number }) {
-    return this.carts.setQuantity(cartId, productId, body.quantity);
+  setQuantity(
+    @Param('cartId') cartId: string,
+    @Param('productId') productId: string,
+    @Body() body: { quantity: number },
+    @Headers(DEMO_PRINCIPAL_HEADER) principal?: string,
+  ) {
+    return this.carts.setQuantityForBuyer(cartId, productId, body.quantity, this.buyerId(principal));
   }
 
   @Delete(':cartId/items/:productId')
-  removeItem(@Param('cartId') cartId: string, @Param('productId') productId: string) {
-    return this.carts.removeItem(cartId, productId);
+  removeItem(
+    @Param('cartId') cartId: string,
+    @Param('productId') productId: string,
+    @Headers(DEMO_PRINCIPAL_HEADER) principal?: string,
+  ) {
+    return this.carts.removeItemForBuyer(cartId, productId, this.buyerId(principal));
+  }
+
+  private buyerId(principal: unknown): string {
+    const buyerId = rolePrincipal(principal, 'buyer');
+    if (!buyerId) throw new BadRequestException('Buyer principal is required');
+    return buyerId;
   }
 }

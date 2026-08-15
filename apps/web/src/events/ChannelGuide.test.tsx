@@ -105,6 +105,21 @@ describe('ChannelGuide (P-118 / D-019)', () => {
     expect(markup).toContain('Ended 18h ago');
   });
 
+  it('uses the approved Signal rail only for live rows without borrowing current-room semantics', () => {
+    const liveCurrent = render();
+    expect(liveCurrent.match(/channel-guide-row is-active-now/g)).toHaveLength(1);
+    expect(liveCurrent.match(/channel-guide-active-now-badge/g)).toHaveLength(1);
+    expect(liveCurrent).toContain('channel-guide-row is-active-now is-current');
+    expect(liveCurrent).toContain('Live now');
+    expect(liveCurrent).toContain('3 watching');
+
+    const scheduledCurrent = render({ currentEventId: 'tuesday-tool-run' });
+    expect(scheduledCurrent).toContain('channel-guide-row is-active-now"');
+    expect(scheduledCurrent).toContain('channel-guide-row is-current"');
+    expect(scheduledCurrent).not.toContain('channel-guide-row is-active-now is-current');
+    expect(scheduledCurrent.match(/channel-guide-active-now-badge/g)).toHaveLength(1);
+  });
+
   it('check-marks the event currently being watched', () => {
     const markup = render();
     expect(markup).toContain('aria-current="true"');

@@ -8,6 +8,11 @@
 
 BEGIN;
 
+-- This file is the one explicit legacy-fixture opt-in. Production writers do
+-- not receive an owner default; the seed restores it only for this transaction
+-- and drops it again before commit.
+ALTER TABLE storefront_product ALTER COLUMN seller_id SET DEFAULT 'demo-seller';
+
 INSERT INTO product_catalog (
   group_id, region, product_type, title, description, brand, manufacturer,
   identifiers, properties, images, bullets, weight, dimensions, updated_at
@@ -743,5 +748,7 @@ WHERE stored.event_id = fixture.event_id
   AND stored.seller_name = fixture.seller_name
   AND stored.title = fixture.title
   AND stored.thumbnail_url IS NOT DISTINCT FROM fixture.thumbnail_url;
+
+ALTER TABLE storefront_product ALTER COLUMN seller_id DROP DEFAULT;
 
 COMMIT;

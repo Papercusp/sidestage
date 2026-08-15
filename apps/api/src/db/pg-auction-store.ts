@@ -54,16 +54,28 @@ export class PgAuctionStore implements AuctionStore {
       return await this.transaction(async (client) => {
         await client.query('SELECT expire_inventory_reservations()');
         const existing = await client.query<AuctionIdRow>(
-          'SELECT id FROM storefront_product WHERE id = $1 FOR UPDATE',
-          [auction.productId],
+          `SELECT product.id
+             FROM storefront_product AS product
+             JOIN event AS owner
+               ON owner.event_id = $2 AND owner.seller_id = product.seller_id
+            WHERE product.id = $1
+            FOR UPDATE OF product`,
+          [auction.productId, auction.eventId],
         );
         if (existing.rows.length === 0) {
           if (availableQty === undefined) throw new NotFoundException(`Inventory item ${auction.productId} was not found`);
-          await client.query(
-            `INSERT INTO storefront_product (id, slug, region, sku, price_cents, active, qty, reserved_qty)
-             VALUES ($1, $1, 'US', upper(regexp_replace($1, '[^A-Za-z0-9]+', '-', 'g')), 0, true, $2, 0)`,
-            [auction.productId, availableQty],
+          const inserted = await client.query<AuctionIdRow>(
+            `INSERT INTO storefront_product
+               (id, slug, region, sku, price_cents, active, qty, reserved_qty, seller_id)
+             SELECT $1, $1, 'US', upper(regexp_replace($1, '[^A-Za-z0-9]+', '-', 'g')),
+                    0, true, $2, 0, owner.seller_id
+               FROM event AS owner
+              WHERE owner.event_id = $3
+             ON CONFLICT (id) DO NOTHING
+             RETURNING id`,
+            [auction.productId, availableQty, auction.eventId],
           );
+          if (!inserted.rows[0]) throw new NotFoundException(`Inventory item ${auction.productId} was not found`);
         }
 
         const allocation = await client.query<AuctionIdRow>(

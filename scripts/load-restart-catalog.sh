@@ -101,7 +101,7 @@ ON CONFLICT DO NOTHING;
 
 INSERT INTO storefront_product (
   id, slug, region, sku, price_cents, active, group_id, condition, handling,
-  option_signature, variant_images, qty, reserved_qty, created_at, updated_at
+  option_signature, variant_images, qty, reserved_qty, created_at, updated_at, seller_id
 )
 SELECT
   s.id, s.slug, COALESCE(s.region, 'US'),
@@ -116,7 +116,7 @@ SELECT
     ELSE 'legacy=' || lower(regexp_replace(s.slug, '[^a-z0-9]+', '-', 'g'))
   END,
   '[]'::jsonb, COALESCE(s.qty, 0), COALESCE(s.reserved_qty, 0),
-  COALESCE(s."createdAt", now()), COALESCE(s."updatedAt", now())
+  COALESCE(s."createdAt", now()), COALESCE(s."updatedAt", now()), 'demo-seller'
 FROM _restart_storefront_stage s
 LEFT JOIN product_catalog c
   ON c.group_id = s."groupId" AND c.region = COALESCE(s.region, 'US')

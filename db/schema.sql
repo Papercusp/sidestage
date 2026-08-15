@@ -406,6 +406,7 @@ LANGUAGE plpgsql
 AS $$
 DECLARE
   v_available integer;
+  v_seller_id text;
   v_reservation_id bigint;
 BEGIN
   IF p_quantity <= 0 THEN
@@ -415,7 +416,7 @@ BEGIN
     RAISE EXCEPTION 'reservation source kind and id are required';
   END IF;
 
-  PERFORM 1
+  SELECT seller_id INTO v_seller_id
   FROM storefront_product
   WHERE id = p_variant_id AND active
   FOR UPDATE;
@@ -434,8 +435,8 @@ BEGIN
       USING ERRCODE = 'P0001';
   END IF;
 
-  INSERT INTO inventory_reservation (variant_id, source_kind, source_id, quantity, state, expires_at)
-  VALUES (p_variant_id, p_source_kind, p_source_id, p_quantity, 'held', p_expires_at)
+  INSERT INTO inventory_reservation (variant_id, seller_id, source_kind, source_id, quantity, state, expires_at)
+  VALUES (p_variant_id, v_seller_id, p_source_kind, p_source_id, p_quantity, 'held', p_expires_at)
   ON CONFLICT (source_kind, source_id, variant_id) DO UPDATE
     SET quantity = CASE
           WHEN inventory_reservation.state = 'committed' THEN inventory_reservation.quantity
@@ -983,10 +984,39 @@ CREATE TRIGGER inventory_reservation_preserve_seller
 BEFORE UPDATE OF seller_id ON inventory_reservation
 FOR EACH ROW EXECUTE FUNCTION sidestage_preserve_owner('seller_id');
 
+-- Event holds are seller-private. The event directory is the owner oracle, so
+-- a reservation can only name an event owned by the same seller as its variant.
+CREATE OR REPLACE FUNCTION sidestage_validate_inventory_source_owner()
+RETURNS trigger
+LANGUAGE plpgsql
+AS $$
+BEGIN
+  IF NEW.source_kind = 'event' AND NOT EXISTS (
+    SELECT 1 FROM event
+    WHERE event_id = NEW.source_id AND seller_id = NEW.seller_id
+  ) THEN
+    RAISE EXCEPTION 'event inventory source was not found for variant owner'
+      USING ERRCODE = '23503';
+  END IF;
+  RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS inventory_reservation_validate_source_owner ON inventory_reservation;
+CREATE TRIGGER inventory_reservation_validate_source_owner
+BEFORE INSERT OR UPDATE OF source_kind, source_id, seller_id ON inventory_reservation
+FOR EACH ROW EXECUTE FUNCTION sidestage_validate_inventory_source_owner();
+
 DROP TRIGGER IF EXISTS auction_state_preserve_seller ON auction_state;
 CREATE TRIGGER auction_state_preserve_seller
 BEFORE UPDATE OF seller_id ON auction_state
 FOR EACH ROW EXECUTE FUNCTION sidestage_preserve_owner('seller_id');
+
+-- P-005 has made every inventory writer explicit. Removing the compatibility
+-- defaults makes any future unowned writer fail loudly instead of silently
+-- assigning another seller's stock to the legacy demo owner.
+ALTER TABLE storefront_product ALTER COLUMN seller_id DROP DEFAULT;
+ALTER TABLE inventory_reservation ALTER COLUMN seller_id DROP DEFAULT;
 
 DROP TRIGGER IF EXISTS scout_session_preserve_buyer ON scout_session;
 CREATE TRIGGER scout_session_preserve_buyer

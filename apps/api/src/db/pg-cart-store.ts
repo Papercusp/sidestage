@@ -3,6 +3,7 @@ import type { Pool, PoolClient } from 'pg';
 import {
   assertEventCartQuantity,
   assertEventCartScope,
+  assertCartOwner,
   assertEventCartTargetQuantity,
   assertExpectedCartRevision,
   cartRevision,
@@ -38,6 +39,7 @@ interface EventLineupRow {
 
 interface InventoryRow {
   available_qty: number;
+  seller_id: string;
   active: boolean;
 }
 
@@ -70,11 +72,14 @@ export class PgCartStore implements CartStore {
   }
 
   async set(cart: Cart): Promise<void> {
-    await this.pool.query(
+    const result = await this.pool.query(
       `INSERT INTO cart (id, payload, updated_at) VALUES ($1, $2::jsonb, now())
-       ON CONFLICT (id) DO UPDATE SET payload = EXCLUDED.payload, updated_at = now()`,
+       ON CONFLICT (id) DO UPDATE SET payload = EXCLUDED.payload, updated_at = now()
+       WHERE cart.payload->>'buyerId' IS NOT DISTINCT FROM EXCLUDED.payload->>'buyerId'
+       RETURNING id`,
       [cart.id, JSON.stringify(cart)],
     );
+    if (result.rowCount === 0) throw new NotFoundException('Cart was not found for this buyer');
   }
 
   /**
@@ -85,7 +90,7 @@ export class PgCartStore implements CartStore {
    */
   async holdEventItem(input: EventCartHoldInput): Promise<Cart> {
     return this.transaction(async (client) => {
-      const initial = emptyCart(input.cartId);
+      const initial = emptyCart(input.cartId, input.buyerId);
       await client.query(
         `INSERT INTO cart (id, payload, updated_at)
          VALUES ($1, $2::jsonb, now())
@@ -98,6 +103,7 @@ export class PgCartStore implements CartStore {
       );
       const cart = cartPayload(selectedCart.rows[0]);
       if (!cart) throw new Error(`Cart ${input.cartId} could not be locked`);
+      if (input.buyerId) assertCartOwner(cart, input.buyerId);
       if (hasEventHoldKey(cart, input.idempotencyKey)) return cart;
 
       assertEventCartScope(cart, input.eventId);
@@ -126,11 +132,14 @@ export class PgCartStore implements CartStore {
       // variant makes the generated availableQty stable through the reservation
       // upsert and prevents two carts from both observing the same stock.
       const inventory = await client.query<InventoryRow>(
-        `SELECT "availableQty" AS available_qty
-           FROM storefront_product
-          WHERE id = $1 AND active
-          FOR UPDATE`,
-        [input.productId],
+        `SELECT product."availableQty" AS available_qty, product.seller_id
+           FROM storefront_product AS product
+           JOIN event AS published
+             ON published.event_id = $2
+            AND published.seller_id = product.seller_id
+          WHERE product.id = $1 AND product.active AND published.status <> 'draft'
+          FOR UPDATE OF product`,
+        [input.productId, input.eventId],
       );
       if (!inventory.rows[0]) throw new NotFoundException('Event item is not available');
 
@@ -186,13 +195,13 @@ export class PgCartStore implements CartStore {
       );
       await client.query(
         `INSERT INTO inventory_reservation
-           (variant_id, source_kind, source_id, quantity, state, expires_at)
-         VALUES ($1, 'cart', $2, $3, 'held', $4)
+           (variant_id, seller_id, source_kind, source_id, quantity, state, expires_at)
+         VALUES ($1, $5, 'cart', $2, $3, 'held', $4)
          ON CONFLICT (source_kind, source_id, variant_id) DO UPDATE
            SET quantity = EXCLUDED.quantity,
                state = 'held',
                expires_at = EXCLUDED.expires_at`,
-        [input.productId, input.cartId, nextQuantity, input.expiresAt],
+        [input.productId, input.cartId, nextQuantity, input.expiresAt, inventory.rows[0].seller_id],
       );
 
       upsertEventCartItem(cart, {

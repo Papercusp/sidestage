@@ -508,6 +508,13 @@
       trigger.addEventListener('click', () => {
         const detail = document.getElementById(trigger.getAttribute('aria-controls'));
         const expanded = trigger.getAttribute('aria-expanded') === 'true';
+        if (!expanded) {
+          document.querySelectorAll('[data-triage-trigger]').forEach((otherTrigger) => {
+            const otherDetail = document.getElementById(otherTrigger.getAttribute('aria-controls'));
+            otherTrigger.setAttribute('aria-expanded', 'false');
+            otherDetail.hidden = true;
+          });
+        }
         trigger.setAttribute('aria-expanded', String(!expanded));
         detail.hidden = expanded;
       });

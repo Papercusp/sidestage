@@ -119,6 +119,7 @@ describe('CopilotProposalService', () => {
     });
     const catalog: CatalogSource = {
       search: async () => ({ rows: [variant()], page: 1, pageSize: 8, total: 1, totalIsFloor: false }),
+      searchOwned: async () => ({ rows: [variant()], page: 1, pageSize: 8, total: 1, totalIsFloor: false }),
       productTypes: async () => ['HOME'],
       variant: async () => variant(),
     };

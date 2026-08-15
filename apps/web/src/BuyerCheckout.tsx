@@ -306,9 +306,9 @@ export function BuyerCheckoutProvider({
   >('checkout.createSession', checkoutFallback);
   const quantityFallback = useCallback(
     ({ cartId: nextCartId, productId, quantity }: { cartId: string; productId: string; quantity: number }) => (
-      setBuyerCartQuantity(nextCartId, productId, quantity, apiBaseUrl)
+      setBuyerCartQuantity(nextCartId, productId, quantity, buyerId, apiBaseUrl)
     ),
-    [apiBaseUrl],
+    [apiBaseUrl, buyerId],
   );
   const mutateQuantity = useSyncMutate<
     { cartId: string; productId: string; quantity: number },
@@ -316,9 +316,9 @@ export function BuyerCheckoutProvider({
   >('cart.setQuantity', quantityFallback);
   const removeFallback = useCallback(
     ({ cartId: nextCartId, productId }: { cartId: string; productId: string }) => (
-      removeBuyerCartItem(nextCartId, productId, apiBaseUrl)
+      removeBuyerCartItem(nextCartId, productId, buyerId, apiBaseUrl)
     ),
-    [apiBaseUrl],
+    [apiBaseUrl, buyerId],
   );
   const mutateRemove = useSyncMutate<
     { cartId: string; productId: string },
