@@ -1,3 +1,5 @@
+import { getEventListeners } from 'node:events';
+
 import type { SystemTestEvidenceKind } from '@papercusp/system-test-contract';
 import { describe, expect, it, vi } from 'vitest';
 
@@ -12,6 +14,7 @@ import {
   SystemTestBlackBoxError,
   SystemTestEvidenceCollector,
   TypesenseBlackBoxClient,
+  eventually,
   type PlaywrightPageLike,
   type SystemTestArtifactSink,
   type SystemTestArtifactWrite,
@@ -251,6 +254,7 @@ describe('authenticated protocol clients', () => {
       caseId: 'network.websocket-budget',
       path: '/sync/v1',
       send: ['subscribe'],
+      replaySafe: true,
       receive: 1,
     });
 
@@ -259,6 +263,53 @@ describe('authenticated protocol clients', () => {
     expect(dialer.connect).toHaveBeenCalledTimes(2);
     expect(closes).toContainEqual([1011, 'connection lost']);
     expect(closes).toContainEqual([1000, 'system-test evidence captured']);
+  });
+
+  it('does not replay a WebSocket application send unless the caller marks it replay-safe', async () => {
+    const { evidence } = collector();
+    const connection: SystemTestWebSocketConnection = {
+      send: vi.fn(),
+      receive: vi.fn(async () => { throw new Error('peer reset after send'); }),
+      close: vi.fn(),
+    };
+    const dialer: SystemTestWebSocketDialer = {
+      connect: vi.fn(async () => connection),
+    };
+    const client = new AuthenticatedWebSocketClient({
+      baseUrl: 'wss://acceptance.example.test',
+      authentication: { authorization: 'Bearer test-token' },
+      evidence,
+      dialer,
+      maxAttempts: 2,
+      retryDelay: noDelay,
+    });
+
+    await expect(client.exchange({
+      artifactId: 'websocket-no-replay',
+      caseId: 'network.websocket-budget',
+      path: '/sync/v1',
+      send: ['place-bid'],
+      receive: 1,
+    })).rejects.toThrow(/peer reset after send/);
+
+    expect(dialer.connect).toHaveBeenCalledTimes(1);
+    expect(connection.send).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('eventually', () => {
+  it('removes abort listeners after retry delays settle', async () => {
+    const controller = new AbortController();
+    let probes = 0;
+
+    const result = await eventually(
+      async () => ++probes,
+      (value) => value === 3,
+      { attempts: 3, intervalMs: 1, signal: controller.signal },
+    );
+
+    expect(result.attempts).toBe(3);
+    expect(getEventListeners(controller.signal, 'abort')).toHaveLength(0);
   });
 });
 
@@ -458,5 +509,25 @@ describe('PlaywrightBrowserEvidenceCollector', () => {
     ]);
     expect(sink.text('browser-failure.browser-log')).not.toContain('failed.action.secret');
     expect(sink.text('browser-failure.browser-log')).toContain('[REDACTED]');
+  });
+
+  it('preserves the Playwright action error when failure-evidence capture also fails', async () => {
+    const { evidence } = collector();
+    const actionError = new Error('primary action failure');
+    const page: PlaywrightPageLike = {
+      url: () => 'https://acceptance.example.test/watch',
+      locator: (selector) => ({ selector }),
+      screenshot: vi.fn(async () => { throw new Error('screenshot capture failure'); }),
+      on: vi.fn(),
+      off: vi.fn(),
+    };
+    const browser = new PlaywrightBrowserEvidenceCollector(evidence);
+
+    await expect(browser.run({
+      artifactPrefix: 'browser-double-failure',
+      caseId: 'protocol.bid-stream',
+      page,
+      action: async () => { throw actionError; },
+    })).rejects.toBe(actionError);
   });
 });

@@ -430,6 +430,8 @@ export class AuthenticatedWebSocketClient {
     caseId: string;
     path: string;
     send?: readonly (string | Uint8Array)[];
+    /** Explicitly allow application messages to be sent again after a lost connection. */
+    replaySafe?: boolean;
     receive: number;
     timeoutMs?: number;
     signal?: AbortSignal;
@@ -439,6 +441,7 @@ export class AuthenticatedWebSocketClient {
     let lastError: unknown;
     for (let attempt = 1; attempt <= this.#maxAttempts; attempt += 1) {
       let connection: SystemTestWebSocketConnection | null = null;
+      let sendAttempted = false;
       try {
         const signal = deadlineSignal(input.timeoutMs ?? 30_000, input.signal);
         connection = await this.#dialer.connect({
@@ -446,7 +449,10 @@ export class AuthenticatedWebSocketClient {
           headers: Object.freeze(Object.fromEntries(this.#endpoint.headers())),
           signal,
         });
-        for (const message of input.send ?? []) await connection.send(message);
+        for (const message of input.send ?? []) {
+          sendAttempted = true;
+          await connection.send(message);
+        }
         const messages: string[] = [];
         while (messages.length < expected) messages.push(messageText(await connection.receive(signal)));
         await connection.close(1000, 'system-test evidence captured');
@@ -466,7 +472,7 @@ export class AuthenticatedWebSocketClient {
           // Preserve the exchange failure when best-effort cleanup also fails.
         }
         if (error instanceof SystemTestProtocolError && !error.retryable) throw error;
-        if (attempt >= this.#maxAttempts || input.signal?.aborted) throw error;
+        if ((sendAttempted && !input.replaySafe) || attempt >= this.#maxAttempts || input.signal?.aborted) throw error;
         await this.#retryDelay(attempt, input.signal);
       }
     }
@@ -736,43 +742,49 @@ export class PlaywrightBrowserEvidenceCollector {
         actionError = error;
         log.push(`actionerror: ${eventText(error)}`);
       }
-      const durationMs = Math.max(0, now() - started);
-      const mask = [
-        input.page.locator('input[type="password"]'),
-        input.page.locator('[data-system-test-secret]'),
-        input.page.locator('[autocomplete="current-password"]'),
-      ];
-      const screenshot = await input.page.screenshot({ fullPage: true, mask });
-      const artifacts = await Promise.all([
-        this.evidence.capture({
-          artifactId: `${input.artifactPrefix}.screenshot`,
-          caseId: input.caseId,
-          kind: 'screenshot',
-          summary: `Masked Playwright screenshot of ${safePagePath(input.page.url())}`,
-          contentType: 'image/png',
-          body: screenshot,
-        }),
-        this.evidence.captureLog({
-          artifactId: `${input.artifactPrefix}.browser-log`,
-          caseId: input.caseId,
-          summary: `Playwright console and page errors for ${safePagePath(input.page.url())}`,
-          text: log.join('\n') || '(no browser messages)',
-        }),
-        this.evidence.captureMetric({
-          artifactId: `${input.artifactPrefix}.browser-metric`,
-          caseId: input.caseId,
-          summary: `Playwright action duration for ${safePagePath(input.page.url())}`,
-          value: { durationMs },
-        }),
-      ]);
-      if (input.trace) {
-        artifacts.push(await this.evidence.captureJson({
-          artifactId: `${input.artifactPrefix}.trace`,
-          caseId: input.caseId,
-          kind: 'log',
-          summary: `Sanitised Playwright trace summary for ${safePagePath(input.page.url())}`,
-          value: await input.trace.stopAndSanitise(),
-        }));
+      let artifacts: SystemTestEvidence[];
+      try {
+        const durationMs = Math.max(0, now() - started);
+        const mask = [
+          input.page.locator('input[type="password"]'),
+          input.page.locator('[data-system-test-secret]'),
+          input.page.locator('[autocomplete="current-password"]'),
+        ];
+        const screenshot = await input.page.screenshot({ fullPage: true, mask });
+        artifacts = await Promise.all([
+          this.evidence.capture({
+            artifactId: `${input.artifactPrefix}.screenshot`,
+            caseId: input.caseId,
+            kind: 'screenshot',
+            summary: `Masked Playwright screenshot of ${safePagePath(input.page.url())}`,
+            contentType: 'image/png',
+            body: screenshot,
+          }),
+          this.evidence.captureLog({
+            artifactId: `${input.artifactPrefix}.browser-log`,
+            caseId: input.caseId,
+            summary: `Playwright console and page errors for ${safePagePath(input.page.url())}`,
+            text: log.join('\n') || '(no browser messages)',
+          }),
+          this.evidence.captureMetric({
+            artifactId: `${input.artifactPrefix}.browser-metric`,
+            caseId: input.caseId,
+            summary: `Playwright action duration for ${safePagePath(input.page.url())}`,
+            value: { durationMs },
+          }),
+        ]);
+        if (input.trace) {
+          artifacts.push(await this.evidence.captureJson({
+            artifactId: `${input.artifactPrefix}.trace`,
+            caseId: input.caseId,
+            kind: 'log',
+            summary: `Sanitised Playwright trace summary for ${safePagePath(input.page.url())}`,
+            value: await input.trace.stopAndSanitise(),
+          }));
+        }
+      } catch (evidenceError) {
+        if (actionFailed) throw actionError;
+        throw evidenceError;
       }
       if (actionFailed) throw actionError;
       return { value: value as T, evidence: artifacts };
@@ -963,11 +975,19 @@ function deadlineSignal(timeoutMs: number, parent?: AbortSignal): AbortSignal {
 async function defaultRetryDelay(attempt: number, signal?: AbortSignal, baseMs = 100): Promise<void> {
   throwIfAborted(signal);
   await new Promise<void>((resolvePromise, reject) => {
-    const timer = setTimeout(resolvePromise, Math.min(baseMs * (2 ** (attempt - 1)), 2_000));
-    signal?.addEventListener('abort', () => {
+    let settled = false;
+    const finish = (error?: unknown) => {
+      if (settled) return;
+      settled = true;
       clearTimeout(timer);
-      reject(signal.reason);
-    }, { once: true });
+      signal?.removeEventListener('abort', onAbort);
+      if (error === undefined) resolvePromise();
+      else reject(error);
+    };
+    const onAbort = () => finish(signal?.reason ?? new SystemTestBlackBoxError('operation was aborted'));
+    const timer = setTimeout(() => finish(), Math.min(baseMs * (2 ** (attempt - 1)), 2_000));
+    signal?.addEventListener('abort', onAbort, { once: true });
+    if (signal?.aborted) onAbort();
   });
 }
 

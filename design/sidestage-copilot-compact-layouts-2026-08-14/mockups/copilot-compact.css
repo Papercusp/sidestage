@@ -1073,6 +1073,7 @@ body {
   .concept-switcher-wrap {
     position: static;
     display: grid;
+    justify-content: stretch;
     gap: 8px;
     padding: 10px;
   }
@@ -1081,6 +1082,7 @@ body {
     width: 100%;
     max-width: none;
     grid-template-columns: minmax(0, 1fr);
+    justify-self: stretch;
   }
 
   .concept-tab {
