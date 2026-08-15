@@ -136,9 +136,9 @@ describe('production checkout configuration fails closed', () => {
     'WAREHOUSE_FROM_CITY',
     'WAREHOUSE_FROM_STATE',
     'WAREHOUSE_FROM_ZIP',
-    'SQUARE_APP_ID',
-    'SQUARE_LOCATION_ID',
-    'SQUARE_ACCESS_TOKEN',
+    'STRIPE_SECRET_KEY',
+    'STRIPE_PUBLISHABLE_KEY',
+    'STRIPE_WEBHOOK_SECRET',
     'DEEPGRAM_API_KEY',
   ];
 
@@ -153,6 +153,10 @@ describe('production checkout configuration fails closed', () => {
     expect(configCheck).toBeGreaterThan(-1);
     expect(build).toBeGreaterThan(-1);
     expect(configCheck).toBeLessThan(build);
+  });
+
+  it('does not retain the retired Square credential contract', () => {
+    expect(composeSource).not.toMatch(/\bSQUARE_[A-Z_]+\b/);
   });
 });
 
