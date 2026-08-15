@@ -16,6 +16,7 @@ const ROWS: CatalogRow[] = [
     condition: "NEW",
     handlingDays: 2,
     priceCents: 49_999,
+    qty: 16,
     reservedQty: 4,
     availableQty: 12,
   },
@@ -31,6 +32,7 @@ const ROWS: CatalogRow[] = [
     condition: "USED",
     handlingDays: 5,
     priceCents: 29_999,
+    qty: 0,
     availableQty: 0,
   },
 ];
@@ -89,7 +91,7 @@ describe("InventoryPickerGrid", () => {
     expect(markup).toContain("5d handling");
   });
 
-  it("parameterizes intake semantics and allows sold-out variants to be restocked", () => {
+  it("edits authoritative total Qty, including sold-out variants, with Reserved as the floor", () => {
     const markup = renderToStaticMarkup(
       <InventoryPickerGrid
         rows={ROWS}
@@ -102,11 +104,16 @@ describe("InventoryPickerGrid", () => {
     );
 
     expect(markup).toContain("Unit price");
-    expect(markup).toContain("Add qty");
+    expect(markup).toContain(">Qty<");
     expect(markup).toContain("Reserved");
     expect(markup).toContain('aria-label="4 reserved"');
-    expect(markup).toContain("0 on hand");
-    expect(markup).toContain('value="1"');
+    expect(markup).toContain("0 available now");
+    expect(markup).toContain('value="16"');
+    expect(markup).toContain('value="0"');
+    expect(markup).toContain('min="4"');
+    expect(markup).toContain('min="0"');
+    expect(markup).toContain("Unit price and total Qty are editable per variant");
+    expect(markup).not.toContain("Add qty");
     expect(markup).not.toContain("catalog-row-unavailable");
   });
 

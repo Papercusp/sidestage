@@ -5,6 +5,7 @@ import {
   createEventPayload,
   draftFromCatalog,
   filterCatalog,
+  inventoryDraftFromCatalog,
   parsePriceCents,
   type CatalogAvailabilityFilter,
   type CatalogRow,
@@ -25,7 +26,7 @@ export interface EventCreationPanelProps {
   submitLabel?: string;
   onCreateEvent?: (payload: EventCreationPayload) => void | Promise<void>;
   purpose?: 'event' | 'inventory';
-  onRestock?: (drafts: readonly EventItemDraft[]) => void | Promise<void>;
+  onSaveInventory?: (drafts: readonly EventItemDraft[]) => void | Promise<void>;
   /** Test/embed override; production builds default false via import.meta.env.DEV. */
   allowDemoData?: boolean;
 }
@@ -41,7 +42,7 @@ export function EventCreationPanel({
   submitLabel = 'Create event',
   onCreateEvent,
   purpose = 'event',
-  onRestock,
+  onSaveInventory,
   allowDemoData = catalogDemoDataEnabled(),
 }: EventCreationPanelProps) {
   const [eventName, setEventName] = useState(initialEventName);
@@ -112,8 +113,10 @@ export function EventCreationPanel({
     [catalogById, catalogUnavailable, selectedRowIds],
   );
   const selectedDrafts = useMemo(
-    () => selectedRows.map((row) => drafts[row.id] ?? draftFromCatalog(row)),
-    [drafts, selectedRows],
+    () => selectedRows.map((row) => drafts[row.id] ?? (
+      purpose === 'inventory' ? inventoryDraftFromCatalog(row) : draftFromCatalog(row)
+    )),
+    [drafts, purpose, selectedRows],
   );
 
   const selectRows = (next: ReadonlySet<string>) => {
@@ -124,8 +127,9 @@ export function EventCreationPanel({
       for (const id of valid) {
         const row = catalogById[id];
         if (row && !updated[id]) {
-          const draft = draftFromCatalog(row);
-          updated[id] = purpose === 'inventory' ? { ...draft, quantityLimit: 1 } : draft;
+          updated[id] = purpose === 'inventory'
+            ? inventoryDraftFromCatalog(row)
+            : draftFromCatalog(row);
         }
       }
       return updated;
@@ -133,12 +137,16 @@ export function EventCreationPanel({
   };
 
   const updateDraft = (row: CatalogRow, field: 'eventPriceCents' | 'quantityLimit', value: string) => {
-    const base = drafts[row.id] ?? draftFromCatalog(row);
-    const current = purpose === 'inventory' && !drafts[row.id] ? { ...base, quantityLimit: 1 } : base;
+    const current = drafts[row.id] ?? (
+      purpose === 'inventory' ? inventoryDraftFromCatalog(row) : draftFromCatalog(row)
+    );
     const nextValue = field === 'eventPriceCents'
       ? parsePriceCents(value)
       : purpose === 'inventory'
-        ? Math.max(1, Math.floor(Number.isFinite(Number(value)) ? Number(value) : 1))
+        ? Math.max(
+          row.reservedQty ?? 0,
+          Math.floor(Number.isFinite(Number(value)) ? Number(value) : current.quantityLimit),
+        )
         : clampQuantity(Number(value), row.availableQty);
     if (nextValue === null) return;
     setDrafts((existing) => ({
@@ -183,11 +191,11 @@ export function EventCreationPanel({
       setError(null);
       setSubmitting(true);
       try {
-        await onRestock?.(selectedDrafts);
+        await onSaveInventory?.(selectedDrafts);
         setSelectedRowIds(new Set());
         setDrafts({});
       } catch (submitError) {
-        setError(submitError instanceof Error ? submitError.message : 'Inventory could not be updated.');
+        setError(submitError instanceof Error ? submitError.message : 'Inventory could not be saved.');
       } finally {
         setSubmitting(false);
       }
@@ -220,7 +228,7 @@ export function EventCreationPanel({
           <h2 id="event-creation-title">{title}</h2>
           <p className="event-creation-copy">{copy}</p>
         </div>
-        <span className="event-step-indicator"><span>1</span> {purpose === 'inventory' ? 'Stock intake' : 'Catalog selection'}</span>
+        <span className="event-step-indicator"><span>1</span> {purpose === 'inventory' ? 'Inventory edit' : 'Catalog selection'}</span>
       </div>
 
       {purpose === 'event' ? <div className="event-name-row">
@@ -332,9 +340,9 @@ export function EventCreationPanel({
           <span>{filteredRows.length} of {catalog.length} catalog items</span>
         </div>
         <div className="event-creation-toolbar-action">
-          <span>{selectedRows.length ? `${selectedRows.length} items ready` : purpose === 'inventory' ? 'Select variants to restock' : 'Select items to build your event'}</span>
+          <span>{selectedRows.length ? `${selectedRows.length} items ready` : purpose === 'inventory' ? 'Select variants to edit' : 'Select items to build your event'}</span>
           <button className="button primary" type="button" disabled={!selectedRows.length || submitting} onClick={() => void handleCreate()}>
-            {submitting ? purpose === 'inventory' ? 'Adding…' : 'Reserving…' : submitLabel} <span aria-hidden="true">→</span>
+            {submitting ? purpose === 'inventory' ? 'Saving…' : 'Reserving…' : submitLabel} <span aria-hidden="true">→</span>
           </button>
         </div>
       </div>

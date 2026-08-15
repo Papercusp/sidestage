@@ -25,6 +25,7 @@ function variant(id: string, overrides: Partial<CatalogVariant> = {}): CatalogVa
     condition: 'NEW',
     handlingDays: 1,
     priceCents: 1_000,
+    qty: 10,
     reservedQty: 0,
     availableQty: 10,
     ...overrides,

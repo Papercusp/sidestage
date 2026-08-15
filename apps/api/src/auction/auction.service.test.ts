@@ -38,6 +38,22 @@ describe('AuctionService', () => {
     await expect(inventory.get('product-1')).resolves.toMatchObject({ qty: 5, reservedQty: 2, availableQty: 3 });
   });
 
+  it('saves absolute total quantity while preserving active reservations', async () => {
+    const inventory = new InMemoryAuctionInventory();
+    await inventory.seed('product-save', 5);
+    await inventory.reserve('product-save', 2, { kind: 'cart', id: 'cart-save' });
+
+    await expect(inventory.save('product-save', 8, 1_500)).resolves.toMatchObject({
+      qty: 8,
+      reservedQty: 2,
+      availableQty: 6,
+      priceCents: 1_500,
+    });
+    await expect(inventory.save('product-save', 1, 1_500)).rejects.toThrow(
+      'Quantity cannot be lower than 2 reserved units',
+    );
+  });
+
   it('allows only one active auction per event and rejects an oversize hold', async () => {
     const inventory = new InMemoryAuctionInventory();
     await inventory.seed('product-1', 3);

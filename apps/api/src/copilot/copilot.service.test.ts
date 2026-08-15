@@ -115,7 +115,7 @@ describe('CopilotProposalService', () => {
     const variant = (): CatalogVariant => ({
       id: 'mug', groupId: 'mugs', title: 'Blue mug', brand: 'Kiln', productType: 'HOME',
       sku: 'MUG-BLUE', condition: 'NEW', handlingDays: 1, priceCents: 1_800,
-      reservedQty: 5, availableQty: liveAvailableQty,
+      qty: liveAvailableQty + 5, reservedQty: 5, availableQty: liveAvailableQty,
     });
     const catalog: CatalogSource = {
       search: async () => ({ rows: [variant()], page: 1, pageSize: 8, total: 1, totalIsFloor: false }),

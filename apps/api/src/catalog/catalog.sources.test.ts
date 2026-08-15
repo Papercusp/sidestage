@@ -216,16 +216,17 @@ describe('PgCatalogSource', () => {
 });
 
 describe('FixtureCatalogSource', () => {
-  it('mirrors inventory intake into subsequent catalog reads without mutating the shared fixture', async () => {
+  it('mirrors absolute inventory saves into subsequent reads without mutating the shared fixture', async () => {
     const fixture = [{
       id: 'mug', groupId: 'cups', title: 'Mug', brand: 'Kiln', productType: 'HOME', sku: 'MUG',
-      condition: 'NEW', handlingDays: 1, priceCents: 1_200, availableQty: 2,
-      reservedQty: 0,
+      condition: 'NEW', handlingDays: 1, priceCents: 1_200, qty: 5, availableQty: 3,
+      reservedQty: 2,
     }];
     const source = new FixtureCatalogSource(fixture);
 
-    await expect(source.restock('mug', 3, 1_500)).resolves.toMatchObject({ availableQty: 5, priceCents: 1_500 });
-    await expect(source.variant('mug')).resolves.toMatchObject({ availableQty: 5, priceCents: 1_500 });
-    expect(fixture[0]).toMatchObject({ availableQty: 2, priceCents: 1_200 });
+    await expect(source.saveInventory('mug', 7, 1_500)).resolves.toMatchObject({ qty: 7, reservedQty: 2, availableQty: 5, priceCents: 1_500 });
+    await expect(source.variant('mug')).resolves.toMatchObject({ qty: 7, reservedQty: 2, availableQty: 5, priceCents: 1_500 });
+    await expect(source.saveInventory('mug', 1, 1_500)).rejects.toThrow('Quantity cannot be lower than 2 reserved units');
+    expect(fixture[0]).toMatchObject({ qty: 5, availableQty: 3, priceCents: 1_200 });
   });
 });

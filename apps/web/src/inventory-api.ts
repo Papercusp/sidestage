@@ -1,15 +1,16 @@
 import { resolveApiBaseUrl } from './catalog';
 import { requestJson } from './events/api';
 
-export interface InventoryRestockMutation {
+export interface InventorySaveMutation {
   productId: string;
   quantity: number;
-  priceCents?: number;
+  priceCents: number;
 }
 
-export interface InventoryRestockResult {
-  restocked: true;
+export interface InventorySaveResult {
+  saved: true;
   quantity: number;
+  priceCents: number;
   snapshot: {
     productId: string;
     qty: number;
@@ -19,14 +20,14 @@ export interface InventoryRestockResult {
   };
 }
 
-export async function restockInventory(
-  input: InventoryRestockMutation,
+export async function saveInventory(
+  input: InventorySaveMutation,
   apiBaseUrl?: string,
-): Promise<InventoryRestockResult> {
-  return requestJson<InventoryRestockResult>(
-    `${resolveApiBaseUrl(apiBaseUrl)}/inventory/${encodeURIComponent(input.productId)}/restock`,
+): Promise<InventorySaveResult> {
+  return requestJson<InventorySaveResult>(
+    `${resolveApiBaseUrl(apiBaseUrl)}/inventory/${encodeURIComponent(input.productId)}`,
     {
-      method: 'POST',
+      method: 'PUT',
       body: JSON.stringify({ quantity: input.quantity, priceCents: input.priceCents }),
     },
   );

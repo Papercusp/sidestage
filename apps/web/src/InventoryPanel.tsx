@@ -2,7 +2,7 @@ import { useCallback, useState } from 'react';
 import { useSyncMutate } from '@papercusp/sync';
 import type { CatalogRow, EventItemDraft } from './event-creation/catalog';
 import { EventCreationPanel } from './event-creation/EventCreationPanel';
-import { restockInventory, type InventoryRestockMutation, type InventoryRestockResult } from './inventory-api';
+import { saveInventory, type InventorySaveMutation, type InventorySaveResult } from './inventory-api';
 
 export interface InventoryPanelProps {
   apiBaseUrl?: string;
@@ -12,23 +12,23 @@ export interface InventoryPanelProps {
 export function InventoryPanel({ apiBaseUrl, catalog }: InventoryPanelProps) {
   const [confirmation, setConfirmation] = useState<string | null>(null);
   const fallback = useCallback(
-    (input: InventoryRestockMutation) => restockInventory(input, apiBaseUrl),
+    (input: InventorySaveMutation) => saveInventory(input, apiBaseUrl),
     [apiBaseUrl],
   );
-  const mutateRestock = useSyncMutate<InventoryRestockMutation, InventoryRestockResult>(
-    'inventory.restock',
+  const mutateSave = useSyncMutate<InventorySaveMutation, InventorySaveResult>(
+    'inventory.save',
     fallback,
   );
 
-  const handleRestock = async (drafts: readonly EventItemDraft[]) => {
+  const handleSave = async (drafts: readonly EventItemDraft[]) => {
     setConfirmation(null);
-    await Promise.all(drafts.map((draft) => mutateRestock({
+    await Promise.all(drafts.map((draft) => mutateSave({
       productId: draft.catalogId,
       quantity: draft.quantityLimit,
       priceCents: draft.eventPriceCents,
     })));
     const quantity = drafts.reduce((sum, draft) => sum + draft.quantityLimit, 0);
-    setConfirmation(`Added ${quantity} ${quantity === 1 ? 'unit' : 'units'} across ${drafts.length} ${drafts.length === 1 ? 'variant' : 'variants'}.`);
+    setConfirmation(`Saved ${quantity} total ${quantity === 1 ? 'unit' : 'units'} across ${drafts.length} ${drafts.length === 1 ? 'variant' : 'variants'}.`);
   };
 
   return (
@@ -36,10 +36,10 @@ export function InventoryPanel({ apiBaseUrl, catalog }: InventoryPanelProps) {
       <EventCreationPanel
         purpose="inventory"
         catalog={catalog}
-        title="Add inventory"
-        copy="Search your catalog, select one or more variants, then enter the quantity arriving and adjust the unit price when needed. Active holds stay reserved."
-        submitLabel="Add to inventory"
-        onRestock={handleRestock}
+        title="Edit inventory"
+        copy="Search your catalog, select one or more variants, then set total Qty and unit price. Active holds stay reserved, so Qty cannot be lower than Reserved."
+        submitLabel="Save inventory"
+        onSaveInventory={handleSave}
       />
       {confirmation ? <p className="inventory-confirmation" role="status">{confirmation}</p> : null}
     </div>

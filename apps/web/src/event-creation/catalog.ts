@@ -82,6 +82,14 @@ export function inventoryQuantity(row: CatalogRow): number {
   return row.qty ?? row.availableQty + (row.reservedQty ?? 0);
 }
 
+/** Inventory editing starts from authoritative total stock, not an intake delta. */
+export function inventoryDraftFromCatalog(row: CatalogRow): EventItemDraft {
+  return {
+    ...draftFromCatalog(row),
+    quantityLimit: inventoryQuantity(row),
+  };
+}
+
 export function filterCatalog(
   rows: readonly CatalogRow[],
   query: string,

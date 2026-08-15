@@ -34,17 +34,29 @@ describe('PgAuctionInventory hold lifecycle', () => {
     );
   });
 
-  it('increments stock without writing reserved_qty and optionally updates price', async () => {
+  it('overwrites total stock and price atomically without writing reserved_qty', async () => {
     const row = { productId: 'product-1', qty: 8, reservedQty: 2, availableQty: 6, priceCents: 1_500 };
     const query = vi.fn().mockResolvedValue({ rows: [row] });
     const inventory = new PgAuctionInventory({ query } as never);
 
-    await expect(inventory.restock('product-1', 3, 1_500)).resolves.toEqual(row);
+    await expect(inventory.save('product-1', 8, 1_500)).resolves.toEqual(row);
 
     const [sql, params] = query.mock.calls[0] as [string, unknown[]];
-    expect(sql).toContain('qty = qty + $2');
-    expect(sql).toContain('price_cents = COALESCE($3, price_cents)');
+    expect(sql).toContain('qty = $2');
+    expect(sql).toContain('price_cents = $3');
+    expect(sql).toContain('reserved_qty <= $2');
     expect(sql).not.toMatch(/SET[\s\S]*reserved_qty\s*=/);
-    expect(params).toEqual(['product-1', 3, 1_500]);
+    expect(params).toEqual(['product-1', 8, 1_500]);
+  });
+
+  it('rejects a total quantity below the current reservation floor', async () => {
+    const query = vi.fn()
+      .mockResolvedValueOnce({ rows: [] })
+      .mockResolvedValueOnce({ rows: [{ reservedQty: 2 }] });
+    const inventory = new PgAuctionInventory({ query } as never);
+
+    await expect(inventory.save('product-1', 1, 1_500)).rejects.toThrow(
+      'Quantity cannot be lower than 2 reserved units',
+    );
   });
 });
