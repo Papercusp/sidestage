@@ -128,6 +128,47 @@ describe('GroundedCopilotPipeline', () => {
     }
   });
 
+  it('grounds natural share-the-price phrasing in the verified catalog product', async () => {
+    vi.stubEnv('OPENAI_API_KEY', '');
+    vi.stubEnv('SIDESTAGE_COPILOT_MODEL', '');
+    const catalogContext: GroundingContext = {
+      ...context,
+      eventItems: [],
+      catalogProducts: [{
+        productId: 'event-demo-01-v2',
+        title: 'Harbor Kettle',
+        priceCents: 7_600,
+        attributes: {},
+      }],
+      sources: [
+        {
+          id: 'catalog-product:event-demo-01-v2',
+          kind: 'catalog-product',
+          label: 'Harbor Kettle verified catalog record',
+        },
+        { id: 'policy:event', kind: 'policy', label: 'Seller event policy' },
+      ],
+    };
+
+    try {
+      const pipeline = new GroundedCopilotPipeline({
+        retriever: { retrieve: async () => catalogContext },
+        model: new ConfiguredCopilotReplyModel(),
+      });
+
+      const response = await pipeline.respond({
+        eventId: 'event-1',
+        message: 'Can you share the Harbor Kettle price?',
+      });
+
+      expect(response.grounding).toBe('grounded');
+      expect(response.citations).toEqual(['catalog-product:event-demo-01-v2']);
+      expect(response.reply).toContain('$76.00');
+    } finally {
+      vi.unstubAllEnvs();
+    }
+  });
+
   it('makes every event Settings tone observably distinct without a model credential', async () => {
     vi.stubEnv('OPENAI_API_KEY', '');
     vi.stubEnv('SIDESTAGE_COPILOT_MODEL', '');
