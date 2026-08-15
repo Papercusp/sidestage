@@ -56,6 +56,7 @@ export const REQUIRED_TABLES: readonly string[] = [
   'copilot_proposal',
   'event',
   'event_config',
+  'event_lineup_item',
   'event_run_of_show',
   'inventory_reservation',
   'policy_audit_entry',
@@ -138,6 +139,16 @@ export const REQUIRED_CHAT_STRUCTURES: readonly string[] = [
   'index:chat_transcript_event_timeline_idx',
 ];
 
+/** Durable lineup structures required for membership, ownership, and ordering. */
+export const REQUIRED_LINEUP_STRUCTURES: readonly string[] = [
+  'constraint:event_lineup_item_event_fk',
+  'constraint:event_lineup_item_event_product_unique',
+  'constraint:event_lineup_item_product_fk',
+  'constraint:event_lineup_item_stage_state_known',
+  'index:event_lineup_item_event_position_idx',
+  'index:event_lineup_item_one_on_stage',
+];
+
 /** The remedy, in one place — it appears in the thrown message and the README. */
 export const SCHEMA_APPLY_REMEDY = 'npm run db:apply';
 
@@ -214,6 +225,14 @@ export function findMissingChatStructures(
   return findMissingSchemaStructures(pool, required);
 }
 
+/** Required durable event-lineup markers absent from the public schema. */
+export function findMissingLineupStructures(
+  pool: SchemaQueryable,
+  required: readonly string[] = REQUIRED_LINEUP_STRUCTURES,
+): Promise<string[]> {
+  return findMissingSchemaStructures(pool, required);
+}
+
 /**
  * The operator-facing drift message. Names every missing table (not just a
  * count) and the exact command that fixes it, because the failure is silent by
@@ -272,6 +291,19 @@ export function formatChatDriftMessage(missing: readonly string[]): string {
   ].join('\n');
 }
 
+export function formatLineupDriftMessage(missing: readonly string[]): string {
+  return [
+    `schema drift — ${missing.length} durable-lineup structure(s) missing from the database:`,
+    ...missing.map((marker) => `    ${marker}`),
+    '',
+    'The event_lineup_item table exists, but its event/product identity, ordering,',
+    'or single-stage invariant is only partially applied. Starting would allow',
+    'lineups to fork across retries or API processes.',
+    '',
+    `  remedy: ${SCHEMA_APPLY_REMEDY}`,
+  ].join('\n');
+}
+
 /**
  * Throws when the connected database is missing tables the code queries.
  *
@@ -297,5 +329,9 @@ export async function assertSchemaCurrent(
   const missingChat = await findMissingChatStructures(pool);
   if (missingChat.length > 0) {
     throw new Error(formatChatDriftMessage(missingChat));
+  }
+  const missingLineup = await findMissingLineupStructures(pool);
+  if (missingLineup.length > 0) {
+    throw new Error(formatLineupDriftMessage(missingLineup));
   }
 }

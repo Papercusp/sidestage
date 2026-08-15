@@ -5,6 +5,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
   REQUIRED_CHAT_STRUCTURES,
+  REQUIRED_LINEUP_STRUCTURES,
   REQUIRED_OWNERSHIP_STRUCTURES,
   REQUIRED_ORDER_STRUCTURES,
   REQUIRED_TABLES,
@@ -12,11 +13,13 @@ import {
   type SchemaQueryable,
   assertSchemaCurrent,
   findMissingChatStructures,
+  findMissingLineupStructures,
   findMissingOwnershipStructures,
   findMissingOrderStructures,
   findMissingTables,
   formatOwnershipDriftMessage,
   formatChatDriftMessage,
+  formatLineupDriftMessage,
   formatOrderDriftMessage,
   formatSchemaDriftMessage,
 } from './schema-guard';
@@ -37,6 +40,7 @@ function poolWithTables(
     ...REQUIRED_OWNERSHIP_STRUCTURES,
     ...REQUIRED_ORDER_STRUCTURES,
     ...REQUIRED_CHAT_STRUCTURES,
+    ...REQUIRED_LINEUP_STRUCTURES,
   ],
 ): SchemaQueryable {
   return {
@@ -225,6 +229,39 @@ describe('durable-chat schema guard', () => {
 
   it('names the idempotent schema apply remedy', () => {
     expect(formatChatDriftMessage(['index:chat_presence_freshness_idx'])).toContain(SCHEMA_APPLY_REMEDY);
+  });
+});
+
+describe('durable-lineup schema guard', () => {
+  it('tracks event/product identity, ordered reads, lifecycle, and one on-stage row', () => {
+    expect(REQUIRED_LINEUP_STRUCTURES).toEqual(expect.arrayContaining([
+      'constraint:event_lineup_item_event_fk',
+      'constraint:event_lineup_item_event_product_unique',
+      'constraint:event_lineup_item_product_fk',
+      'constraint:event_lineup_item_stage_state_known',
+      'index:event_lineup_item_event_position_idx',
+      'index:event_lineup_item_one_on_stage',
+    ]));
+  });
+
+  it('reports a partially-applied durable-lineup schema', async () => {
+    const present = [
+      ...REQUIRED_OWNERSHIP_STRUCTURES,
+      ...REQUIRED_ORDER_STRUCTURES,
+      ...REQUIRED_CHAT_STRUCTURES,
+      ...REQUIRED_LINEUP_STRUCTURES,
+    ].filter((marker) => marker !== 'index:event_lineup_item_one_on_stage');
+    await expect(findMissingLineupStructures(poolWithTables(REQUIRED_TABLES, present))).resolves.toEqual([
+      'index:event_lineup_item_one_on_stage',
+    ]);
+    await expect(assertSchemaCurrent(poolWithTables(REQUIRED_TABLES, present))).rejects.toThrow(
+      /index:event_lineup_item_one_on_stage/,
+    );
+  });
+
+  it('names the idempotent schema apply remedy', () => {
+    expect(formatLineupDriftMessage(['constraint:event_lineup_item_product_fk']))
+      .toContain(SCHEMA_APPLY_REMEDY);
   });
 });
 

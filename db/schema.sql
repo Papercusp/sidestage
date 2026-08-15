@@ -780,6 +780,47 @@ CREATE TABLE IF NOT EXISTS event (
 CREATE INDEX IF NOT EXISTS event_status_starts_at_idx
   ON event (status, starts_at);
 
+-- One restart-safe lineup authority shared by seller actions and buyer-facing
+-- event projections. The event/product pair is the natural membership key;
+-- event_item_id remains the stable public identity even when registration is
+-- repeated with refreshed presentation data.
+CREATE TABLE IF NOT EXISTS event_lineup_item (
+  event_item_id text PRIMARY KEY,
+  event_id text NOT NULL,
+  product_id text NOT NULL,
+  position integer NOT NULL,
+  reference_price_cents integer NOT NULL,
+  current_price_cents integer NOT NULL,
+  listed_quantity integer NOT NULL,
+  current_quantity integer NOT NULL,
+  stage_state text NOT NULL DEFAULT 'queued',
+  title text NOT NULL,
+  description text,
+  attributes jsonb NOT NULL DEFAULT '{}'::jsonb,
+  version bigint NOT NULL DEFAULT 1,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now(),
+  CONSTRAINT event_lineup_item_event_product_unique UNIQUE (event_id, product_id),
+  CONSTRAINT event_lineup_item_event_fk FOREIGN KEY (event_id)
+    REFERENCES event (event_id) ON UPDATE CASCADE ON DELETE CASCADE,
+  CONSTRAINT event_lineup_item_product_fk FOREIGN KEY (product_id)
+    REFERENCES storefront_product (id) ON UPDATE CASCADE ON DELETE RESTRICT,
+  CONSTRAINT event_lineup_item_position_nonnegative CHECK (position >= 0),
+  CONSTRAINT event_lineup_item_reference_price_positive CHECK (reference_price_cents > 0),
+  CONSTRAINT event_lineup_item_current_price_positive CHECK (current_price_cents > 0),
+  CONSTRAINT event_lineup_item_listed_quantity_nonnegative CHECK (listed_quantity >= 0),
+  CONSTRAINT event_lineup_item_current_quantity_nonnegative CHECK (current_quantity >= 0),
+  CONSTRAINT event_lineup_item_stage_state_known
+    CHECK (stage_state IN ('queued', 'on-stage', 'completed')),
+  CONSTRAINT event_lineup_item_attributes_object CHECK (jsonb_typeof(attributes) = 'object'),
+  CONSTRAINT event_lineup_item_version_positive CHECK (version > 0)
+);
+
+CREATE INDEX IF NOT EXISTS event_lineup_item_event_position_idx
+  ON event_lineup_item (event_id, position, event_item_id);
+CREATE UNIQUE INDEX IF NOT EXISTS event_lineup_item_one_on_stage
+  ON event_lineup_item (event_id) WHERE stage_state = 'on-stage';
+
 -- ── Demo-principal ownership boundary (demo-user-isolation P-002) ──────────
 -- Event-anchored rows deliberately do NOT duplicate seller_id: event is the
 -- owner oracle, and the foreign keys below make every dependent event id

@@ -77,6 +77,7 @@ export const POSTGRES_SURFACES = {
   checkout_order: pg('checkout_order', ['buyer-owned'], 'selected buyer/order owner', ['orders.byBuyer'], ['cart.holdProduct'], 'P-018'),
   auction_state: pg('auction_state', ['public', 'seller-owned'], 'public active-auction projection; seller command authority', ['event.auction.active'], ['auction.start', 'auction.placeBid', 'auction.close'], 'P-017/P-019'),
   event_config: pg('event_config', ['seller-owned'], 'event seller owner', ['event.config'], ['event.updateConfig', 'event.setup'], 'P-019'),
+  event_lineup_item: pg('event_lineup_item', ['public', 'seller-owned'], 'event seller owner; published event projection', ['event.actions.items'], ['event.addItems', 'event.executeAction'], 'P-011/P-017/P-019'),
   copilot_proposal: pg('copilot_proposal', ['seller-owned'], 'event seller owner', ['event.copilot.proposals'], ['copilot.createTurn', 'copilot.approve', 'copilot.skip', 'copilot.confirmAction'], 'P-019'),
   event_run_of_show: pg('event_run_of_show', ['seller-owned'], 'event seller owner', ['event.runOfShow'], ['runOfShow.save'], 'P-019'),
   seller_policy_revision: pg('seller_policy_revision', ['seller-owned'], 'seller owner', ['event.config'], ['event.updateConfig'], 'P-019'),
@@ -131,7 +132,7 @@ export const SYNC_QUERY_SURFACES: readonly NamedSurface[] = [
   query('cart.byId', 'cart/cart.module.ts', 'cart', ['buyer-owned'], ['cart'], 'selected buyer/cart owner', 'P-018'),
   query('catalog.page', 'catalog/catalog.module.ts', 'catalog', ['public'], ['product_catalog', 'storefront_product'], 'public projection', 'P-017'),
   query('catalog.types', 'catalog/catalog.module.ts', 'catalog', ['public'], ['product_catalog'], 'public projection', 'P-017'),
-  query('event.actions.items', 'actions/action.module.ts', 'actions', ['seller-owned'], ['policy_audit_entry'], 'event seller owner', 'P-019'),
+  query('event.actions.items', 'actions/action.module.ts', 'actions', ['seller-owned'], ['event_lineup_item'], 'event seller owner', 'P-019'),
   query('event.auction.active', 'auction/auction.module.ts', 'auction', ['public', 'seller-owned'], ['auction_state'], 'public read; seller command authority', 'P-017/P-019'),
   query('event.chat.messages', 'chat/chat.module.ts', 'chat', ['public'], ['chat_message'], 'event room participant', 'P-017'),
   query('event.chat.presence', 'chat/chat.module.ts', 'chat-presence', ['public', 'streaming'], ['chat_presence'], 'event room participant', 'P-017/P-020'),
@@ -232,7 +233,6 @@ const local = (
 
 /** Class fields backed by process-local Maps. Method-local projection maps are not authorities. */
 export const PROCESS_LOCAL_SURFACES: readonly SourceSurface[] = [
-  local('apps/api/src/actions/action.service.ts', 'items', 'actions', ['seller-owned'], 'temporary authority', 'replicate', 'Postgres action item table/read model', 'P-011/P-019'),
   local('apps/api/src/actions/action.service.ts', 'policies', 'actions-policy', ['seller-owned'], 'temporary authority', 'replicate', 'seller_policy_revision', 'P-011/P-019'),
   local('apps/api/src/actions/action.service.ts', 'offers', 'offers', ['buyer-owned', 'seller-owned'], 'temporary authority', 'replicate', 'Postgres targeted offer table', 'P-011/P-018/P-019'),
   local('apps/api/src/actions/action.service.ts', 'audits', 'action-audit', ['seller-owned', 'operational'], 'temporary authority', 'replicate', 'policy_audit_entry', 'P-011/P-019'),
