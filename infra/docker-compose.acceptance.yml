@@ -52,7 +52,6 @@ services:
       MEDIAMTX_HOST: mediamtx
       MEDIAMTX_WHIP_URL: http://mediamtx:8889
       MEDIAMTX_WHEP_URL: http://mediamtx:8889
-      SIDESTAGE_AUCTION_SELLER_TOKEN: acceptance-only-seller-token
       SIDESTAGE_AUCTION_SIGNING_SECRET: acceptance-only-signing-secret
       SQUARE_APP_ID: ""
       SQUARE_LOCATION_ID: ""
