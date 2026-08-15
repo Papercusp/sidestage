@@ -3,8 +3,8 @@ authority: null
 body_embedding_mode: "gemma"
 body_tsv: ""
 escalation: null
-mtime_ms: 1786761823327
-phase: "github-bridge"
+mtime_ms: 1786770436533
+phase: "origin-freshness-watchdog"
 risk_tier: null
 supervisor_notes: null
 ---
