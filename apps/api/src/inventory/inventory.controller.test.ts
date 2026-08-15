@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
+import { EventOwnershipGuard } from '../events/event-ownership.guard';
 import { InventoryController } from './inventory.controller';
 
 describe('InventoryController seller boundary', () => {
@@ -35,6 +36,32 @@ describe('InventoryController seller boundary', () => {
     await expect(controller.save('mug', { quantity: -1, priceCents: 1_500 }, 'demo-avi')).rejects.toThrow('quantity must be a non-negative integer');
     await expect(controller.save('mug', { quantity: 2, priceCents: -1 }, 'demo-avi')).rejects.toThrow('priceCents must be a non-negative integer');
     await expect(controller.save('missing', { quantity: 2, priceCents: 1_500 }, 'demo-avi')).rejects.toThrow('Inventory item missing was not found');
+  });
+
+  it('uses the seeded seller for generated demo reads and writes without collapsing named sellers', async () => {
+    const snapshot = { productId: 'mug', qty: 8, reservedQty: 2, availableQty: 6, priceCents: 1_500 };
+    const inventory = {
+      getOwned: vi.fn().mockResolvedValue(snapshot),
+      saveOwned: vi.fn().mockResolvedValue(snapshot),
+    };
+    const controller = new InventoryController(
+      inventory as never,
+      { invalidate: vi.fn() } as never,
+      new EventOwnershipGuard({} as never),
+    );
+
+    await expect(controller.snapshot('mug', 'demo-54598e91')).resolves.toEqual(snapshot);
+    await expect(controller.save(
+      'mug',
+      { quantity: 8, priceCents: 1_500 },
+      'demo-54598e91',
+    )).resolves.toMatchObject({ saved: true, snapshot });
+
+    expect(inventory.getOwned).toHaveBeenCalledWith('mug', 'demo-seller');
+    expect(inventory.saveOwned).toHaveBeenCalledWith('mug', 8, 1_500, 'demo-seller');
+
+    await controller.snapshot('mug', 'demo-avi');
+    expect(inventory.getOwned).toHaveBeenLastCalledWith('mug', 'seller-demo-avi');
   });
 
   it('does not hold a product outside the selected event seller\'s inventory', async () => {
