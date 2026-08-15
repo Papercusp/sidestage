@@ -233,6 +233,7 @@ const local = (
 
 /** Class fields backed by process-local Maps. Method-local projection maps are not authorities. */
 export const PROCESS_LOCAL_SURFACES: readonly SourceSurface[] = [
+  local('apps/api/src/actions/action-item.store.ts', 'items', 'actions', ['seller-owned'], 'development fallback authority', 'replicate', 'event_lineup_item', 'P-011/P-019'),
   local('apps/api/src/actions/action.service.ts', 'policies', 'actions-policy', ['seller-owned'], 'temporary authority', 'replicate', 'seller_policy_revision', 'P-011/P-019'),
   local('apps/api/src/actions/action.service.ts', 'offers', 'offers', ['buyer-owned', 'seller-owned'], 'temporary authority', 'replicate', 'Postgres targeted offer table', 'P-011/P-018/P-019'),
   local('apps/api/src/actions/action.service.ts', 'audits', 'action-audit', ['seller-owned', 'operational'], 'temporary authority', 'replicate', 'policy_audit_entry', 'P-011/P-019'),
