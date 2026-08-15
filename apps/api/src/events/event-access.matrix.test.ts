@@ -5,6 +5,7 @@ import { METHOD_METADATA, PATH_METADATA } from '@nestjs/common/constants';
 import { describe, expect, it } from 'vitest';
 import { ActionController } from '../actions/action.controller';
 import { AuctionController } from '../auction/auction.controller';
+import { CartController } from '../cart/cart.controller';
 import { ChatController } from '../chat/chat.controller';
 import { EventConfigController } from '../config/event-config.controller';
 import { CopilotController } from '../copilot/copilot.controller';
@@ -16,7 +17,7 @@ import { SyncController } from '../sync/sync.controller';
 import { TranscriptionController } from '../transcription/transcription.controller';
 import { EventController } from './event.controller';
 
-type AccessPolicy = 'public-viewer' | 'seller-owned' | 'principal-partitioned' | 'operational';
+type AccessPolicy = 'public-viewer' | 'seller-owned' | 'principal-partitioned' | 'capability-scoped' | 'operational';
 type ControllerType = { name: string; prototype: object };
 
 const REPO_ROOT = resolve(__dirname, '../../../..');
@@ -25,6 +26,7 @@ const API_ROOT = join(REPO_ROOT, 'apps/api/src');
 const EVENT_CONTROLLERS: readonly { source: string; controller: ControllerType }[] = [
   { source: 'apps/api/src/actions/action.controller.ts', controller: ActionController },
   { source: 'apps/api/src/auction/auction.controller.ts', controller: AuctionController },
+  { source: 'apps/api/src/cart/cart.controller.ts', controller: CartController },
   { source: 'apps/api/src/chat/chat.controller.ts', controller: ChatController },
   { source: 'apps/api/src/config/event-config.controller.ts', controller: EventConfigController },
   { source: 'apps/api/src/copilot/copilot.controller.ts', controller: CopilotController },
@@ -61,12 +63,16 @@ const EVENT_ACCESS: {
     'POST /auctions/:id/bids': 'public-viewer',
     'POST /auctions/:id/cancel': 'seller-owned',
     'POST /auctions/:id/close': 'seller-owned',
+    'GET /cart/:id': 'capability-scoped',
+    'POST /cart/items': 'capability-scoped',
+    'PATCH /cart/:cartId/items/:productId': 'capability-scoped',
+    'DELETE /cart/:cartId/items/:productId': 'capability-scoped',
     'GET /chat/events/:eventId/messages': 'public-viewer',
     'POST /chat/events/:eventId/messages': 'public-viewer',
     'POST /chat/events/:eventId/transcript': 'seller-owned',
     'POST /chat/events/:eventId/transcript/product-focus': 'seller-owned',
     'POST /chat/events/:eventId/presence': 'public-viewer',
-    'DELETE /chat/events/:eventId/presence/:userId': 'public-viewer',
+    'DELETE /chat/events/:eventId/presence/:role': 'principal-partitioned',
     'DELETE /chat/events/:eventId/messages/:messageId': 'seller-owned',
     'GET /chat/metrics': 'seller-owned',
     'GET /chat/events/:eventId/presence': 'public-viewer',
