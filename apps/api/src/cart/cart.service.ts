@@ -21,6 +21,8 @@ export interface CartItem {
 
 export interface Cart {
   id: string;
+  /** Server-verified owner for every buyer-facing cart aggregate. */
+  buyerId?: string;
   currency: 'USD';
   items: CartItem[];
   subtotalCents: number;
@@ -56,6 +58,7 @@ export interface CartStore {
 
 export interface EventCartHoldInput {
   cartId: string;
+  buyerId?: string;
   eventId: string;
   eventItemId: string;
   productId: string;
@@ -126,6 +129,10 @@ export class InMemoryCartStore implements CartStore {
   }
 
   async set(cart: Cart): Promise<void> {
+    const existing = this.carts.get(cart.id);
+    if (existing && existing.buyerId !== cart.buyerId && (existing.buyerId || cart.buyerId)) {
+      throw new NotFoundException('Cart was not found for this buyer');
+    }
     this.carts.set(cart.id, cloneCart(cart));
   }
 
@@ -140,7 +147,8 @@ export class InMemoryCartStore implements CartStore {
     ));
     if (!item) throw new NotFoundException('Event item is not available');
 
-    const cart = this.carts.get(input.cartId) ?? emptyCart(input.cartId);
+    const cart = this.carts.get(input.cartId) ?? emptyCart(input.cartId, input.buyerId);
+    if (input.buyerId) assertCartOwner(cart, input.buyerId);
     assertEventCartScope(cart, input.eventId);
     if (hasEventHoldKey(cart, input.idempotencyKey)) return cloneCart(cart);
     const existing = cart.items.find((candidate) => candidate.eventItemId === input.eventItemId);
@@ -218,7 +226,7 @@ export class InMemoryCartStore implements CartStore {
     const physicalChanged = input.quantity === 0
       ? await this.inventory.release(input.productId, existing.quantity, source)
       : await this.inventory.reserve(input.productId, input.quantity, source, existing.expiresAt);
-    if (!physicalChanged) {
+    if (!physicalChanged && !(input.quantity === 0 && cartItemDeadlinePassed(existing))) {
       throw new ConflictException(`Inventory hold for ${input.productId} changed; reload the cart and retry`);
     }
 
@@ -285,7 +293,9 @@ export class InMemoryCartStore implements CartStore {
           item.quantity,
           { kind: 'cart', id: cart.id },
         );
-        if (!released) throw new ConflictException(`Inventory hold for ${item.productId} changed; reload the cart and retry`);
+        if (!released && !cartItemDeadlinePassed(item)) {
+          throw new ConflictException(`Inventory hold for ${item.productId} changed; reload the cart and retry`);
+        }
       }
       await this.eventItems.write(input.eventId, changes);
     } else {
@@ -345,13 +355,23 @@ export class CartService {
     return cloneCart(updated);
   }
 
-  async getCart(id?: string): Promise<Cart> {
+  async findCartForBuyer(id: string, buyerId: string): Promise<Cart | null> {
+    const cart = await this.findCart(id);
+    if (!cart) return null;
+    assertCartOwner(cart, buyerId);
+    return cart;
+  }
+
+  async getCart(id?: string, buyerId?: string): Promise<Cart> {
     if (id) {
       const existing = await this.findCart(id);
-      if (existing) return existing;
+      if (existing) {
+        if (buyerId) assertCartOwner(existing, buyerId);
+        return existing;
+      }
     }
 
-    const cart = emptyCart(id?.trim() || randomUUID());
+    const cart = emptyCart(id?.trim() || randomUUID(), buyerId);
     await this.persist(cart);
     return cloneCart(cart);
   }
@@ -364,10 +384,11 @@ export class CartService {
     quantity?: number;
     imageUrl?: string;
     expiresAt?: string;
+    buyerId?: string;
   }): Promise<Cart> {
     this.assertProduct(input.productId, input.title, input.priceCents);
     const quantity = this.assertQuantity(input.quantity ?? 1);
-    const cart = await this.getCart(input.cartId);
+    const cart = await this.getCart(input.cartId, input.buyerId);
     if (cart.items.some(isEventCartItem)) {
       throw new ConflictException('Empty the cart before adding a product outside the event');
     }
@@ -403,6 +424,7 @@ export class CartService {
     eventId?: string;
     eventItemId?: string;
     idempotencyKey?: string;
+    buyerId?: string;
   }): Promise<Cart> {
     const quantity = this.assertQuantity(input.quantity ?? 1);
     const eventContext = this.readEventContext(input);
@@ -415,6 +437,7 @@ export class CartService {
       }
       const updated = await this.store.holdEventItem({
         cartId,
+        buyerId: input.buyerId,
         eventId: eventContext.eventId,
         eventItemId: eventContext.eventItemId,
         productId: input.productId.trim(),
@@ -428,7 +451,7 @@ export class CartService {
     }
 
     this.assertProduct(input.productId, input.title, input.priceCents);
-    const cart = await this.getCart(input.cartId);
+    const cart = await this.getCart(input.cartId, input.buyerId);
     const existing = cart.items.find((item) => item.productId === input.productId);
     const nextQuantity = this.assertQuantity((existing?.quantity ?? 0) + quantity);
     const expiresAt = buyerHoldExpiresAt();
@@ -446,8 +469,20 @@ export class CartService {
     }
   }
 
-  async setQuantity(cartId: string, productId: string, quantity: number): Promise<Cart> {
-    const cart = await this.requireCart(cartId);
+  async holdItemForBuyer(
+    input: Omit<Parameters<CartService['holdItem']>[0], 'buyerId'>,
+    buyerId: string,
+  ): Promise<Cart> {
+    return this.holdItem({ ...input, buyerId: requireBuyerId(buyerId) });
+  }
+
+  async setQuantity(
+    cartId: string,
+    productId: string,
+    quantity: number,
+    buyerId?: string,
+  ): Promise<Cart> {
+    const cart = await this.requireCart(cartId, buyerId);
     const item = cart.items.find((candidate) => candidate.productId === productId);
     if (!item) throw new Error(`Product ${productId} is not in cart`);
     const nextQuantity = this.assertQuantity(quantity);
@@ -475,8 +510,17 @@ export class CartService {
     return cloneCart(updated);
   }
 
-  async removeItem(cartId: string, productId: string): Promise<Cart> {
-    const cart = await this.requireCart(cartId);
+  async setQuantityForBuyer(
+    cartId: string,
+    productId: string,
+    quantity: number,
+    buyerId: string,
+  ): Promise<Cart> {
+    return this.setQuantity(cartId, productId, quantity, requireBuyerId(buyerId));
+  }
+
+  async removeItem(cartId: string, productId: string, buyerId?: string): Promise<Cart> {
+    const cart = await this.requireCart(cartId, buyerId);
     const heldItem = cart.items.find((item) => item.productId === productId);
     if (heldItem && isEventCartItem(heldItem)) {
       if (!this.store.setEventItemQuantity) throw new Error('Event-aware cart storage is unavailable');
@@ -497,6 +541,10 @@ export class CartService {
     await this.persist(updated);
     if (heldItem?.expiresAt) this.invalidateInventory([productId]);
     return cloneCart(updated);
+  }
+
+  async removeItemForBuyer(cartId: string, productId: string, buyerId: string): Promise<Cart> {
+    return this.removeItem(cartId, productId, requireBuyerId(buyerId));
   }
 
   async commit(cartId: string, expectedRevision?: string): Promise<Cart> {
@@ -589,9 +637,10 @@ export class CartService {
     this.invalidateInventory(productIds);
   }
 
-  private async requireCart(id: string): Promise<Cart> {
+  private async requireCart(id: string, buyerId?: string): Promise<Cart> {
     const cart = await this.findCart(id);
     if (!cart) throw new Error(`Cart ${id} was not found`);
+    if (buyerId) assertCartOwner(cart, buyerId);
     return cart;
   }
 
@@ -637,15 +686,28 @@ export class CartService {
   }
 }
 
-export function emptyCart(id: string): Cart {
+export function emptyCart(id: string, buyerId?: string): Cart {
   return {
     id,
+    ...(buyerId ? { buyerId: requireBuyerId(buyerId) } : {}),
     currency: 'USD',
     items: [],
     subtotalCents: 0,
     updatedAt: new Date().toISOString(),
     revision: 0,
   };
+}
+
+export function assertCartOwner(cart: Cart, buyerId: string): void {
+  if (cart.buyerId !== requireBuyerId(buyerId)) {
+    throw new NotFoundException('Cart was not found for this buyer');
+  }
+}
+
+function requireBuyerId(value: string): string {
+  const buyerId = value.trim();
+  if (!buyerId) throw new NotFoundException('Cart was not found for this buyer');
+  return buyerId;
 }
 
 export function isEventCartItem(item: CartItem): boolean {
@@ -699,6 +761,12 @@ export function terminalTransitionReplay(
     return cloneCart(cart);
   }
   throw new ConflictException(`Event cart was already ${terminal.state}`);
+}
+
+function cartItemDeadlinePassed(item: CartItem): boolean {
+  if (!item.expiresAt) return false;
+  const expiresAt = Date.parse(item.expiresAt);
+  return !Number.isFinite(expiresAt) || expiresAt <= Date.now();
 }
 
 export function assertEventCartScope(cart: Cart, eventId: string): void {

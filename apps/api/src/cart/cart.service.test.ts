@@ -11,17 +11,30 @@ import { CartService, InMemoryCartStore } from './cart.service';
 describe('CartService', () => {
   afterEach(() => vi.useRealTimers());
 
-  it('registers cart.byId as a bounded cart query', async () => {
+  it('registers cart.byId as a buyer-partitioned bounded cart query', async () => {
     const carts = new CartService(new InMemoryCartStore());
-    await carts.addItem({ cartId: 'cart-live', productId: 'p-1', title: 'Mug', priceCents: 1250 });
+    await carts.holdItemForBuyer(
+      { cartId: 'cart-live', productId: 'p-1', title: 'Mug', priceCents: 1250 },
+      'buyer-demo-avi',
+    );
     const queries = new SyncQueryRegistry();
     new CartSyncQueries(carts, queries).onModuleInit();
 
-    await expect(queries.resolve('cart.byId', { cartId: ' cart-live ' })).resolves.toEqual([
+    await expect(queries.resolve(
+      'cart.byId',
+      { cartId: ' cart-live ' },
+      { principal: 'demo-avi' },
+    )).resolves.toEqual([
       expect.objectContaining({ id: 'cart-live', subtotalCents: 1250 }),
     ]);
-    await expect(queries.resolve('cart.byId', { cartId: 'missing' })).resolves.toEqual([]);
-    await expect(queries.resolve('cart.byId', {})).resolves.toEqual([]);
+    await expect(queries.resolve(
+      'cart.byId',
+      { cartId: 'cart-live' },
+      { principal: 'demo-other' },
+    )).rejects.toThrow('Cart was not found for this buyer');
+    await expect(queries.resolve('cart.byId', { cartId: 'missing' }, { principal: 'demo-avi' })).resolves.toEqual([]);
+    await expect(queries.resolve('cart.byId', {}, { principal: 'demo-avi' })).resolves.toEqual([]);
+    await expect(queries.resolve('cart.byId', { cartId: 'cart-live' })).rejects.toThrow('x-demo-principal');
   });
 
   it('invalidates the scoped cart and inventory views after authoritative writes', async () => {
@@ -140,6 +153,87 @@ describe('CartService', () => {
     await expect(carts.holdItem({ ...base, eventItemId: 'foreign:item' })).rejects.toThrow('Event item is not available');
     await expect(eventItems.list('event-draft')).resolves.toMatchObject([{ availableQty: 2 }]);
     await expect(inventory.get('mug')).resolves.toMatchObject({ reservedQty: 0, availableQty: 2 });
+  });
+
+  it('changes and removes an event item through one allocation and inventory boundary', async () => {
+    const eventItems = new InMemoryActionItemStore();
+    await eventItems.register('event-quantity', [{
+      eventId: 'event-quantity', eventItemId: 'event-quantity:mug', productId: 'mug',
+      title: 'Event mug', referencePriceCents: 2_000, priceCents: 1_500,
+      quantity: 3, availableQty: 3, position: 0, stageState: 'on-stage', onStage: true,
+      attributes: {},
+    }]);
+    const inventory = new InMemoryAuctionInventory();
+    await inventory.seed('mug', 3);
+    const carts = new CartService(
+      new InMemoryCartStore(
+        eventItems,
+        new InMemoryEventStore([eventRecord('event-quantity', 'live')]),
+        inventory,
+      ),
+      inventory,
+    );
+    const held = await carts.holdItem({
+      cartId: 'cart-quantity', eventId: 'event-quantity', eventItemId: 'event-quantity:mug',
+      productId: 'mug', title: 'ignored', priceCents: 1, idempotencyKey: 'quantity-1',
+    });
+
+    await expect(carts.setQuantity(held.id, 'mug', 2)).resolves.toMatchObject({
+      items: [expect.objectContaining({ quantity: 2 })],
+      subtotalCents: 3_000,
+    });
+    await expect(eventItems.list('event-quantity')).resolves.toMatchObject([{ availableQty: 1 }]);
+    await expect(inventory.get('mug')).resolves.toMatchObject({ reservedQty: 2, availableQty: 1 });
+
+    await expect(carts.removeItem(held.id, 'mug')).resolves.toMatchObject({ items: [], subtotalCents: 0 });
+    await expect(eventItems.list('event-quantity')).resolves.toMatchObject([{ availableQty: 3 }]);
+    await expect(inventory.get('mug')).resolves.toMatchObject({ reservedQty: 0, availableQty: 3 });
+  });
+
+  it('restores expired event allocation but leaves a paid event commitment consumed', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime('2026-08-14T06:00:00Z');
+    const eventItems = new InMemoryActionItemStore();
+    await eventItems.register('event-terminal', [{
+      eventId: 'event-terminal', eventItemId: 'event-terminal:mug', productId: 'mug',
+      title: 'Event mug', referencePriceCents: 2_000, priceCents: 1_500,
+      quantity: 2, availableQty: 2, position: 0, stageState: 'on-stage', onStage: true,
+      attributes: {},
+    }]);
+    const inventory = new InMemoryAuctionInventory();
+    await inventory.seed('mug', 2);
+    const carts = new CartService(
+      new InMemoryCartStore(
+        eventItems,
+        new InMemoryEventStore([eventRecord('event-terminal', 'live')]),
+        inventory,
+      ),
+      inventory,
+    );
+    const eventInput = {
+      eventId: 'event-terminal', eventItemId: 'event-terminal:mug', productId: 'mug',
+      title: 'ignored', priceCents: 1,
+    };
+    const expiring = await carts.holdItem({
+      ...eventInput, cartId: 'cart-expiring-event', idempotencyKey: 'terminal-expire',
+    });
+
+    vi.advanceTimersByTime(BUYER_HOLD_DURATION_MS + 1);
+    await expect(carts.findCart(expiring.id)).resolves.toMatchObject({ items: [], subtotalCents: 0 });
+    await expect(eventItems.list('event-terminal')).resolves.toMatchObject([{ availableQty: 2 }]);
+    await expect(inventory.get('mug')).resolves.toMatchObject({ reservedQty: 0, availableQty: 2 });
+
+    const paid = await carts.holdItem({
+      ...eventInput, cartId: 'cart-paid-event', idempotencyKey: 'terminal-paid',
+    });
+    await expect(carts.commit(paid.id)).resolves.toMatchObject({
+      items: [],
+      eventTerminalTransition: expect.objectContaining({ state: 'committed', eventId: 'event-terminal' }),
+    });
+    await expect(carts.commit(paid.id)).resolves.toMatchObject({ items: [] });
+    await expect(eventItems.list('event-terminal')).resolves.toMatchObject([{ availableQty: 1 }]);
+    await expect(inventory.get('mug')).resolves.toMatchObject({ reservedQty: 1, availableQty: 1 });
+    await expect(carts.release(paid.id)).rejects.toThrow('already committed');
   });
   it('merges repeated products and calculates a cents subtotal', async () => {
     const carts = new CartService(new InMemoryCartStore());
