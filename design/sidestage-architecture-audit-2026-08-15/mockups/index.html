@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Three simplified, source-backed architecture directions for SideStage.">
+  <title>SideStage architecture — simplified directions</title>
+  <link rel="stylesheet" href="shared.css">
+</head>
+<body>
+  <a class="skip-link" href="#directions">Skip to directions</a>
+  <header class="app-bar">
+    <div class="app-bar-inner">
+      <a class="brand" href="index.html" aria-label="SideStage architecture study home">
+        <span class="brand-mark" aria-hidden="true">S</span>
+        <span class="brand-copy"><strong>SideStage</strong><small>Architecture study</small></span>
+      </a>
+      <div class="bar-meta"><span class="pill">Source-backed</span><span class="pill">Mockup only</span></div>
+    </div>
+  </header>
+  <main class="shell" id="directions">
+    <header class="hero">
+      <div>
+        <p class="eyebrow">Independent architecture audit · 2026-08-15</p>
+        <h1>Show what runs. Name what does not.</h1>
+        <p class="lede">Three deliberately simpler ways to explain SideStage after checking every current page claim against source, schema, configuration, and tests.</p>
+      </div>
+      <aside class="truth-card" aria-label="Audit verdict">
+        <strong>Seven claims need correction</strong>
+        <p>Native mobile, Redis, Copilot grounding, auction SSE consumption, action reversibility, acceptance coverage, and the global authority rule.</p>
+      </aside>
+    </header>
+
+    <div class="legend" aria-label="Status vocabulary">
+      <span class="status active">Active runtime</span>
+      <span class="status fallback">Fallback</span>
+      <span class="status configured">Configured / idle</span>
+      <span class="status planned">Planned</span>
+    </div>
+
+    <section aria-labelledby="directions-title">
+      <div class="section-head">
+        <div><p class="eyebrow">Compare</p><h2 id="directions-title">Three reading models</h2></div>
+        <p>Each direction is implementation-neutral and uses the same corrected facts. The difference is what question it answers first.</p>
+      </div>
+      <div class="concept-grid">
+        <article class="concept-card recommended">
+          <span class="concept-no">01 · Recommended</span>
+          <h2>Authority map</h2>
+          <p>Answers “what owns state?” and makes active, fallback, idle, and planned paths impossible to confuse.</p>
+          <ul><li>Best overall system explanation</li><li>Five visual zones</li><li>Honest compatibility edge</li></ul>
+          <a href="01-authority-map.html">Open authority map</a>
+        </article>
+        <article class="concept-card runtime">
+          <span class="concept-no">02 · Narrative</span>
+          <h2>Runtime lanes</h2>
+          <p>Answers “what happens during a live show?” through seller, buyer, commerce, and sync sequences.</p>
+          <ul><li>Best for onboarding</li><li>Four end-to-end lanes</li><li>Protocol labels stay secondary</li></ul>
+          <a href="02-runtime-lanes.html">Open runtime lanes</a>
+        </article>
+        <article class="concept-card operations">
+          <span class="concept-no">03 · Assurance</span>
+          <h2>Trust + operations</h2>
+          <p>Answers “where are the guardrails?” by pairing authority boundaries with verification and rollout controls.</p>
+          <ul><li>Best for technical review</li><li>Six control cards</li><li>Explicit runtime gaps</li></ul>
+          <a href="03-trust-operations.html">Open trust map</a>
+        </article>
+      </div>
+    </section>
+
+    <section class="panel" aria-labelledby="corrections-title" style="margin-top: 2rem">
+      <div class="section-head" style="margin-top: 0">
+        <div><p class="eyebrow">Required copy changes</p><h2 id="corrections-title">The seven corrections travel together</h2></div>
+        <p>Any production direction should adopt all seven. Choosing a layout does not soften the factual verdict.</p>
+      </div>
+      <div class="map-grid">
+        <article class="node compat"><h3>Clients</h3><p>Responsive web ships; native download links are placeholders.</p></article>
+        <article class="node idle"><h3>Redis</h3><p>Provisioned, but no current application consumer.</p></article>
+        <article class="node transport"><h3>Copilot</h3><p>Question + lineup + catalog + transcript moments + policy; not room history.</p></article>
+        <article class="node transport"><h3>Auction state</h3><p>Current UI reads shared sync; direct ordered SSE remains available.</p></article>
+        <article class="node compat"><h3>Guarded actions</h3><p>Audited and rollback-capable, not universally audit-first or fully reversible.</p></article>
+        <article class="node idle"><h3>Acceptance</h3><p>Ledger/substrate ship; deployed worker currently executes Actions only.</p></article>
+        <article class="node full authority"><h3>Authority rule</h3><p>Scope “server-authoritative” to event commerce, ownership, policy, payment settlement, and guarded automation. Keep the legacy product-only cart visible as a compatibility path.</p></article>
+      </div>
+    </section>
+    <footer class="footer">Design checkpoint for WI-39275 · product source unchanged · see ../audit.md for the full source matrix.</footer>
+  </main>
+</body>
+</html>
