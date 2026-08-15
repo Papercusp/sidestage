@@ -23,6 +23,30 @@ export interface BuildHistoryWorkItem {
   completionAuthority: string | null;
   completionSummary: string | null;
   completionEvidence: Record<string, unknown> | null;
+  commits: BuildHistoryCommit[];
+}
+
+export interface BuildHistoryCommit {
+  sha: string;
+  url: string | null;
+  subject: string | null;
+  committedAt: string | null;
+  files: string[];
+  remoteStatus: 'confirmed' | 'local-only' | 'unknown';
+  attribution: 'authoritative' | 'body-reference' | 'inferred';
+}
+
+export interface BuildHistoryRepository {
+  provider: 'github' | 'git';
+  url: string;
+  webUrl: string | null;
+  defaultBranch?: string | null;
+}
+
+export interface BuildHistoryProject {
+  id: string;
+  name: string;
+  repository: BuildHistoryRepository | null;
 }
 
 export interface BuildHistoryPlan {
@@ -36,6 +60,7 @@ export interface BuildHistoryPlan {
   items: BuildHistoryPlanItem[];
   decisions: BuildHistoryDecision[];
   completedItems: BuildHistoryWorkItem[];
+  project: BuildHistoryProject;
   snapshot: BuildHistorySnapshotSource;
 }
 
@@ -194,6 +219,13 @@ function searchablePlanText(plan: BuildHistoryPlan): string {
       item.completionAuthority ?? '',
       item.completionSummary ?? '',
       ...evidenceLines(item.completionEvidence).map(({ line }) => line),
+      ...item.commits.flatMap((commit) => [
+        commit.sha,
+        commit.subject ?? '',
+        commit.attribution,
+        commit.remoteStatus,
+        ...commit.files,
+      ]),
     ]),
   ].join(' ').toLocaleLowerCase();
 }
@@ -340,6 +372,56 @@ function LazyRawEvidence({ item }: { item: BuildHistoryWorkItem }) {
   );
 }
 
+function commitAttributionLabel(attribution: BuildHistoryCommit['attribution']): string {
+  if (attribution === 'authoritative') return 'Ledger attribution';
+  if (attribution === 'body-reference') return 'Referenced in commit';
+  return 'Inferred historical match';
+}
+
+function commitRemoteLabel(status: BuildHistoryCommit['remoteStatus']): string {
+  if (status === 'confirmed') return 'Remote confirmed';
+  if (status === 'local-only') return 'Local only';
+  return 'Remote unknown';
+}
+
+function BuildItemCommits({ item }: { item: BuildHistoryWorkItem }) {
+  if (item.commits.length === 0) return null;
+
+  return (
+    <section className="build-item-commits" aria-label={`Commits for ${item.id}`}>
+      <header>
+        <h4>Commits</h4>
+        <span>{item.commits.length}</span>
+      </header>
+      <ul>
+        {item.commits.map((commit) => {
+          const shortSha = commit.sha.slice(0, 7);
+          const title = commit.subject ?? `Commit ${shortSha}`;
+          const confirmedUrl = commit.remoteStatus === 'confirmed' ? commit.url : null;
+          return (
+            <li key={commit.sha}>
+              <div className="build-commit-title">
+                {confirmedUrl ? (
+                  <a href={confirmedUrl} target="_blank" rel="noreferrer">
+                    <span>{title}</span>
+                    <small>View commit ↗</small>
+                  </a>
+                ) : <strong>{title}</strong>}
+                <code title={commit.sha}>{shortSha}</code>
+              </div>
+              <div className="build-commit-meta">
+                <span>{commitAttributionLabel(commit.attribution)}</span>
+                <span className={`is-${commit.remoteStatus}`}>{commitRemoteLabel(commit.remoteStatus)}</span>
+                <span>{commit.files.length} {commit.files.length === 1 ? 'file' : 'files'}</span>
+              </div>
+            </li>
+          );
+        })}
+      </ul>
+    </section>
+  );
+}
+
 const BuildItem = memo(function BuildItem({
   item,
   planSlug,
@@ -373,6 +455,7 @@ const BuildItem = memo(function BuildItem({
           <EvidenceBlock title="Verification" lines={summary.verification} empty="No structured verification result was attached." />
           <EvidenceBlock title="Files" lines={summary.files} empty="No changed-file list was attached." />
         </div>
+        <BuildItemCommits item={item} />
         <LazyRawEvidence item={item} />
       </article>
     </li>
@@ -465,6 +548,7 @@ function BuildPlanCard({
   onOpenDocument: (plan: BuildHistoryPlan, trigger: HTMLAnchorElement) => void;
 }) {
   const latest = sortedItems(plan)[0] ?? null;
+  const commitCount = plan.completedItems.reduce((count, item) => count + item.commits.length, 0);
   const outcome = latest?.completionSummary
     ?? `${plan.completedItems.length} completed ${plan.completedItems.length === 1 ? 'work item' : 'work items'} recorded.`;
 
@@ -480,6 +564,7 @@ function BuildPlanCard({
           <div className="build-plan-meta-row">
             <span className="build-plan-status">{plan.status}</span>
             <span>{plan.completedItems.length} completed {plan.completedItems.length === 1 ? 'item' : 'items'}</span>
+            {commitCount > 0 ? <span>{commitCount} {commitCount === 1 ? 'commit' : 'commits'}</span> : null}
             <time dateTime={plan.updatedAt ?? undefined} title={formatBuildDate(plan.updatedAt)}>
               Updated {formatBuildDate(plan.updatedAt)}
             </time>
@@ -554,6 +639,20 @@ function BuildPlanDialog({
                 <div>
                   <dt>Content hash</dt>
                   <dd><code title={plan.contentHash}>{plan.contentHash.slice(0, 12)}</code></dd>
+                </div>
+                <div>
+                  <dt>Repository</dt>
+                  <dd>
+                    {plan.project.repository?.webUrl ? (
+                      <a href={plan.project.repository.webUrl} target="_blank" rel="noreferrer">
+                        {plan.project.repository.provider}
+                      </a>
+                    ) : plan.project.name}
+                  </dd>
+                </div>
+                <div>
+                  <dt>Generator</dt>
+                  <dd>{plan.snapshot.generator}</dd>
                 </div>
               </dl>
               <PlanDocumentView

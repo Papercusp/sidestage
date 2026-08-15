@@ -27,7 +27,17 @@ const SNAPSHOT = {
   planPrefix: null,
   generatedAt: '2026-08-14T03:00:00Z',
   planCount: 2,
-  generator: 'scripts/generate-build-history-snapshot.mjs',
+  generator: 'papercusp project-history generate',
+};
+const PROJECT = {
+  id: 'sidestage',
+  name: 'SideStage',
+  repository: {
+    provider: 'github' as const,
+    url: 'git@github.com:Papercusp/sidestage.git',
+    webUrl: 'https://github.com/Papercusp/sidestage',
+    defaultBranch: 'main',
+  },
 };
 const HISTORY: BuildHistoryPlan[] = [{
   slug: 'sidestage-checkout',
@@ -70,7 +80,25 @@ const HISTORY: BuildHistoryPlan[] = [{
       testResult: 'passed',
       changedFiles: ['apps/web/src/BuyerCheckout.tsx', 'apps/web/src/orders.css'],
     },
+    commits: [{
+      sha: 'abc1234def5678',
+      url: 'https://github.com/Papercusp/sidestage/commit/abc1234def5678',
+      subject: 'feat: ship checkout',
+      committedAt: '2026-08-14T02:05:00Z',
+      files: ['apps/web/src/BuyerCheckout.tsx'],
+      remoteStatus: 'confirmed',
+      attribution: 'authoritative',
+    }, {
+      sha: 'def5678abc1234',
+      url: 'https://github.com/Papercusp/sidestage/commit/def5678abc1234',
+      subject: 'test: verify checkout',
+      committedAt: '2026-08-14T02:04:00Z',
+      files: ['apps/web/src/BuyerCheckout.test.tsx'],
+      remoteStatus: 'local-only',
+      attribution: 'body-reference',
+    }],
   }],
+  project: PROJECT,
   snapshot: SNAPSHOT,
 }, {
   slug: 'sidestage-theme-r3',
@@ -83,6 +111,7 @@ const HISTORY: BuildHistoryPlan[] = [{
   items: [],
   decisions: [],
   completedItems: [],
+  project: PROJECT,
   snapshot: SNAPSHOT,
 }];
 
@@ -110,6 +139,11 @@ describe('BuildHistoryList', () => {
     expect(markup).toContain('Checkout verification passed.');
     expect(markup).toContain('Tests run: npm test');
     expect(markup).toContain('Changed files: apps/web/src/BuyerCheckout.tsx · apps/web/src/orders.css');
+    expect(markup).toContain('View commit ↗');
+    expect(markup).toContain('Ledger attribution');
+    expect(markup).toContain('Local only');
+    expect(markup).toContain('href="https://github.com/Papercusp/sidestage/commit/abc1234def5678"');
+    expect(markup).not.toContain('href="https://github.com/Papercusp/sidestage/commit/def5678abc1234"');
     expect(markup).toContain('View full evidence');
     expect(markup).not.toContain('&quot;testsRun&quot;');
   });
