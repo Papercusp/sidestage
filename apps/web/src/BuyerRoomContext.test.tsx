@@ -2,7 +2,7 @@
 
 import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import type { BuyerProduct } from './buyer';
 import { BuyerRoomContext } from './BuyerRoomContext';
@@ -39,7 +39,6 @@ afterEach(async () => {
 
 describe('BuyerRoomContext', () => {
   it('switches Chat, Details, and Seller with accessible tabs and real room data', async () => {
-    const onViewItems = vi.fn();
     await act(async () => root.render(
       <BuyerRoomContext
         chat={<p>Room message</p>}
@@ -48,7 +47,6 @@ describe('BuyerRoomContext', () => {
         productCount={4}
         seller={{ id: 'studio-27', name: 'Studio 27', status: 'live' }}
         stats={{ viewers: 42, itemsSold: 3, totalRaisedCents: 14_500 }}
-        onViewItems={onViewItems}
       />,
     ));
 
@@ -71,17 +69,7 @@ describe('BuyerRoomContext', () => {
     expect(document.activeElement).toBe(sellerTab);
     expect(container.querySelector('#buyer-room-panel-seller')?.textContent).toContain('Studio 27');
     expect(container.querySelector('#buyer-room-panel-seller')?.textContent).toContain('42');
-
-    const followButton = Array.from(container.querySelectorAll<HTMLButtonElement>('button'))
-      .find((button) => button.textContent === 'Follow seller');
-    await act(async () => followButton?.click());
-    expect(followButton?.getAttribute('aria-pressed')).toBe('true');
-    expect(container.querySelector('[role="status"]')?.textContent).toBe('You’re following Studio 27.');
-
-    const itemsButton = Array.from(container.querySelectorAll<HTMLButtonElement>('button'))
-      .find((button) => button.textContent === 'View 4 event items');
-    await act(async () => itemsButton?.click());
-    expect(onViewItems).toHaveBeenCalledOnce();
-    expect(container.querySelector('[role="status"]')?.textContent).toBe('Showing all 4 event items.');
+    expect(container.querySelector('#buyer-room-panel-seller')?.textContent).not.toContain('Follow seller');
+    expect(container.querySelector('#buyer-room-panel-seller')?.textContent).not.toContain('View 4 event items');
   });
 });

@@ -17,7 +17,6 @@ export interface BuyerRoomContextProps {
   productCount: number;
   seller: BuyerRoomSeller;
   stats: BuyerStats;
-  onViewItems: () => void;
 }
 
 const TABS: readonly BuyerRoomTab[] = ['chat', 'details', 'seller'];
@@ -45,17 +44,12 @@ export function BuyerRoomContext({
   productCount,
   seller,
   stats,
-  onViewItems,
 }: BuyerRoomContextProps) {
   const [selectedTab, setSelectedTab] = useState<BuyerRoomTab>('chat');
-  const [following, setFollowing] = useState(false);
-  const [sellerNotice, setSellerNotice] = useState('');
   const tabRefs = useRef<Array<HTMLButtonElement | null>>([]);
 
   useEffect(() => {
     setSelectedTab('chat');
-    setFollowing(false);
-    setSellerNotice('');
   }, [seller.id]);
 
   const selectTab = (tab: BuyerRoomTab, focus = false) => {
@@ -176,34 +170,8 @@ export function BuyerRoomContext({
             <div><span>Event sales</span><strong>{stats.itemsSold}</strong></div>
           </div>
           <p className="buyer-room-seller-bio">Hosting {eventTitle} with {productCount} {productCount === 1 ? 'item' : 'items'} in this published event lineup.</p>
-          <div className="buyer-room-seller-actions">
-            <button
-              className="button secondary"
-              type="button"
-              aria-pressed={following}
-              onClick={() => {
-                setFollowing((current) => !current);
-                setSellerNotice(following ? `You unfollowed ${seller.name}.` : `You’re following ${seller.name}.`);
-              }}
-            >
-              {following ? 'Following' : 'Follow seller'}
-            </button>
-            <button
-              className="button primary"
-              type="button"
-              disabled={productCount === 0}
-              onClick={() => {
-                onViewItems();
-                setSellerNotice(`Showing all ${productCount} event ${productCount === 1 ? 'item' : 'items'}.`);
-              }}
-            >
-              View {productCount} event {productCount === 1 ? 'item' : 'items'}
-            </button>
-          </div>
-          <p className="buyer-room-action-status" role="status" aria-live="polite">{sellerNotice}</p>
         </section>
       </div>
     </section>
   );
 }
-

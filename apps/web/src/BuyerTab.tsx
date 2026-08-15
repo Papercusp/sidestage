@@ -252,13 +252,6 @@ export function BuyerTab({
     name: activeGuideEvent?.sellerName ?? 'SideStage event host',
     status: activeGuideEvent?.status ?? 'unknown',
   }), [activeGuideEvent]);
-  const viewEventItems = useCallback(() => {
-    setShowAllProducts(true);
-    globalThis.document
-      ?.getElementById('buyer-event-products')
-      ?.scrollIntoView?.({ behavior: 'smooth', block: 'start' });
-  }, []);
-
   return (
     <section className="buyer-tab density-roomy" id="buyer" aria-labelledby="buyer-title">
       <header className="buyer-room-header">
@@ -332,7 +325,6 @@ export function BuyerTab({
             productCount={totalProductCount}
             seller={seller}
             stats={stats}
-            onViewItems={viewEventItems}
           />
         </div>
 

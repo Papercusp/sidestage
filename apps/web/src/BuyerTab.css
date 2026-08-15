@@ -515,21 +515,6 @@
   grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
-.buyer-room-seller-actions {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 0.55rem;
-  margin-top: 0.9rem;
-}
-
-.buyer-room-action-status {
-  min-height: 1.25rem;
-  margin: 0.55rem 0 0;
-  color: var(--success);
-  font-size: 0.72rem;
-}
-
 .buyer-lower-grid {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
@@ -726,8 +711,7 @@
     display: none;
   }
 
-  .buyer-room-panel-header,
-  .buyer-room-seller-actions {
+  .buyer-room-panel-header {
     align-items: stretch;
     flex-direction: column;
   }
@@ -739,10 +723,6 @@
   .buyer-room-detail-grid,
   .buyer-room-seller-stats {
     grid-template-columns: 1fr;
-  }
-
-  .buyer-room-seller-actions .button {
-    width: 100%;
   }
 
   .buyer-drop-runway {
