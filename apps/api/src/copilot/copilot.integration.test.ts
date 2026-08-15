@@ -307,7 +307,7 @@ describe('seller Copilot integration', () => {
       const approved = await runtime.controller.approve(proposal.id, { actorId: 'seller-forged' }, 'seller-1');
 
       expect(retry).toEqual(first);
-      expect(runtime.actions.listAudit('event-live')).toHaveLength(1);
+      expect(await runtime.actions.listAudit('event-live')).toHaveLength(1);
       expect(runtime.actions.listOffersForBuyer('buyer-1')).toHaveLength(1);
       expect(approved).toMatchObject({
         status: 'executed',

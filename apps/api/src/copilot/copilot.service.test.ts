@@ -296,7 +296,7 @@ describe('CopilotProposalService', () => {
     const approved = await runtime.service.approve(proposal.id, { actorId: 'seller-1' });
 
     expect(retry).toEqual(first);
-    expect(actions.listAudit('event-1')).toHaveLength(1);
+    expect(await actions.listAudit('event-1')).toHaveLength(1);
     expect(actions.listOffersForBuyer('buyer-1')).toHaveLength(1);
     expect(approved).toMatchObject({
       status: 'executed',
