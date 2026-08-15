@@ -66,6 +66,31 @@ export class PgAuctionStore implements AuctionStore {
           );
         }
 
+        const allocation = await client.query<AuctionIdRow>(
+          `UPDATE event_lineup_item
+              SET current_quantity = current_quantity - $4,
+                  version = version + 1,
+                  updated_at = now()
+            WHERE event_id = $1
+              AND event_item_id = $2
+              AND product_id = $3
+              AND current_quantity >= $4
+        RETURNING event_item_id AS id`,
+          [auction.eventId, auction.eventItemId, auction.productId, auction.quantity],
+        );
+        if (allocation.rows.length === 0) {
+          const item = await client.query<{ current_quantity: number }>(
+            `SELECT current_quantity
+               FROM event_lineup_item
+              WHERE event_id = $1 AND event_item_id = $2 AND product_id = $3
+              FOR UPDATE`,
+            [auction.eventId, auction.eventItemId, auction.productId],
+          );
+          if (item.rows.length === 0) throw new NotFoundException('Event lineup item was not found');
+          throw new ConflictException(`Insufficient event allocation for ${auction.eventItemId}`);
+        }
+        auction.allocationState = 'held';
+
         try {
           await client.query(
             'SELECT reserve_inventory($1, $2, $3, $4, $5)',
@@ -192,6 +217,62 @@ export class PgAuctionStore implements AuctionStore {
     });
   }
 
+  async cancel(id: string): Promise<AuctionCloseResult> {
+    return this.transaction(async (client) => {
+      const auction = await this.lockAuction(client, id);
+      if (auction.status === 'closed') {
+        if (auction.closeReason !== 'seller-cancelled') throw new ConflictException('Settled auctions cannot be cancelled');
+        return { auction, changed: false, inventoryChanged: false };
+      }
+      const released = await client.query<BooleanRow>(
+        'SELECT release_inventory($1, $2, $3) AS released',
+        ['auction', auction.id, auction.productId],
+      );
+      if (!released.rows[0]?.released) throw new Error(`Active auction ${auction.id} has no releasable inventory reservation`);
+      await this.releaseEventAllocation(client, auction);
+      auction.status = 'closed';
+      auction.closedAt = new Date().toISOString();
+      auction.closeReason = 'seller-cancelled';
+      auction.winnerOrder = undefined;
+      await this.persist(client, auction);
+      return { auction: cloneAuction(auction), changed: true, inventoryChanged: true };
+    });
+  }
+
+  async commitWinner(id: string, buyerId: string): Promise<AuctionCloseResult> {
+    return this.transaction(async (client) => {
+      const auction = await this.lockWinnerAuction(client, id, buyerId);
+      const state = this.allocationState(auction);
+      if (state === 'committed') return { auction, changed: false, inventoryChanged: false };
+      if (state === 'released') throw new ConflictException('Auction allocation was already released');
+      const result = await client.query<BooleanRow>(
+        'SELECT commit_inventory($1, $2, $3) AS released',
+        ['auction', auction.id, auction.productId],
+      );
+      if (!result.rows[0]?.released) throw new Error(`Auction inventory hold for ${auction.productId} could not be committed`);
+      auction.allocationState = 'committed';
+      await this.persist(client, auction);
+      return { auction: cloneAuction(auction), changed: true, inventoryChanged: true };
+    });
+  }
+
+  async releaseWinner(id: string, buyerId: string): Promise<AuctionCloseResult> {
+    return this.transaction(async (client) => {
+      const auction = await this.lockWinnerAuction(client, id, buyerId);
+      const state = this.allocationState(auction);
+      if (state === 'released') return { auction, changed: false, inventoryChanged: false };
+      if (state === 'committed') throw new ConflictException('Paid auction allocation cannot be released');
+      const result = await client.query<BooleanRow>(
+        'SELECT release_inventory($1, $2, $3) AS released',
+        ['auction', auction.id, auction.productId],
+      );
+      if (!result.rows[0]?.released) throw new Error(`Auction inventory hold for ${auction.productId} could not be released`);
+      await this.releaseEventAllocation(client, auction);
+      await this.persist(client, auction);
+      return { auction: cloneAuction(auction), changed: true, inventoryChanged: true };
+    });
+  }
+
   async closeExpired(): Promise<AuctionCloseResult[]> {
     const result = await this.pool.query<AuctionIdRow>(
       "SELECT id FROM auction_state WHERE status = 'active' AND ends_at <= now() ORDER BY ends_at",
@@ -217,6 +298,7 @@ export class PgAuctionStore implements AuctionStore {
   private async closeLocked(client: PoolClient, auction: Auction): Promise<AuctionCloseResult> {
     auction.status = 'closed';
     auction.closedAt = new Date().toISOString();
+    auction.closeReason = 'settled';
     const winner = auction.bids[0];
     let inventoryChanged = false;
 
@@ -228,6 +310,7 @@ export class PgAuctionStore implements AuctionStore {
       if (!result.rows[0]?.released) {
         throw new Error(`Active auction ${auction.id} has no releasable inventory reservation`);
       }
+      await this.releaseEventAllocation(client, auction);
       inventoryChanged = true;
     } else {
       const reservation = await client.query<AuctionIdRow>(
@@ -281,6 +364,37 @@ export class PgAuctionStore implements AuctionStore {
         JSON.stringify(auction),
       ],
     );
+  }
+
+  private async lockWinnerAuction(client: PoolClient, id: string, buyerId: string): Promise<Auction> {
+    const auction = await this.lockAuction(client, id);
+    if (!auction.winnerOrder || auction.winnerOrder.bidderId !== buyerId) {
+      throw new NotFoundException('Auction order was not found for this buyer');
+    }
+    return auction;
+  }
+
+  private allocationState(auction: Auction): 'held' | 'committed' | 'released' {
+    if (auction.allocationState) return auction.allocationState;
+    if (auction.status === 'active' || auction.winnerOrder) return 'held';
+    return 'released';
+  }
+
+  private async releaseEventAllocation(client: PoolClient, auction: Auction): Promise<void> {
+    const state = this.allocationState(auction);
+    if (state === 'released') return;
+    if (state === 'committed') throw new ConflictException('Paid auction allocation cannot be released');
+    const restored = await client.query<AuctionIdRow>(
+      `UPDATE event_lineup_item
+          SET current_quantity = LEAST(listed_quantity, current_quantity + $4),
+              version = version + 1,
+              updated_at = now()
+        WHERE event_id = $1 AND event_item_id = $2 AND product_id = $3
+    RETURNING event_item_id AS id`,
+      [auction.eventId, auction.eventItemId, auction.productId, auction.quantity],
+    );
+    if (restored.rows.length !== 1) throw new Error(`Event allocation for auction ${auction.id} could not be restored`);
+    auction.allocationState = 'released';
   }
 
   private async transaction<T>(operation: (client: PoolClient) => Promise<T>): Promise<T> {
