@@ -9,6 +9,30 @@ import { EventCreationPanel } from './EventCreationPanel';
 const eventCreationCss = readFileSync(new URL('./event-creation.css', import.meta.url), 'utf8');
 
 describe('EventCreationPanel catalog source loss', () => {
+  it('builds event lineups from seller-owned inventory instead of the public catalog', () => {
+    const useDataImpl = vi.fn(() => ({
+      data: [],
+      loading: false,
+      fetching: false,
+      transport: 'SSE',
+      invalidate: vi.fn(),
+      error: null,
+    }));
+
+    renderToStaticMarkup(
+      <SyncContext.Provider value={{ transport: 'SSE', useDataImpl, prefetch: vi.fn() } as never}>
+        <EventCreationPanel allowDemoData={false} />
+      </SyncContext.Provider>,
+    );
+
+    expect(useDataImpl).toHaveBeenCalledWith(expect.objectContaining({
+      queryName: 'inventory.page',
+    }));
+    expect(useDataImpl).not.toHaveBeenCalledWith(expect.objectContaining({
+      queryName: 'catalog.page',
+    }));
+  });
+
   it('renders an honest production alert and no demo inventory', () => {
     const useDataImpl = vi.fn(() => ({
       data: [],
