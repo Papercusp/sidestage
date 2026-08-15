@@ -3,6 +3,7 @@ import { Pool } from 'pg';
 
 import {
   REQUIRED_CHAT_STRUCTURES,
+  REQUIRED_LINEUP_STRUCTURES,
   REQUIRED_OWNERSHIP_STRUCTURES,
   REQUIRED_ORDER_STRUCTURES,
   REQUIRED_TABLES,
@@ -90,7 +91,8 @@ export async function createPoolOrNull(
       `schema OK (${REQUIRED_TABLES.length}/${REQUIRED_TABLES.length} tables, ` +
       `${REQUIRED_OWNERSHIP_STRUCTURES.length}/${REQUIRED_OWNERSHIP_STRUCTURES.length} ownership structures, ` +
       `${REQUIRED_ORDER_STRUCTURES.length}/${REQUIRED_ORDER_STRUCTURES.length} payable-order structures, ` +
-      `${REQUIRED_CHAT_STRUCTURES.length}/${REQUIRED_CHAT_STRUCTURES.length} durable-chat structures).`,
+      `${REQUIRED_CHAT_STRUCTURES.length}/${REQUIRED_CHAT_STRUCTURES.length} durable-chat structures, ` +
+      `${REQUIRED_LINEUP_STRUCTURES.length}/${REQUIRED_LINEUP_STRUCTURES.length} durable-lineup structures).`,
   );
   return pool;
 }
