@@ -12,6 +12,9 @@ export interface SyncRequestContext {
 
 export type DemoPrincipalRole = 'buyer' | 'seller';
 
+/** Seed/import owner used by the clean-clone catalog and acceptance fixtures. */
+export const LEGACY_DEMO_SELLER_ID = 'demo-seller';
+
 export function normalizeDemoPrincipal(value: unknown): string | null {
   if (typeof value !== 'string') return null;
   const normalized = value.trim();
@@ -33,6 +36,9 @@ export function rolePrincipal(
 ): string | null {
   const principal = normalizeDemoPrincipal(value);
   if (!principal) return null;
+  if (role === 'seller' && principal.toLowerCase() === LEGACY_DEMO_SELLER_ID) {
+    return LEGACY_DEMO_SELLER_ID;
+  }
   const persona = principal.replace(/^(?:buyer|seller)-+/i, '');
   return persona.length > 0 ? `${role}-${persona}` : null;
 }
