@@ -11,6 +11,7 @@ import { EVENT_POLICY_RESOLVER, type EventPolicyResolver } from '../config/event
 import { PolicyActionGuard } from '../copilot/guardrail';
 import type { ActionExecutor, CopilotActionProposal, CopilotPolicy } from '../copilot/copilot.types';
 import { SyncInvalidationService } from '../sync/sync-invalidation.service';
+import { ORDER_STORE, type CheckoutOrder, type OrderStore } from '../checkout/order-store';
 import type {
   ActionAuditRecord,
   ActionEventItem,
@@ -122,6 +123,7 @@ export class GuardedActionService implements ActionExecutor {
   constructor(
     @Optional() @Inject(EVENT_POLICY_RESOLVER) private readonly policyResolver: EventPolicyResolver | null = null,
     @Optional() @Inject(SyncInvalidationService) private readonly syncInvalidations?: SyncInvalidationService,
+    @Optional() @Inject(ORDER_STORE) private readonly orders?: OrderStore,
   ) {}
 
   registerEvent(eventIdInput: string, input: RegisterActionEventInput): ActionEventItem[] {
@@ -173,6 +175,45 @@ export class GuardedActionService implements ActionExecutor {
       .filter((offer) => offer.buyerId === buyerId)
       .sort((left, right) => (right.createdAt ?? '').localeCompare(left.createdAt ?? ''))
       .map(cloneOffer);
+  }
+
+  findOffer(offerIdInput: string): TargetedOffer | undefined {
+    const offerId = offerIdInput?.trim();
+    if (!offerId) return undefined;
+    const offer = this.offers.get(offerId);
+    return offer ? cloneOffer(offer) : undefined;
+  }
+
+  async acceptOffer(offerIdInput: string, buyerIdInput: string): Promise<TargetedOffer> {
+    const offer = this.requireBuyerOffer(offerIdInput, buyerIdInput);
+    if (offer.status !== 'pending' && offer.status !== 'accepted') {
+      throw new ConflictException(`Offer cannot be accepted from ${offer.status}`);
+    }
+    const changed = offer.status === 'pending';
+    if (changed) offer.status = 'accepted';
+    await this.ensureOfferOrder(offer);
+    if (changed) this.invalidateBuyerOrders(offer.buyerId);
+    return cloneOffer(offer);
+  }
+
+  /** Payment success finalizes the already-accepted source reservation. */
+  async commitOffer(offerIdInput: string, buyerIdInput: string): Promise<TargetedOffer> {
+    return this.acceptOffer(offerIdInput, buyerIdInput);
+  }
+
+  async cancelOffer(offerIdInput: string, buyerIdInput: string): Promise<TargetedOffer> {
+    const offer = this.requireBuyerOffer(offerIdInput, buyerIdInput);
+    if (offer.status === 'cancelled') return cloneOffer(offer);
+    if (offer.status !== 'pending' && offer.status !== 'accepted') {
+      throw new ConflictException(`Offer cannot be cancelled from ${offer.status}`);
+    }
+    const item = this.items.get(itemKey(offer.eventId, offer.productId));
+    if (!item) throw new NotFoundException('Offer was not found');
+    item.availableQty += offer.quantity;
+    offer.status = 'cancelled';
+    this.invalidateEventItems(offer.eventId);
+    this.invalidateBuyerOrders(offer.buyerId);
+    return cloneOffer(offer);
   }
 
   /** ActionExecutor seam used by GroundedCopilotPipeline auto mode. */
@@ -350,6 +391,50 @@ export class GuardedActionService implements ActionExecutor {
 
   private invalidateBuyerOrders(buyerId: string): void {
     this.syncInvalidations?.invalidate('orders.byBuyer', { buyerId });
+  }
+
+  private requireBuyerOffer(offerIdInput: string, buyerIdInput: string): TargetedOffer {
+    const offerId = assertText(offerIdInput, 'offerId');
+    const buyerId = assertText(buyerIdInput, 'buyerId');
+    const offer = this.offers.get(offerId);
+    if (!offer || offer.buyerId !== buyerId) throw new NotFoundException('Offer was not found');
+    return offer;
+  }
+
+  private async ensureOfferOrder(offer: TargetedOffer): Promise<void> {
+    if (!this.orders) return;
+    const existing = await this.orders.findBySource('offer', offer.id);
+    if (existing) {
+      if (existing.id !== offer.id || existing.buyerId !== offer.buyerId) {
+        throw new ConflictException('Offer is already associated with another canonical order');
+      }
+      return;
+    }
+    const item = this.items.get(itemKey(offer.eventId, offer.productId));
+    if (!item) throw new NotFoundException('Offer was not found');
+    const totalCents = offer.priceCents * offer.quantity;
+    const order: CheckoutOrder = {
+      id: offer.id,
+      buyerId: offer.buyerId,
+      sourceKind: 'offer',
+      sourceId: offer.id,
+      eventId: offer.eventId,
+      subtotalCents: totalCents,
+      shippingCents: 0,
+      totalCents,
+      currency: 'USD',
+      status: 'pending',
+      paymentState: 'payment_required',
+      createdAt: offer.createdAt ?? new Date().toISOString(),
+      items: [{
+        productId: offer.productId,
+        title: item.title,
+        priceCents: offer.priceCents,
+        quantity: offer.quantity,
+      }],
+      sourceSnapshot: { ...offer },
+    };
+    await this.orders.set(order);
   }
 
   private invalidateEventItems(eventId: string): void {

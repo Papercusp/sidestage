@@ -9,6 +9,7 @@ import { ActionSyncQueries } from './action.module';
 import { ChatService } from '../chat/chat.service';
 import { EventOwnershipGuard } from '../events/event-ownership.guard';
 import { EventService, InMemoryEventStore } from '../events/event.service';
+import { InMemoryOrderStore } from '../checkout/checkout.service';
 
 const policy: CopilotPolicy = {
   automationLevel: 'auto',
@@ -174,6 +175,35 @@ describe('GuardedActionService', () => {
     expect(rollback.state.availableQty).toBe(5);
     expect(actions.getAudit(result.auditId).after.offers).toHaveLength(1);
     expect(actions.getAudit(rollback.auditId).after.offers).toHaveLength(0);
+  });
+
+  it('accepts one buyer-owned offer into one canonical order and releases it idempotently on cancellation', async () => {
+    const orders = new InMemoryOrderStore();
+    const actions = new GuardedActionService(null, undefined, orders);
+    actions.registerEvent('event-1', { policy, items: [item] });
+    const created = await actions.apply({
+      eventId: 'event-1',
+      actorId: 'seller-1',
+      action: { kind: 'targeted-offer', productId: 'mug', buyerId: 'buyer-9', quantity: 2, priceCents: 1_200, reason: 'Buyer checkout offer' },
+    });
+
+    const first = await actions.acceptOffer(created.offer!.id, 'buyer-9');
+    const retry = await actions.acceptOffer(created.offer!.id, 'buyer-9');
+    expect(first.status).toBe('accepted');
+    expect(retry).toEqual(first);
+    await expect(orders.findBySource('offer', first.id)).resolves.toMatchObject({
+      id: first.id,
+      buyerId: 'buyer-9',
+      sourceKind: 'offer',
+      subtotalCents: 2_400,
+      items: [{ productId: 'mug', priceCents: 1_200, quantity: 2 }],
+    });
+    await expect(actions.acceptOffer(first.id, 'buyer-other')).rejects.toThrow('Offer was not found');
+
+    await actions.cancelOffer(first.id, 'buyer-9');
+    await actions.cancelOffer(first.id, 'buyer-9');
+    expect(actions.listItems('event-1')[0]?.availableQty).toBe(5);
+    expect(actions.findOffer(first.id)?.status).toBe('cancelled');
   });
 
   it('invalidates only the targeted buyer when an offer is created or rolled back', async () => {
