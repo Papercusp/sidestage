@@ -149,15 +149,16 @@ const defaultRetention = { resultDays: 30, artifactDays: 7 } as const;
 export const SYSTEM_TEST_SUITE_MANIFESTS: Readonly<Record<SystemTestSuiteId, SystemTestSuiteManifest>> = {
   actions: {
     contractVersion: SYSTEM_TEST_CONTRACT_VERSION,
-    suiteVersion: 1,
+    suiteVersion: 2,
     id: 'actions',
     title: 'Guarded actions',
     profiles: ['smoke', 'full'],
     prerequisites: [...sharedServices],
     cases: [
-      caseSpec('protocol.proposal-authenticated', 'Authenticated proposals cross the public API', 'http'),
-      caseSpec('protocol.confirmed-mutation', 'A confirmed action mutates isolated state', 'http', 'postgres'),
+      caseSpec('protocol.allowed-action', 'An allowed guarded action mutates isolated state', 'http'),
+      caseSpec('protocol.subscriber-invalidated', 'Subscribers observe the guarded-action invalidation', 'sse'),
       caseSpec('evidence.audit-persisted', 'The action audit is durably attributable', 'postgres'),
+      caseSpec('protocol.forbidden-no-side-effect', 'A forbidden action leaves no state or audit side effect', 'http', 'postgres'),
       caseSpec('protocol.rollback-restored', 'Rollback restores the prior state', 'http', 'postgres'),
     ],
     budget: budget(120_000, 60_000),

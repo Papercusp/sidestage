@@ -2,6 +2,7 @@ import { createServer } from 'node:http';
 import { Pool } from 'pg';
 
 import { PostgresSystemTestRunStore, SystemTestQueueWorker } from '@papercusp/system-test-runner';
+import { createActionsSuiteExecutor } from './actions-suite-executor';
 
 const port = Number(process.env.ACCEPTANCE_WORKER_PORT ?? 3101);
 const runId = process.env.ACCEPTANCE_RUN_ID ?? 'unknown';
@@ -13,7 +14,9 @@ let pool: Pool | null = null;
 let timer: NodeJS.Timeout | null = null;
 if (databaseUrl) {
   pool = new Pool({ connectionString: databaseUrl, max: 2, connectionTimeoutMillis: 2_000 });
-  const queue = new SystemTestQueueWorker(new PostgresSystemTestRunStore(pool), {}, {
+  const queue = new SystemTestQueueWorker(new PostgresSystemTestRunStore(pool), {
+    actions: createActionsSuiteExecutor(process.env),
+  }, {
     maxConcurrentRuns: Number(process.env.SYSTEM_TEST_MAX_CONCURRENT_RUNS ?? 1),
     maxAttempts: Number(process.env.SYSTEM_TEST_MAX_ATTEMPTS ?? 2),
   });

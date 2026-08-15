@@ -99,6 +99,11 @@ services:
       ACCEPTANCE_RUN_ID: ${ACCEPTANCE_RUN_ID:?run ID is required}
       SIDESTAGE_SHA: ${SIDESTAGE_SHA:?requested SHA is required}
       ACCEPTANCE_WORKER_PORT: 3101
+      SYSTEM_TEST_API_URL: http://api:3100
+      SYSTEM_TEST_DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      SYSTEM_TEST_ARTIFACT_ROOT: /tmp/sidestage-system-test-artifacts
+    tmpfs:
+      - /tmp/sidestage-system-test-artifacts
     depends_on:
       api:
         condition: service_healthy
