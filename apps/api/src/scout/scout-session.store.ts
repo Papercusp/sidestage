@@ -67,15 +67,23 @@ export function ifNoneMatchMatches(header: string | undefined, etag: string): bo
 export class InMemoryScoutSessionStore implements ScoutSessionStore {
   private readonly sessions = new Map<string, ScoutSession>();
 
-  async get(id: string): Promise<ScoutSession | null> {
+  async get(buyerId: string, id: string): Promise<ScoutSession | null> {
     const session = this.sessions.get(id);
-    return session ? clone(session) : null;
+    return session?.buyerId === buyerId ? clone(session) : null;
   }
 
-  async append(id: string, messages: readonly ScoutMessage[]): Promise<ScoutSession> {
+  async append(
+    buyerId: string,
+    id: string,
+    messages: readonly ScoutMessage[],
+  ): Promise<ScoutSession> {
     const existing = this.sessions.get(id);
+    if (existing && existing.buyerId !== buyerId) {
+      throw new Error('Scout session not found');
+    }
     const next: ScoutSession = {
       id,
+      buyerId,
       messages: [...(existing?.messages ?? []), ...messages],
       lastActiveAt: new Date().toISOString(),
     };

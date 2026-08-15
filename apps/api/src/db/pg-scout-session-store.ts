@@ -3,6 +3,7 @@ import type { ScoutMessage, ScoutSession, ScoutSessionStore } from '../scout/sco
 
 interface SessionRow {
   id: string;
+  buyer_id: string;
   messages: ScoutMessage[];
   last_active_at: Date | string;
 }
@@ -15,10 +16,10 @@ interface SessionRow {
 export class PgScoutSessionStore implements ScoutSessionStore {
   constructor(private readonly pool: Pool) {}
 
-  async get(id: string): Promise<ScoutSession | null> {
+  async get(buyerId: string, id: string): Promise<ScoutSession | null> {
     const result = await this.pool.query<SessionRow>(
-      'SELECT id, messages, last_active_at FROM scout_session WHERE id = $1',
-      [id],
+      'SELECT id, buyer_id, messages, last_active_at FROM scout_session WHERE id = $1 AND buyer_id = $2',
+      [id, buyerId],
     );
     const row = result.rows[0];
     return row ? toSession(row) : null;
@@ -31,16 +32,22 @@ export class PgScoutSessionStore implements ScoutSessionStore {
    * whichever wrote first, and the loss is invisible: the transcript simply
    * comes back short.
    */
-  async append(id: string, messages: readonly ScoutMessage[]): Promise<ScoutSession> {
+  async append(
+    buyerId: string,
+    id: string,
+    messages: readonly ScoutMessage[],
+  ): Promise<ScoutSession> {
     const result = await this.pool.query<SessionRow>(
-      `INSERT INTO scout_session (id, messages, last_active_at)
-            VALUES ($1, $2::jsonb, now())
+      `INSERT INTO scout_session (id, buyer_id, messages, last_active_at)
+            VALUES ($1, $2, $3::jsonb, now())
        ON CONFLICT (id) DO UPDATE
                SET messages = scout_session.messages || EXCLUDED.messages,
                    last_active_at = now()
-         RETURNING id, messages, last_active_at`,
-      [id, JSON.stringify(messages)],
+             WHERE scout_session.buyer_id = EXCLUDED.buyer_id
+         RETURNING id, buyer_id, messages, last_active_at`,
+      [id, buyerId, JSON.stringify(messages)],
     );
+    if (!result.rows[0]) throw new Error('Scout session not found');
     return toSession(result.rows[0]);
   }
 }
@@ -48,6 +55,7 @@ export class PgScoutSessionStore implements ScoutSessionStore {
 function toSession(row: SessionRow): ScoutSession {
   return {
     id: row.id,
+    buyerId: row.buyer_id,
     messages: Array.isArray(row.messages) ? row.messages : [],
     lastActiveAt:
       row.last_active_at instanceof Date

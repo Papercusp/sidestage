@@ -7,6 +7,7 @@ import { InMemoryScoutSessionStore } from './scout-session.store';
 import { DeterministicScoutReplyModel, ScoutService, chunkReply } from './scout.service';
 import type {
   ScoutMemoryStore,
+  ScoutIdentity,
   ScoutReplyModel,
   ScoutReplyRequest,
   ScoutSessionStore,
@@ -31,9 +32,13 @@ function service(
   );
 }
 
-async function collect(input: ScoutStreamRequest, svc = service()): Promise<ScoutStreamEvent[]> {
+async function collect(
+  input: ScoutStreamRequest,
+  svc = service(),
+  identity: ScoutIdentity = { buyerId: null },
+): Promise<ScoutStreamEvent[]> {
   const events: ScoutStreamEvent[] = [];
-  for await (const event of svc.stream(input)) events.push(event);
+  for await (const event of svc.stream(input, identity)) events.push(event);
   return events;
 }
 
@@ -127,10 +132,14 @@ describe('ScoutService.stream — the wire contract', () => {
 describe('ScoutService.stream — transcript persistence', () => {
   it('persists the user turn and the assistant reply under the streamed session id', async () => {
     const sessions = new InMemoryScoutSessionStore();
-    const events = await collect({ message: 'wireless headphones' }, service({ sessions }));
+    const events = await collect(
+      { message: 'wireless headphones' },
+      service({ sessions }),
+      { buyerId: 'buyer-a' },
+    );
     const { sessionId } = events[0] as { sessionId: string };
 
-    const stored = await sessions.get(sessionId);
+    const stored = await sessions.get('buyer-a', sessionId);
     expect(stored?.messages.map((m) => m.role)).toEqual(['user', 'assistant']);
     expect(stored?.messages[0].content).toBe('wireless headphones');
     expect(stored?.messages[1].content).toBe(textOf(events));
@@ -138,9 +147,16 @@ describe('ScoutService.stream — transcript persistence', () => {
 
   it('does not persist a blank turn', async () => {
     const sessions = new InMemoryScoutSessionStore();
-    const events = await collect({ message: '  ' }, service({ sessions }));
+    const events = await collect({ message: '  ' }, service({ sessions }), { buyerId: 'buyer-a' });
     const { sessionId } = events[0] as { sessionId: string };
-    expect(await sessions.get(sessionId)).toBeNull();
+    expect(await sessions.get('buyer-a', sessionId)).toBeNull();
+  });
+
+  it('keeps the explicit anonymous fallback non-persistent', async () => {
+    const sessions = new InMemoryScoutSessionStore();
+    const events = await collect({ message: 'headphones' }, service({ sessions }));
+    const { sessionId } = events[0] as { sessionId: string };
+    expect(await sessions.get('buyer-a', sessionId)).toBeNull();
   });
 
   it('still completes the turn when the transcript store fails — a save error must not eat the reply', async () => {
@@ -152,7 +168,11 @@ describe('ScoutService.stream — transcript persistence', () => {
         throw new Error('postgres is down');
       },
     };
-    const events = await collect({ message: 'headphones' }, service({ sessions: failing }));
+    const events = await collect(
+      { message: 'headphones' },
+      service({ sessions: failing }),
+      { buyerId: 'buyer-a' },
+    );
     expect(typesOf(events).at(-1)).toBe('done');
     expect(textOf(events).length).toBeGreaterThan(0);
   });

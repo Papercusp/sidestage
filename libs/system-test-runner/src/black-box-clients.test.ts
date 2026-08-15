@@ -162,6 +162,7 @@ describe('authenticated protocol clients', () => {
     expect(result.body).toEqual({ ok: true, accessToken: 'response-secret' });
     expect(calls).toHaveLength(2);
     expect(new Headers(calls[1]?.init?.headers).get('authorization')).toBe('Bearer request-secret');
+    expect(new Headers(calls[1]?.init?.headers).get('content-type')).toBe('application/json');
     const stored = sink.text('http-retry');
     expect(stored).not.toMatch(/request-secret|response-secret|query-secret|body-secret/);
     expect(stored).toContain('"attempts": 2');
@@ -195,6 +196,7 @@ describe('authenticated protocol clients', () => {
       'id: event-1\nevent: bid\ndata: {"amount":10}\n\n',
       'id: event-2\nevent: bid\ndata: {"amount":11}\n\n',
     ];
+    const connected = vi.fn();
     const fetchStub = vi.fn(async (_url: string | URL | Request, init?: RequestInit) => {
       seenLastEventIds.push(new Headers(init?.headers).get('last-event-id'));
       return new Response(responses.shift(), {
@@ -216,11 +218,13 @@ describe('authenticated protocol clients', () => {
       caseId: 'protocol.bid-stream',
       path: '/events/bids',
       maxEvents: 2,
+      onConnected: connected,
     });
 
     expect(result.events.map((event) => event.id)).toEqual(['event-1', 'event-2']);
     expect(result.reconnects).toBe(1);
     expect(seenLastEventIds).toEqual([null, 'event-1']);
+    expect(connected).toHaveBeenCalledTimes(2);
   });
 
   it('re-dials WebSocket after a lost connection and preserves the original failure on cleanup errors', async () => {

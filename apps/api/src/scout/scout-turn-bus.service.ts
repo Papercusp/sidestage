@@ -24,6 +24,8 @@ import type { ScoutStreamEvent } from './scout.types';
 @Injectable()
 export class ScoutTurnBusService {
   private readonly log = new Logger(ScoutTurnBusService.name);
+  private readonly owners = new Map<string, string | null>();
+  private readonly ownerGcTimers = new Map<string, ReturnType<typeof setTimeout>>();
 
   /** The ring-buffer channel for a turn (created on first access; self-GCs after done() + 0 subscribers). */
   channel(turnId: string): BusChannel<ScoutStreamEvent> {
@@ -35,7 +37,13 @@ export class ScoutTurnBusService {
    * Called exactly once per newly minted turnId — a resume request never calls
    * this, it only streams from the existing channel.
    */
-  run(turnId: string, gen: AsyncGenerator<ScoutStreamEvent>): void {
+  run(
+    turnId: string,
+    buyerId: string | null,
+    gen: AsyncGenerator<ScoutStreamEvent>,
+  ): void {
+    if (this.owners.has(turnId)) throw new Error('Scout turn already exists');
+    this.owners.set(turnId, buyerId);
     const ch = this.channel(turnId);
     void (async () => {
       try {
@@ -47,8 +55,20 @@ export class ScoutTurnBusService {
         ch.publish({ type: 'error', message: 'Sorry, something went wrong. Please try again.' });
       } finally {
         ch.done();
+        const timer = setTimeout(() => {
+          this.owners.delete(turnId);
+          this.ownerGcTimers.delete(turnId);
+        }, 60_000);
+        timer.unref?.();
+        this.ownerGcTimers.set(turnId, timer);
       }
     })();
+  }
+
+  /** Resolve a resumable channel without revealing foreign vs absent ids. */
+  resume(turnId: string, buyerId: string | null): BusChannel<ScoutStreamEvent> | null {
+    if (!this.owners.has(turnId) || this.owners.get(turnId) !== buyerId) return null;
+    return this.channel(turnId);
   }
 
   private key(turnId: string): string {

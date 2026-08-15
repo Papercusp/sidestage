@@ -249,6 +249,9 @@ export class AuthenticatedHttpClient {
     const retryableMethod = ['GET', 'HEAD', 'OPTIONS'].includes(method) || Boolean(input.idempotencyKey);
     const requestHeaders = this.#endpoint.headers(input.headers);
     if (input.idempotencyKey) requestHeaders.set('idempotency-key', input.idempotencyKey);
+    if (input.body !== undefined && !requestHeaders.has('content-type')) {
+      requestHeaders.set('content-type', 'application/json');
+    }
     let lastError: unknown;
 
     for (let attempt = 1; attempt <= this.#maxAttempts; attempt += 1) {

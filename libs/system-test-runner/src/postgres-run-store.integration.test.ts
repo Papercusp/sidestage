@@ -191,7 +191,10 @@ describe('PostgresSystemTestRunStore', () => {
       state: 'queued',
       requestedSha: SHA,
     });
-    expect(first.suite.manifest).toMatchObject({ id: 'actions', suiteVersion: 1 });
+    expect(first.suite.manifest).toMatchObject({
+      id: 'actions',
+      suiteVersion: SYSTEM_TEST_SUITE_MANIFESTS.actions.suiteVersion,
+    });
     expect(first.cases.map((entry) => entry.caseId)).toEqual(
       SYSTEM_TEST_SUITE_MANIFESTS.actions.cases.map((entry) => entry.caseId),
     );

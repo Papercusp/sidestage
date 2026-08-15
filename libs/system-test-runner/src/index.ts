@@ -293,6 +293,32 @@ export function validateAcceptanceComposeConfig(output: string, projectName: str
       throw new Error(`service api must not inherit host credential ${key}`);
     }
   }
+  const worker = record(services.worker, 'service worker');
+  const workerEnvironment = record(worker.environment, 'service worker environment');
+  const workerEndpoints: Record<string, string | RegExp> = {
+    NODE_ENV: 'test',
+    SYSTEM_TEST_API_URL: 'http://api:3100',
+    SYSTEM_TEST_DATABASE_URL: /^postgresql:\/\/[^@]+@postgres:5432\//,
+    SYSTEM_TEST_ARTIFACT_ROOT: '/tmp/sidestage-system-test-artifacts',
+  };
+  for (const [key, expected] of Object.entries(workerEndpoints)) {
+    const value = workerEnvironment[key];
+    const matches = typeof expected === 'string'
+      ? value === expected
+      : typeof value === 'string' && expected.test(value);
+    if (!matches) throw new Error(`service worker ${key} does not target the isolated acceptance dependency`);
+  }
+  if (workerEnvironment.SYSTEM_TEST_DATABASE_URL !== apiEnvironment.DATABASE_URL) {
+    throw new Error('service worker and api do not share the isolated acceptance database');
+  }
+  const workerTmpfs = Array.isArray(worker.tmpfs) ? worker.tmpfs : [];
+  const hasEphemeralArtifactRoot = workerTmpfs.some((mount) => {
+    if (typeof mount === 'string') return mount.split(':', 1)[0] === workerEnvironment.SYSTEM_TEST_ARTIFACT_ROOT;
+    return record(mount, 'service worker tmpfs mount').target === workerEnvironment.SYSTEM_TEST_ARTIFACT_ROOT;
+  });
+  if (!hasEphemeralArtifactRoot) {
+    throw new Error('service worker must mount an ephemeral tmpfs at SYSTEM_TEST_ARTIFACT_ROOT');
+  }
   const networks = record(config.networks, 'docker compose config networks');
   const defaultNetwork = record(networks.default, 'acceptance default network');
   if (defaultNetwork.external === true || defaultNetwork.name !== `${projectName}_default`) {

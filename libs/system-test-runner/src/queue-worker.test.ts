@@ -20,7 +20,7 @@ function snapshot(state: SystemTestRunState = 'provisioning'): StoredSystemTestR
       deployedSha: null, state, blockedReasons: [], summary: '', createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(), heartbeatAt: new Date().toISOString(), startedAt: null, finishedAt: null,
     },
-    suite: { suiteId: 'actions', suiteVersion: 1, profile: 'smoke', title: manifest.title, manifest: { ...manifest } },
+    suite: { suiteId: 'actions', suiteVersion: manifest.suiteVersion, profile: 'smoke', title: manifest.title, manifest: { ...manifest } },
     cases: [], artifacts: [], environments: [], transitions: [], cancellation: null,
     retention: { resultsExpiresAt: new Date().toISOString(), artifactsExpiresAt: new Date().toISOString() },
     cleanup: { status: 'not-started', summary: '', attempts: 0, requestedAt: null, startedAt: null, finishedAt: null, updatedAt: new Date().toISOString() },

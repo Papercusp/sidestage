@@ -107,23 +107,33 @@ export class ScoutController {
     @Body() body: ScoutStreamRequest,
   ): void {
     const lastEventId = Number(req.headers['last-event-id'] ?? body?.lastEventId ?? 0) || 0;
+    const resolvedIdentity = this.identity.resolve(req.headers);
 
     let turnId: string;
+    let channel;
     if (body?.turnId) {
       turnId = body.turnId; // resume an in-flight (or just-finished, still-buffered) turn
+      channel = this.turnBus.resume(turnId, resolvedIdentity.buyerId);
+      if (!channel) {
+        res.statusCode = 404;
+        res.setHeader('Content-Type', 'application/json; charset=utf-8');
+        res.end();
+        return;
+      }
     } else {
       turnId = randomUUID();
       // Identity is resolved HERE, per turn, and passed as an argument — the
       // detached turn never sees the client's own idea of who it is.
       this.turnBus.run(
         turnId,
+        resolvedIdentity.buyerId,
         this.scout.stream(
           stripClientIdentity(body ?? { message: '' }),
-          this.identity.resolve(req.headers),
+          resolvedIdentity,
         ),
       ); // detached
+      channel = this.turnBus.resume(turnId, resolvedIdentity.buyerId)!;
     }
-    const channel = this.turnBus.channel(turnId);
 
     // Client disconnect aborts the SSE response (heartbeat + subscription
     // cleanup). The turn keeps running detached on the channel.
@@ -159,10 +169,12 @@ export class ScoutController {
   @Get('session/:id')
   async sessionTranscript(
     @Param('id') id: string,
+    @Headers() headers: Record<string, string | string[] | undefined>,
     @Headers('if-none-match') ifNoneMatch: string | undefined,
     @Res({ passthrough: true }) res: TranscriptResponseLike,
   ): Promise<string | { error: string }> {
-    const session = await this.sessions.get(id);
+    const buyerId = this.identity.resolve(headers).buyerId;
+    const session = buyerId ? await this.sessions.get(buyerId, id) : null;
     if (!session) {
       res.status(404);
       return { error: 'session not found' };

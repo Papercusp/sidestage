@@ -75,19 +75,31 @@ describe('visibleTranscript', () => {
 describe('InMemoryScoutSessionStore', () => {
   it('creates on first append and accumulates across turns', async () => {
     const store = new InMemoryScoutSessionStore();
-    expect(await store.get('s1')).toBeNull();
+    expect(await store.get('buyer-a', 's1')).toBeNull();
 
-    await store.append('s1', [msg('user', 'hi')]);
-    const after = await store.append('s1', [msg('assistant', 'hello')]);
+    await store.append('buyer-a', 's1', [msg('user', 'hi')]);
+    const after = await store.append('buyer-a', 's1', [msg('assistant', 'hello')]);
 
     expect(after.messages.map((m) => m.content)).toEqual(['hi', 'hello']);
-    expect((await store.get('s1'))?.messages).toHaveLength(2);
+    expect((await store.get('buyer-a', 's1'))?.messages).toHaveLength(2);
   });
 
   it('returns a copy — a caller mutating the result cannot corrupt the store', async () => {
     const store = new InMemoryScoutSessionStore();
-    const session = await store.append('s1', [msg('user', 'hi')]);
+    const session = await store.append('buyer-a', 's1', [msg('user', 'hi')]);
     session.messages.push(msg('assistant', 'injected'));
-    expect((await store.get('s1'))?.messages).toHaveLength(1);
+    expect((await store.get('buyer-a', 's1'))?.messages).toHaveLength(1);
+  });
+
+  it('makes a foreign session indistinguishable from a missing one and preserves its owner', async () => {
+    const store = new InMemoryScoutSessionStore();
+    await store.append('buyer-a', 's1', [msg('user', 'secret')]);
+
+    expect(await store.get('buyer-b', 's1')).toBeNull();
+    expect(await store.get('buyer-b', 'missing')).toBeNull();
+    await expect(store.append('buyer-b', 's1', [msg('user', 'takeover')]))
+      .rejects.toThrow('Scout session not found');
+    expect((await store.get('buyer-a', 's1'))?.messages.map((message) => message.content))
+      .toEqual(['secret']);
   });
 });

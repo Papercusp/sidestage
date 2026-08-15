@@ -44,7 +44,7 @@ const TURN: ScoutStreamEvent[] = [
 describe('ScoutTurnBusService', () => {
   it('publishes every event of a detached turn, with monotonic ids', async () => {
     const bus = new ScoutTurnBusService();
-    bus.run('turn-1', turnOf(TURN));
+    bus.run('turn-1', 'buyer-a', turnOf(TURN));
     await drain(bus, 'turn-1');
 
     const buffered = bus.channel('turn-1').recentSince(0);
@@ -63,7 +63,7 @@ describe('ScoutTurnBusService', () => {
 
   it('replays ONLY what a resuming client missed, from its Last-Event-ID', async () => {
     const bus = new ScoutTurnBusService();
-    bus.run('turn-2', turnOf(TURN));
+    bus.run('turn-2', 'buyer-a', turnOf(TURN));
     await drain(bus, 'turn-2');
 
     const all = bus.channel('turn-2').recentSince(0);
@@ -83,7 +83,7 @@ describe('ScoutTurnBusService', () => {
       yield { type: 'done' } as ScoutStreamEvent;
     })();
 
-    bus.run('turn-3', gen);
+    bus.run('turn-3', 'buyer-a', gen);
     await drain(bus, 'turn-3');
     // A resume only reads the existing channel (as the controller does).
     bus.channel('turn-3').recentSince(0);
@@ -99,7 +99,7 @@ describe('ScoutTurnBusService', () => {
       throw new Error('model exploded');
     })();
 
-    bus.run('turn-4', failing);
+    bus.run('turn-4', 'buyer-a', failing);
     await drain(bus, 'turn-4');
 
     const events = bus.channel('turn-4').recentSince(0).map((i) => i.event);
@@ -110,8 +110,8 @@ describe('ScoutTurnBusService', () => {
 
   it('gives each turn its own channel — concurrent turns cannot bleed into each other', async () => {
     const bus = new ScoutTurnBusService();
-    bus.run('turn-a', turnOf([{ type: 'token', content: 'A' }, { type: 'done' }]));
-    bus.run('turn-b', turnOf([{ type: 'token', content: 'B' }, { type: 'done' }]));
+    bus.run('turn-a', 'buyer-a', turnOf([{ type: 'token', content: 'A' }, { type: 'done' }]));
+    bus.run('turn-b', 'buyer-b', turnOf([{ type: 'token', content: 'B' }, { type: 'done' }]));
     await Promise.all([drain(bus, 'turn-a'), drain(bus, 'turn-b')]);
 
     const textOf = (turnId: string) =>
@@ -125,5 +125,15 @@ describe('ScoutTurnBusService', () => {
 
     expect(textOf('turn-a')).toBe('A');
     expect(textOf('turn-b')).toBe('B');
+  });
+
+  it('resumes only for the owning buyer and treats foreign and missing turns alike', async () => {
+    const bus = new ScoutTurnBusService();
+    bus.run('turn-owned', 'buyer-a', turnOf(TURN));
+    await drain(bus, 'turn-owned');
+
+    expect(bus.resume('turn-owned', 'buyer-a')).not.toBeNull();
+    expect(bus.resume('turn-owned', 'buyer-b')).toBeNull();
+    expect(bus.resume('turn-missing', 'buyer-b')).toBeNull();
   });
 });

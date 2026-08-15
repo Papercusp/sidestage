@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { CartService, InMemoryCartStore } from '../cart/cart.service';
 import { FixtureCatalogSource } from '../catalog/catalog.sources';
 import { ScoutController } from './scout.controller';
@@ -30,13 +30,26 @@ function harness() {
     memory,
     sessions,
   );
+  const turnBus = new ScoutTurnBusService();
   const controller = new ScoutController(
     scout,
-    new ScoutTurnBusService(),
+    turnBus,
     sessions,
     new CookieScoutIdentityResolver(),
   );
-  return { controller, memory };
+  return { controller, memory, sessions, turnBus };
+}
+
+function responseDouble() {
+  return {
+    statusCode: 200,
+    status: vi.fn(function status(this: { statusCode: number }, code: number) {
+      this.statusCode = code;
+    }),
+    setHeader: vi.fn(),
+    write: vi.fn(() => true),
+    end: vi.fn(),
+  };
 }
 
 describe('scout identity trust boundary (D-009)', () => {
@@ -85,5 +98,63 @@ describe('scout identity trust boundary (D-009)', () => {
     const { controller, memory } = harness();
     await controller.chat({}, { message: 'wireless headphones' });
     expect(await memory.recall(['store'], 'wireless headphones')).toEqual([]);
+  });
+
+  it('returns the same not-found response for foreign, missing, and anonymous transcripts', async () => {
+    const { controller, sessions } = harness();
+    await sessions.append('buyer-a', 'session-a', [{
+      role: 'user',
+      content: 'private turn',
+      ts: '2026-08-15T00:00:00.000Z',
+    }]);
+
+    const foreignRes = responseDouble();
+    const missingRes = responseDouble();
+    const guestRes = responseDouble();
+    const foreign = await controller.sessionTranscript(
+      'session-a',
+      { cookie: `${BUYER_COOKIE}=buyer-b` },
+      undefined,
+      foreignRes,
+    );
+    const missing = await controller.sessionTranscript(
+      'missing',
+      { cookie: `${BUYER_COOKIE}=buyer-b` },
+      undefined,
+      missingRes,
+    );
+    const guest = await controller.sessionTranscript('session-a', {}, undefined, guestRes);
+
+    expect(foreign).toEqual({ error: 'session not found' });
+    expect(missing).toEqual(foreign);
+    expect(guest).toEqual(foreign);
+    expect([foreignRes.statusCode, missingRes.statusCode, guestRes.statusCode]).toEqual([404, 404, 404]);
+  });
+
+  it('rejects a foreign turn resume exactly like a missing turn', () => {
+    const { controller, turnBus } = harness();
+    const done = async function* () {
+      yield { type: 'done' as const };
+    };
+    turnBus.run('turn-a', 'buyer-a', done());
+
+    const request = (turnId: string) => ({
+      headers: { cookie: `${BUYER_COOKIE}=buyer-b` },
+      on: vi.fn(),
+      turnId,
+    });
+    const foreignRes = responseDouble();
+    const missingRes = responseDouble();
+    const foreignReq = request('turn-a');
+    const missingReq = request('turn-missing');
+
+    controller.chatStream(foreignReq, foreignRes, { turnId: foreignReq.turnId });
+    controller.chatStream(missingReq, missingRes, { turnId: missingReq.turnId });
+
+    expect(foreignRes.statusCode).toBe(404);
+    expect(missingRes.statusCode).toBe(404);
+    expect(foreignRes.setHeader.mock.calls).toEqual(missingRes.setHeader.mock.calls);
+    expect(foreignRes.end).toHaveBeenCalledOnce();
+    expect(missingRes.end).toHaveBeenCalledOnce();
   });
 });

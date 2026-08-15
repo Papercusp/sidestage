@@ -101,6 +101,13 @@ function configObject(): Record<string, unknown> {
     SQUARE_ACCESS_TOKEN: '',
     EASYPOST_API_KEY: '',
   };
+  services.worker.environment = {
+    NODE_ENV: 'test',
+    SYSTEM_TEST_API_URL: 'http://api:3100',
+    SYSTEM_TEST_DATABASE_URL: 'postgresql://acceptance:secret@postgres:5432/acceptance_run_1',
+    SYSTEM_TEST_ARTIFACT_ROOT: '/tmp/sidestage-system-test-artifacts',
+  };
+  services.worker.tmpfs = ['/tmp/sidestage-system-test-artifacts'];
   return {
     services,
     networks: { default: { name: `${PROJECT_NAME}_default`, ipam: {} } },
@@ -178,6 +185,21 @@ describe('acceptance Compose isolation', () => {
     (hostCredentialApi.environment as Record<string, unknown>).SQUARE_ACCESS_TOKEN = 'production-secret';
     expect(() => validateAcceptanceComposeConfig(JSON.stringify(hostCredential), PROJECT_NAME)).toThrow(
       /must not inherit host credential SQUARE_ACCESS_TOKEN/,
+    );
+
+    const publicWorker = configObject();
+    const publicWorkerEnvironment = (
+      (publicWorker.services as Record<string, Record<string, unknown>>).worker.environment
+    ) as Record<string, unknown>;
+    publicWorkerEnvironment.SYSTEM_TEST_API_URL = 'https://sidestage.buyrestart.com';
+    expect(() => validateAcceptanceComposeConfig(JSON.stringify(publicWorker), PROJECT_NAME)).toThrow(
+      /service worker SYSTEM_TEST_API_URL/,
+    );
+
+    const persistentArtifacts = configObject();
+    delete (persistentArtifacts.services as Record<string, Record<string, unknown>>).worker.tmpfs;
+    expect(() => validateAcceptanceComposeConfig(JSON.stringify(persistentArtifacts), PROJECT_NAME)).toThrow(
+      /ephemeral tmpfs at SYSTEM_TEST_ARTIFACT_ROOT/,
     );
   });
 });
