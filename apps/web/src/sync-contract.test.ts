@@ -147,7 +147,11 @@ describe('SideStage web sync contract', () => {
     expect(transcription).not.toContain('VITE_DEEPGRAM_TOKEN');
     expect(transcription).toContain('[DEMO_PRINCIPAL_HEADER]: principal');
     expect(eventManager).toContain('sellerAuctionToken || undefined, demoPrincipal');
-    expect(runOfShow).toContain('fetchSellerEvent(eventId, apiBaseUrl, principal)');
+    expect(runOfShow).toContain("queryName: 'event.runOfShow'");
+    expect(runOfShow).toContain("queryName: 'event.actions.items'");
+    expect(runOfShow).toContain("queryName: 'event.auction.active'");
+    expect(runOfShow).toContain("useSyncMutate<StartNextAuction, SellerAuction>('auction.start'");
+    expect(runOfShow).not.toContain('fetchSellerEvent');
     expect(runOfShowPlanner).toContain('saveRunOfShowPlan(eventId, entries, apiBaseUrl, principal)');
 
     const provider = app.indexOf('<BuyerCheckoutProvider');
