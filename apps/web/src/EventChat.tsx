@@ -228,7 +228,9 @@ function EventChatSurface({
     sellers: presence.filter((entry) => entry.role === 'seller').length,
     totalMessages: messages.length,
   };
-  const canSend = role === 'buyer';
+  const canSend = role === 'buyer' || surface === 'management';
+  const composerLabel = role === 'seller' ? 'Reply to the room' : 'Message the room';
+  const composerPlaceholder = role === 'seller' ? 'Reply to buyers…' : 'Ask the seller something…';
 
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -238,6 +240,7 @@ function EventChatSurface({
     try {
       const message = await sendMessage({ userId, displayName, role, text });
       setOptimisticMessages((current) => [...current, message]);
+      if (role === 'seller') setQueueView('all');
       setDraft('');
     } catch (error) {
       setSendError(error instanceof Error ? error.message : 'Message could not be sent.');
@@ -395,20 +398,18 @@ function EventChatSurface({
 
       {canSend ? (
         <form className="event-chat-form" onSubmit={(event) => void submit(event)}>
-          <label className="sr-only" htmlFor={`event-chat-message-${eventId}`}>Message the room</label>
+          <label className="sr-only" htmlFor={`event-chat-message-${eventId}`}>{composerLabel}</label>
           <input
             id={`event-chat-message-${eventId}`}
             className="text-input"
             value={draft}
             onChange={(event) => setDraft(event.target.value)}
-            placeholder="Ask the seller something…"
+            placeholder={composerPlaceholder}
             maxLength={500}
           />
           <button className="button primary" type="submit" disabled={!draft.trim()}>Send</button>
         </form>
-      ) : (
-        <p className="muted event-chat-readonly">Seller view is read-only; buyers can send messages from the room.</p>
-      )}
+      ) : null}
 
       {sendError ? <p className="event-chat-error" role="alert">{sendError}</p> : null}
       {presenceError ? <p className="event-chat-error" role="status">{presenceError}</p> : null}

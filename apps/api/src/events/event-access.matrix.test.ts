@@ -53,7 +53,6 @@ const EVENT_ACCESS: {
     'POST /actions/events/:eventId/execute': 'seller-owned',
     'POST /actions/audit/:auditId/rollback': 'seller-owned',
     'POST /auctions/access/guest': 'public-viewer',
-    'POST /auctions/access/seller': 'seller-owned',
     'POST /auctions/start': 'seller-owned',
     'GET /auctions/events/:eventId/active': 'public-viewer',
     'GET /auctions/events/:eventId/stream': 'public-viewer',

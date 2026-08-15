@@ -146,11 +146,13 @@ describe('SideStage web sync contract', () => {
     expect(transcription).toContain('const socket = factory(buildDeepgramUrl(');
     expect(transcription).not.toContain('VITE_DEEPGRAM_TOKEN');
     expect(transcription).toContain('[DEMO_PRINCIPAL_HEADER]: principal');
-    expect(eventManager).toContain('sellerAuctionToken || undefined, demoPrincipal');
+    expect(eventManager).toContain('startingPriceCents, apiBaseUrl, demoPrincipal');
+    expect(eventManager).not.toContain('sellerAuctionToken');
     expect(runOfShow).toContain("queryName: 'event.runOfShow'");
     expect(runOfShow).toContain("queryName: 'event.actions.items'");
     expect(runOfShow).toContain("queryName: 'event.auction.active'");
     expect(runOfShow).toContain("useSyncMutate<StartNextAuction, SellerAuction>('auction.start'");
+    expect(runOfShow).not.toContain('readSellerAuctionToken');
     expect(runOfShow).not.toContain('fetchSellerEvent');
     expect(runOfShowPlanner).toContain('saveRunOfShowPlan(eventId, entries, apiBaseUrl, principal)');
 

@@ -143,17 +143,6 @@ export function sellerPrivateRequestHeaders(
   };
 }
 
-export async function verifySellerAuctionAccess(
-  token: string,
-  apiBaseUrl?: string,
-  principal?: string,
-): Promise<void> {
-  await requestJson(eventUrl('/auctions/access/seller', apiBaseUrl), {
-    method: 'POST',
-    headers: sellerPrivateRequestHeaders(principal, token),
-  });
-}
-
 export async function requestJson<T>(url: string, init?: RequestInit): Promise<T> {
   const response = await fetch(url, {
     ...init,
@@ -403,13 +392,12 @@ export async function startSellerAuction(
   quantity: number,
   startingPriceCents: number,
   apiBaseUrl?: string,
-  sellerAccessToken = readSellerAuctionToken(),
   principal?: string,
   durationSec?: number,
 ): Promise<SellerAuction> {
   return requestJson<SellerAuction>(eventUrl('/auctions/start', apiBaseUrl), {
     method: 'POST',
-    headers: sellerPrivateRequestHeaders(principal, sellerAccessToken),
+    headers: principal?.trim() ? { [DEMO_PRINCIPAL_HEADER]: principal.trim() } : undefined,
     body: JSON.stringify({
       eventId,
       eventItemId: item.eventItemId,
@@ -425,14 +413,13 @@ export async function startSellerAuction(
 export async function closeSellerAuction(
   auctionId: string,
   apiBaseUrl?: string,
-  sellerAccessToken = readSellerAuctionToken(),
   principal?: string,
 ): Promise<SellerAuction> {
   return requestJson<SellerAuction>(
     eventUrl(`/auctions/${encodeURIComponent(auctionId)}/close`, apiBaseUrl),
     {
       method: 'POST',
-      headers: sellerPrivateRequestHeaders(principal, sellerAccessToken),
+      headers: principal?.trim() ? { [DEMO_PRINCIPAL_HEADER]: principal.trim() } : undefined,
     },
   );
 }

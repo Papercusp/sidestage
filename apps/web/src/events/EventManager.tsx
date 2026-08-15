@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState, type FormEvent, type MouseEvent } from 'react';
+import { useCallback, useEffect, useMemo, useState, type MouseEvent } from 'react';
 import { useSyncMutate, useSyncPrincipal, useSyncQuery } from '@papercusp/sync';
 import { EventSettingsPanel, type EventConfigView } from '../ConfigTab';
 import {
@@ -15,11 +15,8 @@ import {
   adjustSellerEventStock,
   closeSellerAuction,
   executeSellerAction,
-  readSellerAuctionToken,
-  rememberSellerAuctionToken,
   setupSellerEvent,
   startSellerAuction,
-  verifySellerAuctionAccess,
   type SellerActionResult,
   type SellerAuction,
   type SellerEventItem,
@@ -131,9 +128,6 @@ export function EventManager({
   const [eventSearch, setEventSearch] = useState('');
   const [busyProductId, setBusyProductId] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
-  const [sellerAuctionToken, setSellerAuctionToken] = useState(() => readSellerAuctionToken() ?? '');
-  const [sellerAccessDraft, setSellerAccessDraft] = useState('');
-  const [sellerAccessBusy, setSellerAccessBusy] = useState(false);
   const sellerDisplayName = sellerName?.trim() || actorId;
   const demoPrincipal = useSyncPrincipal() ?? actorId;
 
@@ -219,17 +213,17 @@ export function EventManager({
 
   const auctionFallback = useCallback(
     async ({ eventId: resolvedEventId, item, quantity, startingPriceCents }: StartAuctionMutation) => (
-      startSellerAuction(resolvedEventId, item, quantity, startingPriceCents, apiBaseUrl, sellerAuctionToken || undefined, demoPrincipal)
+      startSellerAuction(resolvedEventId, item, quantity, startingPriceCents, apiBaseUrl, demoPrincipal)
     ),
-    [apiBaseUrl, demoPrincipal, sellerAuctionToken],
+    [apiBaseUrl, demoPrincipal],
   );
   const mutateStartAuction = useSyncMutate<StartAuctionMutation, SellerAuction>('auction.start', auctionFallback);
 
   const closeAuctionFallback = useCallback(
     async ({ auctionId }: CloseAuctionMutation) => (
-      closeSellerAuction(auctionId, apiBaseUrl, sellerAuctionToken || undefined, demoPrincipal)
+      closeSellerAuction(auctionId, apiBaseUrl, demoPrincipal)
     ),
-    [apiBaseUrl, demoPrincipal, sellerAuctionToken],
+    [apiBaseUrl, demoPrincipal],
   );
   const mutateCloseAuction = useSyncMutate<CloseAuctionMutation, SellerAuction>('auction.close', closeAuctionFallback);
 
@@ -266,25 +260,6 @@ export function EventManager({
     }
   };
 
-  const unlockAuctionWrites = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    const token = sellerAccessDraft.trim();
-    if (!token) return;
-    setSellerAccessBusy(true);
-    setMessage(null);
-    try {
-      await verifySellerAuctionAccess(token, apiBaseUrl, demoPrincipal);
-      rememberSellerAuctionToken(token);
-      setSellerAuctionToken(token);
-      setSellerAccessDraft('');
-      setMessage('Seller auction writes unlocked for this browser session.');
-    } catch (error) {
-      setMessage(errorMessage(error));
-    } finally {
-      setSellerAccessBusy(false);
-    }
-  };
-
   const openRoute = (next: EventManagerRoute) => (event: MouseEvent<HTMLAnchorElement>) => {
     event.preventDefault();
     navigateRoute(next);
@@ -300,12 +275,10 @@ export function EventManager({
     ? items.find((item) => item.productId === currentAuction.productId)
     : undefined;
   const currentAuctionIsLive = currentAuction?.status === 'active';
-  const auctionWritesEnabled = Boolean(sellerAuctionToken) && !currentAuctionIsLive;
-  const auctionWriteDisabledReason = !sellerAuctionToken
-    ? 'Unlock seller auction writes before starting an auction'
-    : currentAuctionIsLive
-      ? 'Close the current auction before starting another'
-      : undefined;
+  const auctionWritesEnabled = !currentAuctionIsLive;
+  const auctionWriteDisabledReason = currentAuctionIsLive
+    ? 'Close the current auction before starting another'
+    : undefined;
 
   const closeCurrentAuction = () => {
     if (!currentAuctionIsLive || !currentAuction) return;
@@ -486,27 +459,6 @@ export function EventManager({
                         <small>Price floors, markdown limits, verified inventory, audit, and rollback are enforced server-side.</small>
                       </span>
                     </div>
-                    <form className="event-auction-access" onSubmit={(event) => void unlockAuctionWrites(event)}>
-                      <div>
-                        <strong>{sellerAuctionToken ? 'Auction writes unlocked' : 'Unlock auction writes'}</strong>
-                        <small>Start and close require the server-configured seller credential. It stays in this browser session only.</small>
-                      </div>
-                      {!sellerAuctionToken ? (
-                        <div className="event-auction-access-controls">
-                          <label htmlFor="seller-auction-access">Seller credential</label>
-                          <input
-                            id="seller-auction-access"
-                            type="password"
-                            autoComplete="current-password"
-                            value={sellerAccessDraft}
-                            onChange={(event) => setSellerAccessDraft(event.target.value)}
-                          />
-                          <button className="button secondary" type="submit" disabled={sellerAccessBusy || !sellerAccessDraft.trim()}>
-                            {sellerAccessBusy ? 'Checking…' : 'Unlock'}
-                          </button>
-                        </div>
-                      ) : null}
-                    </form>
                     {auctionQuery.loading ? (
                       <p className="event-current-auction-state" role="status">Checking the authoritative auction state…</p>
                     ) : auctionQuery.error ? (
@@ -533,8 +485,7 @@ export function EventManager({
                           <button
                             className="button secondary"
                             type="button"
-                            disabled={!sellerAuctionToken || busyProductId === currentAuction.productId}
-                            title={sellerAuctionToken ? undefined : 'Unlock seller auction writes before closing this auction'}
+                            disabled={busyProductId === currentAuction.productId}
                             onClick={closeCurrentAuction}
                           >
                             {busyProductId === currentAuction.productId ? 'Closing…' : 'Close auction'}

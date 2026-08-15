@@ -60,7 +60,6 @@ vi.mock('@papercusp/sync', () => ({
 }));
 
 vi.mock('../events/api', () => ({
-  readSellerAuctionToken: () => 'seller-secret',
   startSellerAuction: mocks.startSellerAuction,
 }));
 
@@ -140,7 +139,6 @@ describe('RunOfShowPanel integration', () => {
         1,
         2_400,
         undefined,
-        'seller-secret',
         'demo-runner',
         90,
       );

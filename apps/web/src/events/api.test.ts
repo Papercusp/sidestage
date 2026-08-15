@@ -8,7 +8,6 @@ import {
   saveRunOfShowPlan,
   setupSellerEvent,
   startSellerAuction,
-  verifySellerAuctionAccess,
   type SellerEventItem,
 } from './api';
 
@@ -183,7 +182,7 @@ describe('seller event API orchestration', () => {
       throw new Error(`Unexpected URL ${url}`);
     }));
 
-    const auction = await startSellerAuction('drop', ITEM, 3, 1_100, undefined, 'seller-secret', 'demo-27', 90);
+    const auction = await startSellerAuction('drop', ITEM, 3, 1_100, undefined, 'demo-27', 90);
     const offer = await executeSellerAction('drop', 'seller-offer-27', {
       kind: 'targeted-offer', productId: 'mug', buyerId: 'buyer-7', quantity: 2,
       priceCents: 1_200, reason: 'Quantity-aware offer',
@@ -193,7 +192,7 @@ describe('seller event API orchestration', () => {
     expect(offer.offer?.quantity).toBe(2);
   });
 
-  it('authenticates both seller start and close without persisting the credential in a request body', async () => {
+  it('authorizes seller start and close with the selected demo principal and no bearer credential', async () => {
     const calls: Array<{ url: string; init?: RequestInit }> = [];
     vi.stubGlobal('fetch', vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
       const url = String(input);
@@ -215,14 +214,13 @@ describe('seller event API orchestration', () => {
       throw new Error(`Unexpected URL ${url}`);
     }));
 
-    await startSellerAuction('drop', ITEM, 1, 1_100, undefined, 'seller-secret', 'demo-27');
-    await closeSellerAuction('auction-secure', undefined, 'seller-secret', 'demo-27');
+    await startSellerAuction('drop', ITEM, 1, 1_100, undefined, 'demo-27');
+    await closeSellerAuction('auction-secure', undefined, 'demo-27');
 
     expect(calls).toHaveLength(2);
     for (const call of calls) {
-      expect(call.init?.headers).toEqual(expect.objectContaining({ authorization: 'Bearer seller-secret' }));
       expect(new Headers(call.init?.headers).get(DEMO_PRINCIPAL_HEADER)).toBe('demo-27');
-      expect(String(call.init?.body ?? '')).not.toContain('seller-secret');
+      expect(new Headers(call.init?.headers).has('authorization')).toBe(false);
     }
     expect(calls[1]).toMatchObject({
       url: 'http://localhost:3100/auctions/auction-secure/close',
@@ -230,7 +228,7 @@ describe('seller event API orchestration', () => {
     });
   });
 
-  it('attaches the canonical principal to seller reads, run-of-show saves, and credential checks', async () => {
+  it('attaches the canonical principal to seller reads and run-of-show saves', async () => {
     const calls: Array<{ url: string; init?: RequestInit }> = [];
     vi.stubGlobal('fetch', vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
       const url = String(input);
@@ -248,19 +246,16 @@ describe('seller event API orchestration', () => {
       }
       if (url.endsWith('/actions/events/drop/items')) return json({ items: [ITEM] });
       if (url.endsWith('/events/drop/run-of-show')) return json({ eventId: 'drop', entries: [] });
-      if (url.endsWith('/auctions/access/seller')) return json({ sellerId: 'seller-27' });
       throw new Error(`Unexpected URL ${url}`);
     }));
 
     await fetchSellerEvent('drop', undefined, 'demo-27');
     await saveRunOfShowPlan('drop', [], undefined, 'demo-27');
-    await verifySellerAuctionAccess('seller-secret', undefined, 'demo-27');
 
-    expect(calls).toHaveLength(4);
+    expect(calls).toHaveLength(3);
     for (const call of calls) {
       expect(new Headers(call.init?.headers).get(DEMO_PRINCIPAL_HEADER)).toBe('demo-27');
     }
-    expect(new Headers(calls.at(-1)?.init?.headers).get('authorization')).toBe('Bearer seller-secret');
   });
 });
 

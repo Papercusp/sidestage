@@ -4,7 +4,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { SyncContext } from '@papercusp/sync';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { EventManager, type SellerOwnedEvent } from './EventManager';
-import { SELLER_AUCTION_TOKEN_KEY, type SellerAuction, type SellerEventItem } from './api';
+import { type SellerAuction, type SellerEventItem } from './api';
 
 const ITEMS: SellerEventItem[] = [{
   eventId: 'sunday-drop',
@@ -69,7 +69,7 @@ function renderManager(auction: SellerAuction): { markup: string; useDataImpl: R
 }
 
 describe('EventManager auction recovery', () => {
-  it('reads the authoritative current auction and keeps seller mutations locked without access', () => {
+  it('reads the authoritative current auction and permits principal-authorized close', () => {
     const { markup, useDataImpl } = renderManager(LIVE_AUCTION);
 
     expect(useDataImpl).toHaveBeenCalledWith({
@@ -81,20 +81,20 @@ describe('EventManager auction recovery', () => {
     });
     expect(markup).toContain('Live auction');
     expect(markup).toContain('Current bid $27.00');
-    expect(markup).toMatch(/<button[^>]*disabled=""[^>]*title="Unlock seller auction writes before closing this auction"[^>]*>Close auction<\/button>/);
-    expect(markup).toMatch(/<button[^>]*disabled=""[^>]*title="Unlock seller auction writes before starting an auction"[^>]*>Start auction<\/button>/);
-  });
-
-  it('allows authenticated close while preventing a second concurrent auction', () => {
-    sessionStorage.setItem(SELLER_AUCTION_TOKEN_KEY, 'seller-secret');
-    const { markup } = renderManager(LIVE_AUCTION);
-
     expect(markup).toMatch(/<button class="button secondary" type="button">Close auction<\/button>/);
     expect(markup).toMatch(/<button[^>]*disabled=""[^>]*title="Close the current auction before starting another"[^>]*>Start auction<\/button>/);
   });
 
+  it('prevents a second concurrent auction without showing a credential prompt', () => {
+    const { markup } = renderManager(LIVE_AUCTION);
+
+    expect(markup).toMatch(/<button class="button secondary" type="button">Close auction<\/button>/);
+    expect(markup).toMatch(/<button[^>]*disabled=""[^>]*title="Close the current auction before starting another"[^>]*>Start auction<\/button>/);
+    expect(markup).not.toContain('Seller credential');
+    expect(markup).not.toContain('Unlock auction writes');
+  });
+
   it('recovers the closed winner result after refresh and permits the next auction', () => {
-    sessionStorage.setItem(SELLER_AUCTION_TOKEN_KEY, 'seller-secret');
     const closed: SellerAuction = {
       ...LIVE_AUCTION,
       status: 'closed',

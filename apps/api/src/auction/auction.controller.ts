@@ -33,33 +33,11 @@ export class AuctionController {
     return issued.principal;
   }
 
-  @Post('access/seller')
-  sellerAccess(@Headers() headers: HeadersMap, @Ip() ip: string) {
-    const ctx = this.context('seller.access', headers, ip);
-    try {
-      this.access.consumeRateLimit('seller-access', ip || 'unknown', 10, 60_000);
-      const seller = this.access.requireSeller(
-        auctionHeader(headers, 'authorization'),
-        auctionHeader(headers, DEMO_PRINCIPAL_HEADER),
-      );
-      ctx.actorKind = 'seller';
-      ctx.actorId = seller.sellerId;
-      this.audit.record({ ...ctx, outcome: 'accepted', reasonCode: 'SELLER_AUTHENTICATED' });
-      return { authenticated: true, sellerId: seller.sellerId };
-    } catch (error) {
-      this.audit.record({ ...ctx, outcome: 'rejected', reasonCode: this.audit.reasonCode(error) });
-      throw error;
-    }
-  }
-
   @Post('start')
   async start(@Body() body: StartAuctionInput, @Headers() headers: HeadersMap, @Ip() ip: string) {
     const ctx = this.context('auction.start', headers, ip, { eventId: body?.eventId });
     try {
-      const seller = this.access.requireSeller(
-        auctionHeader(headers, 'authorization'),
-        auctionHeader(headers, DEMO_PRINCIPAL_HEADER),
-      );
+      const seller = this.access.requireSellerPrincipal(auctionHeader(headers, DEMO_PRINCIPAL_HEADER));
       ctx.actorKind = 'seller';
       ctx.actorId = seller.sellerId;
       await this.ownership.requireOwnedForSeller(body?.eventId, seller.sellerId);
@@ -149,10 +127,7 @@ export class AuctionController {
   async close(@Param('id') id: string, @Headers() headers: HeadersMap, @Ip() ip: string) {
     const ctx = this.context('auction.close', headers, ip, { auctionId: id });
     try {
-      const seller = this.access.requireSeller(
-        auctionHeader(headers, 'authorization'),
-        auctionHeader(headers, DEMO_PRINCIPAL_HEADER),
-      );
+      const seller = this.access.requireSellerPrincipal(auctionHeader(headers, DEMO_PRINCIPAL_HEADER));
       ctx.actorKind = 'seller';
       ctx.actorId = seller.sellerId;
       this.access.consumeRateLimit('seller-close', seller.sellerId, 20, 60_000);

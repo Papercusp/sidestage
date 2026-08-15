@@ -2,6 +2,7 @@ import { HttpException } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import { describe, expect, it, vi } from 'vitest';
 import { PG_POOL } from '../db/database.module';
+import { DEMO_PRINCIPAL_HEADER } from '../sync/sync-request-context';
 import { AuctionAccessService, type AuctionAuditRecord } from './auction-access.service';
 import { AuctionController } from './auction.controller';
 import { AuctionModule } from './auction.module';
@@ -48,6 +49,14 @@ describe('AuctionAccessService', () => {
     expect(statusOf(() => access.requireSeller(`Bearer ${SELLER_TOKEN}`, undefined))).toBe(401);
     expect(statusOf(() => access.requireSeller('Bearer forged-token', 'seller-alpha'))).toBe(401);
     expect(statusOf(() => access.requireSeller(undefined, 'seller-alpha'))).toBe(401);
+  });
+
+  it('derives seller auction authority directly from the selected demo principal', () => {
+    const access = accessAt();
+
+    expect(access.requireSellerPrincipal('buyer-alpha')).toEqual({ sellerId: 'seller-alpha' });
+    expect(access.requireSellerPrincipal('seller-alpha')).toEqual({ sellerId: 'seller-alpha' });
+    expect(statusOf(() => access.requireSellerPrincipal(undefined))).toBe(401);
   });
 
   it('mints, verifies, reuses, expires, and rejects tampered HttpOnly guest identity', () => {
@@ -126,18 +135,18 @@ describe('AuctionController write boundary', () => {
     }));
   });
 
-  it('checks seller authorization before starting an auction and audits rejection', async () => {
-    const unauthorized = new HttpException({ code: 'AUCTION_SELLER_AUTH_REQUIRED' }, 401);
+  it('requires the selected demo principal before starting an auction and audits rejection', async () => {
+    const unauthorized = new HttpException({ code: 'AUCTION_SELLER_PRINCIPAL_REQUIRED' }, 401);
     const auctions = { startAuction: vi.fn() };
     const access = {
-      requireSeller: vi.fn(() => { throw unauthorized; }),
+      requireSellerPrincipal: vi.fn(() => { throw unauthorized; }),
       consumeRateLimit: vi.fn(),
       assertPayloadSize: vi.fn(),
     };
     const records: AuctionAuditRecord[] = [];
     const audit = {
       record: (record: AuctionAuditRecord) => records.push(record),
-      reasonCode: vi.fn().mockReturnValue('AUCTION_SELLER_AUTH_REQUIRED'),
+      reasonCode: vi.fn().mockReturnValue('AUCTION_SELLER_PRINCIPAL_REQUIRED'),
     };
     const controller = new AuctionController(
       auctions as never,
@@ -153,13 +162,47 @@ describe('AuctionController write boundary', () => {
       startingPriceCents: 1_000,
     };
 
-    await expect(controller.start(input, { authorization: 'Bearer forged' }, '127.0.0.1')).rejects.toBe(unauthorized);
+    await expect(controller.start(input, {}, '127.0.0.1')).rejects.toBe(unauthorized);
     expect(auctions.startAuction).not.toHaveBeenCalled();
     expect(records).toContainEqual(expect.objectContaining({
       action: 'auction.start',
       outcome: 'rejected',
       actorKind: 'anonymous',
-      reasonCode: 'AUCTION_SELLER_AUTH_REQUIRED',
+      reasonCode: 'AUCTION_SELLER_PRINCIPAL_REQUIRED',
     }));
+  });
+
+  it('starts an owned auction from the demo principal without reading a bearer credential', async () => {
+    const input = {
+      eventId: 'event-1',
+      eventItemId: 'item-1',
+      productId: 'product-1',
+      quantity: 1,
+      startingPriceCents: 1_000,
+    };
+    const auction = { id: 'auction-1', ...input };
+    const auctions = { startAuction: vi.fn().mockResolvedValue(auction) };
+    const access = {
+      requireSellerPrincipal: vi.fn().mockReturnValue({ sellerId: 'seller-alpha' }),
+      consumeRateLimit: vi.fn(),
+      assertPayloadSize: vi.fn(),
+    };
+    const ownership = { requireOwnedForSeller: vi.fn().mockResolvedValue(undefined) };
+    const audit = { record: vi.fn(), reasonCode: vi.fn() };
+    const controller = new AuctionController(
+      auctions as never,
+      access as never,
+      audit as never,
+      ownership as never,
+    );
+
+    await expect(controller.start(input, {
+      [DEMO_PRINCIPAL_HEADER]: 'buyer-alpha',
+      authorization: 'Bearer ignored',
+    }, '127.0.0.1')).resolves.toBe(auction);
+
+    expect(access.requireSellerPrincipal).toHaveBeenCalledWith('buyer-alpha');
+    expect(ownership.requireOwnedForSeller).toHaveBeenCalledWith('event-1', 'seller-alpha');
+    expect(access.consumeRateLimit).toHaveBeenCalledWith('seller-start', 'seller-alpha', 10, 60_000);
   });
 });

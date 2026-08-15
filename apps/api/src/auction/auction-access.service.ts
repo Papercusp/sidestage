@@ -31,7 +31,7 @@ export interface AuctionGuestPrincipal {
 
 export interface AuctionAuditRecord {
   requestId: string;
-  action: 'seller.access' | 'auction.start' | 'auction.bid' | 'auction.close';
+  action: 'auction.start' | 'auction.bid' | 'auction.close';
   outcome: 'accepted' | 'rejected';
   actorKind: 'seller' | 'guest' | 'anonymous';
   actorId: string;
@@ -108,6 +108,10 @@ export class AuctionAccessService {
         message: 'A valid seller auction credential is required.',
       });
     }
+    return this.requireSellerPrincipal(principal);
+  }
+
+  requireSellerPrincipal(principal: unknown): { sellerId: string } {
     const sellerId = rolePrincipal(principal, 'seller');
     if (!sellerId) {
       throw new UnauthorizedException({

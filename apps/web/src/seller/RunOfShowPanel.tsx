@@ -9,7 +9,6 @@ import {
   type StageLog,
 } from '../run-of-show';
 import {
-  readSellerAuctionToken,
   startSellerAuction,
   type SellerAuction,
   type SellerEventItem,
@@ -359,7 +358,6 @@ export function RunOfShowPanel({
     () => catalogProducts.find((product) => product.id === nextItem?.productId) ?? null,
     [catalogProducts, nextItem?.productId],
   );
-  const sellerAuctionToken = readSellerAuctionToken();
   const currentAuction = auctionQuery.data?.[0] ?? null;
 
   useEffect(() => {
@@ -380,11 +378,10 @@ export function RunOfShowPanel({
       1,
       startingPriceCents,
       apiBaseUrl,
-      sellerAuctionToken,
       principal,
       selectedDuration,
     ),
-    [apiBaseUrl, eventId, principal, sellerAuctionToken],
+    [apiBaseUrl, eventId, principal],
   );
   const mutateStartAuction = useSyncMutate<StartNextAuction, SellerAuction>('auction.start', startAuctionFallback);
 
@@ -396,13 +393,11 @@ export function RunOfShowPanel({
         ? 'Live auction readiness is unavailable'
         : nextItem.quantity < 1
           ? 'No reserved event inventory is available'
-          : !sellerAuctionToken
-            ? 'Unlock auction writes in Event Manager'
-            : currentAuction?.status === 'active'
-              ? 'Close the current auction before starting another'
-              : moneyInputToCents(startingPrice) === null
-                ? 'Enter a valid opening bid'
-                : null;
+          : currentAuction?.status === 'active'
+            ? 'Close the current auction before starting another'
+            : moneyInputToCents(startingPrice) === null
+              ? 'Enter a valid opening bid'
+              : null;
 
   const startNextAuction = async () => {
     if (!nextItem || auctionDisabledReason || auctionBusy) return;
