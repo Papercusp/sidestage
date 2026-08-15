@@ -121,7 +121,7 @@ describe('system-test launch request', () => {
     expect(parseSystemTestRunRequest({
       contractVersion: SYSTEM_TEST_CONTRACT_VERSION,
       suiteId: 'actions',
-      suiteVersion: 1,
+      suiteVersion: SYSTEM_TEST_SUITE_MANIFESTS.actions.suiteVersion,
       profile: 'smoke',
       requestedSha: SHA,
       eventId: 'fixture-event-1',
