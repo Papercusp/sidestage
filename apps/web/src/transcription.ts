@@ -1,3 +1,5 @@
+import { DEMO_PRINCIPAL_HEADER } from '@papercusp/sync';
+
 /**
  * Provider-neutral live transcription for the seller stage.
  *
@@ -212,6 +214,8 @@ interface DeepgramTokenGrant {
 export interface DeepgramTokenRequestOptions {
   /** Session-scoped seller credential for the SideStage API boundary. */
   sellerAccessToken?: string;
+  /** Canonical demo principal paired with the seller credential. */
+  principal?: string;
   fetchImpl?: typeof fetch;
 }
 
@@ -222,11 +226,13 @@ export async function requestDeepgramToken(
 ): Promise<string | null> {
   const apiOrigin = (apiBaseUrl || DEFAULT_API_ORIGIN).replace(/\/+$/, '');
   const sellerAccessToken = options.sellerAccessToken?.trim();
+  const principal = options.principal?.trim();
   const response = await (options.fetchImpl ?? globalThis.fetch)(`${apiOrigin}/transcription/deepgram-token`, {
     method: 'POST',
     headers: {
       Accept: 'application/json',
       ...(sellerAccessToken ? { authorization: `Bearer ${sellerAccessToken}` } : {}),
+      ...(principal ? { [DEMO_PRINCIPAL_HEADER]: principal } : {}),
     },
   });
   let body: DeepgramTokenGrant = {};
