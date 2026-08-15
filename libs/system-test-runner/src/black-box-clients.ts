@@ -332,6 +332,8 @@ export class AuthenticatedSseClient {
     maxEvents: number;
     timeoutMs?: number;
     signal?: AbortSignal;
+    /** Fires after the server has accepted the stream, before events are consumed. */
+    onConnected?: () => void;
   }): Promise<{ events: SystemTestSseEvent[]; reconnects: number; evidence: SystemTestEvidence }> {
     const url = this.#endpoint.url(input.path);
     const maxEvents = boundedInteger(input.maxEvents, 'maxEvents', 1, 1_000);
@@ -356,6 +358,7 @@ export class AuthenticatedSseClient {
             retryable: [408, 425, 429, 502, 503, 504].includes(response.status),
           });
         }
+        input.onConnected?.();
         await consumeSse(response.body, this.#maxEventBytes, (event) => {
           events.push(event);
           if (event.id) lastEventId = event.id;
