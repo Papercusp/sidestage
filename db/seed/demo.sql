@@ -144,22 +144,22 @@ INSERT INTO storefront_product (
 )
 VALUES
   ('demo-espresso-matte-black', 'demo-seller', 'barista-pro-espresso-matte-black', 'US', 'BH-ESP-200-BLK', 49999, true, 'demo-espresso-machine', 'NEW', 2, 'color=matte-black', '[{"url":"/demo-products/barista-pro-matte-black.webp","alt":"Barista Pro espresso machine in matte black","isPrimary":true}]', 12),
-  ('demo-espresso-cream', 'barista-pro-espresso-cream', 'US', 'BH-ESP-200-CRM', 49999, true, 'demo-espresso-machine', 'NEW', 2, 'color=cream', '[{"url":"/demo-products/barista-pro-cream.webp","alt":"Barista Pro espresso machine in cream","isPrimary":true}]', 5),
-  ('demo-headphones-midnight', 'cloud-anc-midnight', 'US', 'NSA-CLOUD-MID', 19999, true, 'demo-wireless-headphones', 'NEW', 2, 'color=midnight', '[{"url":"/demo-products/cloud-anc-midnight.webp","alt":"Cloud ANC wireless headphones in midnight","isPrimary":true}]', 24),
-  ('demo-headphones-sand', 'cloud-anc-sand', 'US', 'NSA-CLOUD-SND', 19999, true, 'demo-wireless-headphones', 'NEW', 2, 'color=sand', '[{"url":"/demo-products/cloud-anc-sand.webp","alt":"Cloud ANC wireless headphones in sand","isPrimary":true}]', 8),
-  ('demo-camera-black', 'creator-4k-black', 'US', 'FF-C4K-BLK', 89999, true, 'demo-creator-camera', 'NEW', 3, 'color=black', '[{"url":"/demo-products/creator-4k-black.webp","alt":"Creator 4K mirrorless camera in black","isPrimary":true}]', 6),
-  ('demo-camera-silver', 'creator-4k-silver', 'US', 'FF-C4K-SLV', 89999, true, 'demo-creator-camera', 'NEW', 3, 'color=silver', '[{"url":"/demo-products/creator-4k-silver.webp","alt":"Creator 4K mirrorless camera in silver","isPrimary":true}]', 3),
-  ('demo-desk-natural-oak', 'lift-desk-natural-oak', 'US', 'FO-LIFT-OAK', 54999, true, 'demo-standing-desk', 'NEW', 7, 'color=natural-oak', '[{"url":"/demo-products/lift-desk-natural-oak.webp","alt":"Lift electric standing desk with a natural oak top","isPrimary":true}]', 10),
-  ('demo-desk-walnut', 'lift-desk-walnut', 'US', 'FO-LIFT-WAL', 54999, true, 'demo-standing-desk', 'NEW', 7, 'color=walnut', '[{"url":"/demo-products/lift-desk-walnut.webp","alt":"Lift electric standing desk with a walnut top","isPrimary":true}]', 2),
-  ('linen-hoodie-red-s', 'linen-hoodie-red-s', 'US', 'LINEN-HOODIE-RED-S', 6800, true, 'linen-hoodie', 'NEW', 2, 'color=red|size=s', '[{"url":"https://placehold.co/800x800/png?text=Red+S","alt":"Linen hoodie in red, size S","isPrimary":true}]', 7),
-  ('linen-hoodie-red-m', 'linen-hoodie-red-m', 'US', 'LINEN-HOODIE-RED-M', 6800, true, 'linen-hoodie', 'NEW', 2, 'color=red|size=m', '[{"url":"https://placehold.co/800x800/png?text=Red+M","alt":"Linen hoodie in red, size M","isPrimary":true}]', 5),
-  ('linen-hoodie-blue-s', 'linen-hoodie-blue-s', 'US', 'LINEN-HOODIE-BLUE-S', 6800, true, 'linen-hoodie', 'NEW', 2, 'color=blue|size=s', '[{"url":"https://placehold.co/800x800/png?text=Blue+S","alt":"Linen hoodie in blue, size S","isPrimary":true}]', 3),
-  ('linen-hoodie-blue-m', 'linen-hoodie-blue-m', 'US', 'LINEN-HOODIE-BLUE-M', 6800, true, 'linen-hoodie', 'NEW', 2, 'color=blue|size=m', '[{"url":"https://placehold.co/800x800/png?text=Blue+M","alt":"Linen hoodie in blue, size M","isPrimary":true}]', 4),
-  ('stoneware-mug-matte-12oz', 'stoneware-mug-matte-12oz', 'US', 'STONEWARE-MATTE-12OZ', 2400, true, 'stoneware-mug', 'NEW', 2, 'finish=matte|capacity=12oz', '[{"url":"https://placehold.co/800x800/png?text=Matte+12oz","alt":"Matte stoneware mug, 12 ounces","isPrimary":true}]', 12),
-  ('stoneware-mug-matte-16oz', 'stoneware-mug-matte-16oz', 'US', 'STONEWARE-MATTE-16OZ', 2600, true, 'stoneware-mug', 'NEW', 2, 'finish=matte|capacity=16oz', '[{"url":"https://placehold.co/800x800/png?text=Matte+16oz","alt":"Matte stoneware mug, 16 ounces","isPrimary":true}]', 8),
-  ('stoneware-mug-gloss-12oz', 'stoneware-mug-gloss-12oz', 'US', 'STONEWARE-GLOSS-12OZ', 2500, true, 'stoneware-mug', 'NEW', 2, 'finish=gloss|capacity=12oz', '[{"url":"https://placehold.co/800x800/png?text=Gloss+12oz","alt":"Gloss stoneware mug, 12 ounces","isPrimary":true}]', 5),
-  ('stoneware-mug-gloss-16oz', 'stoneware-mug-gloss-16oz', 'US', 'STONEWARE-GLOSS-16OZ', 2700, true, 'stoneware-mug', 'NEW', 2, 'finish=gloss|capacity=16oz', '[{"url":"https://placehold.co/800x800/png?text=Gloss+16oz","alt":"Gloss stoneware mug, 16 ounces","isPrimary":true}]', 0),
-  ('woven-market-tote-base', 'woven-market-tote-base', 'US', 'WOVEN-MARKET-TOTE', 4200, true, 'woven-market-tote', 'NEW', 5, 'base', '[{"url":"https://placehold.co/800x800/png?text=Woven+Tote","alt":"Natural cotton woven market tote","isPrimary":true}]', 0)
+  ('demo-espresso-cream', 'demo-seller', 'barista-pro-espresso-cream', 'US', 'BH-ESP-200-CRM', 49999, true, 'demo-espresso-machine', 'NEW', 2, 'color=cream', '[{"url":"/demo-products/barista-pro-cream.webp","alt":"Barista Pro espresso machine in cream","isPrimary":true}]', 5),
+  ('demo-headphones-midnight', 'demo-seller', 'cloud-anc-midnight', 'US', 'NSA-CLOUD-MID', 19999, true, 'demo-wireless-headphones', 'NEW', 2, 'color=midnight', '[{"url":"/demo-products/cloud-anc-midnight.webp","alt":"Cloud ANC wireless headphones in midnight","isPrimary":true}]', 24),
+  ('demo-headphones-sand', 'demo-seller', 'cloud-anc-sand', 'US', 'NSA-CLOUD-SND', 19999, true, 'demo-wireless-headphones', 'NEW', 2, 'color=sand', '[{"url":"/demo-products/cloud-anc-sand.webp","alt":"Cloud ANC wireless headphones in sand","isPrimary":true}]', 8),
+  ('demo-camera-black', 'demo-seller', 'creator-4k-black', 'US', 'FF-C4K-BLK', 89999, true, 'demo-creator-camera', 'NEW', 3, 'color=black', '[{"url":"/demo-products/creator-4k-black.webp","alt":"Creator 4K mirrorless camera in black","isPrimary":true}]', 6),
+  ('demo-camera-silver', 'demo-seller', 'creator-4k-silver', 'US', 'FF-C4K-SLV', 89999, true, 'demo-creator-camera', 'NEW', 3, 'color=silver', '[{"url":"/demo-products/creator-4k-silver.webp","alt":"Creator 4K mirrorless camera in silver","isPrimary":true}]', 3),
+  ('demo-desk-natural-oak', 'demo-seller', 'lift-desk-natural-oak', 'US', 'FO-LIFT-OAK', 54999, true, 'demo-standing-desk', 'NEW', 7, 'color=natural-oak', '[{"url":"/demo-products/lift-desk-natural-oak.webp","alt":"Lift electric standing desk with a natural oak top","isPrimary":true}]', 10),
+  ('demo-desk-walnut', 'demo-seller', 'lift-desk-walnut', 'US', 'FO-LIFT-WAL', 54999, true, 'demo-standing-desk', 'NEW', 7, 'color=walnut', '[{"url":"/demo-products/lift-desk-walnut.webp","alt":"Lift electric standing desk with a walnut top","isPrimary":true}]', 2),
+  ('linen-hoodie-red-s', 'demo-seller', 'linen-hoodie-red-s', 'US', 'LINEN-HOODIE-RED-S', 6800, true, 'linen-hoodie', 'NEW', 2, 'color=red|size=s', '[{"url":"https://placehold.co/800x800/png?text=Red+S","alt":"Linen hoodie in red, size S","isPrimary":true}]', 7),
+  ('linen-hoodie-red-m', 'demo-seller', 'linen-hoodie-red-m', 'US', 'LINEN-HOODIE-RED-M', 6800, true, 'linen-hoodie', 'NEW', 2, 'color=red|size=m', '[{"url":"https://placehold.co/800x800/png?text=Red+M","alt":"Linen hoodie in red, size M","isPrimary":true}]', 5),
+  ('linen-hoodie-blue-s', 'demo-seller', 'linen-hoodie-blue-s', 'US', 'LINEN-HOODIE-BLUE-S', 6800, true, 'linen-hoodie', 'NEW', 2, 'color=blue|size=s', '[{"url":"https://placehold.co/800x800/png?text=Blue+S","alt":"Linen hoodie in blue, size S","isPrimary":true}]', 3),
+  ('linen-hoodie-blue-m', 'demo-seller', 'linen-hoodie-blue-m', 'US', 'LINEN-HOODIE-BLUE-M', 6800, true, 'linen-hoodie', 'NEW', 2, 'color=blue|size=m', '[{"url":"https://placehold.co/800x800/png?text=Blue+M","alt":"Linen hoodie in blue, size M","isPrimary":true}]', 4),
+  ('stoneware-mug-matte-12oz', 'demo-seller', 'stoneware-mug-matte-12oz', 'US', 'STONEWARE-MATTE-12OZ', 2400, true, 'stoneware-mug', 'NEW', 2, 'finish=matte|capacity=12oz', '[{"url":"https://placehold.co/800x800/png?text=Matte+12oz","alt":"Matte stoneware mug, 12 ounces","isPrimary":true}]', 12),
+  ('stoneware-mug-matte-16oz', 'demo-seller', 'stoneware-mug-matte-16oz', 'US', 'STONEWARE-MATTE-16OZ', 2600, true, 'stoneware-mug', 'NEW', 2, 'finish=matte|capacity=16oz', '[{"url":"https://placehold.co/800x800/png?text=Matte+16oz","alt":"Matte stoneware mug, 16 ounces","isPrimary":true}]', 8),
+  ('stoneware-mug-gloss-12oz', 'demo-seller', 'stoneware-mug-gloss-12oz', 'US', 'STONEWARE-GLOSS-12OZ', 2500, true, 'stoneware-mug', 'NEW', 2, 'finish=gloss|capacity=12oz', '[{"url":"https://placehold.co/800x800/png?text=Gloss+12oz","alt":"Gloss stoneware mug, 12 ounces","isPrimary":true}]', 5),
+  ('stoneware-mug-gloss-16oz', 'demo-seller', 'stoneware-mug-gloss-16oz', 'US', 'STONEWARE-GLOSS-16OZ', 2700, true, 'stoneware-mug', 'NEW', 2, 'finish=gloss|capacity=16oz', '[{"url":"https://placehold.co/800x800/png?text=Gloss+16oz","alt":"Gloss stoneware mug, 16 ounces","isPrimary":true}]', 0),
+  ('woven-market-tote-base', 'demo-seller', 'woven-market-tote-base', 'US', 'WOVEN-MARKET-TOTE', 4200, true, 'woven-market-tote', 'NEW', 5, 'base', '[{"url":"https://placehold.co/800x800/png?text=Woven+Tote","alt":"Natural cotton woven market tote","isPrimary":true}]', 0)
 ON CONFLICT (id) DO UPDATE SET
   slug = EXCLUDED.slug,
   region = EXCLUDED.region,
@@ -460,11 +460,12 @@ WHERE variant.group_id = format('event-demo-%s', to_char(manifest.product_number
   );
 
 INSERT INTO storefront_product (
-  id, slug, region, sku, price_cents, active, group_id, condition, handling,
+  id, seller_id, slug, region, sku, price_cents, active, group_id, condition, handling,
   option_signature, variant_images, qty
 )
 SELECT
   variant_id,
+  'demo-seller',
   variant_id,
   'US',
   format('SS-DEMO-%s-V%s', to_char(product_number, 'FM00'), variant_number),
@@ -746,7 +747,5 @@ WHERE stored.event_id = fixture.event_id
   AND stored.seller_name = fixture.seller_name
   AND stored.title = fixture.title
   AND stored.thumbnail_url IS NOT DISTINCT FROM fixture.thumbnail_url;
-
-ALTER TABLE storefront_product ALTER COLUMN seller_id DROP DEFAULT;
 
 COMMIT;
