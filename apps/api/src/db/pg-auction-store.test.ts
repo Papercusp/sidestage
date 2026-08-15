@@ -55,6 +55,7 @@ describe('PgAuctionStore transactional aggregate authority', () => {
       'COMMIT',
     ]);
     expect(harness.query.mock.calls[4]?.[1]).toEqual(['product-1', 'auction', 'auction-1', 2, null]);
+    expect(statements.at(-2)).toContain('(SELECT seller_id FROM event WHERE event_id = $2)');
     expect(harness.release).toHaveBeenCalledOnce();
   });
 
@@ -264,6 +265,7 @@ describe.runIf(process.env.SIDESTAGE_PG_INTEGRATION === '1')('PgAuctionStore aga
     const pool = new Pool({ connectionString: process.env.DATABASE_URL ?? DEFAULT_DATABASE_URL, max: 4 });
     const suffix = randomUUID();
     const productId = `auction-test-product-${suffix}`;
+    const sellerId = `seller-auction-test-${suffix}`;
     const auction = activeAuction({
       id: `auction-test-${suffix}`,
       eventId: `auction-test-event-${suffix}`,
@@ -275,8 +277,8 @@ describe.runIf(process.env.SIDESTAGE_PG_INTEGRATION === '1')('PgAuctionStore aga
     try {
       await pool.query(
         `INSERT INTO event (event_id, title, seller_id, seller_name, status)
-         VALUES ($1, 'Auction test event', 'demo-seller', 'Demo Seller', 'live')`,
-        [auction.eventId],
+         VALUES ($1, 'Auction test event', $2, 'Auction Test Seller', 'live')`,
+        [auction.eventId, sellerId],
       );
       await pool.query(
         `INSERT INTO storefront_product (id, slug, region, sku, price_cents, active, qty, reserved_qty)
@@ -293,6 +295,10 @@ describe.runIf(process.env.SIDESTAGE_PG_INTEGRATION === '1')('PgAuctionStore aga
       );
       const firstProcess = new PgAuctionStore(pool);
       await firstProcess.start(auction);
+      await expect(pool.query<{ seller_id: string }>(
+        'SELECT seller_id FROM auction_state WHERE id = $1',
+        [auction.id],
+      )).resolves.toMatchObject({ rows: [{ seller_id: sellerId }] });
       await expect(pool.query<{ current_quantity: number }>(
         'SELECT current_quantity FROM event_lineup_item WHERE event_item_id = $1',
         [auction.eventItemId],
