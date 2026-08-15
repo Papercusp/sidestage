@@ -5,6 +5,7 @@ import { CatalogModule } from '../catalog/catalog.module';
 import { CATALOG_SOURCE, type CatalogSource } from '../catalog/catalog.types';
 import { DatabaseModule, PG_POOL } from '../db/database.module';
 import { PgAuctionInventory } from '../db/pg-auction-inventory';
+import { EventModule } from '../events/event.module';
 import { SyncModule } from '../sync/sync.module';
 import { InventoryController } from './inventory.controller';
 
@@ -13,7 +14,7 @@ import { InventoryController } from './inventory.controller';
  * quantity limits all share it — a hold is a hold, whoever places it.
  */
 @Module({
-  imports: [DatabaseModule, SyncModule, CatalogModule],
+  imports: [DatabaseModule, SyncModule, CatalogModule, EventModule],
   controllers: [InventoryController],
   providers: [
     {
