@@ -130,6 +130,19 @@ export function rememberSellerAuctionToken(token: string): void {
   }
 }
 
+/** Pair the session-scoped seller credential with the app-wide demo principal. */
+export function sellerPrivateRequestHeaders(
+  principal?: string,
+  sellerAccessToken = readSellerAuctionToken(),
+): Record<string, string> {
+  const token = sellerAccessToken?.trim();
+  const normalizedPrincipal = principal?.trim();
+  return {
+    ...(token ? { authorization: `Bearer ${token}` } : {}),
+    ...(normalizedPrincipal ? { [DEMO_PRINCIPAL_HEADER]: normalizedPrincipal } : {}),
+  };
+}
+
 export async function verifySellerAuctionAccess(
   token: string,
   apiBaseUrl?: string,
@@ -137,10 +150,7 @@ export async function verifySellerAuctionAccess(
 ): Promise<void> {
   await requestJson(eventUrl('/auctions/access/seller', apiBaseUrl), {
     method: 'POST',
-    headers: {
-      authorization: `Bearer ${token.trim()}`,
-      ...(principal ? { [DEMO_PRINCIPAL_HEADER]: principal } : {}),
-    },
+    headers: sellerPrivateRequestHeaders(principal, token),
   });
 }
 
@@ -398,10 +408,7 @@ export async function startSellerAuction(
 ): Promise<SellerAuction> {
   return requestJson<SellerAuction>(eventUrl('/auctions/start', apiBaseUrl), {
     method: 'POST',
-    headers: {
-      ...(sellerAccessToken ? { authorization: `Bearer ${sellerAccessToken}` } : {}),
-      ...(principal ? { [DEMO_PRINCIPAL_HEADER]: principal } : {}),
-    },
+    headers: sellerPrivateRequestHeaders(principal, sellerAccessToken),
     body: JSON.stringify({
       eventId,
       eventItemId: item.eventItemId,
@@ -423,10 +430,7 @@ export async function closeSellerAuction(
     eventUrl(`/auctions/${encodeURIComponent(auctionId)}/close`, apiBaseUrl),
     {
       method: 'POST',
-      headers: {
-        ...(sellerAccessToken ? { authorization: `Bearer ${sellerAccessToken}` } : {}),
-        ...(principal ? { [DEMO_PRINCIPAL_HEADER]: principal } : {}),
-      },
+      headers: sellerPrivateRequestHeaders(principal, sellerAccessToken),
     },
   );
 }
