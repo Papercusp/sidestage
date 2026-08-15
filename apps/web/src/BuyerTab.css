@@ -170,6 +170,87 @@
   min-width: 0;
 }
 
+.buyer-drop-runway {
+  margin-top: calc(var(--ss-gap) * 1.25);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-card);
+  padding: clamp(0.85rem, 2vw, 1.15rem);
+  background:
+    linear-gradient(135deg, color-mix(in srgb, var(--brand-yellow) 7%, transparent), transparent 46%),
+    var(--surface-raised);
+  box-shadow: 0 14px 32px rgb(var(--shadow-hue) / 7%);
+}
+
+.buyer-drop-runway .buyer-products-heading {
+  align-items: flex-end;
+  margin: 0;
+}
+
+.buyer-drop-runway .buyer-products-heading > .muted {
+  margin: 0 0 0.1rem;
+  font-size: 0.72rem;
+  white-space: nowrap;
+}
+
+.buyer-drop-progress {
+  display: grid;
+  gap: 0.45rem;
+  margin: 1rem 0 0.25rem;
+}
+
+.buyer-drop-progress-copy {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  color: var(--muted);
+  font-size: 0.7rem;
+}
+
+.buyer-drop-progress-copy strong {
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+
+.buyer-drop-progress-track {
+  height: 0.32rem;
+  overflow: hidden;
+  border-radius: 999px;
+  background: var(--surface-soft);
+}
+
+.buyer-drop-progress-track > span {
+  display: block;
+  height: 100%;
+  min-width: 0.32rem;
+  border-radius: inherit;
+  background: linear-gradient(90deg, var(--brand-red), color-mix(in srgb, var(--brand-yellow) 76%, var(--brand-red)));
+  transition: width 220ms ease;
+}
+
+.buyer-drop-runway .buyer-products-shell {
+  overflow: visible;
+  border-radius: 0;
+  box-shadow: none;
+}
+
+.buyer-runway-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-top: 0.65rem;
+}
+
+.buyer-runway-footer p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.7rem;
+}
+
+.buyer-runway-footer p strong {
+  color: var(--text);
+}
+
 .buyer-mobile-action {
   display: none;
 }
@@ -302,6 +383,28 @@
 
   .buyer-current-offer-trust {
     display: none;
+  }
+
+  .buyer-drop-runway {
+    overflow: hidden;
+  }
+
+  .buyer-drop-runway .buyer-products-heading {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .buyer-drop-runway .buyer-products-heading > .muted {
+    white-space: normal;
+  }
+
+  .buyer-runway-footer {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .buyer-runway-footer .buyer-products-toggle {
+    width: 100%;
   }
 }
 .buyer-held-items-button { gap: .45rem; }
