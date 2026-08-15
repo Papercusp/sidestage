@@ -18,10 +18,7 @@ import {
 } from '../auction/auction.service';
 import { EventOwnershipGuard } from '../events/event-ownership.guard';
 import { SyncInvalidationService } from '../sync/sync-invalidation.service';
-import {
-  DEMO_PRINCIPAL_HEADER,
-  LEGACY_DEMO_SELLER_ID,
-} from '../sync/sync-request-context';
+import { DEMO_PRINCIPAL_HEADER } from '../sync/sync-request-context';
 import { buyerHoldExpiresAt } from './hold-policy';
 
 interface HoldBody {
@@ -61,8 +58,8 @@ export class InventoryController {
     @Param('productId') productId: string,
     @Headers(DEMO_PRINCIPAL_HEADER) principal: string | undefined,
   ) {
-    this.ownership.sellerId(principal);
-    const item = await this.inventory.getOwned(productId, LEGACY_DEMO_SELLER_ID);
+    const sellerId = this.ownership.sellerId(principal);
+    const item = await this.inventory.getOwned(productId, sellerId);
     if (!item) throw new NotFoundException(`Inventory item ${productId} was not found`);
     return item;
   }
@@ -118,15 +115,15 @@ export class InventoryController {
     if (!Number.isInteger(body.priceCents) || (body.priceCents ?? -1) < 0) {
       throw new BadRequestException('priceCents must be a non-negative integer');
     }
-    this.ownership.sellerId(principal);
+    const sellerId = this.ownership.sellerId(principal);
     const snapshot = await this.inventory.saveOwned(
       productId,
       quantity!,
       body.priceCents!,
-      LEGACY_DEMO_SELLER_ID,
+      sellerId,
     );
     if (!snapshot) throw new NotFoundException(`Inventory item ${productId} was not found`);
-    this.publishInventoryChange(productId);
+    this.publishInventoryChange(productId, principal);
     return { saved: true, quantity, priceCents: body.priceCents, snapshot };
   }
 

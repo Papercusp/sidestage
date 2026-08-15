@@ -7,7 +7,7 @@ describe('InventoryController seller boundary', () => {
     const snapshot = { productId: 'mug', qty: 8, reservedQty: 2, availableQty: 6, priceCents: 1_500 };
     const inventory = { saveOwned: vi.fn().mockResolvedValue(snapshot) };
     const invalidations = { invalidate: vi.fn() };
-    const ownership = { sellerId: vi.fn().mockReturnValue('seller-avi') };
+    const ownership = { sellerId: vi.fn().mockReturnValue('seller-demo-avi') };
     const controller = new InventoryController(inventory as never, invalidations as never, ownership as never);
 
     await expect(controller.save('mug', { quantity: 8, priceCents: 1_500 }, 'demo-avi')).resolves.toEqual({
@@ -17,11 +17,11 @@ describe('InventoryController seller boundary', () => {
       snapshot,
     });
     expect(ownership.sellerId).toHaveBeenCalledWith('demo-avi');
-    expect(inventory.saveOwned).toHaveBeenCalledWith('mug', 8, 1_500, 'demo-seller');
+    expect(inventory.saveOwned).toHaveBeenCalledWith('mug', 8, 1_500, 'seller-demo-avi');
     expect(invalidations.invalidate.mock.calls).toEqual([
       ['catalog.page'],
       ['inventory.page'],
-      ['inventory.snapshot', { productId: 'mug' }, undefined],
+      ['inventory.snapshot', { productId: 'mug' }, { principal: 'demo-avi' }],
     ]);
   });
 
@@ -38,7 +38,7 @@ describe('InventoryController seller boundary', () => {
     await expect(controller.save('missing', { quantity: 2, priceCents: 1_500 }, 'demo-avi')).rejects.toThrow('Inventory item missing was not found');
   });
 
-  it('uses the stable Studio store for generated and named Demo User reads and writes', async () => {
+  it('uses the derived seller for seller-private reads and writes', async () => {
     const snapshot = { productId: 'mug', qty: 8, reservedQty: 2, availableQty: 6, priceCents: 1_500 };
     const inventory = {
       getOwned: vi.fn().mockResolvedValue(snapshot),
@@ -50,18 +50,69 @@ describe('InventoryController seller boundary', () => {
       new EventOwnershipGuard({} as never),
     );
 
-    await expect(controller.snapshot('mug', 'demo-54598e91')).resolves.toEqual(snapshot);
+    await expect(controller.snapshot('mug', 'seller-alpha')).resolves.toEqual(snapshot);
     await expect(controller.save(
       'mug',
       { quantity: 8, priceCents: 1_500 },
-      'demo-54598e91',
+      'seller-alpha',
     )).resolves.toMatchObject({ saved: true, snapshot });
 
-    expect(inventory.getOwned).toHaveBeenCalledWith('mug', 'demo-seller');
-    expect(inventory.saveOwned).toHaveBeenCalledWith('mug', 8, 1_500, 'demo-seller');
+    expect(inventory.getOwned).toHaveBeenCalledWith('mug', 'seller-alpha');
+    expect(inventory.saveOwned).toHaveBeenCalledWith('mug', 8, 1_500, 'seller-alpha');
 
-    await controller.snapshot('mug', 'demo-avi');
-    expect(inventory.getOwned).toHaveBeenLastCalledWith('mug', 'demo-seller');
+    await controller.snapshot('mug', 'seller-beta');
+    expect(inventory.getOwned).toHaveBeenLastCalledWith('mug', 'seller-beta');
+  });
+
+  it('cannot mutate another seller\'s inventory by direct product id', async () => {
+    const snapshot = { productId: 'beta-only', qty: 8, reservedQty: 0, availableQty: 8, priceCents: 1_500 };
+    const inventory = {
+      saveOwned: vi.fn().mockImplementation(async (
+        productId: string,
+        _quantity: number,
+        _priceCents: number,
+        sellerId: string,
+      ) => productId === 'beta-only' && sellerId === 'seller-beta' ? snapshot : undefined),
+    };
+    const controller = new InventoryController(
+      inventory as never,
+      { invalidate: vi.fn() } as never,
+      new EventOwnershipGuard({} as never),
+    );
+
+    await expect(controller.save(
+      'beta-only',
+      { quantity: 8, priceCents: 1_500 },
+      'seller-alpha',
+    )).rejects.toThrow('Inventory item beta-only was not found');
+    expect(inventory.saveOwned).toHaveBeenLastCalledWith('beta-only', 8, 1_500, 'seller-alpha');
+
+    await expect(controller.save(
+      'beta-only',
+      { quantity: 8, priceCents: 1_500 },
+      'seller-beta',
+    )).resolves.toMatchObject({ saved: true, snapshot });
+    expect(inventory.saveOwned).toHaveBeenLastCalledWith('beta-only', 8, 1_500, 'seller-beta');
+  });
+
+  it('rejects seller-private reads and writes without a principal', async () => {
+    const inventory = { getOwned: vi.fn(), saveOwned: vi.fn() };
+    const controller = new InventoryController(
+      inventory as never,
+      { invalidate: vi.fn() } as never,
+      new EventOwnershipGuard({} as never),
+    );
+
+    await expect(controller.snapshot('mug', undefined)).rejects.toThrow(
+      'x-demo-principal is required for seller-owned resources.',
+    );
+    await expect(controller.save(
+      'mug',
+      { quantity: 8, priceCents: 1_500 },
+      undefined,
+    )).rejects.toThrow('x-demo-principal is required for seller-owned resources.');
+    expect(inventory.getOwned).not.toHaveBeenCalled();
+    expect(inventory.saveOwned).not.toHaveBeenCalled();
   });
 
   it('does not hold a product outside the selected event seller\'s inventory', async () => {

@@ -11,7 +11,7 @@ const EMPTY_PAGE = {
 };
 
 describe('CatalogSyncQueries inventory ownership', () => {
-  it('reads the stable Studio store regardless of the selected Demo User', async () => {
+  it('partitions inventory reads by the request seller and never silently defaults', async () => {
     const searchOwned = vi.fn().mockResolvedValue(EMPTY_PAGE);
     const catalog = {
       search: vi.fn().mockResolvedValue(EMPTY_PAGE),
@@ -21,24 +21,31 @@ describe('CatalogSyncQueries inventory ownership', () => {
     const registry = new SyncQueryRegistry();
     new CatalogSyncQueries(catalog as never, registry).onModuleInit();
 
-    await registry.resolve(
+    await expect(registry.resolve(
       'inventory.page',
       { page: 1, pageSize: 50 },
-      { principal: 'demo-54598e91' },
-    );
-    expect(searchOwned).toHaveBeenLastCalledWith(
-      expect.objectContaining({ page: 1, pageSize: 50 }),
-      'demo-seller',
-    );
+      { principal: null },
+    )).rejects.toThrow('x-demo-principal is required for inventory.page');
+    expect(searchOwned).not.toHaveBeenCalled();
 
     await registry.resolve(
       'inventory.page',
       { page: 1, pageSize: 50 },
-      { principal: 'demo-avi' },
+      { principal: 'seller-alpha' },
     );
     expect(searchOwned).toHaveBeenLastCalledWith(
       expect.objectContaining({ page: 1, pageSize: 50 }),
-      'demo-seller',
+      'seller-alpha',
+    );
+
+    await registry.resolve(
+      'inventory.page',
+      { page: 2, pageSize: 25 },
+      { principal: 'seller-beta' },
+    );
+    expect(searchOwned).toHaveBeenLastCalledWith(
+      expect.objectContaining({ page: 2, pageSize: 25 }),
+      'seller-beta',
     );
   });
 });
