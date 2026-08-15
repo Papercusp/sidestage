@@ -33,6 +33,21 @@ describe('EventCreationPanel catalog source loss', () => {
     }));
   });
 
+  it('uses the public catalog only when the inventory onboarding mode requests it', () => {
+    const useDataImpl = vi.fn(() => ({
+      data: [], loading: false, fetching: false, transport: 'SSE', invalidate: vi.fn(), error: null,
+    }));
+
+    renderToStaticMarkup(
+      <SyncContext.Provider value={{ transport: 'SSE', useDataImpl, prefetch: vi.fn() } as never}>
+        <EventCreationPanel purpose="inventory" inventoryMode="onboard" catalogScope="public" allowDemoData={false} />
+      </SyncContext.Provider>,
+    );
+
+    expect(useDataImpl).toHaveBeenCalledWith(expect.objectContaining({ queryName: 'catalog.page' }));
+    expect(useDataImpl).not.toHaveBeenCalledWith(expect.objectContaining({ queryName: 'inventory.page' }));
+  });
+
   it('renders an honest production alert and no demo inventory', () => {
     const useDataImpl = vi.fn(() => ({
       data: [],

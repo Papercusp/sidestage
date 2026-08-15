@@ -38,6 +38,41 @@
   padding: clamp(0.75rem, 2vw, 1.25rem);
 }
 
+.inventory-mode-tabs {
+  display: flex;
+  gap: 0.35rem;
+  margin: 0 0 0.75rem;
+  padding: 0.25rem;
+  width: fit-content;
+  border: 1px solid var(--border);
+  border-radius: 0.75rem;
+  background: var(--surface-sunken);
+}
+
+.inventory-mode-tabs button {
+  min-height: 2.35rem;
+  border: 0;
+  border-radius: 0.55rem;
+  padding: 0.55rem 0.8rem;
+  color: var(--muted);
+  background: transparent;
+  font: inherit;
+  font-size: 0.76rem;
+  font-weight: 750;
+  cursor: pointer;
+}
+
+.inventory-mode-tabs button[aria-selected='true'] {
+  color: var(--text);
+  background: var(--surface);
+  box-shadow: 0 2px 10px rgb(var(--shadow-hue) / 10%);
+}
+
+.inventory-mode-tabs button:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+
 .studio-inventory .event-creation {
   border-radius: 0.9rem;
 }
