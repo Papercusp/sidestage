@@ -7,15 +7,16 @@ import {
 import type { SystemTestRunQueueStore } from '@papercusp/system-test-runner';
 import { describe, expect, it, vi } from 'vitest';
 
+import { DEMO_PRINCIPAL_HEADER } from '../sync/sync-request-context';
 import { SystemTestsController } from './system-tests.controller';
 import { SystemTestsService } from './system-tests.service';
 
 const SHA = 'a'.repeat(40);
-const AUTH = { authorization: 'Bearer seller', 'idempotency-key': 'system-test-key-1' };
+const AUTH = { [DEMO_PRINCIPAL_HEADER]: 'seller-1', 'idempotency-key': 'system-test-key-1' };
 
 function access() {
   return {
-    requireSeller: vi.fn(() => ({ sellerId: 'seller-1' })),
+    requireSellerPrincipal: vi.fn(() => ({ sellerId: 'seller-1' })),
     consumeRateLimit: vi.fn(),
     assertPayloadSize: vi.fn(),
     requireIdempotencyKey: vi.fn((value: string) => value),
@@ -23,9 +24,9 @@ function access() {
 }
 
 describe('SystemTestsController', () => {
-  it('requires seller authorization before a launch can reach the queue', async () => {
+  it('requires a selected demo principal before a launch can reach the queue', async () => {
     const auth = access();
-    auth.requireSeller.mockImplementation(() => { throw new UnauthorizedException(); });
+    auth.requireSellerPrincipal.mockImplementation(() => { throw new UnauthorizedException(); });
     const service = { launch: vi.fn() };
     const controller = new SystemTestsController(service as never, auth as never);
 
@@ -49,12 +50,10 @@ describe('SystemTestsController', () => {
     expect(store.createRun).not.toHaveBeenCalled();
   });
 
-  it('accepts only the bounded versioned request and server-authenticated actor', async () => {
+  it('accepts only the bounded versioned request and selected demo actor', async () => {
     const store = { createRun: vi.fn(async (input) => input) } as unknown as SystemTestRunQueueStore;
-    const controller = new SystemTestsController(
-      new SystemTestsService(store, () => 'run-api-1'),
-      access() as never,
-    );
+    const auth = access();
+    const controller = new SystemTestsController(new SystemTestsService(store, () => 'run-api-1'), auth as never);
     const request = {
       contractVersion: SYSTEM_TEST_CONTRACT_VERSION,
       suiteId: 'actions' as const,
@@ -67,6 +66,7 @@ describe('SystemTestsController', () => {
     await expect(controller.launch(request, AUTH, '127.0.0.1')).resolves.toMatchObject({
       runId: 'run-api-1', actor: { id: 'seller-1', role: 'operator' }, request,
     });
+    expect(auth.requireSellerPrincipal).toHaveBeenCalledWith('seller-1');
   });
 
   it('rejects cancellation bodies with extra fields', async () => {
