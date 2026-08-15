@@ -14,8 +14,9 @@ import type { BuyerProduct } from './buyer';
 import { formatBuyerPrice } from './buyer';
 import {
   addHeldProductToCart,
-  confirmBuyerSquarePayment,
   createBuyerCheckoutSession,
+  fetchBuyerOrder,
+  fetchBuyerOrderShippingRates,
   fetchBuyerShippingRates,
   persistBuyerCartId,
   readBuyerCartId,
@@ -24,7 +25,6 @@ import {
   type BuyerCart,
   type BuyerCheckoutOrder,
   type BuyerCheckoutSessionResponse,
-  type BuyerPaymentSession,
   type BuyerShippingAddress,
   type BuyerShippingRate,
 } from './buyer-checkout-api';
@@ -32,6 +32,7 @@ import { useBuyerIdentity } from './buyer-identity';
 import { BuyerCartDrawer } from './BuyerCartDrawer';
 import { BuyerScoutDrawer } from './BuyerScoutDrawer';
 import { holdRemainingMs, type BuyerCartAdapter } from './buyer-cart-adapter';
+import { StripePaymentForm } from './StripePaymentForm';
 import './buyer-checkout.css';
 
 /**
@@ -61,6 +62,7 @@ const EMPTY_DRAFT: CheckoutDraft = {
 export interface BuyerCheckoutActions {
   holdProduct: (product: BuyerProduct) => Promise<BuyerCart>;
   openHeldItems: () => void;
+  openOrder: (orderId: string) => Promise<void>;
   adoptCartId: (cartId: string) => void;
   cartId?: string;
   heldItemCount: number;
@@ -74,128 +76,18 @@ export function useBuyerCheckout(): BuyerCheckoutActions | null {
   return useContext(BuyerCheckoutContext);
 }
 
-interface SquareTokenResult {
-  status: 'OK' | string;
-  token?: string;
-  errors?: Array<{ message?: string }>;
-}
-
-interface SquareCardHandle {
-  attach(selector: string): Promise<void>;
-  tokenize(): Promise<SquareTokenResult>;
-  destroy?(): Promise<void>;
-}
-
-interface SquarePaymentsHandle {
-  card(): Promise<SquareCardHandle>;
-}
-
-interface SquareBrowserSdk {
-  payments(appId: string, locationId: string): Promise<SquarePaymentsHandle>;
-}
-
-declare global {
-  interface Window {
-    Square?: SquareBrowserSdk;
-  }
-}
-
-let squareSdkPromise: Promise<SquareBrowserSdk> | undefined;
-
-function loadSquareSandboxSdk(): Promise<SquareBrowserSdk> {
-  if (typeof window === 'undefined') return Promise.reject(new Error('Square requires a browser'));
-  if (window.Square) return Promise.resolve(window.Square);
-  if (squareSdkPromise) return squareSdkPromise;
-
-  squareSdkPromise = new Promise((resolve, reject) => {
-    const existing = document.querySelector<HTMLScriptElement>('script[data-sidestage-square]');
-    const script = existing ?? document.createElement('script');
-    const finish = () => window.Square
-      ? resolve(window.Square)
-      : reject(new Error('Square sandbox did not initialize'));
-    script.addEventListener('load', finish, { once: true });
-    script.addEventListener('error', () => reject(new Error('Square sandbox could not be loaded')), { once: true });
-    if (!existing) {
-      script.src = 'https://sandbox.web.squarecdn.com/v1/square.js';
-      script.async = true;
-      script.dataset.sidestageSquare = 'true';
-      document.head.append(script);
-    }
-  });
-  return squareSdkPromise;
-}
-
-function SquareSandboxCard({
-  session,
-  busy,
-  onConfirm,
-  onError,
-}: {
-  session: BuyerPaymentSession;
-  busy: boolean;
-  onConfirm: (sourceId: string) => Promise<void>;
-  onError: (message: string) => void;
-}) {
-  const cardRef = useRef<SquareCardHandle | undefined>(undefined);
-  const [ready, setReady] = useState(false);
-
-  useEffect(() => {
-    if (session.status !== 'ready' || !session.appId || !session.locationId) return;
-    let cancelled = false;
-    let mountedCard: SquareCardHandle | undefined;
-    void loadSquareSandboxSdk()
-      .then((sdk) => sdk.payments(session.appId!, session.locationId!))
-      .then((payments) => payments.card())
-      .then(async (card) => {
-        mountedCard = card;
-        await card.attach('#sidestage-square-card');
-        if (cancelled) {
-          await card.destroy?.();
-          return;
-        }
-        cardRef.current = card;
-        setReady(true);
-      })
-      .catch((error: unknown) => {
-        if (!cancelled) onError(error instanceof Error ? error.message : 'Square sandbox could not be loaded');
-      });
-    return () => {
-      cancelled = true;
-      cardRef.current = undefined;
-      void mountedCard?.destroy?.();
-    };
-  }, [onError, session.appId, session.locationId, session.status]);
-
-  const pay = async () => {
-    const result = await cardRef.current?.tokenize();
-    if (!result || result.status !== 'OK' || !result.token) {
-      onError(result?.errors?.[0]?.message ?? 'Square could not tokenize this card');
-      return;
-    }
-    await onConfirm(result.token);
-  };
-
-  return (
-    <div className="buyer-checkout-payment">
-      <div id="sidestage-square-card" className="buyer-square-card" aria-label="Square sandbox card entry" />
-      <button className="button primary" type="button" disabled={!ready || busy} onClick={() => void pay()}>
-        {busy ? 'Processing…' : `Pay ${formatBuyerPrice(session.amountCents)} with Square`}
-      </button>
-      <p>Sandbox payment · card details are tokenized by Square and never reach SideStage.</p>
-    </div>
-  );
-}
-
 export interface BuyerCheckoutDrawerProps {
   open: boolean;
   step: BuyerCheckoutStep;
   cart: BuyerCart | null;
+  order: BuyerCheckoutOrder | null;
   draft: CheckoutDraft;
   rates: readonly BuyerShippingRate[];
   selectedRateId: string;
   checkout: BuyerCheckoutSessionResponse | null;
   completedOrder: BuyerCheckoutOrder | null;
   busy: boolean;
+  polling: boolean;
   error?: string;
   onClose: () => void;
   onStep: (step: BuyerCheckoutStep) => void;
@@ -203,29 +95,32 @@ export interface BuyerCheckoutDrawerProps {
   onLoadRates: () => Promise<void>;
   onSelectRate: (id: string) => void;
   onStartCheckout: () => Promise<void>;
-  onConfirm: (sourceId: string) => Promise<void>;
+  onPaymentSubmitted: () => void;
   /** Back out of the flow to the held-items drawer it was handed off from. */
   onBackToCart: () => void;
+  canBackToCart: boolean;
   onError: (message: string) => void;
 }
 
 function stepTitle(step: BuyerCheckoutStep): string {
   if (step === 'shipping') return 'Choose shipping';
-  if (step === 'payment') return 'Square sandbox';
+  if (step === 'payment') return 'Secure payment';
   if (step === 'success') return 'Order confirmed';
   return 'Where should it go?';
 }
 
 export function BuyerCheckoutDrawer(props: BuyerCheckoutDrawerProps) {
   const {
-    open, step, cart, draft, rates, selectedRateId, checkout, completedOrder, busy, error,
-    onClose, onStep, onDraft, onLoadRates, onSelectRate, onStartCheckout, onConfirm,
-    onBackToCart, onError,
+    open, step, cart, order, draft, rates, selectedRateId, checkout, completedOrder, busy, polling, error,
+    onClose, onStep, onDraft, onLoadRates, onSelectRate, onStartCheckout, onPaymentSubmitted,
+    onBackToCart, canBackToCart, onError,
   } = props;
   if (!open) return null;
 
   const selectedRate = rates.find((rate) => rate.id === selectedRateId);
-  const totalCents = (cart?.subtotalCents ?? 0) + (selectedRate?.totalCents ?? 0);
+  const sourceOrder = checkout?.order ?? order;
+  const subtotalCents = sourceOrder?.subtotalCents ?? cart?.subtotalCents ?? 0;
+  const totalCents = subtotalCents + (selectedRate?.totalCents ?? 0);
   const updateDraft = (field: keyof CheckoutDraft, value: string) => onDraft({ ...draft, [field]: value });
   const submitAddress = (event: FormEvent) => {
     event.preventDefault();
@@ -263,7 +158,7 @@ export function BuyerCheckoutDrawer(props: BuyerCheckoutDrawerProps) {
             <label>ZIP code<input required value={draft.postalCode} onChange={(event) => updateDraft('postalCode', event.currentTarget.value)} /></label>
             <label>Country<input required value={draft.country} onChange={(event) => updateDraft('country', event.currentTarget.value)} /></label>
             <div className="buyer-checkout-actions wide">
-              <button className="button secondary" type="button" onClick={onBackToCart}>Back to held items</button>
+              {canBackToCart ? <button className="button secondary" type="button" onClick={onBackToCart}>Back to held items</button> : <span />}
               <button className="button primary" type="submit" disabled={busy}>{busy ? 'Finding rates…' : 'Find shipping rates'}</button>
             </div>
           </form>
@@ -284,31 +179,41 @@ export function BuyerCheckoutDrawer(props: BuyerCheckoutDrawerProps) {
               </fieldset>
             )}
             <div className="buyer-checkout-summary">
-              <span>Cart <strong>{formatBuyerPrice(cart?.subtotalCents ?? 0)}</strong></span>
+              <span>Items <strong>{formatBuyerPrice(subtotalCents)}</strong></span>
               <span>Shipping <strong>{formatBuyerPrice(selectedRate?.totalCents ?? 0)}</strong></span>
               <span>Total <strong>{formatBuyerPrice(totalCents)}</strong></span>
             </div>
             <div className="buyer-checkout-actions">
               <button className="button secondary" type="button" onClick={() => onStep('address')}>Edit address</button>
               <button className="button primary" type="button" disabled={!selectedRate || busy} onClick={() => void onStartCheckout()}>
-                {busy ? 'Starting checkout…' : 'Continue to Square'}
+                {busy ? 'Starting checkout…' : 'Continue to payment'}
               </button>
             </div>
           </div>
         ) : null}
 
-        {step === 'payment' && checkout ? (
+        {step === 'payment' && sourceOrder ? (
           <div className="buyer-checkout-body">
-            <div className="buyer-checkout-total"><span>Order total</span><strong>{formatBuyerPrice(checkout.order.totalCents)}</strong></div>
-            {checkout.session.status === 'needs-configuration' ? (
-              <div className="buyer-checkout-config" role="status">
-                <strong>Square sandbox needs configuration.</strong>
-                <p>Set the server-side Square sandbox credentials to enable tokenized card checkout.</p>
+            <div className="buyer-checkout-total"><span>Order total</span><strong>{formatBuyerPrice(sourceOrder.totalCents)}</strong></div>
+            {sourceOrder.paymentState === 'payment_processing' || polling ? (
+              <div className="buyer-checkout-state" role="status">
+                <strong>Payment processing</strong>
+                <p>SideStage is waiting for Stripe's verified webhook. You can safely close this drawer and return from Orders.</p>
               </div>
+            ) : checkout?.session.status === 'needs-configuration' ? (
+              <div className="buyer-checkout-config" role="status">
+                <strong>Stripe checkout is unavailable.</strong>
+                <p>Payment configuration must be completed on the server before this order can be paid.</p>
+              </div>
+            ) : checkout ? (
+              <StripePaymentForm session={checkout.session} busy={busy} onSubmitted={onPaymentSubmitted} onError={onError} />
             ) : (
-              <SquareSandboxCard session={checkout.session} busy={busy} onConfirm={onConfirm} onError={onError} />
+              <div className="buyer-checkout-state" role="status">
+                <strong>{sourceOrder.paymentState === 'payment_failed' ? 'Payment failed' : 'Payment required'}</strong>
+                <p>Return to the address step to resume this order without creating a duplicate.</p>
+              </div>
             )}
-            <button className="button secondary" type="button" onClick={() => onStep('shipping')} disabled={busy}>Back to shipping</button>
+            {!polling && sourceOrder.paymentState !== 'payment_processing' ? <button className="button secondary" type="button" onClick={() => onStep(checkout ? 'shipping' : 'address')} disabled={busy}>Back</button> : null}
           </div>
         ) : null}
 
@@ -340,8 +245,10 @@ export function BuyerCheckoutProvider({
   const [draft, setDraft] = useState<CheckoutDraft>(EMPTY_DRAFT);
   const [rates, setRates] = useState<BuyerShippingRate[]>([]);
   const [selectedRateId, setSelectedRateId] = useState('');
+  const [order, setOrder] = useState<BuyerCheckoutOrder | null>(null);
   const [checkout, setCheckout] = useState<BuyerCheckoutSessionResponse | null>(null);
   const [completedOrder, setCompletedOrder] = useState<BuyerCheckoutOrder | null>(null);
+  const [polling, setPolling] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string>();
   const [nowMs, setNowMs] = useState(() => Date.now());
@@ -360,8 +267,10 @@ export function BuyerCheckoutProvider({
     setCartId(readBuyerCartId(buyerId));
     setRates([]);
     setSelectedRateId('');
+    setOrder(null);
     setCheckout(null);
     setCompletedOrder(null);
+    setPolling(false);
   }, [buyerId]);
 
   useEffect(() => {
@@ -379,32 +288,22 @@ export function BuyerCheckoutProvider({
   const mutateHoldProduct = useSyncMutate<{ product: BuyerProduct }, BuyerCart>('cart.holdProduct', holdFallback);
   const ratesFallback = useCallback(
     ({ cartId: nextCartId, address: nextAddress }: { cartId: string; address: BuyerShippingAddress }) => (
-      fetchBuyerShippingRates(nextCartId, nextAddress, apiBaseUrl)
+      fetchBuyerShippingRates(nextCartId, nextAddress, buyerId, apiBaseUrl)
     ),
-    [apiBaseUrl],
+    [apiBaseUrl, buyerId],
   );
   const mutateShippingRates = useSyncMutate<
     { cartId: string; address: BuyerShippingAddress },
     BuyerShippingRate[]
   >('shipping.rates', ratesFallback);
   const checkoutFallback = useCallback(
-    (input: Parameters<typeof createBuyerCheckoutSession>[0]) => createBuyerCheckoutSession(input, apiBaseUrl),
-    [apiBaseUrl],
+    (input: Parameters<typeof createBuyerCheckoutSession>[0]) => createBuyerCheckoutSession(input, buyerId, apiBaseUrl),
+    [apiBaseUrl, buyerId],
   );
   const mutateCheckout = useSyncMutate<
     Parameters<typeof createBuyerCheckoutSession>[0],
     BuyerCheckoutSessionResponse
   >('checkout.createSession', checkoutFallback);
-  const confirmFallback = useCallback(
-    ({ orderId, sourceId }: { orderId: string; sourceId: string }) => (
-      confirmBuyerSquarePayment(orderId, sourceId, apiBaseUrl)
-    ),
-    [apiBaseUrl],
-  );
-  const mutateConfirmPayment = useSyncMutate<
-    { orderId: string; sourceId: string },
-    Awaited<ReturnType<typeof confirmBuyerSquarePayment>>
-  >('checkout.confirmPayment', confirmFallback);
   const quantityFallback = useCallback(
     ({ cartId: nextCartId, productId, quantity }: { cartId: string; productId: string; quantity: number }) => (
       setBuyerCartQuantity(nextCartId, productId, quantity, apiBaseUrl)
@@ -473,6 +372,7 @@ export function BuyerCheckoutProvider({
     setRates([]);
     setSelectedRateId('');
     setCheckout(null);
+    setCompletedOrder(null);
     setStep('address');
     setOpen(false);
     setCartOpen(true);
@@ -491,7 +391,7 @@ export function BuyerCheckoutProvider({
   }), [draft]);
 
   const loadRates = async () => {
-    if (!cart || !draft.email.trim() || !address.name.trim() || !address.line1.trim()
+    if ((!cart && !order) || !draft.email.trim() || !address.name.trim() || !address.line1.trim()
       || !address.city.trim() || !address.state.trim() || !address.postalCode.trim()) {
       setError('Email, name, and a complete shipping address are required.');
       return;
@@ -499,7 +399,9 @@ export function BuyerCheckoutProvider({
     setBusy(true);
     setError(undefined);
     try {
-      const result = await mutateShippingRates({ cartId: cart.id, address });
+      const result = order
+        ? await fetchBuyerOrderShippingRates(order.id, address, buyerId, apiBaseUrl)
+        : await mutateShippingRates({ cartId: cart!.id, address });
       setRates(result);
       setSelectedRateId(result[0]?.id ?? '');
       setStep('shipping');
@@ -511,19 +413,20 @@ export function BuyerCheckoutProvider({
   };
 
   const startCheckout = async () => {
-    if (!cart || !selectedRateId) return;
+    if ((!cart && !order) || !selectedRateId) return;
     setBusy(true);
     setError(undefined);
     try {
       const result = await mutateCheckout({
-        cartId: cart.id,
-        buyerId,
-        eventId,
+        ...(order ? { orderId: order.id } : { cartId: cart!.id, eventId }),
         email: draft.email.trim(),
+        name: draft.name.trim(),
         shippingAddress: address,
         shippingRateId: selectedRateId,
       });
+      setOrder(result.order);
       setCheckout(result);
+      setPolling(false);
       setStep('payment');
     } catch (caught) {
       fail(caught);
@@ -532,23 +435,98 @@ export function BuyerCheckoutProvider({
     }
   };
 
-  const confirm = async (sourceId: string) => {
-    if (!checkout) return;
+  const openOrder = useCallback(async (orderId: string, awaitWebhook = false) => {
+    setCartOpen(false);
+    setOpen(true);
     setBusy(true);
     setError(undefined);
+    setCheckout(null);
+    setRates([]);
+    setSelectedRateId('');
     try {
-      const result = await mutateConfirmPayment({ orderId: checkout.order.id, sourceId });
-      if (result.payment.status !== 'paid' || result.order.status !== 'paid') {
-        throw new Error(result.payment.errorMessage ?? 'Square did not complete the payment');
+      const current = await fetchBuyerOrder(orderId, buyerId, apiBaseUrl);
+      setOrder(current);
+      if (current.shippingAddress) {
+        setDraft({
+          email: current.email ?? '',
+          name: current.shippingAddress.name,
+          line1: current.shippingAddress.line1,
+          line2: current.shippingAddress.line2 ?? '',
+          city: current.shippingAddress.city,
+          state: current.shippingAddress.state,
+          postalCode: current.shippingAddress.postalCode,
+          country: current.shippingAddress.country,
+          phone: current.shippingAddress.phone ?? '',
+        });
       }
-      setCompletedOrder(result.order);
-      setStep('success');
+      if (current.paymentState === 'paid') {
+        setCompletedOrder(current);
+        setStep('success');
+        setPolling(false);
+      } else if (awaitWebhook || current.paymentState === 'payment_processing') {
+        setStep('payment');
+        setPolling(true);
+      } else {
+        setStep('address');
+        setPolling(false);
+        if (current.paymentState === 'payment_failed') {
+          setError(current.paymentError ?? 'The previous payment attempt failed. Review the address and try again.');
+        }
+      }
     } catch (caught) {
       fail(caught);
     } finally {
       setBusy(false);
     }
-  };
+  }, [apiBaseUrl, buyerId, fail]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const url = new URL(window.location.href);
+    const returnOrderId = url.searchParams.get('checkout_order');
+    if (!returnOrderId || url.searchParams.get('checkout_return') !== '1') return;
+    void openOrder(returnOrderId, true);
+    for (const key of ['checkout_order', 'checkout_return', 'payment_intent', 'payment_intent_client_secret', 'redirect_status']) {
+      url.searchParams.delete(key);
+    }
+    window.history.replaceState(window.history.state, '', `${url.pathname}${url.search}${url.hash}`);
+  }, [openOrder]);
+
+  useEffect(() => {
+    const orderId = order?.id;
+    if (!polling || !orderId) return;
+    let cancelled = false;
+    let timer: number | undefined;
+    const refresh = async () => {
+      try {
+        const current = await fetchBuyerOrder(orderId, buyerId, apiBaseUrl);
+        if (cancelled) return;
+        setOrder(current);
+        if (current.paymentState === 'paid') {
+          setCompletedOrder(current);
+          setStep('success');
+          setPolling(false);
+          return;
+        }
+        if (current.paymentState === 'payment_failed' || current.paymentState === 'cancelled' || current.paymentState === 'expired') {
+          setPolling(false);
+          setError(current.paymentError ?? 'Payment did not complete.');
+          return;
+        }
+        timer = window.setTimeout(() => void refresh(), 1_500);
+      } catch (caught) {
+        if (!cancelled) {
+          setPolling(false);
+          fail(caught);
+        }
+      }
+    };
+    void refresh();
+    return () => {
+      cancelled = true;
+      if (timer !== undefined) window.clearTimeout(timer);
+    };
+  }, [apiBaseUrl, buyerId, fail, order?.id, polling]);
 
   /**
    * The holds/expiry seam the shared cart drawer is driven through. Writes
@@ -590,6 +568,9 @@ export function BuyerCheckoutProvider({
   // owns address→payment, and exactly one of them is open at a time.
   const beginCheckout = useCallback(() => {
     setCartOpen(false);
+    setOrder(null);
+    setCheckout(null);
+    setPolling(false);
     setStep('address');
     setError(undefined);
     setOpen(true);
@@ -603,11 +584,12 @@ export function BuyerCheckoutProvider({
   const contextValue = useMemo<BuyerCheckoutActions>(() => ({
     holdProduct: addHeldProduct,
     openHeldItems,
+    openOrder,
     adoptCartId,
     cartId,
     heldItemCount: cart?.items.reduce((sum, item) => sum + item.quantity, 0) ?? 0,
     heldProductIds: cart?.items.map((item) => item.productId) ?? [],
-  }), [addHeldProduct, adoptCartId, cart, cartId, openHeldItems]);
+  }), [addHeldProduct, adoptCartId, cart, cartId, openHeldItems, openOrder]);
 
   return (
     <BuyerCheckoutContext.Provider value={contextValue}>
@@ -639,12 +621,14 @@ export function BuyerCheckoutProvider({
         open={open}
         step={step}
         cart={cart}
+        order={order}
         draft={draft}
         rates={rates}
         selectedRateId={selectedRateId}
         checkout={checkout}
         completedOrder={completedOrder}
         busy={busy}
+        polling={polling}
         error={error}
         onClose={() => setOpen(false)}
         onStep={setStep}
@@ -652,8 +636,12 @@ export function BuyerCheckoutProvider({
         onLoadRates={loadRates}
         onSelectRate={setSelectedRateId}
         onStartCheckout={startCheckout}
-        onConfirm={confirm}
+        onPaymentSubmitted={() => {
+          setError(undefined);
+          setPolling(true);
+        }}
         onBackToCart={backToCart}
+        canBackToCart={!order}
         onError={setError}
       />
     </BuyerCheckoutContext.Provider>

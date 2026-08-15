@@ -3,6 +3,8 @@ import {
   addHeldProductToCart,
   buyerCartStorageKey,
   createBuyerCheckoutSession,
+  fetchBuyerOrder,
+  fetchBuyerOrderShippingRates,
   fetchBuyerShippingRates,
   type BuyerCart,
   type BuyerCheckoutSessionResponse,
@@ -64,7 +66,7 @@ describe('buyer checkout API adapter', () => {
     const fetchMock = vi.fn().mockResolvedValue(response(rates));
     vi.stubGlobal('fetch', fetchMock);
 
-    await expect(fetchBuyerShippingRates('cart-1', address, 'https://api.example.test')).resolves.toEqual(rates);
+    await expect(fetchBuyerShippingRates('cart-1', address, 'buyer-1', 'https://api.example.test')).resolves.toEqual(rates);
     expect(fetchMock).toHaveBeenCalledWith('https://api.example.test/shipping/rates', expect.objectContaining({ method: 'POST' }));
     expect(JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body))).toEqual({ cartId: 'cart-1', address });
   });
@@ -72,26 +74,48 @@ describe('buyer checkout API adapter', () => {
   it('starts checkout with server-authoritative shippingRateId and never sends shipping cents', async () => {
     const payload = {
       order: { id: 'order-1' },
-      session: { provider: 'square', mode: 'sandbox', status: 'ready' },
+      session: { provider: 'stripe', mode: 'test', status: 'ready' },
     } as unknown as BuyerCheckoutSessionResponse;
     const fetchMock = vi.fn().mockResolvedValue(response(payload));
     vi.stubGlobal('fetch', fetchMock);
 
     await createBuyerCheckoutSession({
-      cartId: 'cart-1', buyerId: 'buyer-1', eventId: 'event-1', email: 'buyer@example.test',
+      cartId: 'cart-1', eventId: 'event-1', email: 'buyer@example.test',
       shippingAddress: address, shippingRateId: 'UPS:Ground',
-    }, 'https://api.example.test');
+    }, 'buyer-1', 'https://api.example.test');
 
     const body = JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body)) as Record<string, unknown>;
     expect(body).toEqual({
-      cartId: 'cart-1', buyerId: 'buyer-1', eventId: 'event-1', email: 'buyer@example.test',
+      cartId: 'cart-1', eventId: 'event-1', email: 'buyer@example.test',
       shippingAddress: address, shippingRateId: 'UPS:Ground',
     });
     expect(body).not.toHaveProperty('shippingCents');
+    expect(body).not.toHaveProperty('buyerId');
+    expect(new Headers(fetchMock.mock.calls[0]?.[1]?.headers).get('x-demo-principal')).toBe('buyer-1');
+  });
+
+  it('reads and quotes a canonical order with principal authority', async () => {
+    const order = { id: 'order-1', paymentState: 'payment_required' };
+    const rates = [{ id: 'UPS:Ground' }];
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(response(order))
+      .mockResolvedValueOnce(response(rates));
+    vi.stubGlobal('fetch', fetchMock);
+
+    await expect(fetchBuyerOrder('order-1', 'buyer-1', 'https://api.example.test')).resolves.toEqual(order);
+    await expect(fetchBuyerOrderShippingRates('order-1', address, 'buyer-1', 'https://api.example.test'))
+      .resolves.toEqual(rates);
+    expect(fetchMock.mock.calls.map(([url]) => url)).toEqual([
+      'https://api.example.test/checkout/orders/order-1',
+      'https://api.example.test/checkout/orders/order-1/shipping-rates',
+    ]);
+    for (const [, init] of fetchMock.mock.calls) {
+      expect(new Headers(init.headers).get('x-demo-principal')).toBe('buyer-1');
+    }
   });
 
   it('surfaces the API message instead of reducing a rejected quote to a generic HTTP error', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(response({ message: 'Shipping rate is unavailable or expired' }, false, 400)));
-    await expect(fetchBuyerShippingRates('cart-1', address)).rejects.toThrow('Shipping rate is unavailable or expired');
+    await expect(fetchBuyerShippingRates('cart-1', address, 'buyer-1')).rejects.toThrow('Shipping rate is unavailable or expired');
   });
 });

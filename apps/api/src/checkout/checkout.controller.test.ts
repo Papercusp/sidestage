@@ -30,6 +30,21 @@ describe('CheckoutController', () => {
     expect(checkout.createSession).toHaveBeenCalledWith(expect.objectContaining({ buyerId: 'buyer-avi' }));
   });
 
+  it('owner-scopes canonical order reads and order-backed shipping quotes', async () => {
+    const checkout = {
+      getOrderForBuyer: vi.fn().mockResolvedValue({ id: 'order-1' }),
+      quoteOrderShipping: vi.fn().mockResolvedValue([{ id: 'UPS:Ground' }]),
+    };
+    const controller = new CheckoutController(checkout as never, {} as never);
+    const address = { name: 'Avi', line1: '99 Main', city: 'New York', state: 'NY', postalCode: '10001', country: 'US' };
+
+    await expect(controller.order('order-1', 'demo-1')).resolves.toEqual({ id: 'order-1' });
+    await expect(controller.shippingRates('order-1', { address }, 'demo-1'))
+      .resolves.toEqual([{ id: 'UPS:Ground' }]);
+    expect(checkout.getOrderForBuyer).toHaveBeenCalledWith('order-1', 'buyer-demo-1');
+    expect(checkout.quoteOrderShipping).toHaveBeenCalledWith('order-1', 'buyer-demo-1', address);
+  });
+
   it('requires a buyer principal for buyer-owned reads and writes', async () => {
     const controller = new CheckoutController({ createSession: vi.fn() } as never, { listForBuyer: vi.fn() } as never);
     await expect(controller.orders()).rejects.toThrow('Buyer principal is required');

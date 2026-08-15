@@ -49,6 +49,8 @@ const order: BuyerCheckoutOrder = {
   id: 'order-1',
   cartId: cart.id,
   buyerId: 'buyer-1',
+  sourceKind: 'cart',
+  sourceId: cart.id,
   eventId: 'event-1',
   email: draft.email,
   subtotalCents: 2500,
@@ -56,17 +58,21 @@ const order: BuyerCheckoutOrder = {
   totalCents: 3599,
   currency: 'USD',
   status: 'pending',
+  paymentState: 'payment_required',
   createdAt: '2026-08-14T06:00:00Z',
   items: cart.items,
   shippingAddress: draft,
   selectedShippingRate: rate,
-  paymentSession: {
-    provider: 'square', mode: 'sandbox', status: 'needs-configuration',
-    appId: null, locationId: null, orderId: 'order-1', amountCents: 3599, currency: 'USD',
-  },
 };
 
-const checkout: BuyerCheckoutSessionResponse = { order, session: order.paymentSession };
+const checkout: BuyerCheckoutSessionResponse = {
+  order,
+  session: {
+    provider: 'stripe', mode: null, status: 'needs-configuration',
+    publishableKey: null, clientSecret: null, paymentIntentId: null,
+    orderId: 'order-1', amountCents: 3599, currency: 'USD',
+  },
+};
 const asyncNoop = async () => undefined;
 
 function props(overrides: Partial<BuyerCheckoutDrawerProps> = {}): BuyerCheckoutDrawerProps {
@@ -74,20 +80,23 @@ function props(overrides: Partial<BuyerCheckoutDrawerProps> = {}): BuyerCheckout
     open: true,
     step: 'address',
     cart,
+    order: null,
     draft,
     rates: [rate],
     selectedRateId: rate.id,
     checkout,
     completedOrder: null,
     busy: false,
+    polling: false,
     onClose: vi.fn(),
     onStep: vi.fn(),
     onDraft: vi.fn(),
     onLoadRates: asyncNoop,
     onSelectRate: vi.fn(),
     onStartCheckout: asyncNoop,
-    onConfirm: asyncNoop,
+    onPaymentSubmitted: vi.fn(),
     onBackToCart: vi.fn(),
+    canBackToCart: true,
     onError: vi.fn(),
     ...overrides,
   };
@@ -117,14 +126,14 @@ describe('BuyerCheckoutDrawer', () => {
     expect(html).toContain('4 day delivery');
     expect(html).toContain('$10.99');
     expect(html).toContain('$35.99');
-    expect(html).toContain('Continue to Square');
+    expect(html).toContain('Continue to payment');
   });
 
   it('explains the server-only configuration boundary instead of exposing credentials', () => {
     const html = renderToStaticMarkup(<BuyerCheckoutDrawer {...props({ step: 'payment' })} />);
-    expect(html).toContain('Square sandbox needs configuration.');
-    expect(html).toContain('server-side Square sandbox credentials');
-    expect(html).not.toContain('SQUARE_ACCESS_TOKEN');
+    expect(html).toContain('Stripe checkout is unavailable.');
+    expect(html).toContain('completed on the server');
+    expect(html).not.toContain('STRIPE_SECRET_KEY');
   });
 
   it('links a paid buyer directly to the shared Orders surface', () => {

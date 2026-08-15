@@ -39,7 +39,9 @@
 .buyer-checkout-config { padding: 1rem; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface-sunken); }
 .buyer-checkout-config p { margin-bottom: 0; color: var(--muted); }
 .buyer-checkout-payment { display: grid; gap: 1rem; }
-.buyer-square-card { min-height: 7rem; padding: .8rem; border: 1px solid var(--line); border-radius: var(--radius); background: white; }
+.buyer-stripe-element { min-height: 7rem; padding: .8rem; border: 1px solid var(--line); border-radius: var(--radius); background: white; }
+.buyer-checkout-state { padding: 1rem; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface-sunken); }
+.buyer-checkout-state p { margin-bottom: 0; color: var(--muted); }
 .buyer-checkout-payment > p { margin: 0; color: var(--muted); font-size: .72rem; text-align: center; }
 .buyer-checkout-success { justify-items: center; padding-block: 3rem; text-align: center; }
 .buyer-checkout-success > span { display: grid; place-items: center; width: 3.5rem; height: 3.5rem; border-radius: 50%; background: var(--success); color: white; font-size: 1.7rem; }
