@@ -2,6 +2,7 @@ import { Global, Logger, Module } from '@nestjs/common';
 import { Pool } from 'pg';
 
 import {
+  REQUIRED_ACTION_AUDIT_STRUCTURES,
   REQUIRED_CHAT_STRUCTURES,
   REQUIRED_LINEUP_STRUCTURES,
   REQUIRED_OWNERSHIP_STRUCTURES,
@@ -92,7 +93,8 @@ export async function createPoolOrNull(
       `${REQUIRED_OWNERSHIP_STRUCTURES.length}/${REQUIRED_OWNERSHIP_STRUCTURES.length} ownership structures, ` +
       `${REQUIRED_ORDER_STRUCTURES.length}/${REQUIRED_ORDER_STRUCTURES.length} payable-order structures, ` +
       `${REQUIRED_CHAT_STRUCTURES.length}/${REQUIRED_CHAT_STRUCTURES.length} durable-chat structures, ` +
-      `${REQUIRED_LINEUP_STRUCTURES.length}/${REQUIRED_LINEUP_STRUCTURES.length} durable-lineup structures).`,
+      `${REQUIRED_LINEUP_STRUCTURES.length}/${REQUIRED_LINEUP_STRUCTURES.length} durable-lineup structures, ` +
+      `${REQUIRED_ACTION_AUDIT_STRUCTURES.length}/${REQUIRED_ACTION_AUDIT_STRUCTURES.length} action-audit structures).`,
   );
   return pool;
 }
