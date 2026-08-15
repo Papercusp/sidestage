@@ -14,9 +14,15 @@ vi.mock('./streaming', async (importOriginal) => {
   return { ...actual, connectViewer: connectViewerMock };
 });
 
-vi.mock('@papercusp/sync', () => ({
-  useSyncQuery: vi.fn(() => ({ data: [], error: null, invalidate: vi.fn() })),
-}));
+vi.mock('@papercusp/sync', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@papercusp/sync')>();
+  return {
+    ...actual,
+    useSyncPrincipal: () => 'streaming-test-buyer',
+    useSyncQuery: vi.fn(() => ({ data: [], error: null, invalidate: vi.fn() })),
+    useSyncMutate: (_name: string, fallback: (input: unknown) => Promise<unknown>) => fallback,
+  };
+});
 
 vi.mock('./AuctionPanel', () => ({ AuctionPanel: () => null }));
 vi.mock('./ReplayChapters', () => ({ ReplayChapters: () => null }));
