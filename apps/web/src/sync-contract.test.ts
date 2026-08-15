@@ -141,6 +141,7 @@ describe('SideStage web sync contract', () => {
     expect(seller).not.toContain('VITE_DEEPGRAM_TOKEN');
     expect(seller).not.toMatch(/\bfetch\s*\(/);
     expect(inventoryPanel).toContain("'inventory.save'");
+    expect(inventoryPanel).toContain("'inventory.onboard'");
     expect(inventoryPanel).toContain('useSyncMutate');
     expect(inventoryApi).toContain('requestJson');
     expect(inventoryApi).not.toMatch(/\bfetch\s*\(/);
