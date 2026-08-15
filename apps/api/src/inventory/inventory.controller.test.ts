@@ -17,11 +17,11 @@ describe('InventoryController seller boundary', () => {
       snapshot,
     });
     expect(ownership.sellerId).toHaveBeenCalledWith('demo-avi');
-    expect(inventory.saveOwned).toHaveBeenCalledWith('mug', 8, 1_500, 'seller-avi');
+    expect(inventory.saveOwned).toHaveBeenCalledWith('mug', 8, 1_500, 'demo-seller');
     expect(invalidations.invalidate.mock.calls).toEqual([
       ['catalog.page'],
-      ['inventory.page', undefined, { principal: 'demo-avi' }],
-      ['inventory.snapshot', { productId: 'mug' }, { principal: 'demo-avi' }],
+      ['inventory.page'],
+      ['inventory.snapshot', { productId: 'mug' }, undefined],
     ]);
   });
 
@@ -38,7 +38,7 @@ describe('InventoryController seller boundary', () => {
     await expect(controller.save('missing', { quantity: 2, priceCents: 1_500 }, 'demo-avi')).rejects.toThrow('Inventory item missing was not found');
   });
 
-  it('uses the seeded seller for generated demo reads and writes without collapsing named sellers', async () => {
+  it('uses the stable Studio store for generated and named Demo User reads and writes', async () => {
     const snapshot = { productId: 'mug', qty: 8, reservedQty: 2, availableQty: 6, priceCents: 1_500 };
     const inventory = {
       getOwned: vi.fn().mockResolvedValue(snapshot),
@@ -61,7 +61,7 @@ describe('InventoryController seller boundary', () => {
     expect(inventory.saveOwned).toHaveBeenCalledWith('mug', 8, 1_500, 'demo-seller');
 
     await controller.snapshot('mug', 'demo-avi');
-    expect(inventory.getOwned).toHaveBeenLastCalledWith('mug', 'seller-demo-avi');
+    expect(inventory.getOwned).toHaveBeenLastCalledWith('mug', 'demo-seller');
   });
 
   it('does not hold a product outside the selected event seller\'s inventory', async () => {

@@ -11,7 +11,7 @@ const EMPTY_PAGE = {
 };
 
 describe('CatalogSyncQueries inventory ownership', () => {
-  it('reads seeded inventory for generated demo sessions and isolates named sellers', async () => {
+  it('reads the stable Studio store regardless of the selected Demo User', async () => {
     const searchOwned = vi.fn().mockResolvedValue(EMPTY_PAGE);
     const catalog = {
       search: vi.fn().mockResolvedValue(EMPTY_PAGE),
@@ -38,7 +38,7 @@ describe('CatalogSyncQueries inventory ownership', () => {
     );
     expect(searchOwned).toHaveBeenLastCalledWith(
       expect.objectContaining({ page: 1, pageSize: 50 }),
-      'seller-demo-avi',
+      'demo-seller',
     );
   });
 });

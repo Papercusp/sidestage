@@ -10,10 +10,10 @@ describe('rolePrincipal', () => {
     expect(rolePrincipal(LEGACY_DEMO_SELLER_ID, 'buyer')).toBe('buyer-demo-seller');
   });
 
-  it('maps only generated anonymous seller personas to the seeded catalog owner', () => {
-    expect(rolePrincipal('demo-54598e91', 'seller')).toBe(LEGACY_DEMO_SELLER_ID);
-    expect(rolePrincipal('buyer-demo-54598e91', 'seller')).toBe(LEGACY_DEMO_SELLER_ID);
-    expect(rolePrincipal('seller-demo-54598e91', 'seller')).toBe(LEGACY_DEMO_SELLER_ID);
+  it('keeps generated anonymous personas role-isolated outside Studio inventory', () => {
+    expect(rolePrincipal('demo-54598e91', 'seller')).toBe('seller-demo-54598e91');
+    expect(rolePrincipal('buyer-demo-54598e91', 'seller')).toBe('seller-demo-54598e91');
+    expect(rolePrincipal('seller-demo-54598e91', 'seller')).toBe('seller-demo-54598e91');
     expect(rolePrincipal('demo-54598e91', 'buyer')).toBe('buyer-demo-54598e91');
   });
 

@@ -12,16 +12,8 @@ export interface SyncRequestContext {
 
 export type DemoPrincipalRole = 'buyer' | 'seller';
 
-/** Seed/import owner used by the clean-clone catalog and acceptance fixtures. */
+/** Stable single-store Studio owner used by the clean-clone catalog and fixtures. */
 export const LEGACY_DEMO_SELLER_ID = 'demo-seller';
-
-/**
- * Fresh anonymous browser sessions use `demo-<8 chars>`. The catalog predates
- * role-prefixed principals and is intentionally seeded to one shared demo
- * seller, so only that generated shape folds back to the seed owner. Named
- * personas such as `demo-avi` keep their own seller namespace.
- */
-const GENERATED_DEMO_PERSONA = /^demo-[a-z0-9]{8}$/i;
 
 export function normalizeDemoPrincipal(value: unknown): string | null {
   if (typeof value !== 'string') return null;
@@ -48,8 +40,5 @@ export function rolePrincipal(
     return LEGACY_DEMO_SELLER_ID;
   }
   const persona = principal.replace(/^(?:buyer|seller)-+/i, '');
-  if (role === 'seller' && GENERATED_DEMO_PERSONA.test(persona)) {
-    return LEGACY_DEMO_SELLER_ID;
-  }
   return persona.length > 0 ? `${role}-${persona}` : null;
 }

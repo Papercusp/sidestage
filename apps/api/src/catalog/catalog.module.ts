@@ -3,7 +3,7 @@ import type { Pool } from 'pg';
 import { DatabaseModule, PG_POOL, demoDataEnabled } from '../db/database.module';
 import { SyncModule } from '../sync/sync.module';
 import { SyncQueryRegistry, type SyncQueryArgs } from '../sync/sync-query.registry';
-import { rolePrincipal } from '../sync/sync-request-context';
+import { LEGACY_DEMO_SELLER_ID } from '../sync/sync-request-context';
 import { CatalogController } from './catalog.controller';
 import {
   EVENT_DEMO_COLLECTION,
@@ -43,9 +43,7 @@ export class CatalogSyncQueries implements OnModuleInit {
       return [await this.catalog.search(query)];
     });
     this.queries.register('catalog.types', () => this.catalog.productTypes());
-    this.queries.register('inventory.page', async (args, context) => {
-      const sellerId = rolePrincipal(context.principal, 'seller');
-      if (!sellerId) throw new Error('x-demo-principal is required for inventory.page');
+    this.queries.register('inventory.page', async (args) => {
       const productType = optionalString(args, 'productType');
       const query: CatalogQuery = {
         q: optionalString(args, 'q'),
@@ -54,7 +52,7 @@ export class CatalogSyncQueries implements OnModuleInit {
         page: optionalNumber(args, 'page'),
         pageSize: optionalNumber(args, 'pageSize'),
       };
-      return [await this.catalog.searchOwned(query, sellerId)];
+      return [await this.catalog.searchOwned(query, LEGACY_DEMO_SELLER_ID)];
     });
   }
 }

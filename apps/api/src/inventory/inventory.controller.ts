@@ -18,7 +18,10 @@ import {
 } from '../auction/auction.service';
 import { EventOwnershipGuard } from '../events/event-ownership.guard';
 import { SyncInvalidationService } from '../sync/sync-invalidation.service';
-import { DEMO_PRINCIPAL_HEADER } from '../sync/sync-request-context';
+import {
+  DEMO_PRINCIPAL_HEADER,
+  LEGACY_DEMO_SELLER_ID,
+} from '../sync/sync-request-context';
 import { buyerHoldExpiresAt } from './hold-policy';
 
 interface HoldBody {
@@ -58,8 +61,8 @@ export class InventoryController {
     @Param('productId') productId: string,
     @Headers(DEMO_PRINCIPAL_HEADER) principal: string | undefined,
   ) {
-    const sellerId = this.ownership.sellerId(principal);
-    const item = await this.inventory.getOwned(productId, sellerId);
+    this.ownership.sellerId(principal);
+    const item = await this.inventory.getOwned(productId, LEGACY_DEMO_SELLER_ID);
     if (!item) throw new NotFoundException(`Inventory item ${productId} was not found`);
     return item;
   }
@@ -115,16 +118,25 @@ export class InventoryController {
     if (!Number.isInteger(body.priceCents) || (body.priceCents ?? -1) < 0) {
       throw new BadRequestException('priceCents must be a non-negative integer');
     }
-    const sellerId = this.ownership.sellerId(principal);
-    const snapshot = await this.inventory.saveOwned(productId, quantity!, body.priceCents!, sellerId);
+    this.ownership.sellerId(principal);
+    const snapshot = await this.inventory.saveOwned(
+      productId,
+      quantity!,
+      body.priceCents!,
+      LEGACY_DEMO_SELLER_ID,
+    );
     if (!snapshot) throw new NotFoundException(`Inventory item ${productId} was not found`);
-    this.publishInventoryChange(productId, principal);
+    this.publishInventoryChange(productId);
     return { saved: true, quantity, priceCents: body.priceCents, snapshot };
   }
 
   private publishInventoryChange(productId: string, principal?: string): void {
     this.invalidations.invalidate('catalog.page');
-    this.invalidations.invalidate('inventory.page', undefined, { principal });
-    this.invalidations.invalidate('inventory.snapshot', { productId }, { principal });
+    this.invalidations.invalidate('inventory.page');
+    this.invalidations.invalidate(
+      'inventory.snapshot',
+      { productId },
+      principal ? { principal } : undefined,
+    );
   }
 }
