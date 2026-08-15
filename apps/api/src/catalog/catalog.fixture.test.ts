@@ -19,6 +19,7 @@ const DEMO_SQL = readFileSync(join(__dirname, '../../../../db/seed/demo.sql'), '
 
 interface SeededVariant {
   id: string;
+  sellerId: string;
   sku: string;
   priceCents: number;
   groupId: string;
@@ -64,17 +65,21 @@ function eventDemoSeed(sql: string): string {
  * to cover the two-axis, sold-out and no-option cases.
  */
 function seededDemoVariants(sql: string): SeededVariant[] {
-  const row = /^\s*\('(demo-[a-z0-9-]+)',\s*'[^']*',\s*'US',\s*'([A-Z0-9-]+)',\s*(\d+),\s*true,\s*'([a-z0-9-]+)',\s*'([A-Z]+)',\s*(\d+),\s*'([^']*)',\s*'(\[[^']+\])'/gm;
+  // The seed's declared column order starts id, seller_id, slug, region. Keep
+  // both identity columns in the matcher so adding seller ownership cannot
+  // silently turn this mirror guard into an empty parse.
+  const row = /^\s*\('(demo-[a-z0-9-]+)',\s*'([^']*)',\s*'[^']*',\s*'US',\s*'([A-Z0-9-]+)',\s*(\d+),\s*true,\s*'([a-z0-9-]+)',\s*'([A-Z]+)',\s*(\d+),\s*'([^']*)',\s*'(\[[^']+\])'/gm;
   return [...sql.matchAll(row)].map((match) => {
-    const images = JSON.parse(match[8]) as Array<{ url?: string }>;
+    const images = JSON.parse(match[9]) as Array<{ url?: string }>;
     return {
       id: match[1],
-      sku: match[2],
-      priceCents: Number(match[3]),
-      groupId: match[4],
-      condition: match[5],
-      handling: Number(match[6]),
-      optionSignature: match[7],
+      sellerId: match[2],
+      sku: match[3],
+      priceCents: Number(match[4]),
+      groupId: match[5],
+      condition: match[6],
+      handling: Number(match[7]),
+      optionSignature: match[8],
       imageUrl: images[0]?.url ?? '',
     };
   });
@@ -215,6 +220,12 @@ describe('DEMO_CATALOG_FIXTURE tracks db/seed/demo.sql', () => {
         sku: variant.sku,
         priceCents: variant.priceCents,
       })));
+  });
+
+  it('assigns every demo variant to the demo seller', () => {
+    expect(seeded.map((row) => row.sellerId)).toEqual(
+      Array.from({ length: DEMO_CATALOG_FIXTURE.length }, () => 'demo-seller'),
+    );
   });
 
   it('encodes each fixture colour as the row option_signature', () => {
