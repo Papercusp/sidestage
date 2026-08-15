@@ -201,6 +201,18 @@ button { cursor: pointer; }
 .nav-link { min-height: 2.125rem; padding: .52rem .68rem; border-radius: .56rem; color: var(--muted); font-size: .75rem; font-weight: 720; white-space: nowrap; }
 .nav-link:hover, .nav-link.active, .nav-link[aria-current="page"] { color: var(--text); background: var(--surface); box-shadow: var(--shadow-card); }
 .nav-link[aria-current="page"] { color: var(--red-text); }
+.project-links { align-items: stretch; }
+.papercusp-attribution { display: inline-flex; min-height: 2.125rem; align-items: center; gap: .42rem; padding: .28rem .5rem; border-radius: .56rem; white-space: nowrap; transition: background .15s ease, box-shadow .15s ease, transform .15s ease; }
+.papercusp-attribution:hover { background: var(--surface); box-shadow: var(--shadow-card); transform: translateY(-1px); }
+.papercusp-built-by { color: var(--muted); font-size: .47rem; font-weight: 850; letter-spacing: .09em; line-height: 1.15; text-transform: uppercase; }
+.papercusp-cup-mark { display: block; width: 2rem; height: 2rem; flex: 0 0 auto; border-radius: .5rem; box-shadow: 0 5px 14px -7px #178db8; }
+.papercusp-logo-lockup { display: grid; gap: .16rem; line-height: 1; }
+.papercusp-wordmark { color: #17324a; font-size: .79rem; font-weight: 700; letter-spacing: -.025em; }
+.papercusp-paper { display: inline-block; margin-right: .02em; padding: .09em .06em .05em; border-radius: .07em; color: #1c2534; background: #e8dab5; box-shadow: 0 .04em .12em rgb(42 31 26 / 24%), inset 0 0 0 1px rgb(120 86 30 / 24%); line-height: .78; }
+.papercusp-cusp { color: #17324a; }
+.papercusp-cup-letter { display: inline-block; overflow: visible; width: .82em; height: .94em; margin: 0 .008em; vertical-align: -.2em; filter: drop-shadow(0 1px 2px rgb(56 189 248 / 30%)); }
+.papercusp-tagline { color: #276778; font-size: .45rem; font-weight: 760; letter-spacing: .095em; text-transform: uppercase; }
+.papercusp-tagline strong { color: #127f76; font-weight: 900; }
 .connection-pill { display: inline-flex; align-items: center; gap: .45rem; color: var(--muted); font-size: .72rem; white-space: nowrap; }
 .topbar-status-group { display: flex; align-items: center; justify-content: flex-end; gap: .65rem; }
 .topbar-held-items { min-height: 2.35rem; white-space: nowrap; }

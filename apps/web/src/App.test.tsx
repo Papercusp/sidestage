@@ -65,6 +65,11 @@ describe('P-005 product card and shell', () => {
     expect(markup).toContain('aria-label="Project links"');
     expect(markup).toContain('href="https://github.com/Papercusp/sidestage"');
     expect(markup).toContain('aria-label="SideStage on GitHub (opens in a new tab)"');
+    expect(markup).toContain('href="https://papercusp.com/"');
+    expect(markup).toContain('aria-label="Built by Papercusp — Give your agents life (opens in a new tab)"');
+    expect(markup).toContain('src="/brand/papercusp-cup.svg"');
+    expect(markup).toContain('class="papercusp-built-by"');
+    expect(markup).toContain('Give your agents <strong>life.</strong>');
     expect(markup).toContain('target="_blank"');
     expect(markup).toContain('rel="noreferrer"');
     expect(markup).toContain('aria-current="page"');
@@ -92,6 +97,8 @@ describe('P-005 product card and shell', () => {
     expect(stylesCss).toMatch(/--content-max:\s*80rem/);
     expect(stylesCss).toMatch(/\.topbar-inner\s*\{[^}]*grid-template-columns:\s*auto minmax\(0, 1fr\) auto/);
     expect(stylesCss).toMatch(/\.nav-cluster\s*\{[^}]*background:\s*color-mix\(/);
+    expect(stylesCss).toMatch(/\.papercusp-attribution\s*\{[^}]*display:\s*inline-flex/);
+    expect(stylesCss).toMatch(/\.papercusp-cup-mark\s*\{[^}]*width:\s*2rem[^}]*height:\s*2rem/);
     expect(stylesCss).toMatch(/\.button\s*\{[^}]*min-height:\s*2\.5rem/);
     expect(stylesCss).toMatch(/:where\(a, button, input, select, textarea\):focus-visible/);
     expect(stylesCss).toMatch(/\.app-shell\s*\{[^}]*grid-template-columns:\s*var\(--channel-guide-width\) minmax\(0, 1fr\)/);

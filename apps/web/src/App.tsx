@@ -142,7 +142,7 @@ export function App() {
                   ))}
                 </span>
               ))}
-              <span className="nav-cluster" role="group" aria-label="Project links">
+              <span className="nav-cluster project-links" role="group" aria-label="Project links">
                 <a
                   className="nav-link"
                   href="https://github.com/Papercusp/sidestage"
@@ -151,6 +151,38 @@ export function App() {
                   aria-label="SideStage on GitHub (opens in a new tab)"
                 >
                   GitHub <span aria-hidden="true">↗</span>
+                </a>
+                <a
+                  className="papercusp-attribution"
+                  href="https://papercusp.com/"
+                  target="_blank"
+                  rel="noreferrer"
+                  aria-label="Built by Papercusp — Give your agents life (opens in a new tab)"
+                >
+                  <span className="papercusp-built-by" aria-hidden="true">Built by</span>
+                  <img
+                    className="papercusp-cup-mark"
+                    src="/brand/papercusp-cup.svg"
+                    alt=""
+                    aria-hidden="true"
+                  />
+                  <span className="papercusp-logo-lockup" aria-hidden="true">
+                    <span className="papercusp-wordmark">
+                      <span className="papercusp-paper">Paper</span>
+                      <span className="papercusp-cusp">
+                        C
+                        <svg className="papercusp-cup-letter" viewBox="0 0 15 16">
+                          <path d="M5.3 1.2q1.4 1.1 0 2.5" fill="none" stroke="#159e91" strokeWidth="1.25" strokeLinecap="round" />
+                          <path d="M8.4.9q1.4 1.1 0 2.5" fill="none" stroke="#159e91" strokeWidth="1.25" strokeLinecap="round" />
+                          <path d="M11.7 6.4Q15 6.9 15 8.8t-3.7 2.3" fill="none" stroke="#17324a" strokeWidth="1.7" strokeLinecap="round" />
+                          <path d="M2.2 5h9.7l-.9 7.4q-.25 1.8-3.95 1.8t-3.95-1.8Z" fill="#17324a" />
+                          <ellipse cx="7.05" cy="5.15" rx="4.55" ry="1.05" fill="#178db8" />
+                        </svg>
+                        sp
+                      </span>
+                    </span>
+                    <span className="papercusp-tagline">Give your agents <strong>life.</strong></span>
+                  </span>
                 </a>
               </span>
             </nav>
