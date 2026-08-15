@@ -122,7 +122,7 @@ export class PricingHistoryService {
     }
 
     const offerById = new Map<string, PricingHistory['offers'][number]>();
-    for (const audit of this.actions.listAudit(eventId)) {
+    for (const audit of await this.actions.listAudit(eventId)) {
       for (const offer of audit.after.offers) {
         if (offer.productId !== productId) continue;
         offerById.set(offer.id, {
