@@ -1,0 +1,154 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <meta name="theme-color" content="#fff8ef">
+  <title>SideStage Studio · Lineup and Run of Show concepts</title>
+  <link rel="stylesheet" href="../sidestage-page-redesign-2026-08-14/mockups/shared.css">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <a class="skip-link" href="#comparison">Skip to concepts</a>
+  <header class="app-header">
+    <div class="app-header-inner">
+      <a class="brand" href="#comparison" aria-label="SideStage home">
+        <span class="brand-mark" aria-hidden="true">S</span>
+        <span class="brand-copy"><strong>SideStage</strong><small>Live commerce studio</small></span>
+      </a>
+      <nav class="primary-nav" aria-label="SideStage pages">
+        <span class="nav-cluster"><a class="nav-link" href="#comparison">Watch</a><a class="nav-link" href="#comparison">Orders</a></span>
+        <span class="nav-cluster"><a class="nav-link" aria-current="page" href="#comparison">Studio</a><a class="nav-link" href="#comparison">Releases</a><a class="nav-link" href="#comparison">Tests</a></span>
+      </nav>
+      <div class="header-actions"><span class="status live">Preview</span><span class="avatar" aria-label="Signed in as Avi">AV</span></div>
+    </div>
+  </header>
+
+  <main id="comparison" class="comparison-shell">
+    <header class="study-head">
+      <div>
+        <span class="page-kicker">Studio workflow study</span>
+        <h1>Make the Lineup the show plan.</h1>
+        <p>Three interactive directions replace separate inventory ordering and run-of-show authoring with one shared, draggable event Lineup.</p>
+      </div>
+      <div class="study-meta" aria-label="Study status">
+        <span class="badge red">3 concepts</span>
+        <span class="badge">Shared live model</span>
+        <span class="badge">Desktop + mobile</span>
+      </div>
+    </header>
+
+    <section class="principle-strip" aria-label="Design principles">
+      <article><span aria-hidden="true">↕</span><div><strong>Order once</strong><small>The event Lineup is the run of show.</small></div></article>
+      <article><span aria-hidden="true">◷</span><div><strong>Plan lightly</strong><small>Timing and notes guide; they never block live work.</small></div></article>
+      <article><span aria-hidden="true">●</span><div><strong>Protect live state</strong><small>Planning never stages or un-stages a product.</small></div></article>
+    </section>
+
+    <section class="concept-picker card" aria-labelledby="concept-picker-title">
+      <div class="concept-picker-copy">
+        <span class="eyebrow">Compare directions</span>
+        <h2 id="concept-picker-title">Choose a Lineup model</h2>
+        <p>Edits stay synchronized while you switch.</p>
+      </div>
+      <div class="concept-tabs" role="tablist" aria-label="Lineup and run-of-show concepts">
+        <button id="concept-tab-inline" class="concept-tab" type="button" role="tab" aria-selected="true" aria-controls="concept-inline" data-concept="inline-flow">
+          <span class="concept-number">01</span><span><strong>Inline flow</strong><small>Everything visible in the row</small></span>
+        </button>
+        <button id="concept-tab-inspector" class="concept-tab" type="button" role="tab" aria-selected="false" aria-controls="concept-inspector" tabindex="-1" data-concept="focus-inspector">
+          <span class="concept-number">02</span><span><strong>Focus inspector</strong><small>Compact list, focused editing</small></span>
+        </button>
+        <button id="concept-tab-mode" class="concept-tab" type="button" role="tab" aria-selected="false" aria-controls="concept-mode" tabindex="-1" data-concept="manage-plan">
+          <span class="concept-number">03</span><span><strong>Manage / Plan</strong><small>One place, two task modes</small></span>
+        </button>
+      </div>
+    </section>
+
+    <section id="concept-inline" class="concept-panel" role="tabpanel" aria-labelledby="concept-tab-inline" data-concept-panel="inline-flow">
+      <div class="concept-summary">
+        <div><span class="concept-label">01 · Inline flow</span><h2>Keep product, timing, and notes together.</h2><p>Each Lineup row progressively opens into its planning details. Sellers scan the show and edit it without moving to another surface.</p></div>
+        <dl class="concept-facts"><div><dt>Density</dt><dd>High</dd></div><div><dt>Context</dt><dd>Continuous</dd></div><div><dt>Extra step</dt><dd>None</dd></div></dl>
+      </div>
+
+      <article class="studio-frame" aria-label="Inline flow Lineup mockup">
+        <header class="studio-frame-head">
+          <div><span class="eyebrow">Seller view / event setup</span><h3>Studio Finds: August drop</h3><p>Tomorrow · 7:00 PM · 6 reserved products</p></div>
+          <div class="frame-actions"><span class="draft-state" data-draft-state>Draft saved</span><button class="button" type="button" data-reset>Reset</button><button class="button primary" type="button" data-save>Save Lineup</button></div>
+        </header>
+        <nav class="studio-ia" aria-label="Studio workspace preview"><button type="button">Inventory</button><button class="active" type="button" aria-current="page">Event Manager</button><button type="button">Active Event <span class="live-dot" aria-label="Live now"></span></button></nav>
+        <div class="workspace inline-workspace">
+          <div class="workspace-head">
+            <div><span class="eyebrow">Event Lineup</span><h3>Plan the room in one pass.</h3><p>Drag products into show order, then add only the timing and notes you need.</p></div>
+            <div class="summary-metrics" aria-label="Show summary"><span><small>Planned</small><strong data-planned-count>0</strong></span><span><small>Runtime</small><strong data-runtime>0m</strong></span></div>
+          </div>
+          <div class="lineup-column-head" aria-hidden="true"><span>Order</span><span>Product</span><span>Plan</span><span>Move</span></div>
+          <ol class="inline-lineup sortable-list" data-inline-list aria-label="Planned event Lineup"></ol>
+          <section class="reserve-well" aria-labelledby="inline-reserve-title"><div><span class="eyebrow">Reserved inventory</span><h4 id="inline-reserve-title">Not in the plan</h4><p>Add it without leaving the Lineup.</p></div><div class="reserve-grid" data-inline-reserve></div></section>
+        </div>
+      </article>
+    </section>
+
+    <section id="concept-inspector" class="concept-panel" role="tabpanel" aria-labelledby="concept-tab-inspector" data-concept-panel="focus-inspector" hidden>
+      <div class="concept-summary">
+        <div><span class="concept-label">02 · Focus inspector</span><h2>Let the Lineup scan; let one inspector go deep.</h2><p>The list stays compact. Selecting a product opens its stage details in a dedicated editor that becomes an inline sheet on small screens.</p></div>
+        <dl class="concept-facts"><div><dt>Density</dt><dd>Medium</dd></div><div><dt>Context</dt><dd>Focused</dd></div><div><dt>Extra step</dt><dd>Select row</dd></div></dl>
+      </div>
+
+      <article class="studio-frame" aria-label="Focused inspector Lineup mockup">
+        <header class="studio-frame-head">
+          <div><span class="eyebrow">Seller view / event setup</span><h3>Studio Finds: August drop</h3><p>Tomorrow · 7:00 PM · shared Lineup model</p></div>
+          <div class="frame-actions"><span class="draft-state" data-draft-state>Draft saved</span><button class="button" type="button" data-reset>Reset</button><button class="button primary" type="button" data-save>Save Lineup</button></div>
+        </header>
+        <nav class="studio-ia" aria-label="Studio workspace preview"><button type="button">Inventory</button><button class="active" type="button" aria-current="page">Event Manager</button><button type="button">Active Event <span class="live-dot" aria-label="Live now"></span></button></nav>
+        <div class="workspace inspector-workspace">
+          <div class="workspace-head">
+            <div><span class="eyebrow">Event Lineup</span><h3>Shape the arc, then tune the beat.</h3><p>Reorder the scan-friendly rail. Edit only the selected product.</p></div>
+            <div class="summary-metrics" aria-label="Show summary"><span><small>Planned</small><strong data-planned-count>0</strong></span><span><small>Runtime</small><strong data-runtime>0m</strong></span></div>
+          </div>
+          <div class="inspector-layout">
+            <div class="inspector-list-panel">
+              <div class="panel-title"><div><strong>Show order</strong><small>Choose a row to edit</small></div><span class="badge" data-selection-count>1 selected</span></div>
+              <ol class="inspector-lineup sortable-list" data-inspector-list aria-label="Show order"></ol>
+              <div class="compact-reserve" data-inspector-reserve></div>
+            </div>
+            <aside class="focus-inspector" data-inspector aria-label="Selected product plan details"></aside>
+          </div>
+        </div>
+      </article>
+    </section>
+
+    <section id="concept-mode" class="concept-panel" role="tabpanel" aria-labelledby="concept-tab-mode" data-concept-panel="manage-plan" hidden>
+      <div class="concept-summary">
+        <div><span class="concept-label">03 · Manage / Plan</span><h2>Keep one Lineup destination; make the task explicit.</h2><p>Manage answers what can sell. Plan answers what happens when. Both modes operate on the same ordered products.</p></div>
+        <dl class="concept-facts"><div><dt>Density</dt><dd>Adaptive</dd></div><div><dt>Context</dt><dd>Task-led</dd></div><div><dt>Extra step</dt><dd>Switch mode</dd></div></dl>
+      </div>
+
+      <article class="studio-frame" aria-label="Manage and Plan mode Lineup mockup">
+        <header class="studio-frame-head">
+          <div><span class="eyebrow">Seller view / event setup</span><h3>Studio Finds: August drop</h3><p>Tomorrow · 7:00 PM · shared Lineup model</p></div>
+          <div class="frame-actions"><span class="draft-state" data-draft-state>Draft saved</span><button class="button" type="button" data-reset>Reset</button><button class="button primary" type="button" data-save>Save Lineup</button></div>
+        </header>
+        <nav class="studio-ia" aria-label="Studio workspace preview"><button type="button">Inventory</button><button class="active" type="button" aria-current="page">Event Manager</button><button type="button">Active Event <span class="live-dot" aria-label="Live now"></span></button></nav>
+        <div class="workspace mode-workspace">
+          <div class="workspace-head mode-head">
+            <div><span class="eyebrow">Event Lineup</span><h3 data-mode-title>Manage products.</h3><p data-mode-copy>Review event inventory and the products reserved for this room.</p></div>
+            <div class="mode-switch" role="tablist" aria-label="Lineup task mode"><button type="button" role="tab" aria-selected="true" data-mode="manage"><span aria-hidden="true">▦</span> Manage</button><button type="button" role="tab" aria-selected="false" data-mode="plan"><span aria-hidden="true">↕</span> Plan show</button></div>
+          </div>
+          <div class="mode-context" data-mode-context></div>
+          <div data-mode-content></div>
+        </div>
+      </article>
+    </section>
+
+    <section class="comparison-note card" aria-labelledby="comparison-note-title">
+      <div><span class="eyebrow">Next plan item</span><h2 id="comparison-note-title">Evaluate the interaction, not three data models.</h2><p>All three directions share order, plan membership, minutes, and notes. P-003 will express them as UI IR; P-004 will test responsive behavior and recommend a direction.</p></div>
+      <div class="evaluation-chips" aria-label="Planned evaluation criteria"><span>Scan speed</span><span>Edit speed</span><span>Screen density</span><span>Mobile reach</span><span>Error prevention</span></div>
+    </section>
+
+    <footer class="prototype-foot"><span>Preview only · no SideStage data is changed</span><span>Shared model · drag + keyboard ordering · responsive from 320px</span></footer>
+  </main>
+
+  <div class="toast" role="status" aria-live="polite" hidden></div>
+  <script src="app.js"></script>
+</body>
+</html>
