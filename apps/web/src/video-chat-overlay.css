@@ -173,6 +173,47 @@
   margin-top: .2rem;
 }
 
+.event-chat-audience .event-chat-lifecycle {
+  align-items: center;
+  flex-wrap: wrap;
+  gap: .2rem .3rem;
+  margin-top: .2rem;
+}
+
+.event-chat-audience-state-answered {
+  border-color: color-mix(in srgb, var(--success) 72%, transparent);
+  background: color-mix(in srgb, var(--success) 30%, transparent);
+}
+
+.event-chat-audience-state-skipped {
+  border-color: color-mix(in srgb, var(--on-video) 38%, transparent);
+  background: color-mix(in srgb, var(--video-inset-bg) 68%, transparent);
+}
+
+.event-chat-audience-state-blocked {
+  border-color: color-mix(in srgb, var(--danger) 70%, transparent);
+  background: color-mix(in srgb, var(--danger) 28%, transparent);
+}
+
+.event-chat-audience-provenance,
+.event-chat-audience-link {
+  color: color-mix(in srgb, var(--on-video) 82%, transparent);
+  font-size: .54rem;
+  font-weight: 700;
+  line-height: 1.25;
+  overflow-wrap: anywhere;
+}
+
+.event-chat-audience-link {
+  border-radius: .2rem;
+  text-underline-offset: .12rem;
+}
+
+.event-chat-audience-link:focus-visible {
+  outline: 2px solid var(--on-video);
+  outline-offset: 2px;
+}
+
 .event-chat-audience-form {
   display: flex;
   min-height: 2.35rem;
