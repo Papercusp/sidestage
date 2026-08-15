@@ -1,7 +1,7 @@
 import { BadRequestException, Inject, Injectable } from '@nestjs/common';
 import { GuardedActionService } from '../actions/action.service';
 import { AuctionService } from '../auction/auction.service';
-import { CartService, type CartItem } from '../cart/cart.service';
+import { CartService, cartRevision, eventCartContext, type CartItem } from '../cart/cart.service';
 import type { CheckoutOrder, PayableOrderSourceKind } from './order-store';
 
 export interface CheckoutSource {
@@ -14,6 +14,7 @@ export interface CheckoutSource {
   items: CartItem[];
   revision: string;
   snapshot: Record<string, unknown>;
+  commitmentKind?: 'event-cart';
 }
 
 @Injectable()
@@ -43,7 +44,7 @@ export class CheckoutSourceService {
 
   async commit(order: CheckoutOrder): Promise<void> {
     if (order.sourceKind === 'cart') {
-      await this.carts.commit(order.sourceId);
+      await this.carts.commit(order.sourceId, this.eventCartRevision(order));
       return;
     }
     if (order.sourceKind === 'auction') {
@@ -55,7 +56,7 @@ export class CheckoutSourceService {
 
   async release(order: CheckoutOrder): Promise<void> {
     if (order.sourceKind === 'cart') {
-      await this.carts.release(order.sourceId);
+      await this.carts.release(order.sourceId, this.eventCartRevision(order));
       return;
     }
     if (order.sourceKind === 'auction') {
@@ -66,9 +67,15 @@ export class CheckoutSourceService {
   }
 
   private async loadCart(sourceId: string, buyerId: string, eventId?: string): Promise<CheckoutSource> {
-    if (!eventId) throw new BadRequestException('eventId is required for cart checkout');
     const cart = await this.carts.findCart(sourceId);
     if (!cart || cart.items.length === 0) throw new BadRequestException('Cart is empty or not found');
+    const eventContext = eventCartContext(cart);
+    const requestedEventId = eventId?.trim();
+    if (eventContext && requestedEventId && requestedEventId !== eventContext.eventId) {
+      throw new BadRequestException('Cart belongs to a different event');
+    }
+    const resolvedEventId = eventContext?.eventId ?? requestedEventId;
+    if (!resolvedEventId) throw new BadRequestException('eventId is required for cart checkout');
     const snapshot = {
       cartId: cart.id,
       cartUpdatedAt: cart.updatedAt,
@@ -78,12 +85,19 @@ export class CheckoutSourceService {
       sourceKind: 'cart',
       sourceId: cart.id,
       buyerId,
-      eventId,
+      eventId: resolvedEventId,
       subtotalCents: cart.subtotalCents,
       items: cart.items.map((item) => ({ ...item })),
-      revision: JSON.stringify(snapshot),
+      revision: eventContext ? cartRevision(cart) : JSON.stringify(snapshot),
       snapshot,
+      commitmentKind: eventContext ? 'event-cart' : undefined,
     };
+  }
+
+  private eventCartRevision(order: CheckoutOrder): string | undefined {
+    return order.sourceCommitment?.kind === 'event-cart'
+      ? order.sourceCommitment.revision
+      : undefined;
   }
 
   private async loadAuction(sourceId: string, buyerId: string): Promise<CheckoutSource> {
