@@ -152,6 +152,8 @@ export function App() {
                 >
                   GitHub <span aria-hidden="true">↗</span>
                 </a>
+              </span>
+              <span className="nav-cluster papercusp-links" role="group" aria-label="Built by Papercusp">
                 <a
                   className="papercusp-attribution"
                   href="https://papercusp.com/"
@@ -188,7 +190,6 @@ export function App() {
             </nav>
             <div className="topbar-status-group">
               <TopbarHeldItemsButton />
-              <span className="connection-pill"><span className="connection-dot" /> Ready for your next event</span>
             </div>
           </div>
         </header>
