@@ -1,0 +1,62 @@
+{
+  "irVersion": "0.1",
+  "surface": "SideStage Architecture — Authority map",
+  "ecosystem": "*",
+  "layout": {
+    "kind": "stack",
+    "direction": "vertical",
+    "children": [
+      {
+        "kind": "header",
+        "title": { "key": "architecture.authority.title", "default": "One map, four honest statuses." },
+        "slots": {
+          "description": { "kind": "text", "copy": { "key": "architecture.authority.description", "default": "Organize SideStage by authority and label each dependency as active, fallback, configured, or planned." } },
+          "status": { "kind": "badge", "label": { "key": "architecture.authority.recommended", "default": "Recommended direction" } }
+        }
+      },
+      {
+        "kind": "card",
+        "title": { "key": "architecture.authority.clients.title", "default": "Experience edge" },
+        "slots": {
+          "web": { "kind": "text", "copy": { "key": "architecture.authority.clients.web", "default": "Active — one responsive React web app serves buyer, seller, and operator roles." } },
+          "native": { "kind": "text", "copy": { "key": "architecture.authority.clients.native", "default": "Planned — native install links remain placeholders; no native client ships." } }
+        }
+      },
+      {
+        "kind": "card",
+        "title": { "key": "architecture.authority.core.title", "default": "Application core" },
+        "slots": {
+          "sync": { "kind": "text", "copy": { "key": "architecture.authority.core.sync", "default": "Active — named sync queries, REST batch snapshots, SSE invalidation, and a polling safety floor." } },
+          "domains": { "kind": "text", "copy": { "key": "architecture.authority.core.domains", "default": "Active — NestJS domain modules own event, catalog, chat, commerce, policy, actions, and operations." } },
+          "media": { "kind": "text", "copy": { "key": "architecture.authority.core.media", "default": "Active — MediaMTX, coturn, and Deepgram serve bounded media and transcription paths." } }
+        }
+      },
+      {
+        "kind": "card",
+        "title": { "key": "architecture.authority.data.title", "default": "Data authority" },
+        "slots": {
+          "postgres": { "kind": "text", "copy": { "key": "architecture.authority.data.postgres", "default": "Active authority — PostgreSQL owns durable records and ownership invariants." } },
+          "typesense": { "kind": "text", "copy": { "key": "architecture.authority.data.typesense", "default": "Active derived index — Typesense accelerates discovery with PostgreSQL fallback." } },
+          "redis": { "kind": "text", "copy": { "key": "architecture.authority.data.redis", "default": "Configured — Redis is provisioned but has no current application consumer." } },
+          "legacy": { "kind": "text", "copy": { "key": "architecture.authority.data.legacy", "default": "Compatibility — the legacy generic cart accepts client-supplied title and price." } }
+        }
+      },
+      {
+        "kind": "card",
+        "title": { "key": "architecture.authority.providers.title", "default": "Provider boundary" },
+        "slots": {
+          "stripe": { "kind": "text", "copy": { "key": "architecture.authority.providers.stripe", "default": "Stripe owns payment details and emits signed settlement events." } },
+          "easypost": { "kind": "text", "copy": { "key": "architecture.authority.providers.easypost", "default": "EasyPost returns rate quotes after server-side packing." } },
+          "deepgram": { "kind": "text", "copy": { "key": "architecture.authority.providers.deepgram", "default": "Deepgram accepts a short-lived browser grant; durable provider secrets stay server-side." } }
+        }
+      }
+    ]
+  },
+  "components": [],
+  "states": {
+    "loading": { "kind": "text", "copy": { "key": "architecture.authority.loading", "default": "Loading architecture evidence." }, "a11y": { "role": "status", "ariaLive": "polite" } },
+    "empty": { "kind": "text", "copy": { "key": "architecture.authority.empty", "default": "No architecture evidence is available." } },
+    "error": { "kind": "stack", "children": [{ "kind": "text", "copy": { "key": "architecture.authority.error", "default": "Architecture evidence could not be loaded." } }, { "kind": "button", "label": { "key": "architecture.authority.retry", "default": "Retry" }, "interactions": ["retry"], "a11y": { "role": "button" } }], "a11y": { "role": "alert" } }
+  },
+  "a11y": { "landmark": "main", "headingLevel": 1 }
+}

@@ -1,0 +1,66 @@
+{
+  "irVersion": "0.1",
+  "surface": "SideStage Architecture — Runtime lanes",
+  "ecosystem": "*",
+  "layout": {
+    "kind": "stack",
+    "direction": "vertical",
+    "children": [
+      {
+        "kind": "header",
+        "title": { "key": "architecture.lanes.title", "default": "Follow the work, not the package tree." },
+        "slots": {
+          "description": { "kind": "text", "copy": { "key": "architecture.lanes.description", "default": "Trace four live-show workflows from browser intent to authoritative state." } },
+          "status": { "kind": "badge", "label": { "key": "architecture.lanes.label", "default": "Narrative direction" } }
+        }
+      },
+      {
+        "kind": "card",
+        "title": { "key": "architecture.lanes.media.title", "default": "Live media — seller to buyer" },
+        "slots": {
+          "publish": { "kind": "text", "copy": { "key": "architecture.lanes.media.publish", "default": "Seller publishes WHIP video from responsive Studio." } },
+          "route": { "kind": "text", "copy": { "key": "architecture.lanes.media.route", "default": "MediaMTX routes media; coturn remains the fallback path." } },
+          "transcribe": { "kind": "text", "copy": { "key": "architecture.lanes.media.transcribe", "default": "Deepgram transcribes with a short-lived grant; final moments persist." } },
+          "watch": { "kind": "text", "copy": { "key": "architecture.lanes.media.watch", "default": "Buyer Watch receives WHEP video in the same responsive web app." } }
+        }
+      },
+      {
+        "kind": "card",
+        "title": { "key": "architecture.lanes.copilot.title", "default": "Copilot — question to guarded result" },
+        "slots": {
+          "question": { "kind": "text", "copy": { "key": "architecture.lanes.copilot.question", "default": "The current buyer message supplies the question." } },
+          "ground": { "kind": "text", "copy": { "key": "architecture.lanes.copilot.ground", "default": "Retriever gathers lineup, catalog, relevant transcript moments, and policy—not room history." } },
+          "guard": { "kind": "text", "copy": { "key": "architecture.lanes.copilot.guard", "default": "Policy rechecks the reply or normalized action and requires seller confirmation when configured." } },
+          "write": { "kind": "text", "copy": { "key": "architecture.lanes.copilot.write", "default": "Delivery is guarded and audited; rollback is available where supported." } }
+        }
+      },
+      {
+        "kind": "card",
+        "title": { "key": "architecture.lanes.commerce.title", "default": "Event commerce — reserve to settle" },
+        "slots": {
+          "reserve": { "kind": "text", "copy": { "key": "architecture.lanes.commerce.reserve", "default": "Cart, offer, or auction creates an idempotent reservation." } },
+          "pay": { "kind": "text", "copy": { "key": "architecture.lanes.commerce.pay", "default": "Stripe holds raw payment details and emits signed settlement events." } },
+          "settle": { "kind": "text", "copy": { "key": "architecture.lanes.commerce.settle", "default": "The server commits inventory and requests EasyPost shipping rates." } },
+          "exception": { "kind": "text", "copy": { "key": "architecture.lanes.commerce.exception", "default": "The legacy generic cart remains a client-priced compatibility path." } }
+        }
+      },
+      {
+        "kind": "card",
+        "title": { "key": "architecture.lanes.sync.title", "default": "Shared state — query to invalidation" },
+        "slots": {
+          "query": { "kind": "text", "copy": { "key": "architecture.lanes.sync.query", "default": "React requests a named query and receives a REST batch snapshot." } },
+          "write": { "kind": "text", "copy": { "key": "architecture.lanes.sync.write", "default": "Domain services write authoritative state and publish scoped invalidations." } },
+          "refresh": { "kind": "text", "copy": { "key": "architecture.lanes.sync.refresh", "default": "General sync SSE refreshes affected queries; reconnect and polling are safety floors." } },
+          "auction": { "kind": "text", "copy": { "key": "architecture.lanes.sync.auction", "default": "A direct ordered auction SSE protocol exists, but current buyer UI uses shared sync." } }
+        }
+      }
+    ]
+  },
+  "components": [],
+  "states": {
+    "loading": { "kind": "text", "copy": { "key": "architecture.lanes.loading", "default": "Loading runtime lanes." }, "a11y": { "role": "status", "ariaLive": "polite" } },
+    "empty": { "kind": "text", "copy": { "key": "architecture.lanes.empty", "default": "No runtime lanes are available." } },
+    "error": { "kind": "stack", "children": [{ "kind": "text", "copy": { "key": "architecture.lanes.error", "default": "Runtime lane evidence could not be loaded." } }, { "kind": "button", "label": { "key": "architecture.lanes.retry", "default": "Retry" }, "interactions": ["retry"], "a11y": { "role": "button" } }], "a11y": { "role": "alert" } }
+  },
+  "a11y": { "landmark": "main", "headingLevel": 1 }
+}

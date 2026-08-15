@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="SideStage trust and operations architecture concept.">
+  <title>03 · Trust + operations — SideStage architecture</title>
+  <link rel="stylesheet" href="shared.css">
+</head>
+<body>
+  <a class="skip-link" href="#controls">Skip to trust controls</a>
+  <header class="app-bar"><div class="app-bar-inner"><a class="brand" href="index.html"><span class="brand-mark" aria-hidden="true">S</span><span class="brand-copy"><strong>SideStage</strong><small>Architecture study</small></span></a><div class="bar-meta"><span class="pill">03 · Assurance</span><span class="pill">Trust + operations</span></div></div></header>
+  <main class="shell" id="controls">
+    <a class="back" href="index.html">← Compare all directions</a>
+    <header class="hero">
+      <div><p class="eyebrow">Where are the guardrails?</p><h1>Pair every promise with its enforcement.</h1><p class="lede">Six control cards make architecture claims reviewable: the owner, the boundary, the runtime mechanism, and the known exception are visible together.</p></div>
+      <aside class="truth-card"><strong>Best for assurance reviews</strong><p>This direction favors falsifiable controls over visual completeness. It shows what the system proves today and where a broad claim would be unsafe.</p></aside>
+    </header>
+
+    <div class="controls-grid">
+      <article class="control authority">
+        <div class="node-head"><h2>Identity + ownership</h2><span class="status active">Enforced</span></div>
+        <p>Buyer, seller, and event scopes are durable record properties—not presentation filters.</p>
+        <dl><div><dt>Owner</dt><dd>PostgreSQL records</dd></div><div><dt>Boundary</dt><dd>Principal and event identifiers</dd></div><div><dt>Guard</dt><dd>Composite foreign keys, immutable-owner triggers, service checks</dd></div></dl>
+      </article>
+      <article class="control authority">
+        <div class="node-head"><h2>Event commerce</h2><span class="status active">Authoritative</span></div>
+        <p>Reservations and settlement transition through source-aware server paths.</p>
+        <dl><div><dt>Owner</dt><dd>Inventory, checkout, order stores</dd></div><div><dt>Boundary</dt><dd>Cart, offer, auction source</dd></div><div><dt>Guard</dt><dd>Idempotent reservations, signed Stripe webhook, commit/release</dd></div></dl>
+      </article>
+      <article class="control compat">
+        <div class="node-head"><h2>Compatibility cart</h2><span class="status qualified">Exception</span></div>
+        <p>The generic product-only endpoint still accepts client title and price.</p>
+        <dl><div><dt>Owner</dt><dd>Legacy cart payload</dd></div><div><dt>Boundary</dt><dd>Compatibility endpoint</dd></div><div><dt>Implication</dt><dd>Do not claim all commerce input is server-authored</dd></div></dl>
+      </article>
+      <article class="control transport">
+        <div class="node-head"><h2>Guarded automation</h2><span class="status active">Guarded</span></div>
+        <p>Proposals normalize, authorize, audit, and expose rollback where supported.</p>
+        <dl><div><dt>Owner</dt><dd>Action item + audit stores</dd></div><div><dt>Boundary</dt><dd>Policy and seller confirmation</dd></div><div><dt>Limit</dt><dd>Mutation precedes audit write; swap audit lacks a secondary snapshot</dd></div></dl>
+      </article>
+      <article class="control external">
+        <div class="node-head"><h2>Provider isolation</h2><span class="status active">Bounded</span></div>
+        <p>External systems retain the sensitive primitive; SideStage records identifiers and state.</p>
+        <dl><div><dt>Stripe</dt><dd>Raw payment details and signed events</dd></div><div><dt>Deepgram</dt><dd>One-hour-capped browser grant</dd></div><div><dt>Secrets</dt><dd>Server-side production environment</dd></div></dl>
+      </article>
+      <article class="control idle">
+        <div class="node-head"><h2>Acceptance execution</h2><span class="status configured">Partial runtime</span></div>
+        <p>The durable ledger and isolated-runner contracts ship; production execution coverage is narrower.</p>
+        <dl><div><dt>Shipped</dt><dd>Runs, cases, artifacts, retries, cancellation, leases, cleanup</dd></div><div><dt>Worker</dt><dd>Actions executor only</dd></div><div><dt>Safe mode</dt><dd>Unsupported suites block instead of touching live commerce</dd></div></dl>
+      </article>
+    </div>
+
+    <section class="panel" aria-labelledby="delivery-title" style="margin-top: 2rem">
+      <div class="section-head" style="margin-top: 0"><div><p class="eyebrow">Delivery control</p><h2 id="delivery-title">A release is a chain of verified transitions</h2></div><p>The architecture page can describe the mechanism without promising zero downtime.</p></div>
+      <div class="lane-steps" style="padding: 0">
+        <article class="step"><span>01 · Source</span><h3>npm workspaces</h3><p>Apps, libraries, DB, and deploy scripts share one checked-in tree.</p></article>
+        <article class="step"><span>02 · Verify</span><h3>Typecheck + Vitest</h3><p>Workspace checks and deployment tests form the code gate.</p></article>
+        <article class="step"><span>03 · Build</span><h3>Per-SHA images</h3><p>API and web artifacts are immutable for a release.</p></article>
+        <article class="step"><span>04 · Roll out</span><h3>Compose + probes</h3><p>Public and internal health verify the served SHA.</p></article>
+        <article class="step"><span>05 · Recover</span><h3>Previous SHA</h3><p>Failed health automatically invokes the rollback path.</p></article>
+      </div>
+    </section>
+
+    <aside class="callout"><strong>Separate deployed from active.</strong><p>Redis belongs in a deployed-services inventory with “configured / no consumer,” not in a cache-authority diagram. Likewise, acceptance suites belong in the contract map, with Actions labeled as the only production executor today.</p></aside>
+    <footer class="footer">Assurance direction · six current controls · exceptions are first-class architecture</footer>
+  </main>
+</body>
+</html>

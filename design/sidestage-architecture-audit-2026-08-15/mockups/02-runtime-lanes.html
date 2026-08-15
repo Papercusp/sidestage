@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="SideStage runtime lane architecture concept.">
+  <title>02 · Runtime lanes — SideStage architecture</title>
+  <link rel="stylesheet" href="shared.css">
+</head>
+<body>
+  <a class="skip-link" href="#lanes">Skip to runtime lanes</a>
+  <header class="app-bar"><div class="app-bar-inner"><a class="brand" href="index.html"><span class="brand-mark" aria-hidden="true">S</span><span class="brand-copy"><strong>SideStage</strong><small>Architecture study</small></span></a><div class="bar-meta"><span class="pill">02 · Narrative</span><span class="pill">Runtime lanes</span></div></div></header>
+  <main class="shell" id="lanes">
+    <a class="back" href="index.html">← Compare all directions</a>
+    <header class="hero">
+      <div><p class="eyebrow">What happens during a live show?</p><h1>Follow the work, not the package tree.</h1><p class="lede">Four end-to-end lanes turn a dense architecture inventory into a readable runtime story. Protocol and storage details stay attached to the step where they matter.</p></div>
+      <aside class="truth-card"><strong>Best for onboarding</strong><p>A new engineer can trace seller media, Copilot, buyer commerce, and state refresh without learning every workspace first.</p></aside>
+    </header>
+    <div class="legend"><span class="status active">Authority write</span><span class="status qualified">Transport / derived read</span><span class="status fallback">Fallback</span><span class="status configured">Inactive edge</span></div>
+
+    <div class="lane-stack">
+      <section class="lane" aria-labelledby="media-lane">
+        <header class="lane-label"><h2 id="media-lane">Live media</h2><small>seller → buyer</small></header>
+        <div class="lane-steps">
+          <article class="step"><span>01 · Browser</span><h3>Seller publishes</h3><p>Responsive Studio sends WHIP video.</p></article>
+          <article class="step"><span>02 · Media</span><h3>MediaMTX routes</h3><p>Dedicated media host carries the stream.</p></article>
+          <article class="step"><span>03 · Speech</span><h3>Deepgram transcribes</h3><p>A short-lived browser grant opens live transcription.</p></article>
+          <article class="step"><span>04 · Record</span><h3>Final moments persist</h3><p>Transcript moments enter event-scoped stores.</p></article>
+          <article class="step"><span>05 · Browser</span><h3>Buyer receives</h3><p>Watch renders WHEP video with TURN fallback.</p></article>
+        </div>
+      </section>
+
+      <section class="lane" aria-labelledby="copilot-lane">
+        <header class="lane-label"><h2 id="copilot-lane">Copilot</h2><small>question → guarded result</small></header>
+        <div class="lane-steps">
+          <article class="step"><span>01 · Question</span><h3>Buyer message queues</h3><p>The current message is the question—not room-history grounding.</p></article>
+          <article class="step"><span>02 · Retrieve</span><h3>Evidence gathers</h3><p>Lineup, catalog, transcript moments, and policy.</p></article>
+          <article class="step"><span>03 · Propose</span><h3>Pipeline drafts</h3><p>Reply or normalized action with cited facts.</p></article>
+          <article class="step"><span>04 · Guard</span><h3>Policy rechecks</h3><p>Seller approval is required when policy says so.</p></article>
+          <article class="step"><span>05 · Write</span><h3>Deliver or execute</h3><p>Actions are guarded, audited, and rollback-capable.</p></article>
+        </div>
+      </section>
+
+      <section class="lane" aria-labelledby="commerce-lane">
+        <header class="lane-label"><h2 id="commerce-lane">Event commerce</h2><small>reserve → settle</small></header>
+        <div class="lane-steps">
+          <article class="step"><span>01 · Inventory</span><h3>Reserve source</h3><p>Cart, offer, or auction creates an idempotent hold.</p></article>
+          <article class="step"><span>02 · Checkout</span><h3>Snapshot terms</h3><p>Server records source quantity, price, and buyer.</p></article>
+          <article class="step"><span>03 · Provider</span><h3>Stripe confirms</h3><p>Payment Element keeps raw details with Stripe.</p></article>
+          <article class="step"><span>04 · Webhook</span><h3>Order settles</h3><p>Signed provider events authoritatively transition state.</p></article>
+          <article class="step"><span>05 · Fulfill</span><h3>Commit + quote</h3><p>Inventory commits; EasyPost returns shipping rates.</p></article>
+        </div>
+      </section>
+
+      <section class="lane" aria-labelledby="sync-lane">
+        <header class="lane-label"><h2 id="sync-lane">Shared state</h2><small>query → invalidate</small></header>
+        <div class="lane-steps">
+          <article class="step"><span>01 · React</span><h3>Name the query</h3><p>Surfaces request an authority-scoped snapshot.</p></article>
+          <article class="step"><span>02 · REST</span><h3>Batch initial reads</h3><p>Index-aligned responses hydrate the client cache.</p></article>
+          <article class="step"><span>03 · Service</span><h3>Domain writes</h3><p>Nest modules update authoritative stores.</p></article>
+          <article class="step"><span>04 · SSE</span><h3>Invalidate scope</h3><p>General sync SSE names the affected query.</p></article>
+          <article class="step"><span>05 · React</span><h3>Refresh snapshot</h3><p>Reconnect and polling remain safety floors.</p></article>
+        </div>
+      </section>
+    </div>
+
+    <aside class="callout"><strong>Do not draw the dedicated auction stream as the current UI lane.</strong><p>The endpoint and ordered IDs exist, but current buyer surfaces read <code>event.auction.active</code> through shared sync. Show direct auction SSE only as an available protocol branch.</p></aside>
+    <footer class="footer">Narrative direction · four runtime lanes · horizontal steps scroll on compact viewports</footer>
+  </main>
+</body>
+</html>

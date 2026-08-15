@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="SideStage authority map architecture concept.">
+  <title>01 · Authority map — SideStage architecture</title>
+  <link rel="stylesheet" href="shared.css">
+</head>
+<body>
+  <a class="skip-link" href="#map">Skip to authority map</a>
+  <header class="app-bar">
+    <div class="app-bar-inner">
+      <a class="brand" href="index.html"><span class="brand-mark" aria-hidden="true">S</span><span class="brand-copy"><strong>SideStage</strong><small>Architecture study</small></span></a>
+      <div class="bar-meta"><span class="pill">01 · Recommended</span><span class="pill">Authority map</span></div>
+    </div>
+  </header>
+  <main class="shell" id="map">
+    <a class="back" href="index.html">← Compare all directions</a>
+    <header class="hero">
+      <div><p class="eyebrow">What owns state?</p><h1>One map, four honest statuses.</h1><p class="lede">Organize SideStage by authority and label every dependency by its current runtime role. The page stops looking like a component inventory and starts answering where truth lives.</p></div>
+      <aside class="truth-card"><strong>Why this wins</strong><p>It preserves the complete system model while preventing configured infrastructure and available protocols from masquerading as active application paths.</p></aside>
+    </header>
+    <div class="legend" aria-label="Runtime status key"><span class="status active">Active runtime</span><span class="status fallback">Fallback</span><span class="status configured">Configured / idle</span><span class="status planned">Planned</span></div>
+
+    <section aria-labelledby="clients-title">
+      <div class="section-head"><div><p class="eyebrow">01 · Experience edge</p><h2 id="clients-title">One responsive client, role-specific views</h2></div><p>Buyer, seller, and operator experiences all ship inside the React web workspace.</p></div>
+      <div class="map-grid">
+        <article class="node authority wide"><div class="node-head"><h3>Responsive React web</h3><span class="status active">Active</span></div><p>Watch, Orders, Studio, History, and Tests share one routed SPA and reusable packages.</p><div class="tech"><span>React 19</span><span>Vite 7</span><span>apps/web</span></div></article>
+        <article class="node idle wide"><div class="node-head"><h3>Native install artifacts</h3><span class="status planned">Planned</span></div><p>Current .ipa and .apk links are placeholders. No native client ships in this repository.</p><div class="tech"><span>stub links</span><span>non-goal today</span></div></article>
+      </div>
+    </section>
+
+    <div class="flow-arrow" aria-hidden="true"></div>
+    <section class="panel" aria-labelledby="core-title">
+      <div class="section-head" style="margin-top: 0"><div><p class="eyebrow">02 · Application core</p><h2 id="core-title">The modular API owns event behavior</h2></div><p>Named sync queries are the primary state seam. Domain services publish scoped invalidations after authoritative writes.</p></div>
+      <div class="map-grid">
+        <article class="node transport"><div class="node-head"><h3>Sync transport</h3><span class="status active">Active</span></div><p>REST batch snapshots, resilient SSE invalidation, and polling safety floor.</p><div class="tech"><span>named queries</span><span>/sync</span></div></article>
+        <article class="node authority"><div class="node-head"><h3>Domain modules</h3><span class="status active">Active</span></div><p>Event, catalog, chat, auctions, cart, checkout, orders, policy, actions, and operations.</p><div class="tech"><span>NestJS 11</span><span>apps/api</span></div></article>
+        <article class="node transport"><div class="node-head"><h3>Live media</h3><span class="status active">Active</span></div><p>WHIP publishing, WHEP playback, Deepgram transcription, direct ICE, and TURN fallback.</p><div class="tech"><span>MediaMTX</span><span>coturn</span></div></article>
+      </div>
+    </section>
+
+    <div class="flow-arrow" aria-hidden="true"></div>
+    <section aria-labelledby="authority-title">
+      <div class="section-head"><div><p class="eyebrow">03 · Data authority</p><h2 id="authority-title">Postgres owns records; indexes and streams accelerate access</h2></div><p>Derived systems never become the owner merely because they make a path faster.</p></div>
+      <div class="map-grid">
+        <article class="node authority wide"><div class="node-head"><h3>PostgreSQL system of record</h3><span class="status active">Active</span></div><p>Events, inventory, reservations, chat, orders, policies, guarded-action audits, and system-test ledgers.</p><div class="tech"><span>repeatable schema</span><span>ownership triggers</span></div></article>
+        <article class="node external wide"><div class="node-head"><h3>Typesense discovery index</h3><span class="status active">Active</span></div><p>Accelerates catalog discovery. Postgres full-text and trigram search remain the fallback.</p><div class="tech"><span>derived index</span><span>Postgres fallback</span></div></article>
+        <article class="node idle"><div class="node-head"><h3>Redis service</h3><span class="status configured">Configured</span></div><p>Production Compose provisions it, but the application has no client or runtime consumer.</p></article>
+        <article class="node authority"><div class="node-head"><h3>Event commerce</h3><span class="status active">Active</span></div><p>Reservations, auctions, checkout, payment settlement, and inventory transitions are authoritative.</p></article>
+        <article class="node compat"><div class="node-head"><h3>Legacy generic cart</h3><span class="status qualified">Compatibility</span></div><p>The product-only endpoint accepts client-supplied title and price. Keep this exception visible.</p></article>
+      </div>
+    </section>
+
+    <div class="flow-arrow" aria-hidden="true"></div>
+    <section class="panel" aria-labelledby="providers-title">
+      <div class="section-head" style="margin-top: 0"><div><p class="eyebrow">04 · Provider boundary</p><h2 id="providers-title">External providers do one bounded job each</h2></div><p>SideStage holds provider identifiers and state transitions—not raw payment details or durable provider secrets in the browser.</p></div>
+      <div class="map-grid">
+        <article class="node external"><div class="node-head"><h3>Stripe</h3><span class="status active">Active</span></div><p>Payment details and signed settlement events.</p></article>
+        <article class="node external"><div class="node-head"><h3>EasyPost</h3><span class="status active">Active</span></div><p>Shipment-rate quotes after server box packing.</p></article>
+        <article class="node external"><div class="node-head"><h3>Deepgram + model</h3><span class="status active">Active</span></div><p>Short-lived transcription token and optional model-backed Copilot.</p></article>
+      </div>
+    </section>
+
+    <aside class="callout"><strong>Language discipline</strong><p>Use “active,” “fallback,” “configured,” and “planned” as real runtime claims. Avoid “always” unless every compatibility path satisfies it.</p></aside>
+    <footer class="footer">Recommended direction · five zones · static design artifact · full evidence in ../audit.md</footer>
+  </main>
+</body>
+</html>

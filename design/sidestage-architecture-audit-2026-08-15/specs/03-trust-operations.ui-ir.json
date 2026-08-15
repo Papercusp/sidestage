@@ -1,0 +1,70 @@
+{
+  "irVersion": "0.1",
+  "surface": "SideStage Architecture — Trust and operations",
+  "ecosystem": "*",
+  "layout": {
+    "kind": "stack",
+    "direction": "vertical",
+    "children": [
+      {
+        "kind": "header",
+        "title": { "key": "architecture.trust.title", "default": "Pair every promise with its enforcement." },
+        "slots": {
+          "description": { "kind": "text", "copy": { "key": "architecture.trust.description", "default": "Show each owner, boundary, guard, and known exception together." } },
+          "status": { "kind": "badge", "label": { "key": "architecture.trust.label", "default": "Assurance direction" } }
+        }
+      },
+      {
+        "kind": "card",
+        "title": { "key": "architecture.trust.identity.title", "default": "Identity and ownership" },
+        "slots": {
+          "owner": { "kind": "text", "copy": { "key": "architecture.trust.identity.owner", "default": "Owner — PostgreSQL records scoped by principal and event identifiers." } },
+          "guard": { "kind": "text", "copy": { "key": "architecture.trust.identity.guard", "default": "Guard — composite foreign keys, immutable-owner triggers, and service checks." } }
+        }
+      },
+      {
+        "kind": "card",
+        "title": { "key": "architecture.trust.commerce.title", "default": "Event commerce" },
+        "slots": {
+          "owner": { "kind": "text", "copy": { "key": "architecture.trust.commerce.owner", "default": "Owner — inventory, checkout, and order stores." } },
+          "guard": { "kind": "text", "copy": { "key": "architecture.trust.commerce.guard", "default": "Guard — source-idempotent reservations, signed Stripe events, and commit or release transitions." } },
+          "exception": { "kind": "text", "copy": { "key": "architecture.trust.commerce.exception", "default": "Exception — the legacy generic cart accepts client title and price." } }
+        }
+      },
+      {
+        "kind": "card",
+        "title": { "key": "architecture.trust.automation.title", "default": "Guarded automation" },
+        "slots": {
+          "owner": { "kind": "text", "copy": { "key": "architecture.trust.automation.owner", "default": "Owner — action-item and audit stores." } },
+          "guard": { "kind": "text", "copy": { "key": "architecture.trust.automation.guard", "default": "Guard — normalization, policy authorization, seller confirmation when required, audit, and rollback endpoints." } },
+          "limit": { "kind": "text", "copy": { "key": "architecture.trust.automation.limit", "default": "Limit — mutation precedes audit write and a swap audit omits the secondary-item snapshot." } }
+        }
+      },
+      {
+        "kind": "card",
+        "title": { "key": "architecture.trust.acceptance.title", "default": "Acceptance execution" },
+        "slots": {
+          "substrate": { "kind": "text", "copy": { "key": "architecture.trust.acceptance.substrate", "default": "Shipped — durable runs, cases, artifacts, retries, cancellation, leases, retention, and cleanup." } },
+          "worker": { "kind": "text", "copy": { "key": "architecture.trust.acceptance.worker", "default": "Partial runtime — the deployed worker installs only the Actions executor." } },
+          "safe": { "kind": "text", "copy": { "key": "architecture.trust.acceptance.safe", "default": "Safe failure — unsupported suites block instead of touching live commerce." } }
+        }
+      },
+      {
+        "kind": "card",
+        "title": { "key": "architecture.trust.delivery.title", "default": "Verified delivery" },
+        "slots": {
+          "verify": { "kind": "text", "copy": { "key": "architecture.trust.delivery.verify", "default": "Typecheck and Vitest verify the workspace before release." } },
+          "build": { "kind": "text", "copy": { "key": "architecture.trust.delivery.build", "default": "Per-SHA API and web images provide immutable release artifacts." } },
+          "rollout": { "kind": "text", "copy": { "key": "architecture.trust.delivery.rollout", "default": "Compose rollout probes public and internal health and can restore the previous SHA." } }
+        }
+      }
+    ]
+  },
+  "components": [],
+  "states": {
+    "loading": { "kind": "text", "copy": { "key": "architecture.trust.loading", "default": "Loading assurance controls." }, "a11y": { "role": "status", "ariaLive": "polite" } },
+    "empty": { "kind": "text", "copy": { "key": "architecture.trust.empty", "default": "No assurance controls are available." } },
+    "error": { "kind": "stack", "children": [{ "kind": "text", "copy": { "key": "architecture.trust.error", "default": "Assurance evidence could not be loaded." } }, { "kind": "button", "label": { "key": "architecture.trust.retry", "default": "Retry" }, "interactions": ["retry"], "a11y": { "role": "button" } }], "a11y": { "role": "alert" } }
+  },
+  "a11y": { "landmark": "main", "headingLevel": 1 }
+}
