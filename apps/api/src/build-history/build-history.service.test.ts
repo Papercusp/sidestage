@@ -10,16 +10,17 @@ describe('BuildHistoryService', () => {
 
     const history = loadBuildHistorySnapshot();
     const popupPlan = history.find(({ slug }) => slug === 'sidestage-history-plan-popup-2026-08-14');
+    const acceptancePlan = history.find(({ slug }) => slug === 'acceptance-sidestage-demo-product-imagery-2026-08-14');
 
     expect(history.length).toBeGreaterThan(0);
-    expect(history.every(({ slug }) => slug.startsWith('sidestage-'))).toBe(true);
+    expect(acceptancePlan).toBeDefined();
     expect(popupPlan).toMatchObject({
       title: 'SideStage History tab and full Vditor plan popup',
       snapshot: {
         kind: 'papercusp-plan-export',
         workspace: 'papercusp-workspace',
         harness: 'sidestage',
-        planPrefix: 'sidestage-',
+        planPrefix: null,
         planCount: history.length,
         generator: 'scripts/generate-build-history-snapshot.mjs',
       },

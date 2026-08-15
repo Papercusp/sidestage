@@ -17,7 +17,10 @@ function option(name, fallback) {
 
 const workspace = option('workspace', process.env.PAPERCUSP_WORKSPACE ?? 'papercusp-workspace');
 const harness = option('harness', 'sidestage');
-const planPrefix = option('prefix', 'sidestage-');
+const configuredPlanPrefix = option('prefix', null);
+const planPrefix = typeof configuredPlanPrefix === 'string' && configuredPlanPrefix.length > 0
+  ? configuredPlanPrefix
+  : null;
 const output = resolve(option(
   'output',
   join(repoRoot, 'apps/api/src/build-history/build-history.snapshot.ts'),
@@ -164,7 +167,10 @@ try {
     compact: true,
     limit: 500,
     order: 'updated',
-  })).filter((plan) => typeof plan.slug === 'string' && plan.slug.startsWith(planPrefix));
+  })).filter((plan) => (
+    typeof plan.slug === 'string'
+    && (planPrefix === null || plan.slug.startsWith(planPrefix))
+  ));
   runPtool('plans:export', { harness, toDir: exportDirectory });
 
   const plans = listed.map((listedPlan) => {
@@ -188,7 +194,7 @@ try {
   });
   const generatedAt = new Date().toISOString();
   const snapshot = {
-    schemaVersion: 1,
+    schemaVersion: 2,
     source: {
       kind: 'papercusp-plan-export',
       workspace,

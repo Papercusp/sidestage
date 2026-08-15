@@ -38,7 +38,7 @@ export interface BuildHistorySnapshotSource {
   kind: 'papercusp-plan-export';
   workspace: string;
   harness: string;
-  planPrefix: string;
+  planPrefix: string | null;
   generatedAt: string;
   planCount: number;
   generator: string;
