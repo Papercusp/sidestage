@@ -31,15 +31,15 @@ const item: ActionEventItem = {
   attributes: { color: 'blue' },
 };
 
-function service(): GuardedActionService {
+async function service(): Promise<GuardedActionService> {
   const actions = new GuardedActionService();
-  actions.registerEvent('event-1', { policy, items: [item] });
+  await actions.registerEvent('event-1', { policy, items: [item] });
   return actions;
 }
 
 describe('GuardedActionService', () => {
   it('registers the seller lineup as the event.actions.items named query', async () => {
-    const actions = service();
+    const actions = await service();
     const queries = new SyncQueryRegistry();
     const ownership = new EventOwnershipGuard(new EventService(
       new InMemoryEventStore([{
@@ -74,7 +74,7 @@ describe('GuardedActionService', () => {
     const published: SyncInvalidation[] = [];
     const subscription = invalidations.events().subscribe((event) => published.push(event));
     const actions = new GuardedActionService(null, invalidations);
-    actions.registerEvent('event-1', { policy, items: [item] });
+    await actions.registerEvent('event-1', { policy, items: [item] });
     const applied = await actions.apply({
       eventId: 'event-1',
       actorId: 'seller-1',
@@ -95,7 +95,7 @@ describe('GuardedActionService', () => {
   });
 
   it('applies a markdown, records before/after state, and rolls it back', async () => {
-    const actions = service();
+    const actions = await service();
     const applied = await actions.apply({
       eventId: 'event-1',
       actorId: 'seller-1',
@@ -116,7 +116,7 @@ describe('GuardedActionService', () => {
   });
 
   it('returns one audited result for concurrent retries with the same client request id', async () => {
-    const actions = service();
+    const actions = await service();
     const input = {
       eventId: 'event-1',
       actorId: 'seller-1',
@@ -136,11 +136,11 @@ describe('GuardedActionService', () => {
     expect(retry).toEqual(first);
     expect(actions.listAudit('event-1')).toHaveLength(1);
     expect(actions.listOffersForBuyer('buyer-9')).toHaveLength(1);
-    expect(actions.listItems('event-1')[0]?.availableQty).toBe(4);
+    expect((await actions.listItems('event-1'))[0]?.availableQty).toBe(4);
   });
 
   it('adjusts price and quantity in one audited write while respecting availability', async () => {
-    const actions = service();
+    const actions = await service();
     const result = await actions.apply({
       eventId: 'event-1',
       actorId: 'seller-1',
@@ -157,7 +157,7 @@ describe('GuardedActionService', () => {
   });
 
   it('creates a targeted offer, reserves its quantity, and restores it on rollback', async () => {
-    const actions = service();
+    const actions = await service();
     const result = await actions.apply({
       eventId: 'event-1',
       actorId: 'seller-1',
@@ -180,7 +180,7 @@ describe('GuardedActionService', () => {
   it('accepts one buyer-owned offer into one canonical order and releases it idempotently on cancellation', async () => {
     const orders = new InMemoryOrderStore();
     const actions = new GuardedActionService(null, undefined, orders);
-    actions.registerEvent('event-1', { policy, items: [item] });
+    await actions.registerEvent('event-1', { policy, items: [item] });
     const created = await actions.apply({
       eventId: 'event-1',
       actorId: 'seller-1',
@@ -202,7 +202,7 @@ describe('GuardedActionService', () => {
 
     await actions.cancelOffer(first.id, 'buyer-9');
     await actions.cancelOffer(first.id, 'buyer-9');
-    expect(actions.listItems('event-1')[0]?.availableQty).toBe(5);
+    expect((await actions.listItems('event-1'))[0]?.availableQty).toBe(5);
     expect(actions.findOffer(first.id)?.status).toBe('cancelled');
   });
 
@@ -211,7 +211,7 @@ describe('GuardedActionService', () => {
     const published: SyncInvalidation[] = [];
     const subscription = invalidations.events().subscribe((event) => published.push(event));
     const actions = new GuardedActionService(null, invalidations);
-    actions.registerEvent('event-1', { policy, items: [item] });
+    await actions.registerEvent('event-1', { policy, items: [item] });
 
     const result = await actions.apply({
       eventId: 'event-1',
@@ -228,18 +228,18 @@ describe('GuardedActionService', () => {
   });
 
   it('blocks below-floor writes before mutating state or creating an audit', async () => {
-    const actions = service();
+    const actions = await service();
     await expect(actions.apply({
       eventId: 'event-1',
       actorId: 'seller-1',
       action: { kind: 'markdown', productId: 'mug', priceCents: 900, reason: 'Unsafe discount' },
     })).rejects.toThrow('floor');
-    expect(actions.listItems('event-1')[0].priceCents).toBe(1_500);
+    expect((await actions.listItems('event-1'))[0]?.priceCents).toBe(1_500);
     expect(actions.listAudit('event-1')).toEqual([]);
   });
 
   it('rejects rollback after a newer write changes the same item', async () => {
-    const actions = service();
+    const actions = await service();
     const first = await actions.apply({
       eventId: 'event-1',
       actorId: 'seller-1',
@@ -255,7 +255,7 @@ describe('GuardedActionService', () => {
 
   it('pushes an item on stage and swap moves the stage to another verified item', async () => {
     const actions = new GuardedActionService();
-    actions.registerEvent('event-1', {
+    await actions.registerEvent('event-1', {
       policy,
       items: [item, { ...item, eventItemId: 'event-1:cup', productId: 'cup', title: 'Aurora cup' }],
     });
@@ -273,7 +273,7 @@ describe('GuardedActionService', () => {
       action: { kind: 'swap', productId: 'mug', swapToProductId: 'cup', reason: 'Cup up next' },
     });
     expect(swapped.state.onStage).toBe(false);
-    const items = actions.listItems('event-1');
+    const items = await actions.listItems('event-1');
     expect(items.find((entry) => entry.productId === 'cup')?.onStage).toBe(true);
     expect(items.find((entry) => entry.productId === 'mug')?.onStage).toBe(false);
 
@@ -285,7 +285,7 @@ describe('GuardedActionService', () => {
   });
 
   it('stock-adjust sets the listed quantity within verified availability and price stays untouched', async () => {
-    const actions = service();
+    const actions = await service();
     const adjusted = await actions.apply({
       eventId: 'event-1',
       actorId: 'seller-1',
@@ -329,7 +329,7 @@ describe('config-authoritative policy resolution (WI-38673)', () => {
     });
     // The register caller brings a permissive policy: 1-cent floor, no cap.
     // Before WI-38673 this policy governed — an HTTP caller could bring its own.
-    actions.registerEvent('event-1', {
+    await actions.registerEvent('event-1', {
       policy: { ...policy, priceFloorCentsByProduct: { mug: 1 }, maxMarkdownPercent: 100 },
       items: [item],
     });
@@ -366,7 +366,7 @@ describe('config-authoritative policy resolution (WI-38673)', () => {
         return withDerivedPriceFloors(derivedPolicy, items);
       },
     });
-    actions.registerEvent('event-1', {
+    await actions.registerEvent('event-1', {
       policy: derivedPolicy,
       items: [{ ...item, priceCents: 10_000 }],
     });
@@ -382,7 +382,7 @@ describe('config-authoritative policy resolution (WI-38673)', () => {
       action: { kind: 'markdown', productId: 'mug', priceCents: 5_625, reason: 'Second 25% markdown' },
     })).rejects.toThrow('floor');
 
-    expect(actions.listItems('event-1')[0]).toMatchObject({
+    expect((await actions.listItems('event-1'))[0]).toMatchObject({
       referencePriceCents: 10_000,
       priceCents: 7_500,
     });
@@ -391,7 +391,7 @@ describe('config-authoritative policy resolution (WI-38673)', () => {
 
   it('falls back to the registered policy when no resolver is wired (rehearsal path)', async () => {
     const actions = new GuardedActionService();
-    actions.registerEvent('event-1', { policy, items: [item] });
+    await actions.registerEvent('event-1', { policy, items: [item] });
     const applied = await actions.apply({
       eventId: 'event-1',
       actorId: 'seller-1',
