@@ -54,15 +54,47 @@ describe('BuyerTab product preview', () => {
     const markup = render(PRODUCTS);
 
     expect(BUYER_PRODUCT_PREVIEW_LIMIT).toBe(3);
+    expect(markup).toContain('id="buyer-drop-runway-title">The drop runway');
+    expect(markup).toContain('role="progressbar"');
+    expect(markup).toContain('aria-label="Drop progress"');
+    expect(markup).toContain('aria-valuemax="5"');
+    expect(markup).toContain('aria-valuenow="1"');
+    expect(markup).toContain('Item 1 of 5 live now');
     expect(markup).toContain(`data-current-product-id="${PRODUCTS[0].id}"`);
     expect(markup).toContain(`Hold ${PRODUCTS[0].title} · $20.00`);
     expect(markup).not.toContain(`data-product-id="${PRODUCTS[0].id}"`);
-    for (const product of PRODUCTS.slice(1, BUYER_PRODUCT_PREVIEW_LIMIT + 1)) {
+    for (const [index, product] of PRODUCTS.slice(1, BUYER_PRODUCT_PREVIEW_LIMIT + 1).entries()) {
       expect(markup).toContain(`data-product-id="${product.id}"`);
+      expect(markup).toContain(`data-sequence-number="${index + 2}"`);
     }
+    expect(markup).toContain('aria-label="Up next, item 2 of 5"');
+    expect(markup).toContain('aria-label="After that, item 3 of 5"');
     for (const product of PRODUCTS.slice(BUYER_PRODUCT_PREVIEW_LIMIT + 1)) {
       expect(markup).not.toContain(`data-product-id="${product.id}"`);
     }
+  });
+
+  it('starts the runway after the actual live item when earlier products are sold out', () => {
+    const shiftedProducts = PRODUCTS.map((product, index) => (
+      index === 0 ? { ...product, availableQty: 0 } : product
+    ));
+    const markup = render(shiftedProducts);
+
+    expect(markup).toContain(`data-current-product-id="${PRODUCTS[1].id}"`);
+    expect(markup).toContain('Item 2 of 5 live now');
+    expect(markup).toContain('aria-valuenow="2"');
+    expect(markup).not.toContain(`data-product-id="${PRODUCTS[0].id}"`);
+    expect(markup).not.toContain(`data-product-id="${PRODUCTS[1].id}"`);
+    expect(markup).toContain(`data-product-id="${PRODUCTS[2].id}"`);
+    expect(markup).toContain('aria-label="Up next, item 3 of 5"');
+  });
+
+  it('renders an honest unpublished-lineup state without a fake progress value', () => {
+    const markup = render([]);
+
+    expect(markup).toContain('The lineup is waiting to be published');
+    expect(markup).toContain('The drop lineup is not published yet.');
+    expect(markup).not.toContain('role="progressbar"');
   });
 
   it('offers the complete catalog in one accessible action', () => {
@@ -103,6 +135,8 @@ describe('BuyerTab product preview', () => {
     expect(buyerCss).toMatch(/\.buyer-mode-switch button\s*\{[^}]*min-height:\s*2\.75rem/s);
     expect(buyerCss).toContain(".buyer-lower-grid[data-buyer-mode='chat'] .buyer-shop-panel");
     expect(buyerCss).not.toContain(".buyer-lower-grid[data-buyer-mode='shop'] .buyer-chat-card");
+    expect(buyerCss).toMatch(/\.buyer-drop-runway\s*\{[^}]*overflow:\s*hidden;/s);
+    expect(buyerCss).toMatch(/\.buyer-runway-footer\s*\{[^}]*flex-direction:\s*column;/s);
   });
 
   it('prevents buyer surfaces from widening the site column beside the mobile guide', () => {

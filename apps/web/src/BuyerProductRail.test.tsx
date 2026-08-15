@@ -29,12 +29,19 @@ describe("BuyerProductRail", () => {
       <BuyerProductRail
         products={PRODUCTS}
         selectedProductId="espresso-new"
+        sequenceByProductId={{ "espresso-new": 2, "espresso-sold": 3 }}
+        currentSequenceNumber={1}
+        totalProducts={3}
         onHold={() => undefined}
       />,
     );
 
-    expect(markup).toContain('aria-label="Coming up"');
+    expect(markup).toContain('aria-label="Upcoming products in sale order"');
     expect(markup).toContain('data-product-id="espresso-new"');
+    expect(markup).toContain('data-sequence-number="2"');
+    expect(markup).toContain('data-sequence-number="3"');
+    expect(markup).toContain('aria-label="Up next, item 2 of 3"');
+    expect(markup).toContain('aria-label="After that, item 3 of 3"');
     expect(markup).toContain("Barista Pro Espresso Machine");
     expect(markup).toContain("$499.99");
     expect(markup).toContain("12 available");
@@ -48,7 +55,39 @@ describe("BuyerProductRail", () => {
     const markup = renderToStaticMarkup(
       <BuyerProductRail products={[]} onHold={() => undefined} />,
     );
-    expect(markup).toContain("No products are on stage yet.");
+    expect(markup).toContain('role="status"');
+    expect(markup).toContain("The drop lineup is not published yet.");
+  });
+
+  it("distinguishes the end of a published drop from an unpublished lineup", () => {
+    const markup = renderToStaticMarkup(
+      <BuyerProductRail
+        products={[]}
+        currentSequenceNumber={1}
+        totalProducts={1}
+        onHold={() => undefined}
+      />,
+    );
+
+    expect(markup).toContain("That’s the end of this drop.");
+  });
+
+  it("labels current and already-shown products when the complete order is open", () => {
+    const markup = renderToStaticMarkup(
+      <BuyerProductRail
+        products={PRODUCTS}
+        sequenceByProductId={{ "espresso-new": 1, "espresso-sold": 2 }}
+        currentSequenceNumber={2}
+        totalProducts={2}
+        ariaLabel="Products in sale order"
+        onHold={() => undefined}
+      />,
+    );
+
+    expect(markup).toContain('aria-label="Products in sale order"');
+    expect(markup).toContain('aria-label="Already shown, item 1 of 2"');
+    expect(markup).toContain('aria-label="Live now, item 2 of 2"');
+    expect(markup).toContain('aria-current="step"');
   });
 
   it("keeps a selected held item reopenable when no unreserved stock remains", () => {
