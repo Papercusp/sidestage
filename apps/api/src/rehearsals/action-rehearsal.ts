@@ -49,7 +49,7 @@ interface ScriptedEvent {
 }
 
 /** A fresh real service + a scripted event, so cases cannot contaminate each other. */
-function scriptedEvent(): ScriptedEvent {
+async function scriptedEvent(): Promise<ScriptedEvent> {
   const actions = new GuardedActionService();
   const eventId = `rehearsal-actions-${++eventSequence}`;
   const item: ActionEventItem = {
@@ -62,12 +62,12 @@ function scriptedEvent(): ScriptedEvent {
     quantity: 12,
     attributes: { material: 'stoneware', finish: 'blue frost' },
   };
-  actions.registerEvent(eventId, { policy: ACTION_REHEARSAL_POLICY, items: [item] });
+  await actions.registerEvent(eventId, { policy: ACTION_REHEARSAL_POLICY, items: [item] });
   return { actions, eventId, item };
 }
 
-function priceOf(actions: GuardedActionService, eventId: string): number {
-  const [item] = actions.listItems(eventId);
+async function priceOf(actions: GuardedActionService, eventId: string): Promise<number> {
+  const [item] = await actions.listItems(eventId);
   return item?.priceCents ?? -1;
 }
 
@@ -84,13 +84,13 @@ export async function runActionRehearsal(options: { now?: () => number } = {}): 
       expectation: `Marking the cup down to ${centsToDollars(2_400)} is inside the ${MAX_MARKDOWN_PERCENT}% limit and above the ${centsToDollars(FLOOR_CENTS)} floor, so it should go through.`,
     },
     async () => {
-      const { actions, eventId } = scriptedEvent();
+      const { actions, eventId } = await scriptedEvent();
       const result = await actions.apply({
         eventId,
         actorId: 'rehearsal-seller',
         action: { kind: 'markdown', productId: REHEARSAL_PRODUCT, priceCents: 2_400, reason: 'Rehearsal markdown' },
       });
-      return { result, priceAfter: priceOf(actions, eventId) };
+      return { result, priceAfter: await priceOf(actions, eventId) };
     },
     ({ result, priceAfter }) => ({
       passed: result.status === 'executed' && priceAfter === 2_400,
@@ -109,7 +109,7 @@ export async function runActionRehearsal(options: { now?: () => number } = {}): 
       expectation: `${centsToDollars(2_000)} is a 28.6% cut, past this event's ${MAX_MARKDOWN_PERCENT}% limit, so it must be refused.`,
     },
     async () => {
-      const { actions, eventId } = scriptedEvent();
+      const { actions, eventId } = await scriptedEvent();
       return actions.apply({
         eventId,
         actorId: 'rehearsal-copilot',
@@ -126,7 +126,7 @@ export async function runActionRehearsal(options: { now?: () => number } = {}): 
       expectation: `${centsToDollars(1_500)} is below the ${centsToDollars(FLOOR_CENTS)} floor configured for this product, so it must be refused.`,
     },
     async () => {
-      const { actions, eventId } = scriptedEvent();
+      const { actions, eventId } = await scriptedEvent();
       return actions.apply({
         eventId,
         actorId: 'rehearsal-copilot',
@@ -143,7 +143,7 @@ export async function runActionRehearsal(options: { now?: () => number } = {}): 
       expectation: 'Stock edits are switched off in this event policy, so a stock adjustment must be refused even when it is otherwise valid.',
     },
     async () => {
-      const { actions, eventId } = scriptedEvent();
+      const { actions, eventId } = await scriptedEvent();
       return actions.apply({
         eventId,
         actorId: 'rehearsal-copilot',
@@ -160,7 +160,7 @@ export async function runActionRehearsal(options: { now?: () => number } = {}): 
       expectation: 'The copilot must not be able to price a product that is not a verified item in this event.',
     },
     async () => {
-      const { actions, eventId } = scriptedEvent();
+      const { actions, eventId } = await scriptedEvent();
       return actions.apply({
         eventId,
         actorId: 'rehearsal-copilot',
@@ -176,7 +176,7 @@ export async function runActionRehearsal(options: { now?: () => number } = {}): 
       expectation: 'Putting an item on stage moves no money, so a push carrying a price must be refused rather than quietly applied.',
     },
     async () => {
-      const { actions, eventId } = scriptedEvent();
+      const { actions, eventId } = await scriptedEvent();
       return actions.apply({
         eventId,
         actorId: 'rehearsal-copilot',
@@ -193,7 +193,7 @@ export async function runActionRehearsal(options: { now?: () => number } = {}): 
       expectation: 'Only 12 units are verified for this event, so an offer of 99 must be refused instead of overselling.',
     },
     async () => {
-      const { actions, eventId } = scriptedEvent();
+      const { actions, eventId } = await scriptedEvent();
       return actions.apply({
         eventId,
         actorId: 'rehearsal-copilot',
@@ -217,7 +217,7 @@ export async function runActionRehearsal(options: { now?: () => number } = {}): 
       expectation: 'A targeted offer must name the buyer who receives it, so an unaddressed offer must be refused.',
     },
     async () => {
-      const { actions, eventId } = scriptedEvent();
+      const { actions, eventId } = await scriptedEvent();
       return actions.apply({
         eventId,
         actorId: 'rehearsal-copilot',
@@ -235,7 +235,7 @@ export async function runActionRehearsal(options: { now?: () => number } = {}): 
       expectation: 'An applied markdown must record who did it, why, and the exact before/after state — otherwise it cannot be reviewed or undone.',
     },
     async () => {
-      const { actions, eventId } = scriptedEvent();
+      const { actions, eventId } = await scriptedEvent();
       await actions.apply({
         eventId,
         actorId: 'rehearsal-seller',
@@ -268,15 +268,15 @@ export async function runActionRehearsal(options: { now?: () => number } = {}): 
       expectation: 'Rolling back an applied markdown must put the price back exactly where it was, and record the rollback itself.',
     },
     async () => {
-      const { actions, eventId } = scriptedEvent();
+      const { actions, eventId } = await scriptedEvent();
       const applied = await actions.apply({
         eventId,
         actorId: 'rehearsal-seller',
         action: { kind: 'markdown', productId: REHEARSAL_PRODUCT, priceCents: 2_400, reason: 'Markdown to undo' },
       });
-      const priceAfterApply = priceOf(actions, eventId);
+      const priceAfterApply = await priceOf(actions, eventId);
       await actions.rollback(applied.auditId, 'rehearsal-seller', 'Changed my mind');
-      const priceAfterRollback = priceOf(actions, eventId);
+      const priceAfterRollback = await priceOf(actions, eventId);
       const rollbackRecorded = actions.listAudit(eventId).some((entry) => entry.rollbackOf === applied.auditId);
       const restored = priceAfterRollback === LIST_PRICE_CENTS && rollbackRecorded;
       return {
@@ -300,7 +300,7 @@ export async function runActionRehearsal(options: { now?: () => number } = {}): 
       expectation: 'Rolling back an already-rolled-back write must be refused, so an undo cannot be replayed into a second price change.',
     },
     async () => {
-      const { actions, eventId } = scriptedEvent();
+      const { actions, eventId } = await scriptedEvent();
       const applied = await actions.apply({
         eventId,
         actorId: 'rehearsal-seller',
@@ -318,7 +318,7 @@ export async function runActionRehearsal(options: { now?: () => number } = {}): 
       expectation: 'After a second price change, undoing the FIRST one must be refused rather than wiping out the newer price behind the seller\'s back.',
     },
     async () => {
-      const { actions, eventId } = scriptedEvent();
+      const { actions, eventId } = await scriptedEvent();
       const first = await actions.apply({
         eventId,
         actorId: 'rehearsal-seller',

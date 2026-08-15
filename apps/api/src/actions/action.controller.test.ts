@@ -109,7 +109,7 @@ describe('ActionController event ownership', () => {
     const audit = actions.getAudit(executed.auditId);
     expect(audit).toMatchObject({ actorId: 'seller-alpha' });
     expect(audit).not.toHaveProperty('rolledBackAt');
-    expect(actions.listItems(EVENT_ID)).toEqual([
+    expect(await actions.listItems(EVENT_ID)).toEqual([
       expect.objectContaining({ productId: 'mug', priceCents: 1_200 }),
     ]);
   });

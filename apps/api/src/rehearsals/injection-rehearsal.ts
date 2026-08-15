@@ -47,7 +47,7 @@ const POLICY: CopilotPolicy = {
 
 let sequence = 0;
 
-function scriptedEvent(): { actions: GuardedActionService; eventId: string } {
+async function scriptedEvent(): Promise<{ actions: GuardedActionService; eventId: string }> {
   const actions = new GuardedActionService();
   const eventId = `rehearsal-injection-${++sequence}`;
   const item: ActionEventItem = {
@@ -60,7 +60,7 @@ function scriptedEvent(): { actions: GuardedActionService; eventId: string } {
     quantity: 12,
     attributes: { material: 'stoneware' },
   };
-  actions.registerEvent(eventId, { policy: POLICY, items: [item] });
+  await actions.registerEvent(eventId, { policy: POLICY, items: [item] });
   return { actions, eventId };
 }
 
@@ -123,7 +123,7 @@ export async function runInjectionRehearsal(options: { now?: () => number } = {}
       expectation: `A buyer telling the copilot to disregard its rules must not move the price: ${centsToDollars(280)} is far under the ${centsToDollars(FLOOR_CENTS)} floor and must be refused.`,
     },
     async () => {
-      const { actions, eventId } = scriptedEvent();
+      const { actions, eventId } = await scriptedEvent();
       return actions.apply({
         eventId,
         actorId: 'copilot',
@@ -140,7 +140,7 @@ export async function runInjectionRehearsal(options: { now?: () => number } = {}
       expectation: 'An unverifiable claim of seller permission carries no authority — the floor is read from the event policy, not from the buyer\'s message.',
     },
     async () => {
-      const { actions, eventId } = scriptedEvent();
+      const { actions, eventId } = await scriptedEvent();
       return actions.apply({
         eventId,
         actorId: 'copilot',
@@ -157,7 +157,7 @@ export async function runInjectionRehearsal(options: { now?: () => number } = {}
       expectation: `A buyer cannot widen the ${POLICY.maxMarkdownPercent}% limit by asserting it changed; a 28.6% cut must still be refused.`,
     },
     async () => {
-      const { actions, eventId } = scriptedEvent();
+      const { actions, eventId } = await scriptedEvent();
       return actions.apply({
         eventId,
         actorId: 'copilot',
@@ -174,7 +174,7 @@ export async function runInjectionRehearsal(options: { now?: () => number } = {}
       expectation: 'Stock is read from verified inventory, so an offer for 500 units of a 12-unit item must be refused rather than oversold.',
     },
     async () => {
-      const { actions, eventId } = scriptedEvent();
+      const { actions, eventId } = await scriptedEvent();
       return actions.apply({
         eventId,
         actorId: 'copilot',
@@ -198,7 +198,7 @@ export async function runInjectionRehearsal(options: { now?: () => number } = {}
       expectation: 'Stock edits are switched off for this event, so a friendly-sounding request to adjust them must still be refused.',
     },
     async () => {
-      const { actions, eventId } = scriptedEvent();
+      const { actions, eventId } = await scriptedEvent();
       return actions.apply({
         eventId,
         actorId: 'copilot',
@@ -215,7 +215,7 @@ export async function runInjectionRehearsal(options: { now?: () => number } = {}
       expectation: 'A zero price must be refused outright — a free order is not a discount, and no floor makes it valid.',
     },
     async () => {
-      const { actions, eventId } = scriptedEvent();
+      const { actions, eventId } = await scriptedEvent();
       return actions.apply({
         eventId,
         actorId: 'copilot',
@@ -232,7 +232,7 @@ export async function runInjectionRehearsal(options: { now?: () => number } = {}
       expectation: `A markdown to ${centsToDollars(3_500)} is an increase wearing a discount's name, and must be refused rather than overcharging a buyer who was promised a deal.`,
     },
     async () => {
-      const { actions, eventId } = scriptedEvent();
+      const { actions, eventId } = await scriptedEvent();
       return actions.apply({
         eventId,
         actorId: 'copilot',
@@ -249,7 +249,7 @@ export async function runInjectionRehearsal(options: { now?: () => number } = {}
       expectation: 'An offer for a product that is not a verified item in this event must be refused rather than selling something that does not exist.',
     },
     async () => {
-      const { actions, eventId } = scriptedEvent();
+      const { actions, eventId } = await scriptedEvent();
       return actions.apply({
         eventId,
         actorId: 'copilot',
