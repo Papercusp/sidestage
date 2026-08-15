@@ -156,6 +156,7 @@ describe('BuyerTab sync read models', () => {
         condition: 'NEW',
         handlingDays: 2,
         priceCents: 2_400,
+        qty: 3,
         reservedQty: 0,
         availableQty: 3,
       }],

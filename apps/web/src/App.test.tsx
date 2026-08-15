@@ -62,6 +62,11 @@ describe('P-005 product card and shell', () => {
     expect(markup).not.toContain('>Rehearse</a>');
     expect(markup).toContain('aria-label="Buyer work"');
     expect(markup).toContain('aria-label="Operator work"');
+    expect(markup).toContain('aria-label="Project links"');
+    expect(markup).toContain('href="https://github.com/Papercusp/sidestage"');
+    expect(markup).toContain('aria-label="SideStage on GitHub (opens in a new tab)"');
+    expect(markup).toContain('target="_blank"');
+    expect(markup).toContain('rel="noreferrer"');
     expect(markup).toContain('aria-current="page"');
     expect(markup).toContain('href="#main-content"');
     expect(markup).toContain('Live commerce');

@@ -142,6 +142,17 @@ export function App() {
                   ))}
                 </span>
               ))}
+              <span className="nav-cluster" role="group" aria-label="Project links">
+                <a
+                  className="nav-link"
+                  href="https://github.com/Papercusp/sidestage"
+                  target="_blank"
+                  rel="noreferrer"
+                  aria-label="SideStage on GitHub (opens in a new tab)"
+                >
+                  GitHub <span aria-hidden="true">↗</span>
+                </a>
+              </span>
             </nav>
             <div className="topbar-status-group">
               <TopbarHeldItemsButton />
