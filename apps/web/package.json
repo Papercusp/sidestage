@@ -14,8 +14,6 @@
     "clean": "rm -rf dist .vite"
   },
   "dependencies": {
-    "@papercusp/ui-primitives": "*",
-    "@radix-ui/react-dialog": "^1.1.23",
     "@papercusp/cart-drawer": "*",
     "@papercusp/dock-workbench": "*",
     "@papercusp/drawer-stack": "*",
@@ -24,7 +22,11 @@
     "@papercusp/sse": "*",
     "@papercusp/sync": "*",
     "@papercusp/system-test-contract": "*",
+    "@papercusp/ui-primitives": "*",
+    "@radix-ui/react-dialog": "^1.1.23",
     "@rocicorp/zero": "^1.3.0",
+    "@stripe/react-stripe-js": "^6.8.1",
+    "@stripe/stripe-js": "^9.13.0",
     "@tanstack/react-virtual": "^3.14.9",
     "@tanstack/virtual-core": "^3.17.7",
     "dockview": "^6.2.2",

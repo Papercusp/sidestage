@@ -77,6 +77,7 @@ export interface PaymentProvider {
 }
 
 export interface CheckoutSessionInput {
+  orderId?: string;
   cartId?: string;
   sourceKind?: PayableOrderSourceKind;
   sourceId?: string;
@@ -108,8 +109,28 @@ export class CheckoutService {
       throw new BadRequestException('shippingCents is server-authoritative; select shippingRateId instead');
     }
     const buyerId = this.readId(input?.buyerId, 'buyerId');
-    const sourceKind = input?.sourceKind ?? 'cart';
-    const sourceId = this.readId(input?.sourceId ?? input?.cartId, sourceKind === 'cart' ? 'cartId' : 'sourceId');
+    const requestedOrderId = this.optionalText(input?.orderId);
+    if (requestedOrderId && (input?.cartId || input?.sourceKind || input?.sourceId || input?.eventId)) {
+      throw new BadRequestException('orderId cannot be combined with payable-source fields');
+    }
+    const resumedOrder = requestedOrderId
+      ? await this.getOrderForBuyer(requestedOrderId, buyerId)
+      : undefined;
+    if (resumedOrder?.status === 'paid') throw new BadRequestException('Order is already paid');
+    if (resumedOrder?.paymentState === 'payment_processing') {
+      throw new BadRequestException('Order payment is already processing');
+    }
+    if (
+      resumedOrder?.paymentState === 'payment_failed'
+      || resumedOrder?.paymentState === 'cancelled'
+      || resumedOrder?.paymentState === 'expired'
+    ) {
+      throw new BadRequestException('Order is no longer payable');
+    }
+
+    const sourceKind = resumedOrder?.sourceKind ?? input?.sourceKind ?? 'cart';
+    const sourceId = resumedOrder?.sourceId
+      ?? this.readId(input?.sourceId ?? input?.cartId, sourceKind === 'cart' ? 'cartId' : 'sourceId');
     if (sourceKind === 'cart' && input?.cartId && input?.sourceId && input.cartId.trim() !== input.sourceId.trim()) {
       throw new BadRequestException('cartId and sourceId must identify the same cart');
     }
@@ -123,7 +144,7 @@ export class CheckoutService {
       sourceKind,
       sourceId,
       buyerId,
-      eventId: this.optionalText(input?.eventId),
+      eventId: resumedOrder?.eventId ?? this.optionalText(input?.eventId),
     });
     const selectedShippingRate = await this.shipping.resolveRateForItems(
       {
@@ -139,7 +160,7 @@ export class CheckoutService {
       sourceKind,
       sourceId,
       buyerId,
-      eventId: this.optionalText(input?.eventId),
+      eventId: resumedOrder?.eventId ?? this.optionalText(input?.eventId),
     });
     if (!this.sources.sameSnapshot(sourceBeforeQuote, source)) {
       throw new BadRequestException('Payable source changed while selecting shipping; refresh rates and try again');
@@ -147,7 +168,11 @@ export class CheckoutService {
 
     const shippingCents = selectedShippingRate.totalCents;
     const totalCents = source.subtotalCents + shippingCents;
-    const existing = await this.orders.findBySource(source.sourceKind, source.sourceId);
+    const sourceOrder = await this.orders.findBySource(source.sourceKind, source.sourceId);
+    if (resumedOrder && sourceOrder?.id !== resumedOrder.id) {
+      throw new BadRequestException('Order source no longer matches the canonical order');
+    }
+    const existing = resumedOrder ?? sourceOrder;
     if (existing?.buyerId !== undefined && existing.buyerId !== buyerId) {
       throw new BadRequestException('Payable source is already associated with another buyer order');
     }
@@ -165,8 +190,8 @@ export class CheckoutService {
       sourceKind: source.sourceKind,
       sourceId: source.sourceId,
       eventId: source.eventId,
-      email,
-      name,
+      email: email ?? existing?.email,
+      name: name ?? existing?.name,
       subtotalCents: source.subtotalCents,
       shippingCents,
       totalCents,
@@ -196,6 +221,45 @@ export class CheckoutService {
     return { order: this.cloneOrder(order), session: { ...session } };
   }
 
+  async getOrderForBuyer(idInput: string, buyerIdInput: string): Promise<CheckoutOrder> {
+    const id = this.readId(idInput, 'orderId');
+    const buyerId = this.readId(buyerIdInput, 'buyerId');
+    const order = await this.orders.get(id);
+    if (!order || order.buyerId !== buyerId) {
+      throw new BadRequestException('Order was not found for this buyer');
+    }
+    return this.cloneOrder(order);
+  }
+
+  async quoteOrderShipping(
+    idInput: string,
+    buyerIdInput: string,
+    addressInput: ShippingAddressInput,
+  ) {
+    const order = await this.getOrderForBuyer(idInput, buyerIdInput);
+    if (
+      order.status === 'paid'
+      || order.paymentState === 'payment_failed'
+      || order.paymentState === 'cancelled'
+      || order.paymentState === 'expired'
+    ) {
+      throw new BadRequestException('Order is no longer payable');
+    }
+    const source = await this.sources.load({
+      sourceKind: order.sourceKind,
+      sourceId: order.sourceId,
+      buyerId: order.buyerId,
+      eventId: order.eventId,
+    });
+    return this.shipping.getRatesForItems({
+      sourceKind: source.sourceKind,
+      sourceId: source.sourceId,
+      items: source.items,
+      revision: source.revision,
+      address: normalizeShippingAddress(addressInput),
+    });
+  }
+
   async handleWebhook(
     rawBody: Buffer,
     signature: string | string[] | undefined,
@@ -216,7 +280,12 @@ export class CheckoutService {
       if (order!.stripeEventId === event.id) {
         return { received: true, handled: false, order: this.cloneOrder(order!) };
       }
-      if (order!.status === 'paid' || order!.paymentState === 'cancelled' || order!.paymentState === 'expired') {
+      if (
+        order!.status === 'paid'
+        || order!.paymentState === 'payment_failed'
+        || order!.paymentState === 'cancelled'
+        || order!.paymentState === 'expired'
+      ) {
         return { received: true, handled: false, order: this.cloneOrder(order!) };
       }
       if (
@@ -234,6 +303,13 @@ export class CheckoutService {
         order!.paymentState = 'payment_processing';
         order!.paymentError = undefined;
       } else if (event.type === 'failed') {
+        // A failed payment is terminal for this order. Release its source
+        // before persisting the failure so a crash can only cause an
+        // idempotent release retry, never a durable failed order with a live
+        // cart/auction allocation. A later success for the same PaymentIntent
+        // is ignored by the terminal-state guard above because its source no
+        // longer owns inventory.
+        await this.sources.release(order!);
         order!.status = 'failed';
         order!.paymentState = 'payment_failed';
         order!.paymentError = event.errorMessage ?? 'Payment failed';

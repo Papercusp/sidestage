@@ -324,26 +324,39 @@ describe('CheckoutService', () => {
     expect(published.filter(({ name }) => name === 'event.stats')).toHaveLength(1);
   });
 
-  it('allows success after failure but ignores failure delivered after paid', async () => {
+  it('releases a failed source exactly once and ignores later payment events', async () => {
     const carts = new CartService(new InMemoryCartStore());
     const cart = await carts.addItem({ cartId: 'cart-reordered', productId: 'p-1', title: 'Mug', priceCents: 1250 });
+    const sourceService = sources(carts);
+    const release = vi.spyOn(sourceService, 'release');
+    const commit = vi.spyOn(sourceService, 'commit');
     const payments = providerHarness();
-    const checkout = new CheckoutService(payments.provider, new InMemoryOrderStore(), sources(carts), shipping());
+    const checkout = new CheckoutService(payments.provider, new InMemoryOrderStore(), sourceService, shipping());
     const session = await checkout.createSession(input(cart.id));
     payments.deliver(stripeEvent(session.order, {
       id: 'evt_failed', type: 'failed', amountReceivedCents: undefined, errorMessage: 'declined',
     }));
     await checkout.handleWebhook(Buffer.from('{}'), 'signed');
     expect((await checkout.getOrder(session.order.id))?.paymentState).toBe('payment_failed');
+    expect(release).toHaveBeenCalledTimes(1);
+    await expect(checkout.createSession({
+      orderId: session.order.id,
+      buyerId: session.order.buyerId,
+      shippingAddress: ADDRESS,
+      shippingRateId: RATE.id,
+    })).rejects.toThrow('Order is no longer payable');
 
     payments.deliver(stripeEvent(session.order, { id: 'evt_succeeded', created: 1_786_751_001 }));
-    await checkout.handleWebhook(Buffer.from('{}'), 'signed');
+    const lateSuccess = await checkout.handleWebhook(Buffer.from('{}'), 'signed');
     payments.deliver(stripeEvent(session.order, {
       id: 'evt_late_failed', created: 1_786_751_002, type: 'failed', amountReceivedCents: undefined,
     }));
     const late = await checkout.handleWebhook(Buffer.from('{}'), 'signed');
+    expect(lateSuccess.handled).toBe(false);
     expect(late.handled).toBe(false);
-    expect(late.order?.status).toBe('paid');
+    expect(late.order?.paymentState).toBe('payment_failed');
+    expect(release).toHaveBeenCalledTimes(1);
+    expect(commit).not.toHaveBeenCalled();
   });
 
   it('rejects signed events whose SideStage identity or amount disagrees', async () => {

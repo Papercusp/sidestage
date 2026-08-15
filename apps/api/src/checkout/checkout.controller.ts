@@ -15,6 +15,23 @@ export class CheckoutController {
     return { orders: await this.buyerOrders.listForBuyer(this.buyerId(principal)) };
   }
 
+  @Get('orders/:id')
+  order(
+    @Param('id') id: string,
+    @Headers(DEMO_PRINCIPAL_HEADER) principal?: string,
+  ) {
+    return this.checkout.getOrderForBuyer(id, this.buyerId(principal));
+  }
+
+  @Post('orders/:id/shipping-rates')
+  shippingRates(
+    @Param('id') id: string,
+    @Body() body: { address?: CheckoutSessionInput['shippingAddress'] },
+    @Headers(DEMO_PRINCIPAL_HEADER) principal?: string,
+  ) {
+    return this.checkout.quoteOrderShipping(id, this.buyerId(principal), body?.address as never);
+  }
+
   @Post('sessions')
   createSession(
     @Body() body: Omit<CheckoutSessionInput, 'buyerId'> & { buyerId?: unknown },
