@@ -7,7 +7,7 @@ import type {
 const STOP_WORDS = new Set([
   'a', 'an', 'and', 'are', 'can', 'could', 'do', 'does', 'exact', 'for', 'have',
   'how', 'i', 'in', 'include', 'includes', 'is', 'it', 'me', 'of', 'on', 'please',
-  'still', 'tell', 'that', 'the', 'this', 'to', 'what', 'with', 'you', 'your',
+  'share', 'still', 'tell', 'that', 'the', 'this', 'to', 'what', 'with', 'you', 'your',
 ]);
 const PRICE_WORDS = ['cost', 'much', 'price', 'priced'];
 const STOCK_WORDS = ['availability', 'available', 'inventory', 'left', 'quantity', 'stock'];
