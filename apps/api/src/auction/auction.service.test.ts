@@ -64,7 +64,7 @@ describe('AuctionService', () => {
     await expect(auctions.startAuction({ ...input, eventItemId: 'item-2' })).rejects.toThrow(/already has an active auction/);
     await expect(
       auctions.startAuction({ eventId: 'event-2', eventItemId: 'item-2', productId: 'product-1', quantity: 2, startingPriceCents: 100 }),
-    ).rejects.toThrow(/Insufficient available quantity/);
+    ).rejects.toThrow(/Insufficient event allocation/);
   });
 
   it('orders bids, closes to a winner order, and keeps the winner hold reserved', async () => {
@@ -118,7 +118,40 @@ describe('AuctionService', () => {
     await auctions.commitWinnerReservation(started.id, 'buyer-winner');
     await auctions.commitWinnerReservation(started.id, 'buyer-winner');
     await expect(inventory.get('product-canonical')).resolves.toMatchObject({ reservedQty: 2, availableQty: 1 });
+    await expect(auctions.startAuction({
+      eventId: 'event-canonical',
+      eventItemId: 'item-canonical',
+      productId: 'product-canonical',
+      quantity: 2,
+      startingPriceCents: 1_100,
+    })).rejects.toThrow('Insufficient event allocation');
     await expect(auctions.commitWinnerReservation(started.id, 'buyer-other')).rejects.toThrow('not found for this buyer');
+  });
+
+  it('restores a winner allocation after payment failure so it can be auctioned again', async () => {
+    const inventory = new InMemoryAuctionInventory();
+    await inventory.seed('product-retry', 2);
+    const auctions = new AuctionService(inventory);
+    const first = await auctions.startAuction({
+      eventId: 'event-retry',
+      eventItemId: 'item-retry',
+      productId: 'product-retry',
+      quantity: 2,
+      startingPriceCents: 1_000,
+    });
+    await auctions.placeBid(first.id, { bidderId: 'buyer-retry', amountCents: 1_200 });
+    await auctions.closeAuction(first.id);
+
+    await auctions.releaseWinnerReservation(first.id, 'buyer-retry');
+    await auctions.releaseWinnerReservation(first.id, 'buyer-retry');
+
+    await expect(auctions.startAuction({
+      eventId: 'event-retry',
+      eventItemId: 'item-retry',
+      productId: 'product-retry',
+      quantity: 2,
+      startingPriceCents: 1_100,
+    })).resolves.toMatchObject({ status: 'active', allocationState: 'held' });
   });
 
   it('replays one guest idempotency key without duplicating the bid and rejects changed reuse', async () => {
@@ -263,6 +296,40 @@ describe('AuctionService', () => {
     const started = await auctions.startAuction({ eventId: 'event-1', eventItemId: 'item-1', productId: 'product-1', quantity: 3, startingPriceCents: 500 });
     await auctions.closeAuction(started.id);
     await expect(inventory.get('product-1')).resolves.toMatchObject({ reservedQty: 0, availableQty: 4 });
+    await expect(auctions.startAuction({
+      eventId: 'event-1',
+      eventItemId: 'item-1',
+      productId: 'product-1',
+      quantity: 3,
+      startingPriceCents: 600,
+    })).resolves.toMatchObject({ status: 'active', allocationState: 'held' });
+  });
+
+  it('seller cancellation restores the exact event allocation idempotently', async () => {
+    const inventory = new InMemoryAuctionInventory();
+    await inventory.seed('product-cancel', 2);
+    const auctions = new AuctionService(inventory);
+    const first = await auctions.startAuction({
+      eventId: 'event-cancel',
+      eventItemId: 'item-cancel',
+      productId: 'product-cancel',
+      quantity: 2,
+      startingPriceCents: 500,
+    });
+
+    await expect(auctions.cancelAuction(first.id)).resolves.toMatchObject({
+      status: 'closed',
+      closeReason: 'seller-cancelled',
+      allocationState: 'released',
+    });
+    await expect(auctions.cancelAuction(first.id)).resolves.toMatchObject({ allocationState: 'released' });
+    await expect(auctions.startAuction({
+      eventId: 'event-cancel',
+      eventItemId: 'item-cancel',
+      productId: 'product-cancel',
+      quantity: 2,
+      startingPriceCents: 600,
+    })).resolves.toMatchObject({ status: 'active', allocationState: 'held' });
   });
 
   it('auto-closes at the countdown and creates a winner order', async () => {
@@ -325,6 +392,7 @@ describe('AuctionService', () => {
     expect(published.map(({ name }) => name)).toEqual([
       'event.auction.active',
       'event.pricingHistory',
+      'event.lineup.items',
       'catalog.page',
       'inventory.snapshot',
       'event.auction.active',
@@ -343,6 +411,9 @@ describe('AuctionService', () => {
     ]);
     expect(published.filter(({ name }) => name === 'inventory.snapshot').map(({ args }) => args)).toEqual([
       { productId: 'product-1' },
+    ]);
+    expect(published.filter(({ name }) => name === 'event.lineup.items').map(({ args }) => args)).toEqual([
+      { eventId: 'event-1' },
     ]);
     expect(published.filter(({ name }) => name === 'event.pricingHistory').map(({ args }) => args)).toEqual([
       { eventId: 'event-1', productId: 'product-1' },
