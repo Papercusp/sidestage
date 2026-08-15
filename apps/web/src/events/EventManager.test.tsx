@@ -113,13 +113,19 @@ describe('EventManager', () => {
   });
 
   it('renders an empty selected event with an inventory call to action', () => {
+    const newEvent: SellerOwnedEvent = {
+      ...EVENTS[0],
+      eventId: 'new-event',
+      title: 'New event',
+      status: 'draft',
+    };
     const markup = renderToStaticMarkup(
       <EventManager
         actorId="seller-27"
         eventId="new-event"
         eventName="New event"
         initialItems={[]}
-        initialEvents={[]}
+        initialEvents={[newEvent]}
       />,
     );
 
@@ -127,6 +133,63 @@ describe('EventManager', () => {
     expect(markup).toContain('Add inventory');
     expect(markup).toContain('Create event');
     expect(markup).not.toContain('Event settings &amp; readiness');
+  });
+
+  it('does not query or render a phantom fallback event when the seller owns no events', () => {
+    const useDataImpl = vi.fn((options: { queryName: string }) => ({
+      data: options.queryName === 'events.mine' ? [] : undefined,
+      loading: false,
+      fetching: false,
+      transport: 'SSE',
+      invalidate: vi.fn(),
+      error: null,
+    }));
+
+    const markup = renderToStaticMarkup(
+      <SyncContext.Provider value={{ transport: 'SSE', useDataImpl, prefetch: vi.fn() } as never}>
+        <EventManager actorId="seller-27" eventId="sunday-drop" eventName="Sunday vintage drop" />
+      </SyncContext.Provider>,
+    );
+
+    expect(useDataImpl).toHaveBeenCalledWith(expect.objectContaining({
+      queryName: 'event.config',
+      enabled: false,
+    }));
+    expect(useDataImpl).toHaveBeenCalledWith(expect.objectContaining({
+      queryName: 'event.actions.items',
+      enabled: false,
+    }));
+    expect(useDataImpl).toHaveBeenCalledWith(expect.objectContaining({
+      queryName: 'event.auction.active',
+      enabled: false,
+    }));
+    expect(markup).toContain('No seller events yet.');
+    expect(markup).toContain('Create your first seller event.');
+    expect(markup).not.toContain('Event ID sunday-drop');
+    expect(markup).not.toContain('Event not found for this seller.');
+  });
+
+  it('does not combine a missing routed id with another owned event\'s metadata', () => {
+    window.history.replaceState(
+      {},
+      '',
+      '/?tab=seller&studio=event-manager&manager=events&event=missing-event',
+    );
+
+    const markup = renderToStaticMarkup(
+      <EventManager
+        actorId="seller-27"
+        eventId="sunday-drop"
+        eventName="Sunday drop"
+        initialItems={[]}
+        initialEvents={EVENTS}
+      />,
+    );
+
+    expect(markup).toContain('This event is not available for this seller.');
+    expect(markup).toContain('Choose another event from My events, or create a new event.');
+    expect(markup).not.toContain('Event ID missing-event');
+    expect(markup).not.toContain('This event has no reserved inventory yet.');
   });
 
   it('nests settings under the selected event instead of the manager workspace switch', () => {

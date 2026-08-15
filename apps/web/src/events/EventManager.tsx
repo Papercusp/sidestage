@@ -148,26 +148,32 @@ export function EventManager({
     ? events.find((event) => event.eventId === route.eventId)
     : undefined;
   const fallbackEvent = events.find((event) => event.eventId === eventId) ?? events[0];
-  const selectedEvent = routedEvent ?? fallbackEvent;
-  const selectedEventId = route.eventId ?? selectedEvent?.eventId ?? eventId;
+  // The owned-event directory is authoritative for both the detail metadata
+  // and the id sent to owner-checked queries. A routed id that is absent from
+  // that directory must not borrow the first event's metadata, and the shared
+  // seller fallback must not create a phantom detail when this seller has no
+  // events at all.
+  const selectedEvent = route.eventId ? routedEvent : fallbackEvent;
+  const selectedEventId = selectedEvent?.eventId ?? eventId;
+  const hasSelectedEvent = selectedEvent !== undefined;
   const isCreateView = route.view === 'create';
 
   const configQuery = useSyncQuery<EventConfigView>({
     queryName: 'event.config',
     args: { eventId: selectedEventId },
-    enabled: initialItems === undefined && !isCreateView,
+    enabled: initialItems === undefined && !isCreateView && hasSelectedEvent,
     pollIntervalMs: 30_000,
   });
   const itemsQuery = useSyncQuery<SellerEventItem>({
     queryName: 'event.actions.items',
     args: { eventId: selectedEventId },
-    enabled: initialItems === undefined && !isCreateView,
+    enabled: initialItems === undefined && !isCreateView && hasSelectedEvent,
     pollIntervalMs: 10_000,
   });
   const auctionQuery = useSyncQuery<SellerAuction>({
     queryName: 'event.auction.active',
     args: { eventId: selectedEventId },
-    enabled: !isCreateView,
+    enabled: !isCreateView && hasSelectedEvent,
     pollIntervalMs: 2_000,
     staleTime: 0,
   });
@@ -305,11 +311,11 @@ export function EventManager({
         <nav className="event-manager-switch" aria-label="Event Manager view" role="tablist">
           <a
             className={route.view === 'events' ? 'is-active' : undefined}
-            href={eventManagerHref(managerRoute(selectedEventId), typeof window === 'undefined' ? '/' : window.location.href)}
+            href={eventManagerHref(managerRoute(selectedEvent?.eventId), typeof window === 'undefined' ? '/' : window.location.href)}
             role="tab"
             aria-selected={route.view === 'events'}
             aria-controls="event-manager-events"
-            onClick={openRoute(managerRoute(selectedEventId))}
+            onClick={openRoute(managerRoute(selectedEvent?.eventId))}
           >
             My events <span>{events.length}</span>
           </a>
@@ -391,6 +397,7 @@ export function EventManager({
             ) : null}
           </aside>
 
+          {selectedEvent ? (
           <section className="event-detail-panel" aria-labelledby="event-detail-title">
             <div className="event-detail-heading">
               <div>
@@ -584,6 +591,35 @@ export function EventManager({
               </div>
             )}
           </section>
+          ) : (
+            <section className="event-detail-panel event-detail-empty" aria-live="polite">
+              <div>
+                <strong>
+                  {directoryQuery.loading
+                    ? 'Loading your events…'
+                    : route.eventId
+                      ? 'This event is not available for this seller.'
+                      : 'Create your first seller event.'}
+                </strong>
+                <p>
+                  {directoryQuery.loading
+                    ? 'Checking the verified seller event directory.'
+                    : route.eventId && events.length
+                      ? 'Choose another event from My events, or create a new event.'
+                      : 'Reserve verified catalog inventory to start a seller event.'}
+                </p>
+                {!directoryQuery.loading ? (
+                  <a
+                    className="button primary"
+                    href={eventManagerHref({ view: 'create', section: 'lineup' }, typeof window === 'undefined' ? '/' : window.location.href)}
+                    onClick={openRoute({ view: 'create', section: 'lineup' })}
+                  >
+                    Create event
+                  </a>
+                ) : null}
+              </div>
+            </section>
+          )}
         </div>
       )}
 
