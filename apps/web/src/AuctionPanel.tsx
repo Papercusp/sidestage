@@ -323,9 +323,11 @@ export function AuctionPanel({
           <h3 id="auction-title">{product?.title ?? (auction ? auction.productId : 'Bid from the room')}</h3>
           <p className="muted">{product?.subtitle ?? 'The seller controls which item goes under the hammer.'}</p>
         </div>
-        <span className={`auction-sync auction-sync-${syncState}`} aria-label={`Auction sync ${syncState}`}>
-          <span aria-hidden="true" /> {syncState === 'live' ? 'Realtime' : syncState === 'polling' ? 'Polling' : 'Reconnecting'}
-        </span>
+        {syncState !== 'polling' ? (
+          <span className={`auction-sync auction-sync-${syncState}`} aria-label={`Auction sync ${syncState}`}>
+            <span aria-hidden="true" /> {syncState === 'live' ? 'Realtime' : 'Reconnecting'}
+          </span>
+        ) : null}
           </div>
 
           {loading ? <p className="auction-empty">Checking the auction stage…</p> : null}

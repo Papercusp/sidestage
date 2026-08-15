@@ -134,17 +134,21 @@ function auctionEndingIn(ms: number, overrides: Partial<BuyerAuction> = {}): Buy
   };
 }
 
-function render(auction: BuyerAuction, bidderId?: string): string {
+function render(
+  auction: BuyerAuction,
+  bidderId?: string,
+  transport: 'SSE' | 'POLLING' = 'SSE',
+): string {
   const useDataImpl = vi.fn().mockReturnValue({
     data: [auction],
     loading: false,
     fetching: false,
-    transport: 'SSE',
+    transport,
     invalidate: vi.fn(),
     error: null,
   });
   return renderToStaticMarkup(
-    <SyncContext.Provider value={{ transport: 'SSE', useDataImpl, prefetch: vi.fn() } as never}>
+    <SyncContext.Provider value={{ transport, useDataImpl, prefetch: vi.fn() } as never}>
       <AuctionPanel eventId="sunday-drop" products={PRODUCTS} bidderId={bidderId} />
     </SyncContext.Provider>,
   );
@@ -217,6 +221,15 @@ describe('AuctionPanel', () => {
     expect(markup).toContain('You’re leading');
     expect(markup).toContain('Place bid');
     expect(markup).toContain('latest accepted bid syncs to every buyer');
+  });
+
+  it('keeps the polling transport available without exposing implementation copy to buyers', () => {
+    const pollingMarkup = render(ACTIVE_AUCTION, undefined, 'POLLING');
+
+    expect(pollingMarkup).toContain('Stoneware mug');
+    expect(pollingMarkup).not.toContain('Polling');
+    expect(pollingMarkup).not.toContain('auction-sync-polling');
+    expect(render(ACTIVE_AUCTION)).toContain('Realtime');
   });
 
   it('uses the named query as its only read authority and scopes retry to query errors', () => {

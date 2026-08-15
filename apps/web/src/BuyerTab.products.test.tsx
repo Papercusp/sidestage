@@ -179,6 +179,14 @@ describe('BuyerTab product preview', () => {
     expect(buyerCss).toMatch(/\.buyer-runway-footer\s*\{[^}]*flex-direction:\s*column;/s);
   });
 
+  it('keeps the Chat tab in the site theme instead of inheriting the dark video treatment', () => {
+    expect(buyerCss).toMatch(/\.buyer-room-chat\s*\{[^}]*background:\s*var\(--surface-raised\);/s);
+    expect(buyerCss).toMatch(/\.buyer-room-chat \.event-chat-audience-message\s*\{[^}]*border:\s*1px solid var\(--border\);[^}]*background:\s*var\(--surface-soft\);/s);
+    expect(buyerCss).toMatch(/\.buyer-room-chat \.event-chat-audience-form\s*\{[^}]*background:\s*var\(--surface\);[^}]*backdrop-filter:\s*none;/s);
+    expect(buyerCss).toMatch(/\.buyer-room-chat \.event-chat-audience-input\s*\{[^}]*color:\s*var\(--text\);/s);
+    expect(buyerCss).toMatch(/\.buyer-room-chat \.event-chat-audience-send:focus-visible\s*\{[^}]*outline-color:\s*var\(--brand-red\);/s);
+  });
+
   it('prevents buyer surfaces from widening the site column beside the mobile guide', () => {
     const max900Start = buyerCss.indexOf('@media (max-width: 900px)');
     const max760Start = buyerCss.indexOf('@media (max-width: 760px)', max900Start);

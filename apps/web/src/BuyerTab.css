@@ -289,11 +289,123 @@
 .buyer-room-chat {
   height: 18rem;
   padding: 0;
-  background: var(--video-inset-bg);
+  background: var(--surface-raised);
 }
 
 .buyer-room-chat > .event-chat-audience {
   height: 100%;
+  color: var(--text);
+  pointer-events: auto;
+}
+
+/* The same compact chat renderer also lives over the video, where its dark
+   treatment is intentional. Inside the room tab it belongs to the page, so
+   scope the existing cream/white/red/yellow SideStage language here instead
+   of leaking the video theme island into the surrounding buyer experience. */
+.buyer-room-chat .event-chat-audience-messages {
+  gap: 0.55rem;
+  padding: 0.85rem;
+  background: var(--surface-raised);
+}
+
+.buyer-room-chat .event-chat-audience-empty {
+  color: var(--muted);
+  text-shadow: none;
+}
+
+.buyer-room-chat .event-chat-audience-message {
+  gap: 0.6rem;
+  border: 1px solid var(--border);
+  border-radius: 0.75rem;
+  padding: 0.65rem;
+  background: var(--surface-soft);
+  pointer-events: auto;
+}
+
+.buyer-room-chat .event-chat-audience-avatar {
+  border-color: color-mix(in srgb, var(--brand-red) 28%, var(--border));
+  color: var(--on-brand-red);
+  background: var(--brand-red);
+}
+
+.buyer-room-chat .event-chat-audience-avatar-seller {
+  border-color: color-mix(in srgb, var(--brand-yellow) 52%, var(--border));
+  color: var(--on-brand-yellow);
+  background: var(--brand-yellow);
+}
+
+.buyer-room-chat .event-chat-audience-meta strong,
+.buyer-room-chat .event-chat-audience-copy p {
+  color: var(--text);
+  text-shadow: none;
+}
+
+.buyer-room-chat .event-chat-audience-tag,
+.buyer-room-chat .event-chat-audience-state {
+  border-color: color-mix(in srgb, var(--brand-yellow) 52%, var(--border));
+  color: var(--on-brand-yellow);
+  background: var(--brand-yellow);
+}
+
+.buyer-room-chat .event-chat-audience-state-answered {
+  border-color: color-mix(in srgb, var(--success) 35%, var(--border));
+  color: var(--success);
+  background: color-mix(in srgb, var(--success) 10%, var(--surface));
+}
+
+.buyer-room-chat .event-chat-audience-state-skipped {
+  border-color: var(--border);
+  color: var(--muted);
+  background: var(--surface);
+}
+
+.buyer-room-chat .event-chat-audience-state-blocked {
+  border-color: color-mix(in srgb, var(--danger) 35%, var(--border));
+  color: var(--danger);
+  background: color-mix(in srgb, var(--danger) 8%, var(--surface));
+}
+
+.buyer-room-chat .event-chat-audience-provenance,
+.buyer-room-chat .event-chat-audience-link {
+  color: var(--red-text);
+}
+
+.buyer-room-chat .event-chat-audience-link:focus-visible {
+  outline-color: var(--brand-red);
+}
+
+.buyer-room-chat .event-chat-audience-form {
+  margin: 0 0.85rem 0.85rem;
+  border-color: var(--border-strong);
+  border-radius: var(--radius-control);
+  padding: 0.35rem 0.35rem 0.35rem 0.7rem;
+  background: var(--surface);
+  box-shadow: 0 3px 10px rgb(var(--shadow-hue) / 7%);
+  backdrop-filter: none;
+}
+
+.buyer-room-chat .event-chat-audience-input {
+  color: var(--text);
+}
+
+.buyer-room-chat .event-chat-audience-input::placeholder {
+  color: var(--muted);
+}
+
+.buyer-room-chat .event-chat-audience-input:focus-visible {
+  border-radius: calc(var(--radius-control) - 0.2rem);
+  outline-color: var(--brand-red);
+}
+
+.buyer-room-chat .event-chat-audience-send:focus-visible {
+  outline-color: var(--brand-red);
+}
+
+.buyer-room-chat .event-chat-audience-error {
+  margin-right: 0.85rem;
+  margin-left: 0.85rem;
+  color: var(--danger);
+  text-shadow: none;
 }
 
 .buyer-room-panel-header {
