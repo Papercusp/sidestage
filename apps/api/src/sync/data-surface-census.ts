@@ -330,7 +330,6 @@ export const DEVICE_LOCAL_SURFACES: readonly ModuleSurface[] = [
   'apps/web/src/SellerDock.tsx',
   'apps/web/src/buyer-checkout-api.ts',
   'apps/web/src/buyer-identity.ts',
-  'apps/web/src/events/api.ts',
   'apps/web/src/rehearsals.ts',
   'apps/web/src/seller-dock-layout.ts',
   'apps/web/src/seller-dock-store.ts',
