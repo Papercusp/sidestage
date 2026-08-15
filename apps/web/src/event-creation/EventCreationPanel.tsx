@@ -6,6 +6,7 @@ import {
   draftFromCatalog,
   filterCatalog,
   inventoryDraftFromCatalog,
+  onboardingDraftFromCatalog,
   parsePriceCents,
   type CatalogAvailabilityFilter,
   type CatalogRow,
@@ -26,6 +27,8 @@ export interface EventCreationPanelProps {
   submitLabel?: string;
   onCreateEvent?: (payload: EventCreationPayload) => void | Promise<void>;
   purpose?: 'event' | 'inventory';
+  inventoryMode?: 'edit' | 'onboard';
+  catalogScope?: 'public' | 'seller';
   onSaveInventory?: (drafts: readonly EventItemDraft[]) => void | Promise<void>;
   /** Test/embed override; production builds default false via import.meta.env.DEV. */
   allowDemoData?: boolean;
@@ -42,6 +45,8 @@ export function EventCreationPanel({
   submitLabel = 'Create event',
   onCreateEvent,
   purpose = 'event',
+  inventoryMode = 'edit',
+  catalogScope = 'seller',
   onSaveInventory,
   allowDemoData = catalogDemoDataEnabled(),
 }: EventCreationPanelProps) {
@@ -73,7 +78,7 @@ export function EventCreationPanel({
     undefined,
     catalogProp ? Number.MAX_SAFE_INTEGER : 250,
     allowDemoData,
-    'seller',
+    catalogScope,
   );
   const catalogUnavailable = catalogProp === undefined && remote.unavailable;
   const catalog = useMemo(
@@ -115,9 +120,13 @@ export function EventCreationPanel({
   );
   const selectedDrafts = useMemo(
     () => selectedRows.map((row) => drafts[row.id] ?? (
-      purpose === 'inventory' ? inventoryDraftFromCatalog(row) : draftFromCatalog(row)
+      purpose === 'inventory'
+        ? inventoryMode === 'onboard'
+          ? onboardingDraftFromCatalog(row)
+          : inventoryDraftFromCatalog(row)
+        : draftFromCatalog(row)
     )),
-    [drafts, purpose, selectedRows],
+    [drafts, inventoryMode, purpose, selectedRows],
   );
 
   const selectRows = (next: ReadonlySet<string>) => {
@@ -129,7 +138,9 @@ export function EventCreationPanel({
         const row = catalogById[id];
         if (row && !updated[id]) {
           updated[id] = purpose === 'inventory'
-            ? inventoryDraftFromCatalog(row)
+            ? inventoryMode === 'onboard'
+              ? onboardingDraftFromCatalog(row)
+              : inventoryDraftFromCatalog(row)
             : draftFromCatalog(row);
         }
       }
@@ -139,13 +150,17 @@ export function EventCreationPanel({
 
   const updateDraft = (row: CatalogRow, field: 'eventPriceCents' | 'quantityLimit', value: string) => {
     const current = drafts[row.id] ?? (
-      purpose === 'inventory' ? inventoryDraftFromCatalog(row) : draftFromCatalog(row)
+      purpose === 'inventory'
+        ? inventoryMode === 'onboard'
+          ? onboardingDraftFromCatalog(row)
+          : inventoryDraftFromCatalog(row)
+        : draftFromCatalog(row)
     );
     const nextValue = field === 'eventPriceCents'
       ? parsePriceCents(value)
       : purpose === 'inventory'
         ? Math.max(
-          row.reservedQty ?? 0,
+          inventoryMode === 'onboard' ? 0 : row.reservedQty ?? 0,
           Math.floor(Number.isFinite(Number(value)) ? Number(value) : current.quantityLimit),
         )
         : clampQuantity(Number(value), row.availableQty);
@@ -341,9 +356,9 @@ export function EventCreationPanel({
           <span>{filteredRows.length} of {catalog.length} catalog items</span>
         </div>
         <div className="event-creation-toolbar-action">
-          <span>{selectedRows.length ? `${selectedRows.length} items ready` : purpose === 'inventory' ? 'Select variants to edit' : 'Select items to build your event'}</span>
+          <span>{selectedRows.length ? `${selectedRows.length} items ready` : purpose === 'inventory' ? inventoryMode === 'onboard' ? 'Select variants to add' : 'Select variants to edit' : 'Select items to build your event'}</span>
           <button className="button primary" type="button" disabled={!selectedRows.length || submitting} onClick={() => void handleCreate()}>
-            {submitting ? purpose === 'inventory' ? 'Saving…' : 'Reserving…' : submitLabel} <span aria-hidden="true">→</span>
+            {submitting ? purpose === 'inventory' ? inventoryMode === 'onboard' ? 'Adding…' : 'Saving…' : 'Reserving…' : submitLabel} <span aria-hidden="true">→</span>
           </button>
         </div>
       </div>
@@ -355,7 +370,7 @@ export function EventCreationPanel({
         drafts={drafts}
         onSelectedRowIdsChange={selectRows}
         onDraftChange={updateDraft}
-        purpose={purpose}
+        purpose={purpose === 'inventory' && inventoryMode === 'onboard' ? 'onboard' : purpose}
       />
 
       {!catalogProp ? (

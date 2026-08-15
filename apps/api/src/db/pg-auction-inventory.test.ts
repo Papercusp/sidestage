@@ -2,6 +2,41 @@ import { describe, expect, it, vi } from 'vitest';
 import { PgAuctionInventory } from './pg-auction-inventory';
 
 describe('PgAuctionInventory hold lifecycle', () => {
+  it('clones metadata and options into one deterministic seller-owned listing', async () => {
+    const identity = { id: 'source-1', groupId: 'group-1', region: 'US', optionSignature: 'color=black' };
+    const row = { productId: 'seller-listing-id', qty: 3, reservedQty: 0, availableQty: 3, priceCents: 2_500 };
+    const query = vi.fn()
+      .mockResolvedValueOnce({ rows: [identity] })
+      .mockResolvedValueOnce({ rows: [row] })
+      .mockResolvedValueOnce({ rows: [identity] })
+      .mockResolvedValueOnce({ rows: [row] });
+    const inventory = new PgAuctionInventory({ query } as never);
+
+    await expect(inventory.onboardOwned('source-1', 3, 2_500, 'seller-alpha')).resolves.toEqual(row);
+    await expect(inventory.onboardOwned('source-1', 3, 2_500, 'seller-alpha')).resolves.toEqual(row);
+
+    const [firstSql, firstParams] = query.mock.calls[1] as [string, unknown[]];
+    const [, secondParams] = query.mock.calls[3] as [string, unknown[]];
+    expect(firstSql).toContain('INSERT INTO storefront_product');
+    expect(firstSql).toContain('source.variant_images');
+    expect(firstSql).toContain('INSERT INTO storefront_product_option');
+    expect(firstSql).toContain('ON CONFLICT (id) DO UPDATE');
+    expect(firstParams[0]).toBe('source-1');
+    expect(firstParams[5]).toBe('seller-alpha');
+    expect(firstParams[1]).toBe(secondParams[1]);
+    expect(String(firstParams[1])).toMatch(/^seller-listing-[a-f0-9]{12}-[a-f0-9]{24}$/);
+    const conflictSet = firstSql.split('ON CONFLICT (id) DO UPDATE')[1]?.split('WHERE')[0] ?? '';
+    expect(conflictSet).not.toMatch(/seller_id\s*=/);
+  });
+
+  it('returns no listing when the public source does not exist', async () => {
+    const query = vi.fn().mockResolvedValue({ rows: [] });
+    const inventory = new PgAuctionInventory({ query } as never);
+
+    await expect(inventory.onboardOwned('missing', 1, 100, 'seller-alpha')).resolves.toBeUndefined();
+    expect(query).toHaveBeenCalledOnce();
+  });
+
   it('sweeps expired rows before reads/reserves and forwards the server deadline', async () => {
     const query = vi.fn()
       .mockResolvedValueOnce({ rows: [] })

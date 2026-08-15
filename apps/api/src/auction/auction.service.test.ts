@@ -4,6 +4,7 @@ import { SyncQueryRegistry } from '../sync/sync-query.registry';
 import { AuctionSyncQueries } from './auction.module';
 import { AuctionService, InMemoryAuctionInventory } from './auction.service';
 import { InMemoryOrderStore } from '../checkout/checkout.service';
+import { FixtureCatalogSource } from '../catalog/catalog.sources';
 
 describe('AuctionService', () => {
   afterEach(() => vi.useRealTimers());
@@ -52,6 +53,28 @@ describe('AuctionService', () => {
     await expect(inventory.save('product-save', 1, 1_500)).rejects.toThrow(
       'Quantity cannot be lower than 2 reserved units',
     );
+  });
+
+  it('onboards an idempotent seller clone without changing the source fixture owner', async () => {
+    const catalog = new FixtureCatalogSource([{
+      id: 'source-mug', groupId: 'mugs', title: 'Source mug', brand: 'Kiln', productType: 'HOME', sku: 'MUG',
+      condition: 'NEW', handlingDays: 1, priceCents: 1_200, qty: 5, reservedQty: 0, availableQty: 5,
+    }]);
+    const inventory = new InMemoryAuctionInventory(catalog);
+
+    const first = await inventory.onboardOwned('source-mug', 3, 1_500, 'seller-alpha');
+    const second = await inventory.onboardOwned('source-mug', 4, 1_600, 'seller-alpha');
+
+    expect(first?.productId).toMatch(/^seller-listing-/);
+    expect(second).toMatchObject({ productId: first?.productId, qty: 4, priceCents: 1_600 });
+    await expect(catalog.searchOwned({ pageSize: 10 }, 'seller-alpha')).resolves.toMatchObject({
+      total: 1,
+      rows: [expect.objectContaining({ id: first?.productId, qty: 4, priceCents: 1_600 })],
+    });
+    await expect(catalog.searchOwned({ pageSize: 10 }, 'demo-seller')).resolves.toMatchObject({
+      total: 1,
+      rows: [expect.objectContaining({ id: 'source-mug', qty: 5, priceCents: 1_200 })],
+    });
   });
 
   it('allows only one active auction per event and rejects an oversize hold', async () => {

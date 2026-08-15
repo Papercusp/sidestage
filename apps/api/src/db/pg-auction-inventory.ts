@@ -5,6 +5,7 @@ import type {
   AuctionInventorySnapshot,
   InventoryHoldSource,
 } from '../auction/auction.service';
+import { sellerListingId } from '../auction/auction.service';
 
 interface VariantRow {
   productId: string;
@@ -12,6 +13,13 @@ interface VariantRow {
   reservedQty: number;
   availableQty: number;
   priceCents: number;
+}
+
+interface ListingIdentityRow {
+  id: string;
+  groupId: string | null;
+  region: string;
+  optionSignature: string;
 }
 
 /**
@@ -69,6 +77,82 @@ export class PgAuctionInventory implements AuctionInventory {
 
   async saveOwned(productId: string, quantity: number, priceCents: number, sellerId: string): Promise<AuctionInventorySnapshot | undefined> {
     return this.saveScoped(productId, quantity, priceCents, sellerId);
+  }
+
+  async onboardOwned(sourceProductId: string, quantity: number, priceCents: number, sellerId: string): Promise<AuctionInventorySnapshot | undefined> {
+    const sourceId = sourceProductId.trim();
+    const owner = sellerId.trim();
+    if (!sourceId || sourceId.length > 120) throw new BadRequestException('sourceProductId is required and must be 120 characters or fewer');
+    if (!owner || owner.length > 120) throw new BadRequestException('sellerId is required and must be 120 characters or fewer');
+    if (!Number.isInteger(quantity) || quantity < 0) throw new BadRequestException('quantity must be a non-negative integer');
+    if (!Number.isInteger(priceCents) || priceCents < 0) throw new BadRequestException('priceCents must be a non-negative integer');
+
+    const source = await this.pool.query<ListingIdentityRow>(
+      `SELECT id, group_id AS "groupId", region, option_signature AS "optionSignature"
+         FROM storefront_product
+        WHERE id = $1 AND active`,
+      [sourceId],
+    );
+    const identity = source.rows[0];
+    if (!identity) return undefined;
+    const targetId = sellerListingId(
+      owner,
+      `${identity.groupId ?? identity.id}\0${identity.region}\0${identity.optionSignature}`,
+    );
+    const qualifier = targetId.slice(-12);
+    const result = await this.pool.query<VariantRow>(
+      `WITH upserted AS (
+         INSERT INTO storefront_product
+           (id, slug, region, sku, price_cents, active, group_id, condition, handling,
+            option_signature, variant_images, qty, reserved_qty, seller_id)
+         SELECT $2,
+                source.slug || '-' || $3,
+                source.region,
+                source.sku || '-' || upper($3),
+                $4,
+                source.active,
+                source.group_id,
+                source.condition,
+                source.handling,
+                source.option_signature,
+                source.variant_images,
+                $5,
+                0,
+                $6
+           FROM storefront_product AS source
+          WHERE source.id = $1 AND source.active
+         ON CONFLICT (id) DO UPDATE
+           SET qty = EXCLUDED.qty,
+               price_cents = EXCLUDED.price_cents,
+               updated_at = now()
+         WHERE storefront_product.seller_id = EXCLUDED.seller_id
+           AND storefront_product.group_id IS NOT DISTINCT FROM EXCLUDED.group_id
+           AND storefront_product.region = EXCLUDED.region
+           AND storefront_product.option_signature = EXCLUDED.option_signature
+           AND storefront_product.reserved_qty <= EXCLUDED.qty
+         RETURNING id AS "productId", qty, reserved_qty AS "reservedQty",
+                   "availableQty", price_cents AS "priceCents"
+       ), copied_options AS (
+         INSERT INTO storefront_product_option (variant_id, axis_id, value_id)
+         SELECT upserted."productId", source_option.axis_id, source_option.value_id
+           FROM upserted
+           JOIN storefront_product_option AS source_option
+             ON source_option.variant_id = $1
+         ON CONFLICT (variant_id, axis_id) DO NOTHING
+       )
+       SELECT "productId", qty, "reservedQty", "availableQty", "priceCents"
+         FROM upserted`,
+      [sourceId, targetId, qualifier, priceCents, quantity, owner],
+    );
+    if (result.rows[0]) return result.rows[0];
+    const current = await this.pool.query<{ reservedQty: number }>(
+      'SELECT reserved_qty AS "reservedQty" FROM storefront_product WHERE id = $1 AND seller_id = $2',
+      [targetId, owner],
+    );
+    if (current.rows[0] && quantity < current.rows[0].reservedQty) {
+      throw new ConflictException(`Quantity cannot be lower than ${current.rows[0].reservedQty} reserved units for ${targetId}`);
+    }
+    throw new ConflictException(`Catalog variant ${sourceId} could not be onboarded for this seller`);
   }
 
   private async saveScoped(productId: string, quantity: number, priceCents: number, sellerId?: string): Promise<AuctionInventorySnapshot | undefined> {

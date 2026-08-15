@@ -90,6 +90,14 @@ export function inventoryDraftFromCatalog(row: CatalogRow): EventItemDraft {
   };
 }
 
+/** A catalog clone starts with seller-entered stock, never the source owner's stock. */
+export function onboardingDraftFromCatalog(row: CatalogRow): EventItemDraft {
+  return {
+    ...draftFromCatalog(row),
+    quantityLimit: 1,
+  };
+}
+
 export function filterCatalog(
   rows: readonly CatalogRow[],
   query: string,

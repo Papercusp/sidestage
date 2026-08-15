@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { saveInventory } from './inventory-api';
+import { onboardInventory, saveInventory } from './inventory-api';
 
 describe('saveInventory', () => {
   afterEach(() => vi.unstubAllGlobals());
@@ -18,6 +18,27 @@ describe('saveInventory', () => {
       method: 'PUT',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ quantity: 3, priceCents: 1_500 }),
+    });
+  });
+
+  it('posts a public source variant to the seller onboarding route', async () => {
+    const fetchMock = vi.fn(async () => ({
+      ok: true,
+      status: 201,
+      json: async () => ({ onboarded: true, sourceProductId: 'mug/blue', productId: 'seller-listing-1' }),
+    }) as Response);
+    vi.stubGlobal('fetch', fetchMock);
+
+    await onboardInventory(
+      { sourceProductId: 'mug/blue', quantity: 2, priceCents: 1_800 },
+      'https://api.example/',
+      'seller-alpha',
+    );
+
+    expect(fetchMock).toHaveBeenCalledWith('https://api.example/inventory/mug%2Fblue/onboard', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', 'x-demo-principal': 'seller-alpha' },
+      body: JSON.stringify({ quantity: 2, priceCents: 1_800 }),
     });
   });
 });

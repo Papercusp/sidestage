@@ -5,6 +5,7 @@ import {
   draftFromCatalog,
   formatPrice,
   inventoryDraftFromCatalog,
+  onboardingDraftFromCatalog,
   type CatalogRow,
   type EventItemDraft,
 } from "./catalog";
@@ -19,7 +20,7 @@ export interface InventoryPickerGridProps {
     field: "eventPriceCents" | "quantityLimit",
     value: string,
   ) => void;
-  purpose?: "event" | "inventory";
+  purpose?: "event" | "inventory" | "onboard";
 }
 
 /**
@@ -56,9 +57,14 @@ export function InventoryPickerGrid({
 }: InventoryPickerGridProps) {
   const draftFor = (row: CatalogRow) => {
     return drafts[row.id] ?? (
-      purpose === "inventory" ? inventoryDraftFromCatalog(row) : draftFromCatalog(row)
+      purpose === "inventory"
+        ? inventoryDraftFromCatalog(row)
+        : purpose === "onboard"
+          ? onboardingDraftFromCatalog(row)
+          : draftFromCatalog(row)
     );
   };
+  const isInventory = purpose !== "event";
   const columns = useMemo<ColumnDef<CatalogRow>[]>(
     () => [
       {
@@ -89,8 +95,8 @@ export function InventoryPickerGrid({
       },
       {
         key: "price",
-        header: purpose === "inventory" ? "Unit price" : "Event price",
-        headerText: purpose === "inventory" ? "Unit price" : "Event price",
+        header: isInventory ? "Unit price" : "Event price",
+        headerText: isInventory ? "Unit price" : "Event price",
         width: "minmax(125px, 1fr)",
         align: "right",
         toCopyText: (row) =>
@@ -99,10 +105,10 @@ export function InventoryPickerGrid({
           const draft = draftFor(row);
           return (
             <label className="event-number-field">
-              <span className="sr-only">{purpose === "inventory" ? "Unit price" : "Event price"} for {row.title}</span>
+              <span className="sr-only">{isInventory ? "Unit price" : "Event price"} for {row.title}</span>
               <span className="currency-prefix">$</span>
               <input
-                aria-label={`${purpose === "inventory" ? "Unit price" : "Event price"} for ${row.title} ${row.sku}`}
+                aria-label={`${isInventory ? "Unit price" : "Event price"} for ${row.title} ${row.sku}`}
                 inputMode="decimal"
                 value={(draft.eventPriceCents / 100).toFixed(2)}
                 onChange={(event) =>
@@ -116,8 +122,8 @@ export function InventoryPickerGrid({
       },
       {
         key: "quantity",
-        header: purpose === "inventory" ? "Qty" : "Event qty",
-        headerText: purpose === "inventory" ? "Qty" : "Event qty",
+        header: isInventory ? "Qty" : "Event qty",
+        headerText: isInventory ? "Qty" : "Event qty",
         width: "minmax(120px, .8fr)",
         align: "right",
         toCopyText: (row) => String(draftFor(row).quantityLimit),
@@ -125,12 +131,12 @@ export function InventoryPickerGrid({
           const draft = draftFor(row);
           return (
             <label className="event-number-field quantity-field">
-              <span className="sr-only">{purpose === "inventory" ? "Total quantity" : "Event quantity"} for {row.title}</span>
+              <span className="sr-only">{isInventory ? "Total quantity" : "Event quantity"} for {row.title}</span>
               <input
-                aria-label={`${purpose === "inventory" ? "Total quantity" : "Event quantity"} for ${row.title} ${row.sku}`}
+                aria-label={`${isInventory ? "Total quantity" : "Event quantity"} for ${row.title} ${row.sku}`}
                 type="number"
-                min={purpose === "inventory" ? row.reservedQty ?? 0 : row.availableQty > 0 ? 1 : 0}
-                max={purpose === "inventory" ? undefined : row.availableQty}
+                min={purpose === "inventory" ? row.reservedQty ?? 0 : purpose === "onboard" ? 0 : row.availableQty > 0 ? 1 : 0}
+                max={isInventory ? undefined : row.availableQty}
                 step={1}
                 value={draft.quantityLimit}
                 disabled={purpose === "event" && row.availableQty === 0}
@@ -139,7 +145,7 @@ export function InventoryPickerGrid({
                 }
                 onClick={(event) => event.stopPropagation()}
               />
-              <span className="quantity-stock">{purpose === "inventory" ? row.availableQty : `/${row.availableQty}`}</span>
+              <span className="quantity-stock">{purpose === "inventory" ? row.availableQty : purpose === "onboard" ? "new" : `/${row.availableQty}`}</span>
             </label>
           );
         },
@@ -162,8 +168,8 @@ export function InventoryPickerGrid({
       }] : []),
       {
         key: "availability",
-        header: purpose === "inventory" ? "Available" : "Stock",
-        headerText: purpose === "inventory" ? "Available" : "Stock",
+        header: purpose === "inventory" ? "Available" : purpose === "onboard" ? "Source stock" : "Stock",
+        headerText: purpose === "inventory" ? "Available" : purpose === "onboard" ? "Source stock" : "Stock",
         width: "minmax(82px, .6fr)",
         align: "right",
         toCopyText: (row) => `${row.availableQty} available`,
@@ -183,7 +189,7 @@ export function InventoryPickerGrid({
     const rowsById = new Map(rows.map((row) => [row.id, row]));
     onSelectedRowIdsChange(
       new Set(
-        [...next].filter((id) => purpose === "inventory" || (rowsById.get(id)?.availableQty ?? 0) > 0),
+        [...next].filter((id) => isInventory || (rowsById.get(id)?.availableQty ?? 0) > 0),
       ),
     );
   };
@@ -214,7 +220,7 @@ export function InventoryPickerGrid({
           <span>
             <strong>Catalog</strong> · select with the row checkboxes
           </span>
-          <span>{purpose === "inventory" ? "Unit price and total Qty are editable per variant" : "Offer price and qty are editable per item"}</span>
+          <span>{purpose === "inventory" ? "Unit price and total Qty are editable per variant" : purpose === "onboard" ? "Set the stock and price for your new listing" : "Offer price and qty are editable per item"}</span>
         </div>
       }
       empty={

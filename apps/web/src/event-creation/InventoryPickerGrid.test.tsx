@@ -144,6 +144,25 @@ describe("InventoryPickerGrid", () => {
     expect(eventMarkup).not.toContain('aria-label="4 reserved"');
     expect(eventMarkup).not.toContain('>Reserved<');
   });
+
+  it('treats catalog onboarding quantity as new seller stock rather than source reservations', () => {
+    const markup = renderToStaticMarkup(
+      <InventoryPickerGrid
+        rows={ROWS}
+        selectedRowIds={new Set(['espresso-new'])}
+        drafts={{}}
+        onSelectedRowIdsChange={() => undefined}
+        onDraftChange={() => undefined}
+        purpose="onboard"
+      />,
+    );
+
+    expect(markup).toContain('value="1"');
+    expect(markup).toContain('min="0"');
+    expect(markup).toContain('>Source stock<');
+    expect(markup).toContain('Set the stock and price for your new listing');
+    expect(markup).not.toContain('>Reserved<');
+  });
 });
 
 describe("variantAxisLabel", () => {
