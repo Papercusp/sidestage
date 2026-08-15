@@ -167,7 +167,7 @@ describe('seller Copilot integration', () => {
         const absent = await notFoundResponse(() => call('missing-proposal'));
         expect(absent).toEqual(foreign);
       }
-      await expect(runtime.service.find(proposal.id)).resolves.toMatchObject({ status: 'queued' });
+      await expect(runtime.service.find(proposal.id)).resolves.toMatchObject({ status: 'pending' });
       expect(sellerMessages(await runtime.chat.getMessages('event-live'))).toEqual([]);
     } finally {
       runtime.destroy();

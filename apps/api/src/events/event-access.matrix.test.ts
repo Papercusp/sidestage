@@ -17,7 +17,7 @@ import { TranscriptionController } from '../transcription/transcription.controll
 import { EventController } from './event.controller';
 
 type AccessPolicy = 'public-viewer' | 'seller-owned' | 'principal-partitioned' | 'operational';
-type ControllerType = { name: string; prototype: Record<string, unknown> };
+type ControllerType = { name: string; prototype: object };
 
 const REPO_ROOT = resolve(__dirname, '../../../..');
 const API_ROOT = join(REPO_ROOT, 'apps/api/src');
@@ -168,8 +168,9 @@ function discoveredEndpoints(): string[] {
   const endpoints: string[] = [];
   for (const { controller } of EVENT_CONTROLLERS) {
     const controllerPaths = paths(Reflect.getMetadata(PATH_METADATA, controller));
-    for (const property of Object.getOwnPropertyNames(controller.prototype)) {
-      const handler = controller.prototype[property];
+    const prototype = controller.prototype as Record<string, unknown>;
+    for (const property of Object.getOwnPropertyNames(prototype)) {
+      const handler = prototype[property];
       if (typeof handler !== 'function') continue;
       const method = Reflect.getMetadata(METHOD_METADATA, handler) as RequestMethod | undefined;
       if (method === undefined) continue;

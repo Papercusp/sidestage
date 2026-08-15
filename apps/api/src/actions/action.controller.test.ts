@@ -66,6 +66,7 @@ describe('ActionController event ownership', () => {
       () => controller.items(EVENT_ID, 'seller-beta'),
       () => controller.audit(EVENT_ID, 'seller-beta'),
       () => controller.execute(EVENT_ID, {
+        actorId: 'seller-forged',
         action: {
           kind: 'markdown',
           productId: 'mug',
@@ -105,10 +106,9 @@ describe('ActionController event ownership', () => {
     ));
 
     expect(absent).toEqual(foreign);
-    expect(actions.getAudit(executed.auditId)).toMatchObject({
-      actorId: 'seller-alpha',
-      rolledBackAt: undefined,
-    });
+    const audit = actions.getAudit(executed.auditId);
+    expect(audit).toMatchObject({ actorId: 'seller-alpha' });
+    expect(audit).not.toHaveProperty('rolledBackAt');
     expect(actions.listItems(EVENT_ID)).toEqual([
       expect.objectContaining({ productId: 'mug', priceCents: 1_200 }),
     ]);
