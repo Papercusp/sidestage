@@ -12,6 +12,8 @@ import { EventVisibilityGuard } from '../events/event-visibility.guard';
 import { EventService, InMemoryEventStore } from '../events/event.service';
 import { InMemoryOrderStore } from '../checkout/checkout.service';
 import { FixtureCatalogSource } from '../catalog/catalog.sources';
+import { InMemoryActionAuditStore } from './action-audit.store';
+import { InMemoryActionItemStore } from './action-item.store';
 
 const policy: CopilotPolicy = {
   automationLevel: 'auto',
@@ -303,6 +305,36 @@ describe('GuardedActionService', () => {
     })).rejects.toThrow('floor');
     expect((await actions.listItems('event-1'))[0]?.priceCents).toBe(1_500);
     expect(await actions.listAudit('event-1')).toEqual([]);
+  });
+
+  it('replays and rolls back a client request after the service restarts on the same stores', async () => {
+    const itemStore = new InMemoryActionItemStore();
+    const auditStore = new InMemoryActionAuditStore();
+    const firstProcess = new GuardedActionService(null, undefined, undefined, itemStore, auditStore);
+    await firstProcess.registerEvent('event-1', { policy, items: [item] });
+    const applied = await firstProcess.apply({
+      eventId: 'event-1',
+      actorId: 'seller-1',
+      clientRequestId: 'restart-safe-markdown',
+      action: { kind: 'markdown', productId: 'mug', priceCents: 1_300, reason: 'Restart-safe offer' },
+    });
+
+    const restarted = new GuardedActionService(null, undefined, undefined, itemStore, auditStore);
+    await expect(restarted.apply({
+      eventId: 'event-1',
+      actorId: 'seller-1',
+      clientRequestId: 'restart-safe-markdown',
+      action: { kind: 'markdown', productId: 'mug', priceCents: 1_300, reason: 'Restart-safe offer' },
+    })).resolves.toEqual(applied);
+
+    await expect(restarted.rollback(applied.auditId, 'seller-1')).resolves.toMatchObject({
+      rolledBackAuditId: applied.auditId,
+      state: { priceCents: 1_500 },
+    });
+    expect(await restarted.listAudit('event-1')).toHaveLength(2);
+
+    const restartedAgain = new GuardedActionService(null, undefined, undefined, itemStore, auditStore);
+    await expect(restartedAgain.rollback(applied.auditId, 'seller-1')).rejects.toThrow('already rolled back');
   });
 
   it('rejects rollback after a newer write changes the same item', async () => {
