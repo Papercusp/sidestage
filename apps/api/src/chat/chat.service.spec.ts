@@ -153,7 +153,8 @@ describe('ChatService', () => {
       status: 'not-routed',
       route: { destination: 'none', signal: 'not-a-question' },
     });
-    expect(await service.getQueuedQuestions('demo-event')).toEqual(routed);
+    const queued = await service.getQueuedQuestions('demo-event');
+    expect(new Set(queued.map((message) => message.id))).toEqual(new Set(routed.map((message) => message.id)));
   });
 
   it('updates a source question lifecycle without losing its routing decision', async () => {

@@ -201,6 +201,7 @@ describe('durable-chat schema guard', () => {
       'constraint:chat_message_event_fk',
       'constraint:chat_presence_event_fk',
       'constraint:chat_transcript_moment_event_fk',
+      'index:chat_message_copilot_queue_idx',
       'index:chat_message_idempotency_unique',
       'index:chat_message_visible_page_idx',
       'index:chat_presence_freshness_idx',

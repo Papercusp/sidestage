@@ -113,7 +113,10 @@ function integrationRuntime(action?: ActionResult) {
       role: 'buyer',
       text,
     });
-    expect(question.grounding).toEqual({ status: 'seller-queue' });
+    expect(question.grounding).toMatchObject({
+      status: 'seller-queue',
+      route: { version: 1, destination: 'seller-review' },
+    });
     await vi.waitFor(async () => {
       expect(await service.list('event-live')).toHaveLength(1);
     });
@@ -189,7 +192,28 @@ describe('seller Copilot integration', () => {
         status: 'approved',
         decision: { actorId: 'seller-1', sentMessageId: expect.any(String) },
       });
-      expect(sellerMessages(await runtime.chat.getMessages('event-live'))).toHaveLength(1);
+      const messages = await runtime.chat.getMessages('event-live');
+      expect(messages.find((message) => message.id === proposal.sourceMessageId)?.grounding).toMatchObject({
+        status: 'answered',
+        proposalId: proposal.id,
+        responseMessageId: first.decision?.sentMessageId,
+        route: { destination: 'seller-review', category: 'availability' },
+      });
+      expect(sellerMessages(messages)).toEqual([
+        expect.objectContaining({
+          grounding: {
+            status: 'answered',
+            sourceMessageId: proposal.sourceMessageId,
+            proposalId: proposal.id,
+            assistant: {
+              kind: 'copilot-assisted',
+              approvedBy: 'seller-1',
+              edited: false,
+              citationSourceIds: ['event-item:event-live:mug'],
+            },
+          },
+        }),
+      ]);
       await expect(runtime.queries.resolve(
         'event.copilot.proposals',
         { eventId: 'event-live' },
@@ -210,7 +234,11 @@ describe('seller Copilot integration', () => {
 
       expect(retry).toEqual(skipped);
       expect(skipped.status).toBe('skipped');
-      expect(sellerMessages(await runtime.chat.getMessages('event-live'))).toEqual([]);
+      const messages = await runtime.chat.getMessages('event-live');
+      expect(sellerMessages(messages)).toEqual([]);
+      expect(messages.find((message) => message.id === proposal.sourceMessageId)?.grounding).toMatchObject({
+        status: 'skipped', proposalId: proposal.id,
+      });
     } finally {
       runtime.destroy();
     }
@@ -233,7 +261,11 @@ describe('seller Copilot integration', () => {
         { principal: 'seller-1' },
       ))
         .resolves.toEqual([expect.objectContaining({ status: 'blocked' })]);
-      expect(sellerMessages(await runtime.chat.getMessages('event-live'))).toEqual([]);
+      const messages = await runtime.chat.getMessages('event-live');
+      expect(sellerMessages(messages)).toEqual([]);
+      expect(messages.find((message) => message.id === proposal.sourceMessageId)?.grounding).toMatchObject({
+        status: 'blocked', proposalId: proposal.id,
+      });
     } finally {
       runtime.destroy();
     }

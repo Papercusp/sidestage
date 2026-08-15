@@ -44,7 +44,10 @@ describe('ChatController', () => {
       displayName: 'Maya',
       role: 'buyer',
       text: 'How long does shipping take?',
-    })).grounding).toEqual({ status: 'seller-queue' });
+    })).grounding).toMatchObject({
+      status: 'seller-queue',
+      route: { version: 1, destination: 'seller-review', category: 'shipping' },
+    });
     expect(await service.getTranscript('demo-event')).toEqual([moment]);
   });
 
