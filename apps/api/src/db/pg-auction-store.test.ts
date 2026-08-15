@@ -36,6 +36,7 @@ describe('PgAuctionStore transactional aggregate authority', () => {
   it('reserves inventory and inserts the aggregate in one transaction', async () => {
     const harness = transactionalPool((sql) => {
       if (sql.includes('SELECT id FROM storefront_product')) return { rows: [{ id: 'product-1' }] };
+      if (sql.includes('UPDATE event_lineup_item')) return { rows: [{ id: 'item-1' }] };
       return { rows: [] };
     });
     const store = new PgAuctionStore(harness.pool);
@@ -48,11 +49,12 @@ describe('PgAuctionStore transactional aggregate authority', () => {
       'BEGIN',
       'SELECT expire_inventory_reservations()',
       'SELECT id FROM storefront_product WHERE id = $1 FOR UPDATE',
+      expect.stringContaining('UPDATE event_lineup_item'),
       'SELECT reserve_inventory($1, $2, $3, $4, $5)',
       expect.stringContaining('INSERT INTO auction_state'),
       'COMMIT',
     ]);
-    expect(harness.query.mock.calls[3]?.[1]).toEqual(['product-1', 'auction', 'auction-1', 2, null]);
+    expect(harness.query.mock.calls[4]?.[1]).toEqual(['product-1', 'auction', 'auction-1', 2, null]);
     expect(harness.release).toHaveBeenCalledOnce();
   });
 
@@ -121,6 +123,7 @@ describe('PgAuctionStore transactional aggregate authority', () => {
         return { rows: [{ payload: expired }] };
       }
       if (sql.includes('release_inventory')) return { rows: [{ released: true }] };
+      if (sql.includes('UPDATE event_lineup_item')) return { rows: [{ id: 'item-1' }] };
       return { rows: [] };
     });
     const store = new PgAuctionStore(harness.pool);
@@ -193,6 +196,7 @@ describe('PgAuctionStore transactional aggregate authority', () => {
         return { rows: [{ payload: activeAuction() }] };
       }
       if (sql.includes('release_inventory')) return { rows: [{ released: true }] };
+      if (sql.includes('UPDATE event_lineup_item')) return { rows: [{ id: 'item-1' }] };
       return { rows: [] };
     });
     const store = new PgAuctionStore(harness.pool);
@@ -204,7 +208,52 @@ describe('PgAuctionStore transactional aggregate authority', () => {
     });
     const statements = harness.query.mock.calls.map(([sql]) => sql.replace(/\s+/g, ' ').trim());
     expect(statements.findIndex((sql) => sql.includes('release_inventory'))).toBeLessThan(
+      statements.findIndex((sql) => sql.includes('UPDATE event_lineup_item')),
+    );
+    expect(statements.findIndex((sql) => sql.includes('UPDATE event_lineup_item'))).toBeLessThan(
       statements.findIndex((sql) => sql.startsWith('UPDATE auction_state')),
+    );
+    expect(statements.at(-1)).toBe('COMMIT');
+  });
+
+  it('restores the winner event allocation exactly once when payment fails', async () => {
+    const winner = activeAuction({
+      status: 'closed',
+      allocationState: 'held',
+      closeReason: 'settled',
+      closedAt: '2026-08-14T18:01:00.000Z',
+      winnerOrder: {
+        id: 'order-1',
+        auctionId: 'auction-1',
+        eventId: 'event-1',
+        eventItemId: 'item-1',
+        productId: 'product-1',
+        bidderId: 'buyer-a',
+        quantity: 2,
+        unitPriceCents: 1_600,
+        totalCents: 3_200,
+        status: 'pending',
+        createdAt: '2026-08-14T18:01:00.000Z',
+      },
+    });
+    let persisted: unknown[] | undefined;
+    const harness = transactionalPool((sql, params) => {
+      if (sql.includes('FROM auction_state') && sql.includes('FOR UPDATE')) return { rows: [{ payload: winner }] };
+      if (sql.includes('release_inventory')) return { rows: [{ released: true }] };
+      if (sql.includes('UPDATE event_lineup_item')) return { rows: [{ id: 'item-1' }] };
+      if (sql.includes('UPDATE auction_state')) persisted = params;
+      return { rows: [] };
+    });
+
+    await expect(new PgAuctionStore(harness.pool).releaseWinner('auction-1', 'buyer-a')).resolves.toMatchObject({
+      changed: true,
+      inventoryChanged: true,
+      auction: { allocationState: 'released' },
+    });
+    expect(JSON.parse(String(persisted?.[5]))).toMatchObject({ allocationState: 'released' });
+    const statements = harness.query.mock.calls.map(([sql]) => sql.replace(/\s+/g, ' ').trim());
+    expect(statements.findIndex((sql) => sql.includes('release_inventory'))).toBeLessThan(
+      statements.findIndex((sql) => sql.includes('UPDATE event_lineup_item')),
     );
     expect(statements.at(-1)).toBe('COMMIT');
   });
@@ -234,8 +283,20 @@ describe.runIf(process.env.SIDESTAGE_PG_INTEGRATION === '1')('PgAuctionStore aga
          VALUES ($1, $1, 'US', $2, 1000, true, 3, 0)`,
         [productId, `AUCTION-TEST-${suffix}`],
       );
+      await pool.query(
+        `INSERT INTO event_lineup_item
+           (event_item_id, event_id, product_id, position,
+            reference_price_cents, current_price_cents,
+            listed_quantity, current_quantity, stage_state, title)
+         VALUES ($1, $2, $3, 0, 1000, 1000, 3, 3, 'on-stage', 'Auction test item')`,
+        [auction.eventItemId, auction.eventId, productId],
+      );
       const firstProcess = new PgAuctionStore(pool);
       await firstProcess.start(auction);
+      await expect(pool.query<{ current_quantity: number }>(
+        'SELECT current_quantity FROM event_lineup_item WHERE event_item_id = $1',
+        [auction.eventItemId],
+      )).resolves.toMatchObject({ rows: [{ current_quantity: 1 }] });
 
       const bids = await Promise.allSettled([
         firstProcess.placeBid(auction.id, {
@@ -274,9 +335,15 @@ describe.runIf(process.env.SIDESTAGE_PG_INTEGRATION === '1')('PgAuctionStore aga
       await expect(restartedProcess.listWinnerOrdersForBuyer('buyer-high')).resolves.toEqual([
         expect.objectContaining({ auctionId: auction.id, bidderId: 'buyer-high' }),
       ]);
+      await restartedProcess.commitWinner(auction.id, 'buyer-high');
+      await expect(pool.query<{ current_quantity: number }>(
+        'SELECT current_quantity FROM event_lineup_item WHERE event_item_id = $1',
+        [auction.eventItemId],
+      )).resolves.toMatchObject({ rows: [{ current_quantity: 1 }] });
     } finally {
       await pool.query('DELETE FROM auction_state WHERE id = $1', [auction.id]);
       await pool.query("DELETE FROM inventory_reservation WHERE source_kind = 'auction' AND source_id = $1", [auction.id]);
+      await pool.query('DELETE FROM event_lineup_item WHERE event_item_id = $1', [auction.eventItemId]);
       await pool.query('DELETE FROM storefront_product WHERE id = $1', [productId]);
       await pool.query('DELETE FROM event WHERE event_id = $1', [auction.eventId]);
       await pool.end();
