@@ -144,6 +144,7 @@ interface VariantRow {
 interface SqlSearchQuery {
   predicate: string;
   value: string | string[];
+  extraValues?: Array<string | string[]>;
   rank?: string;
 }
 
@@ -186,6 +187,10 @@ export class PgCatalogSource implements CatalogSource {
     // cannot remain visibly reserved just because that buyer stopped polling.
     await this.pool.query('SELECT expire_inventory_reservations()', []);
     const { q, productTypes, availability, page, pageSize } = normalizeQuery(query);
+    const tokens = catalogSearchTokens(q, availability);
+    if (q && tokens.length === 0) {
+      return { rows: [], page, pageSize, total: 0, totalIsFloor: false };
+    }
     // The SAME search the Restart wholesale grid uses (@papercusp/typesense):
     // typo-tolerant, one hit per product group, true corpus match count — with
     // graceful SQL degradation when Typesense is unavailable (spec parity,
@@ -219,13 +224,46 @@ export class PgCatalogSource implements CatalogSource {
              ORDER BY array_position($1, COALESCE(v.group_id, v.id)), v."availableQty" > 0 DESC, v.id`,
             [groupKeys],
           );
+          const hydrated = rows.rows.map(rowToVariant);
+          let ranked = hydrated;
+          let additionalGroups = 0;
+          // Typesense is an accelerator, not catalog authority. A newly
+          // schema-authored product can be queryable in Postgres before the
+          // external index refreshes; do not let unrelated indexed hits mask
+          // an exact title match during that window. The GIN predicate keeps
+          // this bounded on the million-row corpus before the exact-title
+          // filter runs.
+          if (
+            page === 1
+            && hydrated.length > 0
+            && !hydrated.some((row) => row.title.toLowerCase() === q.toLowerCase())
+          ) {
+            const tsQuery = `to_tsquery('english', array_to_string($Q1::text[], ':* | ') || ':*')`;
+            const exact = await this.runSearch(query, {
+              predicate: `c.search_tsv @@ ${tsQuery} AND lower(c.title) = lower($Q2)`,
+              rank: `ts_rank(c.search_tsv, ${tsQuery})`,
+              value: tokens,
+              extraValues: [q],
+            });
+            if (exact.rows.length > 0) {
+              const seen = new Set(exact.rows.map((row) => row.id));
+              ranked = [...exact.rows, ...hydrated.filter((row) => !seen.has(row.id))].slice(0, pageSize);
+              const indexedGroups = new Set(groupKeys);
+              additionalGroups = new Set(
+                exact.rows
+                  .map((row) => row.groupId ?? row.id)
+                  .filter((groupId) => !indexedGroups.has(groupId)),
+              ).size;
+            }
+          }
+          const combinedFound = found + additionalGroups;
           return {
-            rows: rows.rows.map(rowToVariant),
+            rows: ranked,
             page,
             pageSize,
             // `found` is Typesense's true group-match count across the corpus.
-            total: Math.min(found, TOTAL_CAP),
-            totalIsFloor: found > TOTAL_CAP,
+            total: Math.min(combinedFound, TOTAL_CAP),
+            totalIsFloor: combinedFound > TOTAL_CAP,
           };
         }
       } catch (err) {
@@ -235,10 +273,6 @@ export class PgCatalogSource implements CatalogSource {
     // SQL path: the GIN-indexed tsvector. An OR with a slug ILIKE defeats both
     // indexes and full-scans 1.1M rows, so the slug match is a FALLBACK query
     // (own gin_trgm index) used only when the text search finds nothing.
-    const tokens = catalogSearchTokens(q, availability);
-    if (q && tokens.length === 0) {
-      return { rows: [], page, pageSize, total: 0, totalIsFloor: false };
-    }
     // `search_tsv` intentionally uses the `simple` dictionary so imported
     // brands/product codes are preserved. The QUERY uses English stemming to
     // discard conversational stopwords, then prefix-matches the simple
@@ -292,10 +326,15 @@ export class PgCatalogSource implements CatalogSource {
 
     let rankSql: string | undefined;
     if (q && search) {
-      params.push(search.value);
-      const qParam = `$${params.length}`;
-      where.push(search.predicate.replaceAll('$Q', qParam));
-      rankSql = search.rank?.replaceAll('$Q', qParam);
+      const qParams = [search.value, ...(search.extraValues ?? [])].map((value) => {
+        params.push(value);
+        return `$${params.length}`;
+      });
+      const bindSearchParams = (sql: string): string => sql
+        .replace(/\$Q(\d+)/g, (placeholder, index: string) => qParams[Number(index) - 1] ?? placeholder)
+        .replaceAll('$Q', qParams[0]);
+      where.push(bindSearchParams(search.predicate));
+      rankSql = search.rank ? bindSearchParams(search.rank) : undefined;
     }
     if (productTypes.length > 0) {
       params.push(productTypes);

@@ -169,6 +169,16 @@ describe('ownership schema guard', () => {
     );
   });
 
+  it('keeps one deploy-applied Harbor Kettle source without assigning it to a real seller', () => {
+    expect(SCHEMA_SQL).toContain("'sidestage-onboarding-harbor-kettle', 'US', 'KITCHEN', 'Harbor Kettle'");
+    expect(SCHEMA_SQL).toContain("'sidestage-onboarding-harbor-kettle-v1', 'demo-seller'");
+    expect(SCHEMA_SQL).toContain("'{\"sidestageRole\":\"seller-onboarding-source\"}'::jsonb");
+    expect(SCHEMA_SQL).toMatch(
+      /ON CONFLICT \(id\) DO UPDATE SET[\s\S]*WHERE storefront_product\.seller_id = EXCLUDED\.seller_id;/,
+    );
+    expect(SCHEMA_SQL).toContain("RAISE EXCEPTION 'Harbor Kettle onboarding source did not converge'");
+  });
+
   it('reports a partially-applied ownership migration even when every table exists', async () => {
     const present = REQUIRED_OWNERSHIP_STRUCTURES.filter(
       (marker) => marker !== 'constraint:event_config_event_fk',

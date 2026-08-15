@@ -1079,6 +1079,74 @@ FOR EACH ROW EXECUTE FUNCTION sidestage_preserve_owner('seller_id');
 ALTER TABLE storefront_product ALTER COLUMN seller_id DROP DEFAULT;
 ALTER TABLE inventory_reservation ALTER COLUMN seller_id DROP DEFAULT;
 
+-- One public, schema-applied onboarding source must exist even when production
+-- deliberately skips db/seed/demo.sql. This is an operational reference row,
+-- not a fabricated seller listing: Studio clones it through inventory.onboard
+-- into a separately identified, immutable seller-owned listing. Keeping the
+-- source in the idempotent deploy-time apply path prevents a rebuilt database
+-- from recreating the zero-inventory dead end that D-025 exposed.
+INSERT INTO product_catalog (
+  group_id, region, product_type, title, description, brand, manufacturer,
+  identifiers, properties, images, bullets, updated_at
+)
+VALUES (
+  'sidestage-onboarding-harbor-kettle', 'US', 'KITCHEN', 'Harbor Kettle',
+  'A seller-ready stovetop kettle available as a public Studio onboarding source.',
+  'Hearthline', 'Hearthline',
+  '{"mpn":"SS-ONBOARD-HARBOR-KETTLE"}'::jsonb,
+  '{"sidestageRole":"seller-onboarding-source"}'::jsonb,
+  '[{"url":"/demo-products/event-demo-01-harbor-kettle.webp","alt":"Harbor Kettle","isPrimary":true}]'::jsonb,
+  '["Seller-owned clone source","Public catalog reference"]'::jsonb,
+  now()
+)
+ON CONFLICT (group_id, region) DO UPDATE SET
+  product_type = EXCLUDED.product_type,
+  title = EXCLUDED.title,
+  description = EXCLUDED.description,
+  brand = EXCLUDED.brand,
+  manufacturer = EXCLUDED.manufacturer,
+  identifiers = EXCLUDED.identifiers,
+  properties = EXCLUDED.properties,
+  images = EXCLUDED.images,
+  bullets = EXCLUDED.bullets,
+  updated_at = now();
+
+INSERT INTO storefront_product (
+  id, seller_id, slug, region, sku, price_cents, active, group_id,
+  condition, handling, option_signature, variant_images, qty
+)
+VALUES (
+  'sidestage-onboarding-harbor-kettle-v1', 'demo-seller',
+  'sidestage-onboarding-harbor-kettle-v1', 'US', 'SS-ONBOARD-HARBOR-KETTLE',
+  7400, true, 'sidestage-onboarding-harbor-kettle', 'NEW', 2, 'base',
+  '[{"url":"/demo-products/event-demo-01-harbor-kettle.webp","alt":"Harbor Kettle","isPrimary":true}]'::jsonb,
+  1
+)
+ON CONFLICT (id) DO UPDATE SET
+  active = EXCLUDED.active,
+  price_cents = EXCLUDED.price_cents,
+  group_id = EXCLUDED.group_id,
+  condition = EXCLUDED.condition,
+  handling = EXCLUDED.handling,
+  option_signature = EXCLUDED.option_signature,
+  variant_images = EXCLUDED.variant_images,
+  updated_at = now()
+WHERE storefront_product.seller_id = EXCLUDED.seller_id;
+
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM storefront_product
+    WHERE id = 'sidestage-onboarding-harbor-kettle-v1'
+      AND seller_id = 'demo-seller'
+      AND group_id = 'sidestage-onboarding-harbor-kettle'
+      AND active
+  ) THEN
+    RAISE EXCEPTION 'Harbor Kettle onboarding source did not converge';
+  END IF;
+END;
+$$;
+
 DROP TRIGGER IF EXISTS scout_session_preserve_buyer ON scout_session;
 CREATE TRIGGER scout_session_preserve_buyer
 BEFORE UPDATE OF buyer_id ON scout_session

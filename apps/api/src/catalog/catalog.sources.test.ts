@@ -47,6 +47,50 @@ describe('PgCatalogSource', () => {
     expect(params).toEqual([['group-1']]);
   });
 
+  it('prepends an exact Postgres title that has not reached Typesense yet', async () => {
+    typesenseSearch.mockResolvedValue({
+      hits: [{ id: 'indexed-kettle-v1', groupId: 'indexed-kettle' }],
+      found: 190,
+    });
+    const otherKettle = {
+      id: 'indexed-kettle-v1', groupId: 'indexed-kettle', title: 'Stainless Tea Kettle', brand: 'Indexed',
+      productType: 'KITCHEN', sku: 'INDEXED-1', color: null, size: null, condition: 'NEW', handlingDays: 1,
+      priceCents: 5_000, qty: 4, reservedQty: 0, availableQty: 4, imageUrl: null, description: null,
+      weight: null, dimensions: null,
+    };
+    const harborKettle = {
+      ...otherKettle,
+      id: 'sidestage-onboarding-harbor-kettle-v1',
+      groupId: 'sidestage-onboarding-harbor-kettle',
+      title: 'Harbor Kettle',
+      brand: 'Hearthline',
+      sku: 'SS-ONBOARD-HARBOR-KETTLE',
+      priceCents: 7_400,
+    };
+    const observedParams: unknown[][] = [];
+    const responses = [
+      { rows: [] },
+      { rows: [otherKettle] },
+      { rows: [{ n: '1' }] },
+      { rows: [harborKettle] },
+    ];
+    let responseIndex = 0;
+    const poolQuery = vi.fn(async (_query: string, params: unknown[]) => {
+      observedParams.push([...params]);
+      return responses[responseIndex++];
+    });
+    const source = new PgCatalogSource({ query: poolQuery } as unknown as Pool, '');
+
+    const page = await source.search({ q: 'Harbor Kettle', pageSize: 6 });
+
+    expect(page.rows.map((row) => row.title)).toEqual(['Harbor Kettle', 'Stainless Tea Kettle']);
+    expect(page.total).toBe(191);
+    const [exactCountSql] = poolQuery.mock.calls[2] as [string, unknown[]];
+    expect(exactCountSql).toContain('c.search_tsv @@');
+    expect(exactCountSql).toContain('lower(c.title) = lower($2)');
+    expect(observedParams[2]).toEqual([['harbor', 'kettle'], 'Harbor Kettle', 10_001]);
+  });
+
   it('passes typed multi-category intent to Typesense as an OR filter', async () => {
     typesenseSearch.mockResolvedValue({
       hits: [{ id: 'notebook-1', groupId: 'notebook-group' }],
