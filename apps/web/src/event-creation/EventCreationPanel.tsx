@@ -73,7 +73,7 @@ export function EventCreationPanel({
     undefined,
     catalogProp ? Number.MAX_SAFE_INTEGER : 250,
     allowDemoData,
-    purpose === 'inventory' ? 'seller' : 'public',
+    'seller',
   );
   const catalogUnavailable = catalogProp === undefined && remote.unavailable;
   const catalog = useMemo(
