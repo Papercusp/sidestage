@@ -1,5 +1,9 @@
 import { Logger, Module } from '@nestjs/common';
-import { VertexGeminiAdapter } from '@papercusp/scout-runtime';
+import {
+  VertexGeminiAdapter,
+  type ScoutModelAdapter,
+  type VertexGeminiAdapterOptions,
+} from '@papercusp/scout-runtime';
 import type { Pool } from 'pg';
 import { CartModule } from '../cart/cart.module';
 import { CatalogModule } from '../catalog/catalog.module';
@@ -23,6 +27,25 @@ import {
 } from './scout.types';
 import { ScoutController } from './scout.controller';
 
+type ScoutRuntimeModelFactory = (
+  options: VertexGeminiAdapterOptions,
+) => ScoutModelAdapter;
+
+export function createScoutRuntimeModel(
+  env: NodeJS.ProcessEnv = process.env,
+  create: ScoutRuntimeModelFactory = (options) => new VertexGeminiAdapter(options),
+): ScoutModelAdapter | undefined {
+  const project = env.GOOGLE_CLOUD_PROJECT?.trim();
+  if (!project) return undefined;
+
+  return create({
+    model: env.SCOUT_VERTEX_MODEL?.trim()
+      || 'gemini-3.1-pro-preview-customtools',
+    project,
+    location: env.GOOGLE_CLOUD_LOCATION?.trim() || 'global',
+  });
+}
+
 @Module({
   imports: [CartModule, CatalogModule, DatabaseModule],
   controllers: [ScoutController],
@@ -38,12 +61,7 @@ import { ScoutController } from './scout.controller';
     { provide: SCOUT_REPLY_MODEL, useExisting: DeterministicScoutReplyModel },
     {
       provide: SCOUT_RUNTIME_MODEL,
-      useFactory: () => new VertexGeminiAdapter({
-        model: process.env.SCOUT_VERTEX_MODEL?.trim()
-          || 'gemini-3.1-pro-preview-customtools',
-        project: process.env.GOOGLE_CLOUD_PROJECT?.trim() || undefined,
-        location: process.env.GOOGLE_CLOUD_LOCATION?.trim() || 'global',
-      }),
+      useFactory: () => createScoutRuntimeModel(),
     },
     {
       // Same seam as every other SideStage store: durable when the pool is
