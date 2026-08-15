@@ -11,6 +11,9 @@ export const SERVER_BUYER_ID = 'buyer-server-render';
 
 export type DemoIdentityRole = 'buyer' | 'seller';
 
+/** Seed/import owner used by the clean-clone catalog and acceptance fixtures. */
+export const LEGACY_DEMO_SELLER_ID = 'demo-seller';
+
 export interface DemoIdentityStorage {
   getItem(key: string): string | null;
   setItem(key: string, value: string): void;
@@ -67,6 +70,9 @@ export function normalizeRoleDemoIdentity(
 ): string | null {
   const normalized = normalizeDemoIdentity(value);
   if (!normalized) return null;
+  if (role === 'seller' && normalized.toLowerCase() === LEGACY_DEMO_SELLER_ID) {
+    return LEGACY_DEMO_SELLER_ID;
+  }
   const persona = normalized.replace(/^(?:buyer|seller)-+/i, '');
   return persona.length > 0 ? `${role}-${persona}` : null;
 }

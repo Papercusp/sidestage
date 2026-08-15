@@ -80,6 +80,15 @@ describe('shared demo identity', () => {
     expect(normalizeRoleDemoIdentity(' seller-Team A ', 'buyer')).toBe('buyer-Team A');
   });
 
+  it('preserves the catalog seed owner only on the seller surface', () => {
+    const storage = new MemoryStorage();
+    storage.setItem(DEMO_IDENTITY_STORAGE_KEY, 'demo-seller');
+
+    expect(readDemoIdentity({ storage }, 'seller')).toBe('demo-seller');
+    expect(readDemoIdentity({ storage }, 'buyer')).toBe('buyer-demo-seller');
+    expect(normalizeRoleDemoIdentity('demo-seller', 'seller')).toBe('demo-seller');
+  });
+
   it('enforces a role prefix when a scoped identity is written', () => {
     const storage = new MemoryStorage();
     const announce = vi.fn();
