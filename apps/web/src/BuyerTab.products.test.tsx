@@ -170,6 +170,9 @@ describe('BuyerTab product preview', () => {
     expect(buyerCss).toMatch(/\.buyer-mobile-action\s*\{[^}]*position:\s*sticky/s);
     expect(buyerCss).toMatch(/\.buyer-room-tablist button\s*\{[^}]*min-height:\s*2\.6rem/s);
     expect(buyerCss).toContain(".buyer-current-offer-slot[data-offer-state='idle']");
+    expect(buyerCss).toMatch(/\.buyer-current-offer-slot\s*\{[^}]*container-type:\s*inline-size;/s);
+    expect(buyerCss).toMatch(/\.buyer-current-offer-slot \.auction-bid-form\s*\{[^}]*grid-template-columns:\s*minmax\(0, 1fr\);/s);
+    expect(buyerCss).toMatch(/@container \(max-width: 16rem\) \{[\s\S]*?\.buyer-current-offer-slot \.auction-stage\s*\{[^}]*grid-template-columns:\s*1fr;/s);
     expect(buyerCss).not.toContain('.buyer-mode-switch');
     expect(buyerCss).not.toContain('data-buyer-mode');
     expect(buyerCss).toMatch(/\.buyer-drop-runway\s*\{[^}]*overflow:\s*hidden;/s);
