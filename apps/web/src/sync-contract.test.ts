@@ -91,6 +91,9 @@ describe('SideStage web sync contract', () => {
     const chat = readFileSync(path.join(sourceRoot, 'EventChat.tsx'), 'utf8');
     const seller = readFileSync(path.join(sourceRoot, 'SellerTab.tsx'), 'utf8');
     const transcription = readFileSync(path.join(sourceRoot, 'transcription.ts'), 'utf8');
+    const eventManager = readFileSync(path.join(sourceRoot, 'events/EventManager.tsx'), 'utf8');
+    const runOfShow = readFileSync(path.join(sourceRoot, 'seller/RunOfShowPanel.tsx'), 'utf8');
+    const runOfShowPlanner = readFileSync(path.join(sourceRoot, 'seller/RunOfShowPlannerPanel.tsx'), 'utf8');
     const inventoryPanel = readFileSync(path.join(sourceRoot, 'InventoryPanel.tsx'), 'utf8');
     const inventoryApi = readFileSync(path.join(sourceRoot, 'inventory-api.ts'), 'utf8');
     const app = readFileSync(path.join(sourceRoot, 'App.tsx'), 'utf8');
@@ -120,14 +123,17 @@ describe('SideStage web sync contract', () => {
     expect(copilot).not.toContain('useEventChatSender');
     expect(copilot).not.toContain("'/cart/items'");
     expect(copilot).not.toContain("'/checkout/sessions'");
+    expect(copilot).toContain('[DEMO_PRINCIPAL_HEADER]: principal');
     expect(chat).toContain("'chat.sendMessage'");
     expect(chat).toContain("'chat.touchPresence'");
     expect(chat).toContain("'chat.leavePresence'");
     expect(chat).toContain('const sendMessage = useEventChatSender({ eventId, apiBaseUrl })');
     expect(chat).not.toMatch(/\bfetch\s*\(/);
+    expect(chat).toContain('sellerPrivateRequestHeaders(principal');
     expect(seller).toContain("'chat.addTranscriptMoment'");
     expect(seller).toContain('useTranscriptMomentRecorder({');
     expect(seller).toContain('sellerAccessToken: readSellerAuctionToken()');
+    expect(seller).toContain('headers: sellerPrivateRequestHeaders(principal)');
     expect(seller).not.toContain('VITE_DEEPGRAM_TOKEN');
     expect(seller).not.toMatch(/\bfetch\s*\(/);
     expect(inventoryPanel).toContain("'inventory.restock'");
@@ -136,6 +142,10 @@ describe('SideStage web sync contract', () => {
     expect(inventoryApi).not.toMatch(/\bfetch\s*\(/);
     expect(transcription).toContain('const socket = factory(buildDeepgramUrl(');
     expect(transcription).not.toContain('VITE_DEEPGRAM_TOKEN');
+    expect(transcription).toContain('[DEMO_PRINCIPAL_HEADER]: principal');
+    expect(eventManager).toContain('sellerAuctionToken || undefined, demoPrincipal');
+    expect(runOfShow).toContain('fetchSellerEvent(eventId, apiBaseUrl, principal)');
+    expect(runOfShowPlanner).toContain('saveRunOfShowPlan(eventId, entries, apiBaseUrl, principal)');
 
     const provider = app.indexOf('<BuyerCheckoutProvider');
     expect(provider).toBeGreaterThan(-1);
