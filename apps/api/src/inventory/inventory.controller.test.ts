@@ -3,6 +3,58 @@ import { EventOwnershipGuard } from '../events/event-ownership.guard';
 import { InventoryController } from './inventory.controller';
 
 describe('InventoryController seller boundary', () => {
+  it('onboards a public variant into a derived seller listing without accepting a client owner', async () => {
+    const snapshot = { productId: 'seller-listing-abc', qty: 4, reservedQty: 0, availableQty: 4, priceCents: 2_500 };
+    const inventory = { onboardOwned: vi.fn().mockResolvedValue(snapshot) };
+    const invalidations = { invalidate: vi.fn() };
+    const ownership = { sellerId: vi.fn().mockReturnValue('seller-alpha') };
+    const controller = new InventoryController(inventory as never, invalidations as never, ownership as never);
+
+    await expect(controller.onboard(
+      'foreign-source',
+      { quantity: 4, priceCents: 2_500 },
+      'alpha-principal',
+    )).resolves.toEqual({
+      onboarded: true,
+      sourceProductId: 'foreign-source',
+      productId: snapshot.productId,
+      quantity: 4,
+      priceCents: 2_500,
+      snapshot,
+    });
+    expect(ownership.sellerId).toHaveBeenCalledWith('alpha-principal');
+    expect(inventory.onboardOwned).toHaveBeenCalledWith('foreign-source', 4, 2_500, 'seller-alpha');
+    expect(invalidations.invalidate.mock.calls).toEqual([
+      ['catalog.page'],
+      ['inventory.page'],
+      ['inventory.snapshot', { productId: snapshot.productId }, { principal: 'alpha-principal' }],
+    ]);
+  });
+
+  it('rejects invalid or missing onboarding sources without publishing inventory', async () => {
+    const inventory = { onboardOwned: vi.fn().mockResolvedValue(undefined) };
+    const invalidations = { invalidate: vi.fn() };
+    const controller = new InventoryController(
+      inventory as never,
+      invalidations as never,
+      new EventOwnershipGuard({} as never),
+    );
+
+    await expect(controller.onboard('source', { quantity: -1, priceCents: 100 }, 'seller-alpha')).rejects.toThrow(
+      'quantity must be a non-negative integer',
+    );
+    await expect(controller.onboard('source', { quantity: 1, priceCents: -1 }, 'seller-alpha')).rejects.toThrow(
+      'priceCents must be a non-negative integer',
+    );
+    await expect(controller.onboard('missing', { quantity: 1, priceCents: 100 }, 'seller-alpha')).rejects.toThrow(
+      'Catalog variant missing was not found',
+    );
+    await expect(controller.onboard('source', { quantity: 1, priceCents: 100 }, undefined)).rejects.toThrow(
+      'x-demo-principal is required for seller-owned resources.',
+    );
+    expect(invalidations.invalidate).not.toHaveBeenCalled();
+  });
+
   it('overwrites authoritative quantity and price and invalidates both shared reads', async () => {
     const snapshot = { productId: 'mug', qty: 8, reservedQty: 2, availableQty: 6, priceCents: 1_500 };
     const inventory = { saveOwned: vi.fn().mockResolvedValue(snapshot) };

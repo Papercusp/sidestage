@@ -64,10 +64,10 @@ const pg = (
 export const POSTGRES_SURFACES = {
   action_audit_entry: pg('action_audit_entry', ['seller-owned', 'operational'], 'event seller owner and immutable audit actor', [], [], 'P-019/P-020'),
   product_catalog: pg('product_catalog', ['public'], 'public projection', ['catalog.page', 'catalog.types', 'event.lineup.items'], [], 'P-017'),
-  storefront_product: pg('storefront_product', ['public', 'seller-owned'], 'seller owner; public availability projection', ['catalog.page', 'event.actions.items', 'event.lineup.items'], ['event.addItems', 'event.adjustStock', 'inventory.save'], 'P-017/P-019'),
+  storefront_product: pg('storefront_product', ['public', 'seller-owned'], 'seller owner; public availability projection', ['catalog.page', 'event.actions.items', 'event.lineup.items'], ['event.addItems', 'event.adjustStock', 'inventory.onboard', 'inventory.save'], 'P-017/P-019'),
   product_option_axes: pg('product_option_axes', ['public'], 'public projection', ['catalog.page', 'event.lineup.items'], [], 'P-017'),
   product_option_values: pg('product_option_values', ['public'], 'public projection', ['catalog.page', 'event.lineup.items'], [], 'P-017'),
-  storefront_product_option: pg('storefront_product_option', ['public'], 'public projection', ['catalog.page', 'event.lineup.items'], [], 'P-017'),
+  storefront_product_option: pg('storefront_product_option', ['public'], 'public projection', ['catalog.page', 'event.lineup.items'], ['inventory.onboard'], 'P-017/P-019'),
   inventory_reservation: pg('inventory_reservation', ['buyer-owned', 'seller-owned', 'operational'], 'buyer/source owner plus seller inventory owner', ['catalog.page', 'cart.byId', 'event.auction.active'], ['cart.holdProduct', 'auction.start', 'auction.close', 'event.adjustStock', 'inventory.save'], 'P-018/P-019'),
   cart: pg('cart', ['buyer-owned'], 'selected buyer/cart owner', ['cart.byId'], ['cart.holdProduct'], 'P-018'),
   chat_message: pg('chat_message', ['public'], 'event room participant', ['event.chat.messages', 'event.chat.stats'], ['chat.sendMessage'], 'P-003/P-017'),
@@ -197,6 +197,7 @@ export const SYNC_MUTATOR_SURFACES: readonly NamedSurface[] = [
   mutator('event.setup', 'event-directory', ['seller-owned'], 'selected seller', 'P-019'),
   mutator('event.updateConfig', 'event_config', ['seller-owned'], 'event seller owner', 'P-019'),
   mutator('inventory.save', 'inventory', ['seller-owned'], 'stable Studio store seller', 'P-019'),
+  mutator('inventory.onboard', 'inventory', ['seller-owned'], 'stable Studio store seller', 'P-019'),
   mutator('judge.run', 'judge', ['operational'], 'operator-visible', 'P-020'),
   mutator('rehearsal.run', 'rehearsal', ['seller-owned', 'operational'], 'event seller owner', 'P-020'),
   mutator('rehearsal.runAll', 'rehearsal', ['seller-owned', 'operational'], 'event seller owner', 'P-020'),
@@ -238,6 +239,7 @@ const local = (
 export const PROCESS_LOCAL_SURFACES: readonly SourceSurface[] = [
   local('apps/api/src/actions/action-item.store.ts', 'items', 'actions', ['seller-owned'], 'development fallback authority', 'replicate', 'event_lineup_item', 'P-011/P-019'),
   local('apps/api/src/actions/action-audit.store.ts', 'audits', 'action-audit', ['seller-owned', 'operational'], 'development fallback authority', 'replicate', 'action_audit_entry', 'P-011/P-019'),
+  local('apps/api/src/catalog/catalog.sources.ts', 'owners', 'catalog-ownership', ['seller-owned'], 'development fallback authority', 'replicate', 'storefront_product.seller_id', 'P-011/P-019'),
   local('apps/api/src/actions/action-audit.store.ts', 'requestIds', 'action-audit-request-index', ['seller-owned', 'operational'], 'derived idempotency index', 'runtime-only', 'action_audit_entry event/client-request unique index', 'P-011/P-019'),
   local('apps/api/src/actions/action.service.ts', 'policies', 'actions-policy', ['seller-owned'], 'temporary authority', 'replicate', 'seller_policy_revision', 'P-011/P-019'),
   local('apps/api/src/actions/action.service.ts', 'offers', 'offers', ['buyer-owned', 'seller-owned'], 'temporary authority', 'replicate', 'Postgres targeted offer table', 'P-011/P-018/P-019'),
