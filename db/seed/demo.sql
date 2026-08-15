@@ -8,10 +8,8 @@
 
 BEGIN;
 
--- This file is the one explicit legacy-fixture opt-in. Production writers do
--- not receive an owner default; the seed restores it only for this transaction
--- and drops it again before commit.
-ALTER TABLE storefront_product ALTER COLUMN seller_id SET DEFAULT 'demo-seller';
+-- Inventory ownership is explicit at every write boundary, including fixtures.
+-- Conflict updates intentionally preserve the row's existing seller_id.
 
 INSERT INTO product_catalog (
   group_id, region, product_type, title, description, brand, manufacturer,
@@ -141,11 +139,11 @@ WHERE id IN (
 -- All variant writes intentionally leave reserved_qty untouched on conflict.
 -- Re-running the seed updates catalog facts but never releases a live hold.
 INSERT INTO storefront_product (
-  id, slug, region, sku, price_cents, active, group_id, condition, handling,
+  id, seller_id, slug, region, sku, price_cents, active, group_id, condition, handling,
   option_signature, variant_images, qty
 )
 VALUES
-  ('demo-espresso-matte-black', 'barista-pro-espresso-matte-black', 'US', 'BH-ESP-200-BLK', 49999, true, 'demo-espresso-machine', 'NEW', 2, 'color=matte-black', '[{"url":"/demo-products/barista-pro-matte-black.webp","alt":"Barista Pro espresso machine in matte black","isPrimary":true}]', 12),
+  ('demo-espresso-matte-black', 'demo-seller', 'barista-pro-espresso-matte-black', 'US', 'BH-ESP-200-BLK', 49999, true, 'demo-espresso-machine', 'NEW', 2, 'color=matte-black', '[{"url":"/demo-products/barista-pro-matte-black.webp","alt":"Barista Pro espresso machine in matte black","isPrimary":true}]', 12),
   ('demo-espresso-cream', 'barista-pro-espresso-cream', 'US', 'BH-ESP-200-CRM', 49999, true, 'demo-espresso-machine', 'NEW', 2, 'color=cream', '[{"url":"/demo-products/barista-pro-cream.webp","alt":"Barista Pro espresso machine in cream","isPrimary":true}]', 5),
   ('demo-headphones-midnight', 'cloud-anc-midnight', 'US', 'NSA-CLOUD-MID', 19999, true, 'demo-wireless-headphones', 'NEW', 2, 'color=midnight', '[{"url":"/demo-products/cloud-anc-midnight.webp","alt":"Cloud ANC wireless headphones in midnight","isPrimary":true}]', 24),
   ('demo-headphones-sand', 'cloud-anc-sand', 'US', 'NSA-CLOUD-SND', 19999, true, 'demo-wireless-headphones', 'NEW', 2, 'color=sand', '[{"url":"/demo-products/cloud-anc-sand.webp","alt":"Cloud ANC wireless headphones in sand","isPrimary":true}]', 8),
