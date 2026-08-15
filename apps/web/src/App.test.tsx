@@ -63,6 +63,9 @@ describe('P-005 product card and shell', () => {
     expect(markup).toContain('aria-label="Buyer work"');
     expect(markup).toContain('aria-label="Operator work"');
     expect(markup).toContain('aria-label="Project links"');
+    expect(markup).toContain('class="nav-cluster project-links"');
+    expect(markup).toContain('aria-label="Built by Papercusp"');
+    expect(markup).toContain('class="nav-cluster papercusp-links"');
     expect(markup).toContain('href="https://github.com/Papercusp/sidestage"');
     expect(markup).toContain('aria-label="SideStage on GitHub (opens in a new tab)"');
     expect(markup).toContain('href="https://papercusp.com/"');
@@ -81,7 +84,7 @@ describe('P-005 product card and shell', () => {
     expect(markup.indexOf('data-platform="android"')).toBeLessThan(markup.indexOf('Demo user impersonation'));
     expect(markup.match(/class="button secondary topbar-held-items"/g)).toHaveLength(1);
     expect(markup).not.toContain('buyer-held-items-button');
-    expect(markup.indexOf('Held items')).toBeLessThan(markup.indexOf('Ready for your next event'));
+    expect(markup).not.toContain('Ready for your next event');
     expect(markup).toContain('Now selling');
     expect(markup).toContain('Event products');
     expect(markup).toContain('>Chat</button>');
@@ -97,6 +100,8 @@ describe('P-005 product card and shell', () => {
     expect(stylesCss).toMatch(/--content-max:\s*80rem/);
     expect(stylesCss).toMatch(/\.topbar-inner\s*\{[^}]*grid-template-columns:\s*auto minmax\(0, 1fr\) auto/);
     expect(stylesCss).toMatch(/\.nav-cluster\s*\{[^}]*background:\s*color-mix\(/);
+    expect(stylesCss).toMatch(/\.project-links\s*\{[^}]*border:\s*1px solid/);
+    expect(stylesCss).toMatch(/\.papercusp-links\s*\{[^}]*border:\s*1px solid/);
     expect(stylesCss).toMatch(/\.papercusp-attribution\s*\{[^}]*display:\s*inline-flex/);
     expect(stylesCss).toMatch(/\.papercusp-cup-mark\s*\{[^}]*width:\s*2rem[^}]*height:\s*2rem/);
     expect(stylesCss).toMatch(/\.button\s*\{[^}]*min-height:\s*2\.5rem/);
@@ -108,6 +113,9 @@ describe('P-005 product card and shell', () => {
     );
     expect(stylesCss).toMatch(
       /@media \(min-width: 761px\) and \(max-width: 1699px\)[\s\S]*?\.tab-nav\s*\{[^}]*grid-column:\s*1[^}]*grid-row:\s*2[^}]*overflow-x:\s*auto/,
+    );
+    expect(stylesCss).toMatch(
+      /@media \(min-width: 761px\) and \(max-width: 1299px\)[\s\S]*?\.topbar-status-group\s*\{[^}]*grid-column:\s*1 \/ -1[^}]*grid-row:\s*3/,
     );
     expect(stylesCss).toMatch(
       /@media \(min-width: 761px\) and \(max-width: 1699px\)[\s\S]*?\.topbar-status-group\s*\{[^}]*grid-column:\s*2[^}]*grid-row:\s*2/,
