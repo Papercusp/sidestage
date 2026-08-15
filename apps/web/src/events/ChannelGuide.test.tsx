@@ -99,7 +99,9 @@ describe('ChannelGuide (P-118 / D-019)', () => {
   it('labels each row by its group: viewers, countdown, or age', () => {
     const markup = render();
     expect(markup).toContain('3 watching');
-    expect(markup).toContain('Starts in 2h');
+    expect(markup).toContain('Starts in 2h 0m 0s');
+    expect(markup).toContain('dateTime="2026-08-14T14:00:00.000Z"');
+    expect(markup).toContain('Scheduled for');
     expect(markup).toContain('Ended 18h ago');
   });
 

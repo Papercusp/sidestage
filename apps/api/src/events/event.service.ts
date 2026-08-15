@@ -22,6 +22,14 @@ export type EventStatus = 'draft' | 'scheduled' | 'live' | 'ended';
 /** The buyer-visible states, in the order the guide groups them. */
 export const BUYER_VISIBLE_STATUSES: readonly EventStatus[] = ['live', 'scheduled', 'ended'];
 
+/** Legacy acceptance identity that must never be mistaken for seller data. */
+export function isSyntheticSellerIdentity(
+  seller: { sellerId: string; sellerName: string },
+): boolean {
+  return seller.sellerId.trim().toLowerCase() === 'demo-seller'
+    || seller.sellerName.trim().toLowerCase() === 'sidestage seller';
+}
+
 export function isEventStatus(value: unknown): value is EventStatus {
   return value === 'draft' || value === 'scheduled' || value === 'live' || value === 'ended';
 }
@@ -376,9 +384,6 @@ export function compareForSeller(a: EventRecord, b: EventRecord): number {
   return a.title.localeCompare(b.title);
 }
 
-/** Display identity for explicit legacy/demo fixtures. Runtime routes do not default ownership. */
-export const DEFAULT_SELLER_NAME = 'SideStage Seller';
-
 export interface EventSellerIdentity {
   sellerId: string;
   sellerName: string;
@@ -402,11 +407,16 @@ export class EventService {
     config: { eventId: string; name: string; thumbnailUrl?: string },
     seller: EventSellerIdentity,
   ): Promise<boolean> {
+    const sellerId = seller.sellerId.trim();
+    const sellerName = seller.sellerName.trim();
+    if (!sellerId || !sellerName || isSyntheticSellerIdentity({ sellerId, sellerName })) {
+      return false;
+    }
     return this.store.publish({
       eventId: config.eventId,
       title: config.name,
-      sellerId: seller.sellerId,
-      sellerName: seller.sellerName,
+      sellerId,
+      sellerName,
       ...(config.thumbnailUrl ? { thumbnailUrl: config.thumbnailUrl } : {}),
     });
   }
@@ -438,7 +448,8 @@ export class EventService {
    * the guide can never show a count that outlived the viewers it counted.
    */
   async listForGuide(): Promise<EventSummary[]> {
-    const records = await this.store.listBuyerVisible();
+    const records = (await this.store.listBuyerVisible())
+      .filter((record) => !isSyntheticSellerIdentity(record));
     const summaries = await Promise.all(records.map(async (record) => ({
       ...record,
       // Only a live room can have anyone in it; reporting presence for an

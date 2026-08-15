@@ -27,6 +27,11 @@ describe('release probe residue classification', () => {
   it('covers every release namespace family and placeholder thumbnails', () => {
     const residue = findReleaseProbeResidue([
       realEvent,
+      {
+        eventId: 'p002-buyer-loop-0814-1952',
+        sellerId: 'demo-seller',
+        sellerName: 'SideStage Seller',
+      },
       { eventId: 'wi38795-e2e-1786717919', sellerId: 'seller-a' },
       { eventId: 'qa-wi38814-live', sellerId: 'seller-b' },
       { eventId: 'production-acceptance-thumbnail', sellerId: 'seller-c' },
@@ -40,12 +45,18 @@ describe('release probe residue classification', () => {
     ]);
 
     expect(residue.map(({ event }) => event.eventId)).toEqual([
+      'p002-buyer-loop-0814-1952',
       'wi38795-e2e-1786717919',
       'qa-wi38814-live',
       'production-acceptance-thumbnail',
       'prod-deploy-check',
       'release-rollback-check',
       'otherwise-normal',
+    ]);
+    expect(residue[0].reasons).toEqual([
+      'probe event id',
+      'synthetic seller id',
+      'placeholder seller name',
     ]);
   });
 });
@@ -96,7 +107,7 @@ describe('release probe hygiene gate', () => {
         method: 'DELETE',
         headers: {
           accept: 'application/json',
-          'x-seller-id': 'seller-probe',
+          'x-demo-principal': 'seller-probe',
         },
       },
     );

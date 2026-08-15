@@ -1,7 +1,12 @@
+import { useEffect, useState } from 'react';
 import { EventThumbnail } from '../event-creation/EventThumbnail';
 import { eventWatchHref } from '../app-routing';
 import type { GuideEvent } from './api';
-import { groupGuideEvents, rowMetaLabel } from './channel-guide';
+import {
+  formatScheduledStartTime,
+  groupGuideEvents,
+  rowMetaLabel,
+} from './channel-guide';
 import './channel-guide.css';
 
 export interface ChannelGuideProps {
@@ -15,6 +20,19 @@ export interface ChannelGuideProps {
   error?: string | null;
   /** Injected by tests so time-relative copy is deterministic. */
   now?: Date;
+}
+
+/** One clock drives every row; N upcoming events never create N timers. */
+function useGuideClock(fixedNow?: Date): Date {
+  const [clock, setClock] = useState(() => fixedNow ?? new Date());
+
+  useEffect(() => {
+    if (fixedNow) return undefined;
+    const timer = globalThis.setInterval(() => setClock(new Date()), 1_000);
+    return () => globalThis.clearInterval(timer);
+  }, [fixedNow]);
+
+  return fixedNow ?? clock;
 }
 
 /**
@@ -36,7 +54,7 @@ export function ChannelGuide({
   now,
 }: ChannelGuideProps) {
   const groups = groupGuideEvents(events);
-  const clock = now ?? new Date();
+  const clock = useGuideClock(now);
 
   return (
     <aside className="channel-guide-panel" aria-labelledby="channel-guide-title">
@@ -73,6 +91,10 @@ export function ChannelGuide({
                   <ul className="channel-guide-list">
                     {group.events.map((event) => {
                       const current = event.eventId === currentEventId;
+                      const metaLabel = rowMetaLabel(event, clock);
+                      const exactStart = event.status === 'scheduled'
+                        ? formatScheduledStartTime(event.startsAt)
+                        : null;
                       return (
                         <li key={event.eventId}>
                           <a
@@ -103,7 +125,18 @@ export function ChannelGuide({
                               <span className="channel-guide-row-title">{event.title}</span>
                               <span className="channel-guide-row-seller">{event.sellerName}</span>
                               <span className={`channel-guide-row-meta channel-guide-meta-${event.status}`}>
-                                {rowMetaLabel(event, clock)}
+                                {exactStart && event.startsAt ? (
+                                  <time
+                                    dateTime={event.startsAt}
+                                    title={`Scheduled for ${exactStart}`}
+                                    aria-label={`Scheduled for ${exactStart}. ${metaLabel}`}
+                                  >
+                                    {metaLabel}
+                                    <span className="channel-guide-start-exact" aria-hidden="true">
+                                      {' · '}{exactStart}
+                                    </span>
+                                  </time>
+                                ) : metaLabel}
                               </span>
                             </span>
                             {current ? (

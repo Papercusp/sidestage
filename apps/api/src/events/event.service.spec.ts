@@ -11,6 +11,7 @@ import {
   EventService,
   InMemoryEventStore,
   UnavailableEventStore,
+  isSyntheticSellerIdentity,
   isEventStatus,
   statusRank,
   type EventRecord,
@@ -126,6 +127,20 @@ describe('event directory (P-118 / D-019)', () => {
     const events = await service.listForGuide();
 
     expect(events.map((event) => event.eventId)).toEqual(['published']);
+  });
+
+  it('never exposes the legacy dummy seller identity to buyers', async () => {
+    const service = new EventService(new StubStore([
+      record({ eventId: 'real', sellerId: 'seller-studio-27', sellerName: 'Studio 27' }),
+      record({ eventId: 'dummy-id', sellerId: 'demo-seller', sellerName: 'Demo Seller' }),
+      record({ eventId: 'dummy-name', sellerId: 'seller-old', sellerName: 'SideStage Seller' }),
+    ]), new ChatService());
+
+    await expect(service.listForGuide()).resolves.toEqual([
+      expect.objectContaining({ eventId: 'real', sellerName: 'Studio 27' }),
+    ]);
+    expect(isSyntheticSellerIdentity({ sellerId: ' DEMO-SELLER ', sellerName: 'anything' })).toBe(true);
+    expect(isSyntheticSellerIdentity({ sellerId: 'seller-real', sellerName: ' sidestage seller ' })).toBe(true);
   });
 
   it('reads viewer counts from live chat presence, not a stored column', async () => {
@@ -254,6 +269,16 @@ describe('event source selection', () => {
 });
 
 describe('seller-created events reach the guide (EI-20426845001666103 / P-014)', () => {
+  it('rejects the legacy placeholder identity instead of publishing dummy seller data', async () => {
+    const service = new EventService(new InMemoryEventStore([]), new ChatService());
+
+    await expect(service.publishFromConfig(
+      { eventId: 'p002-buyer-loop', name: 'P002 Buyer Loop' },
+      { sellerId: 'demo-seller', sellerName: 'SideStage Seller' },
+    )).resolves.toBe(false);
+    await expect(service.listForGuide()).resolves.toEqual([]);
+  });
+
   it('publishFromConfig makes a brand-new event buyer-visible with its thumbnail', async () => {
     const service = new EventService(new InMemoryEventStore([]), new ChatService());
 

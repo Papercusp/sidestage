@@ -8,6 +8,7 @@ const DEFAULT_BASE_URL = 'https://sidestage.buyrestart.com';
 const PROBE_ID_PATTERNS = [
   /^wi\d+(?:[-_].*)?$/i,
   /^qa[-_]wi\d+(?:[-_].*)?$/i,
+  /^p\d{3}[-_](?:buyer|seller|e2e|qa|probe|acceptance)(?:[-_].*)?$/i,
   /(?:^|[-_])(acceptance|deploy|rollback)(?:[-_]|$)/i,
 ];
 
@@ -29,6 +30,12 @@ export function releaseProbeReasons(event) {
   const reasons = [];
   const eventId = typeof event?.eventId === 'string' ? event.eventId : '';
   if (PROBE_ID_PATTERNS.some((pattern) => pattern.test(eventId))) reasons.push('probe event id');
+  if (typeof event?.sellerId === 'string' && event.sellerId.trim().toLowerCase() === 'demo-seller') {
+    reasons.push('synthetic seller id');
+  }
+  if (typeof event?.sellerName === 'string' && event.sellerName.trim().toLowerCase() === 'sidestage seller') {
+    reasons.push('placeholder seller name');
+  }
   if (isPlaceholdThumbnail(event?.thumbnailUrl)) reasons.push('placehold.co thumbnail');
   return reasons;
 }
@@ -62,8 +69,9 @@ function residueSummary(residue) {
 
 /**
  * Clean and verify public release-probe residue. Mutations are exact-id and
- * seller-scoped; DELETE drafts the row server-side instead of destroying any
- * event-scoped history. With clean=false this is a read-only release gate.
+ * seller-scoped through the canonical demo-principal header; DELETE drafts the
+ * row server-side instead of destroying any event-scoped history. With
+ * clean=false this is a read-only release gate.
  */
 export async function enforceReleaseProbeHygiene({
   baseUrl = DEFAULT_BASE_URL,
@@ -87,7 +95,7 @@ export async function enforceReleaseProbeHygiene({
         method: 'DELETE',
         headers: {
           accept: 'application/json',
-          'x-seller-id': event.sellerId,
+          'x-demo-principal': event.sellerId,
         },
       });
       if (!response.ok) {

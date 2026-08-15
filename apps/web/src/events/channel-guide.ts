@@ -42,39 +42,59 @@ export function groupGuideEvents(events: readonly GuideEvent[]): GuideGroup[] {
   });
 }
 
-const MINUTE = 60_000;
+const SECOND = 1_000;
+const MINUTE = 60 * SECOND;
 const HOUR = 60 * MINUTE;
 const DAY = 24 * HOUR;
 
-function roundedUnits(ms: number, unit: number): number {
-  return Math.max(1, Math.floor(ms / unit));
-}
-
 /**
- * "Starts in 2h" style copy for an upcoming event.
+ * Live, second-resolution countdown copy for an upcoming event.
  *
- * Returns a bare "Scheduled" when there is no usable start time. An event can
+ * Returns "Schedule pending" when there is no usable start time. An event can
  * legitimately be scheduled without one, and inventing a countdown from a null
  * would print "in NaN" — the failure mode this exists to avoid.
  */
 export function formatStartLabel(startsAt: string | null, now: Date = new Date()): string {
-  if (!startsAt) return 'Scheduled';
+  if (!startsAt) return 'Schedule pending';
   const start = Date.parse(startsAt);
-  if (Number.isNaN(start)) return 'Scheduled';
+  if (Number.isNaN(start)) return 'Schedule pending';
 
   const delta = start - now.getTime();
   // A scheduled event whose start has passed but which nobody has flipped to
   // live yet: say so plainly instead of counting up into negative numbers.
   if (delta <= 0) return 'Starting now';
-  if (delta < MINUTE) return 'Starting now';
-  if (delta < HOUR) return `Starts in ${roundedUnits(delta, MINUTE)}m`;
-  if (delta < DAY) {
-    const hours = Math.floor(delta / HOUR);
-    const minutes = Math.floor((delta % HOUR) / MINUTE);
-    return minutes > 0 ? `Starts in ${hours}h ${minutes}m` : `Starts in ${hours}h`;
-  }
-  const days = roundedUnits(delta, DAY);
-  return `Starts in ${days}d`;
+
+  // ceil keeps a sub-second positive remainder at 1s instead of announcing
+  // "Starting now" before the scheduled instant has actually arrived.
+  const totalSeconds = Math.max(1, Math.ceil(delta / SECOND));
+  const days = Math.floor(totalSeconds / (DAY / SECOND));
+  const hours = Math.floor((totalSeconds % (DAY / SECOND)) / (HOUR / SECOND));
+  const minutes = Math.floor((totalSeconds % (HOUR / SECOND)) / (MINUTE / SECOND));
+  const seconds = totalSeconds % (MINUTE / SECOND);
+
+  if (days > 0) return `Starts in ${days}d ${hours}h ${minutes}m ${seconds}s`;
+  if (hours > 0) return `Starts in ${hours}h ${minutes}m ${seconds}s`;
+  if (minutes > 0) return `Starts in ${minutes}m ${seconds}s`;
+  return `Starts in ${seconds}s`;
+}
+
+/** Exact local start time shown beside the relative countdown. */
+export function formatScheduledStartTime(
+  startsAt: string | null,
+  locales?: Intl.LocalesArgument,
+  timeZone?: string,
+): string | null {
+  if (!startsAt) return null;
+  const start = new Date(startsAt);
+  if (Number.isNaN(start.getTime())) return null;
+  return new Intl.DateTimeFormat(locales, {
+    month: 'short',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+    timeZoneName: 'short',
+    ...(timeZone ? { timeZone } : {}),
+  }).format(start);
 }
 
 /** "Ended 3h ago" style copy for a finished event's replay row. */

@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { GuideEvent } from './api';
 import {
   formatEndedLabel,
+  formatScheduledStartTime,
   formatStartLabel,
   formatViewers,
   groupGuideEvents,
@@ -57,11 +58,12 @@ describe('groupGuideEvents', () => {
 });
 
 describe('formatStartLabel', () => {
-  it('counts down in minutes, hours and days', () => {
-    expect(formatStartLabel('2026-08-14T12:20:00.000Z', NOW)).toBe('Starts in 20m');
-    expect(formatStartLabel('2026-08-14T15:00:00.000Z', NOW)).toBe('Starts in 3h');
-    expect(formatStartLabel('2026-08-14T15:30:00.000Z', NOW)).toBe('Starts in 3h 30m');
-    expect(formatStartLabel('2026-08-16T12:00:00.000Z', NOW)).toBe('Starts in 2d');
+  it('counts down in seconds, minutes, hours and days', () => {
+    expect(formatStartLabel('2026-08-14T12:00:09.250Z', NOW)).toBe('Starts in 10s');
+    expect(formatStartLabel('2026-08-14T12:20:00.000Z', NOW)).toBe('Starts in 20m 0s');
+    expect(formatStartLabel('2026-08-14T15:00:00.000Z', NOW)).toBe('Starts in 3h 0m 0s');
+    expect(formatStartLabel('2026-08-14T15:30:00.000Z', NOW)).toBe('Starts in 3h 30m 0s');
+    expect(formatStartLabel('2026-08-16T12:00:00.000Z', NOW)).toBe('Starts in 2d 0h 0m 0s');
   });
 
   it('says "Starting now" rather than counting into negative numbers', () => {
@@ -70,8 +72,20 @@ describe('formatStartLabel', () => {
   });
 
   it('never prints NaN for a missing or unparseable start time', () => {
-    expect(formatStartLabel(null, NOW)).toBe('Scheduled');
-    expect(formatStartLabel('not-a-date', NOW)).toBe('Scheduled');
+    expect(formatStartLabel(null, NOW)).toBe('Schedule pending');
+    expect(formatStartLabel('not-a-date', NOW)).toBe('Schedule pending');
+  });
+});
+
+describe('formatScheduledStartTime', () => {
+  it('formats the exact scheduled instant with its time zone', () => {
+    expect(formatScheduledStartTime('2026-08-14T14:00:00.000Z', 'en-US', 'UTC'))
+      .toBe('Aug 14, 2:00 PM UTC');
+  });
+
+  it('returns null when there is no exact instant to show', () => {
+    expect(formatScheduledStartTime(null, 'en-US', 'UTC')).toBeNull();
+    expect(formatScheduledStartTime('not-a-date', 'en-US', 'UTC')).toBeNull();
   });
 });
 
@@ -110,7 +124,7 @@ describe('rowMetaLabel', () => {
         event({ eventId: 'b', status: 'scheduled', startsAt: '2026-08-14T14:00:00.000Z' }),
         NOW,
       ),
-    ).toBe('Starts in 2h');
+    ).toBe('Starts in 2h 0m 0s');
     expect(
       rowMetaLabel(event({ eventId: 'c', status: 'ended', endedAt: '2026-08-14T10:00:00.000Z' }), NOW),
     ).toBe('Ended 2h ago');
