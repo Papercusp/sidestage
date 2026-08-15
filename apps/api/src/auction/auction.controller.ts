@@ -143,6 +143,26 @@ export class AuctionController {
     }
   }
 
+  @Post(':id/cancel')
+  async cancel(@Param('id') id: string, @Headers() headers: HeadersMap, @Ip() ip: string) {
+    const ctx = this.context('auction.cancel', headers, ip, { auctionId: id });
+    try {
+      const seller = this.access.requireSellerPrincipal(auctionHeader(headers, DEMO_PRINCIPAL_HEADER));
+      ctx.actorKind = 'seller';
+      ctx.actorId = seller.sellerId;
+      this.access.consumeRateLimit('seller-cancel', seller.sellerId, 20, 60_000);
+      const existing = await this.auctions.getAuction(id);
+      await this.ownership.requireOwnedForSeller(existing?.eventId, seller.sellerId);
+      const auction = await this.auctions.cancelAuction(id);
+      ctx.eventId = auction.eventId;
+      this.audit.record({ ...ctx, outcome: 'accepted', reasonCode: 'AUCTION_CANCELLED' });
+      return auction;
+    } catch (error) {
+      this.audit.record({ ...ctx, outcome: 'rejected', reasonCode: this.audit.reasonCode(error) });
+      throw error;
+    }
+  }
+
   private context(
     action: AuditContext['action'],
     headers: HeadersMap,

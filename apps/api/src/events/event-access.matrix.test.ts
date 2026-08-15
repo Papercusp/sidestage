@@ -59,6 +59,7 @@ const EVENT_ACCESS: {
     'GET /auctions/inventory/:productId': 'public-viewer',
     'GET /auctions/:id': 'public-viewer',
     'POST /auctions/:id/bids': 'public-viewer',
+    'POST /auctions/:id/cancel': 'seller-owned',
     'POST /auctions/:id/close': 'seller-owned',
     'GET /chat/events/:eventId/messages': 'public-viewer',
     'POST /chat/events/:eventId/messages': 'public-viewer',
@@ -101,6 +102,7 @@ const EVENT_ACCESS: {
   },
   syncQueries: {
     'event.actions.items': 'seller-owned',
+    'event.lineup.items': 'public-viewer',
     'event.auction.active': 'public-viewer',
     'event.chat.messages': 'public-viewer',
     'event.chat.presence': 'public-viewer',

@@ -31,7 +31,7 @@ export interface AuctionGuestPrincipal {
 
 export interface AuctionAuditRecord {
   requestId: string;
-  action: 'auction.start' | 'auction.bid' | 'auction.close';
+  action: 'auction.start' | 'auction.bid' | 'auction.close' | 'auction.cancel';
   outcome: 'accepted' | 'rejected';
   actorKind: 'seller' | 'guest' | 'anonymous';
   actorId: string;
