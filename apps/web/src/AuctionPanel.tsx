@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import type { FormEvent } from 'react';
+import type { FormEvent, ReactNode } from 'react';
 import { useSyncMutate, useSyncQuery } from '@papercusp/sync';
 import type { BuyerProduct } from './buyer';
 import { formatBuyerPrice } from './buyer';
@@ -21,6 +21,9 @@ export interface AuctionPanelProps {
   bidderId?: string;
   displayName?: string;
   apiBaseUrl?: string;
+  /** Rendered in this same authoritative slot when no auction is active. */
+  idleContent?: ReactNode;
+  className?: string;
 }
 
 type SyncState = 'connecting' | 'live' | 'reconnecting' | 'polling';
@@ -103,6 +106,8 @@ export function AuctionPanel({
   bidderId = 'buyer-demo',
   displayName = 'You',
   apiBaseUrl,
+  idleContent,
+  className,
 }: AuctionPanelProps) {
   const [bidDraft, setBidDraft] = useState('');
   const [bidError, setBidError] = useState<string | null>(null);
@@ -300,9 +305,19 @@ export function AuctionPanel({
     }
   };
 
+  const showIdleContent = Boolean(idleContent && !loading && !auction && !auctionQuery.error);
+
   return (
-    <section className="auction-card" aria-labelledby="auction-title" aria-busy={loading}>
-      <div className="auction-card-heading">
+    <section
+      className={`auction-card${className ? ` ${className}` : ''}`}
+      aria-labelledby={showIdleContent ? undefined : 'auction-title'}
+      aria-label={showIdleContent ? 'Current offer' : undefined}
+      aria-busy={loading}
+      data-offer-state={showIdleContent ? 'idle' : phase}
+    >
+      {showIdleContent ? idleContent : (
+        <>
+          <div className="auction-card-heading">
         <div>
           <p className="eyebrow">Live auction</p>
           <h3 id="auction-title">{product?.title ?? (auction ? auction.productId : 'Bid from the room')}</h3>
@@ -311,14 +326,14 @@ export function AuctionPanel({
         <span className={`auction-sync auction-sync-${syncState}`} aria-label={`Auction sync ${syncState}`}>
           <span aria-hidden="true" /> {syncState === 'live' ? 'Realtime' : syncState === 'polling' ? 'Polling' : 'Reconnecting'}
         </span>
-      </div>
+          </div>
 
-      {loading ? <p className="auction-empty">Checking the auction stage…</p> : null}
-      {!loading && !auction && !auctionQuery.error ? (
-        <div className="auction-empty"><strong>No auction is live yet.</strong><span>Stay here—the panel updates as soon as the seller starts one.</span></div>
-      ) : null}
+          {loading ? <p className="auction-empty">Checking the auction stage…</p> : null}
+          {!loading && !auction && !auctionQuery.error ? (
+            <div className="auction-empty"><strong>No auction is live yet.</strong><span>Stay here—the panel updates as soon as the seller starts one.</span></div>
+          ) : null}
 
-      {auction ? (
+          {auction ? (
         <>
           <div className={`auction-stage auction-stage-${urgency}${isClosed ? ' is-closed' : ''}${isSettling ? ' is-settling' : ''}`}>
             {/* The clock is a timer, not a live region: it ticks four times a
@@ -435,7 +450,9 @@ export function AuctionPanel({
           {/* Decorative — the leader line above already announces the result. */}
           {isClosed && leadingBid ? <span className="auction-stamp" aria-hidden="true">SOLD</span> : null}
         </>
-      ) : null}
+          ) : null}
+        </>
+      )}
       {auctionQuery.error ? (
         <div className="auction-error" role="alert">
           <span>{auctionQuery.error.message}</span>
