@@ -1,4 +1,5 @@
-import { Inject, Body, Controller, Get, Headers, Param, Post } from '@nestjs/common';
+import { Inject, Body, Controller, Get, Headers, NotFoundException, Param, Post } from '@nestjs/common';
+import { AUCTION_INVENTORY, type AuctionInventory } from '../auction/auction.service';
 import { EventOwnershipGuard } from '../events/event-ownership.guard';
 import { DEMO_PRINCIPAL_HEADER } from '../sync/sync-request-context';
 import { GuardedActionService } from './action.service';
@@ -9,6 +10,7 @@ export class ActionController {
   constructor(
     @Inject(GuardedActionService) private readonly actions: GuardedActionService,
     @Inject(EventOwnershipGuard) private readonly ownership: EventOwnershipGuard,
+    @Inject(AUCTION_INVENTORY) private readonly inventory: AuctionInventory,
   ) {}
 
   @Post('events/:eventId/register')
@@ -17,7 +19,12 @@ export class ActionController {
     @Body() body: RegisterActionEventInput,
     @Headers(DEMO_PRINCIPAL_HEADER) principalHeader?: string,
   ) {
-    await this.ownership.requireOwned(eventId, principalHeader);
+    const { sellerId } = await this.ownership.requireOwned(eventId, principalHeader);
+    for (const productId of new Set(body.items.map((item) => item.productId))) {
+      if (!(await this.inventory.getOwned(productId, sellerId))) {
+        throw new NotFoundException(`Inventory item ${productId} was not found`);
+      }
+    }
     return { items: await this.actions.registerEvent(eventId, body) };
   }
 

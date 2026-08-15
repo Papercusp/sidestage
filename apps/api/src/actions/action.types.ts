@@ -64,6 +64,7 @@ export interface ActionAuditRecord {
   before: ActionStateSnapshot;
   after: ActionStateSnapshot;
   createdAt: string;
+  clientRequestId?: string;
   rollbackOf?: string;
   rolledBackAt?: string;
 }

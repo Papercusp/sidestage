@@ -8,6 +8,7 @@ import { PgActionItemStore } from '../db/pg-action-item-store';
 import { EventModule } from '../events/event.module';
 import { EventOwnershipGuard } from '../events/event-ownership.guard';
 import { EventVisibilityGuard } from '../events/event-visibility.guard';
+import { InventoryModule } from '../inventory/inventory.module';
 import { OrderModule } from '../checkout/order.module';
 import { SyncModule } from '../sync/sync.module';
 import { SyncQueryRegistry } from '../sync/sync-query.registry';
@@ -47,7 +48,7 @@ export class ActionSyncQueries implements OnModuleInit {
 }
 
 @Module({
-  imports: [CatalogModule, DatabaseModule, EventConfigModule, EventModule, OrderModule, SyncModule],
+  imports: [CatalogModule, DatabaseModule, EventConfigModule, EventModule, InventoryModule, OrderModule, SyncModule],
   controllers: [ActionController],
   providers: [
     GuardedActionService,
