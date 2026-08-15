@@ -7,6 +7,12 @@ import { Pool } from 'pg';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import {
+  AcceptanceFixtureCoordinator,
+  createAcceptanceFixturePlan,
+  type AcceptanceFixtureResourceDescriptor,
+  type AcceptanceFixtureResourceDriver,
+} from './acceptance-fixtures';
+import {
   PostgresSystemTestRunStore,
   SystemTestRunConflictError,
   type CreateSystemTestRunInput,
@@ -16,6 +22,28 @@ const SHA = 'a'.repeat(40);
 const DIGEST = `sha256:${'b'.repeat(64)}`;
 const BASE_TIME = new Date('2026-08-14T20:00:00.000Z');
 const SCHEMA_SQL = resolve(__dirname, '../../../db/schema.sql');
+
+class FakeFixtureDriver implements AcceptanceFixtureResourceDriver {
+  readonly present = new Set<string>();
+  readonly leakKinds = new Set<string>();
+  readonly removeCalls: string[] = [];
+
+  async ensure(resource: AcceptanceFixtureResourceDescriptor): Promise<Record<string, unknown>> {
+    this.present.add(resource.identifier);
+    return resource.kind === 'external-sandbox'
+      ? { sandboxId: resource.identifier, accessToken: 'external-secret' }
+      : { identifier: resource.identifier };
+  }
+
+  async remove(resource: AcceptanceFixtureResourceDescriptor): Promise<void> {
+    this.removeCalls.push(resource.kind);
+    if (!this.leakKinds.has(resource.kind)) this.present.delete(resource.identifier);
+  }
+
+  async exists(resource: AcceptanceFixtureResourceDescriptor): Promise<boolean> {
+    return this.present.has(resource.identifier);
+  }
+}
 
 let database: MigratedTestDb;
 let pool: Pool;
@@ -70,11 +98,85 @@ describe('PostgresSystemTestRunStore', () => {
       'system_test_case',
       'system_test_cleanup',
       'system_test_environment',
+      'system_test_fixture_lease',
+      'system_test_fixture_resource',
       'system_test_retention',
       'system_test_run',
       'system_test_suite',
       'system_test_transition',
     ]);
+  });
+
+  it('refuses a concurrent namespace collision while replaying the winning lease idempotently', async () => {
+    await store.createRun(launch('run-lease-a', 'launch-lease-a'));
+    await store.createRun(launch('run-lease-b', 'launch-lease-b'));
+    const firstPlan = createAcceptanceFixturePlan('run-lease-a');
+    const collidingPlan = { ...firstPlan, runId: 'run-lease-b' };
+    const expiresAt = new Date('2026-08-15T20:00:00Z');
+
+    const results = await Promise.allSettled([
+      store.acquireFixtureLease(firstPlan, expiresAt, BASE_TIME),
+      store.acquireFixtureLease(collidingPlan, expiresAt, BASE_TIME),
+    ]);
+    expect(results.filter((result) => result.status === 'fulfilled')).toHaveLength(1);
+    const rejected = results.find((result): result is PromiseRejectedResult => result.status === 'rejected');
+    expect(rejected?.reason).toBeInstanceOf(SystemTestRunConflictError);
+
+    const winner = results[0]?.status === 'fulfilled' ? firstPlan : collidingPlan;
+    const replay = await store.acquireFixtureLease(winner, expiresAt, BASE_TIME);
+    expect(replay.namespace).toBe(firstPlan.namespace);
+    expect(replay.resources).toHaveLength(firstPlan.resources.length);
+  });
+
+  it('surfaces a leaked resource, redacts sandbox metadata, and reaps it to idempotent release', async () => {
+    await store.createRun(launch('run-fixture-1', 'launch-fixture-1'));
+    const driver = new FakeFixtureDriver();
+    const coordinator = new AcceptanceFixtureCoordinator(store, driver);
+    const provisioned = await coordinator.provision(
+      'run-fixture-1',
+      new Date('2026-08-14T20:30:00Z'),
+      new Date('2026-08-14T20:00:01Z'),
+    );
+    expect(provisioned.status).toBe('active');
+    expect(provisioned.resources).toHaveLength(10);
+    expect(provisioned.resources.find((resource) => resource.kind === 'external-sandbox')?.metadata)
+      .toEqual({ sandboxId: expect.stringContaining('sandbox:'), accessToken: '[REDACTED]' });
+
+    driver.leakKinds.add('typesense-collection-prefix');
+    const firstCleanup = await coordinator.cleanup('run-fixture-1', new Date('2026-08-14T20:31:00Z'));
+    expect(firstCleanup).toMatchObject({ released: false, alreadyReleased: false });
+    expect(firstCleanup.leaked.map((resource) => resource.kind)).toEqual(['typesense-collection-prefix']);
+
+    const leakedLease = await store.requireFixtureLease('run-fixture-1');
+    expect(leakedLease.status).toBe('leaked');
+    expect(leakedLease.resources.find((resource) => resource.kind === 'typesense-collection-prefix'))
+      .toMatchObject({ status: 'leaked', cleanupAttempts: 1, lastError: 'resource still exists after cleanup' });
+    const failedRun = await store.requireRun('run-fixture-1');
+    expect(failedRun.run.state).toBe('cleanup-failed');
+    expect(failedRun.cleanup).toMatchObject({ status: 'failed', attempts: 1 });
+
+    driver.leakKinds.clear();
+    const reaped = await coordinator.reapExpired(new Date('2026-08-14T20:31:01Z'), {
+      at: new Date('2026-08-14T20:31:02Z'),
+    });
+    expect(reaped).toEqual({
+      inspected: ['run-fixture-1'],
+      released: ['run-fixture-1'],
+      leaked: [],
+    });
+    const recoveredLease = await store.requireFixtureLease('run-fixture-1');
+    expect(recoveredLease.status).toBe('released');
+    expect(recoveredLease.resources.every((resource) => resource.status === 'released')).toBe(true);
+    expect(recoveredLease.resources.find((resource) => resource.kind === 'typesense-collection-prefix'))
+      .toMatchObject({ cleanupAttempts: 2, lastError: '' });
+    const recoveredRun = await store.requireRun('run-fixture-1');
+    expect(recoveredRun.run.state).toBe('cleanup-failed');
+    expect(recoveredRun.cleanup).toMatchObject({ status: 'succeeded', attempts: 2 });
+
+    const removalCount = driver.removeCalls.length;
+    await expect(coordinator.cleanup('run-fixture-1', new Date('2026-08-14T20:31:03Z')))
+      .resolves.toEqual({ runId: 'run-fixture-1', released: true, alreadyReleased: true, leaked: [] });
+    expect(driver.removeCalls).toHaveLength(removalCount);
   });
 
   it('creates one normalized, idempotent snapshot for one allow-listed suite launch', async () => {

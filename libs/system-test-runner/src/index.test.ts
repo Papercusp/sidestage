@@ -278,7 +278,7 @@ describe('deterministic acceptance fixtures', () => {
     expect(other.namespace).not.toBe(first.namespace);
     expect(first.namespace).toMatch(/^sst_run_1_[0-9a-f]{10}$/);
     expect(first.resources).toHaveLength(10);
-    expect(new Set(first.resources.map((resource) => resource.kind))).toHaveLength(10);
+    expect(new Set(first.resources.map((resource) => resource.kind)).size).toBe(10);
     expect(first.resources.find((resource) => resource.kind === 'postgres-database')?.identifier)
       .toMatch(/^acceptance_run_1_[0-9a-f]{10}$/);
   });

@@ -14,6 +14,16 @@ import {
 } from '@papercusp/system-test-contract';
 import type { Pool, PoolClient } from 'pg';
 
+import {
+  validateAcceptanceFixturePlan,
+  type AcceptanceFixtureLeaseStore,
+  type AcceptanceFixturePlan,
+  type AcceptanceFixtureResourceDescriptor,
+  type AcceptanceFixtureResourceKind,
+  type AcceptanceFixtureResourceStatus,
+  type StoredAcceptanceFixtureLease,
+} from './acceptance-fixtures';
+
 const IDENTIFIER_PATTERN = /^[a-z0-9](?:[a-z0-9._-]{0,126}[a-z0-9])?$/;
 const RUN_ID_PATTERN = /^[a-z0-9](?:[a-z0-9-]{0,38}[a-z0-9])?$/;
 const SHA_PATTERN = /^[0-9a-f]{40}$/;
@@ -293,6 +303,13 @@ function asStringArray(value: unknown): string[] {
   return Array.isArray(value) ? value.filter((entry): entry is string => typeof entry === 'string') : [];
 }
 
+function fixtureResourceCount(
+  counts: Partial<Record<AcceptanceFixtureResourceStatus, number>>,
+  ...statuses: AcceptanceFixtureResourceStatus[]
+): number {
+  return statuses.reduce((total, status) => total + (counts[status] ?? 0), 0);
+}
+
 function canonicalRequest(request: SystemTestRunRequest, actor: SystemTestActor): Record<string, unknown> {
   return {
     actor: { id: actor.id, role: actor.role },
@@ -443,7 +460,7 @@ async function appendTransition(
   run.state = to;
 }
 
-export class PostgresSystemTestRunStore implements SystemTestRunQueueStore {
+export class PostgresSystemTestRunStore implements SystemTestRunQueueStore, AcceptanceFixtureLeaseStore {
   readonly #pool: Pool;
 
   constructor(pool: Pool) {
@@ -463,6 +480,336 @@ export class PostgresSystemTestRunStore implements SystemTestRunQueueStore {
     } finally {
       client.release();
     }
+  }
+
+  async acquireFixtureLease(
+    plan: AcceptanceFixturePlan,
+    expiresAt: Date,
+    at = new Date(),
+  ): Promise<StoredAcceptanceFixtureLease> {
+    validateAcceptanceFixturePlan(plan);
+    requireDate(expiresAt, 'expiresAt');
+    requireDate(at, 'at');
+    if (expiresAt.getTime() <= at.getTime()) {
+      throw new SystemTestRunStoreError('fixture lease must expire after it is acquired');
+    }
+    try {
+      await this.#transaction(async (client) => {
+        await lockRun(client, plan.runId);
+        await client.query(
+          `INSERT INTO system_test_fixture_lease
+             (run_id, namespace, status, acquired_at, expires_at, updated_at)
+           VALUES ($1, $2, 'active', $3, $4, $3)
+           ON CONFLICT (run_id) DO NOTHING`,
+          [plan.runId, plan.namespace, at, expiresAt],
+        );
+        const lease = await client.query<{ namespace: string; expires_at: Date }>(
+          'SELECT namespace, expires_at FROM system_test_fixture_lease WHERE run_id = $1 FOR UPDATE',
+          [plan.runId],
+        );
+        const leaseRow = lease.rows[0];
+        if (!leaseRow) throw new SystemTestRunStoreError(`fixture lease for ${plan.runId} could not be read back`);
+        if (leaseRow.namespace !== plan.namespace) {
+          throw new SystemTestRunConflictError(`run ${plan.runId} already owns a different fixture namespace`);
+        }
+        if (leaseRow.expires_at.getTime() < expiresAt.getTime()) {
+          await client.query(
+            'UPDATE system_test_fixture_lease SET expires_at = $2, updated_at = $3 WHERE run_id = $1',
+            [plan.runId, expiresAt, at],
+          );
+        }
+
+        for (const resource of plan.resources) {
+          await client.query(
+            `INSERT INTO system_test_fixture_resource
+               (run_id, kind, identifier, cleanup_order, status, updated_at)
+             VALUES ($1, $2, $3, $4, 'leased', $5)
+             ON CONFLICT (run_id, kind) DO NOTHING`,
+            [plan.runId, resource.kind, resource.identifier, resource.cleanupOrder, at],
+          );
+        }
+        const stored = await client.query<{
+          kind: AcceptanceFixtureResourceKind;
+          identifier: string;
+          cleanup_order: number;
+        }>(
+          `SELECT kind, identifier, cleanup_order
+             FROM system_test_fixture_resource
+            WHERE run_id = $1
+            ORDER BY cleanup_order`,
+          [plan.runId],
+        );
+        if (stored.rows.length !== plan.resources.length) {
+          throw new SystemTestRunConflictError(`run ${plan.runId} already owns a different fixture resource set`);
+        }
+        for (const resource of plan.resources) {
+          const row = stored.rows.find((entry) => entry.kind === resource.kind);
+          if (!row || row.identifier !== resource.identifier || row.cleanup_order !== resource.cleanupOrder) {
+            throw new SystemTestRunConflictError(`run ${plan.runId} already owns a different ${resource.kind} fixture`);
+          }
+        }
+      });
+    } catch (error) {
+      if (pgCode(error) === '23505') {
+        throw new SystemTestRunConflictError(
+          `fixture namespace or resource for run ${plan.runId} is already leased by another run`,
+          { cause: error },
+        );
+      }
+      throw error;
+    }
+    return this.requireFixtureLease(plan.runId);
+  }
+
+  async getFixtureLease(runId: string): Promise<StoredAcceptanceFixtureLease | null> {
+    requireIdentifier(runId, 'runId', RUN_ID_PATTERN);
+    const result = await this.#pool.query<{
+      run_id: string;
+      namespace: string;
+      status: StoredAcceptanceFixtureLease['status'];
+      acquired_at: Date;
+      expires_at: Date;
+      released_at: Date | null;
+      updated_at: Date;
+      resources: Array<{
+        kind: AcceptanceFixtureResourceKind;
+        identifier: string;
+        cleanupOrder: number;
+        status: AcceptanceFixtureResourceStatus;
+        metadata: Record<string, unknown>;
+        cleanupAttempts: number;
+        lastError: string;
+        updatedAt: string;
+        releasedAt: string | null;
+      }>;
+    }>(
+      `SELECT lease.run_id,
+              lease.namespace,
+              lease.status,
+              lease.acquired_at,
+              lease.expires_at,
+              lease.released_at,
+              lease.updated_at,
+              COALESCE(
+                jsonb_agg(
+                  jsonb_build_object(
+                    'kind', resource.kind,
+                    'identifier', resource.identifier,
+                    'cleanupOrder', resource.cleanup_order,
+                    'status', resource.status,
+                    'metadata', resource.metadata,
+                    'cleanupAttempts', resource.cleanup_attempts,
+                    'lastError', resource.last_error,
+                    'updatedAt', resource.updated_at,
+                    'releasedAt', resource.released_at
+                  ) ORDER BY resource.cleanup_order
+                ) FILTER (WHERE resource.run_id IS NOT NULL),
+                '[]'::jsonb
+              ) AS resources
+         FROM system_test_fixture_lease AS lease
+         LEFT JOIN system_test_fixture_resource AS resource ON resource.run_id = lease.run_id
+        WHERE lease.run_id = $1
+        GROUP BY lease.run_id, lease.namespace, lease.status, lease.acquired_at,
+                 lease.expires_at, lease.released_at, lease.updated_at`,
+      [runId],
+    );
+    const row = result.rows[0];
+    if (!row) return null;
+    return {
+      runId: row.run_id,
+      namespace: row.namespace,
+      status: row.status,
+      acquiredAt: iso(row.acquired_at),
+      expiresAt: iso(row.expires_at),
+      releasedAt: nullableIso(row.released_at),
+      updatedAt: iso(row.updated_at),
+      resources: row.resources.map((resource) => ({
+        kind: resource.kind,
+        identifier: resource.identifier,
+        cleanupOrder: Number(resource.cleanupOrder),
+        status: resource.status,
+        metadata: resource.metadata,
+        cleanupAttempts: Number(resource.cleanupAttempts),
+        lastError: resource.lastError,
+        updatedAt: iso(resource.updatedAt),
+        releasedAt: nullableIso(resource.releasedAt),
+      })),
+    };
+  }
+
+  async requireFixtureLease(runId: string): Promise<StoredAcceptanceFixtureLease> {
+    const lease = await this.getFixtureLease(runId);
+    if (!lease) throw new SystemTestRunStoreError(`fixture lease for ${runId} does not exist`);
+    return lease;
+  }
+
+  async markFixtureResourceActive(
+    runId: string,
+    resource: AcceptanceFixtureResourceDescriptor,
+    metadata: Record<string, unknown> = {},
+    at = new Date(),
+  ): Promise<void> {
+    requireDate(at, 'at');
+    const redactedMetadata = redactSystemTestJson(metadata) as Record<string, unknown>;
+    await this.#transaction(async (client) => {
+      await lockRun(client, runId);
+      const existing = await client.query<{
+        identifier: string;
+        cleanup_order: number;
+        status: AcceptanceFixtureResourceStatus;
+        metadata_matches: boolean;
+      }>(
+        `SELECT identifier, cleanup_order, status, metadata = $3::jsonb AS metadata_matches
+           FROM system_test_fixture_resource
+          WHERE run_id = $1 AND kind = $2
+          FOR UPDATE`,
+        [runId, resource.kind, JSON.stringify(redactedMetadata)],
+      );
+      const row = existing.rows[0];
+      if (!row) throw new SystemTestRunStoreError(`run ${runId} has no ${resource.kind} fixture resource`);
+      if (row.identifier !== resource.identifier || row.cleanup_order !== resource.cleanupOrder) {
+        throw new SystemTestRunConflictError(`run ${runId} has a different ${resource.kind} fixture resource`);
+      }
+      if (row.status === 'active') {
+        if (!row.metadata_matches) {
+          throw new SystemTestRunConflictError(`run ${runId} ${resource.kind} fixture has different metadata`);
+        }
+        return;
+      }
+      if (row.status !== 'leased') {
+        throw new SystemTestRunConflictError(`cannot activate ${resource.kind} fixture from ${row.status}`);
+      }
+      await client.query(
+        `UPDATE system_test_fixture_resource
+            SET status = 'active', metadata = $3::jsonb, updated_at = $4
+          WHERE run_id = $1 AND kind = $2`,
+        [runId, resource.kind, JSON.stringify(redactedMetadata), at],
+      );
+    });
+  }
+
+  async beginFixtureCleanup(runId: string, at = new Date()): Promise<StoredAcceptanceFixtureLease> {
+    requireDate(at, 'at');
+    await this.#transaction(async (client) => {
+      await lockRun(client, runId);
+      const result = await client.query<{ status: StoredAcceptanceFixtureLease['status'] }>(
+        'SELECT status FROM system_test_fixture_lease WHERE run_id = $1 FOR UPDATE',
+        [runId],
+      );
+      const row = result.rows[0];
+      if (!row) throw new SystemTestRunStoreError(`fixture lease for ${runId} does not exist`);
+      if (row.status === 'released') return;
+      await client.query(
+        "UPDATE system_test_fixture_lease SET status = 'cleaning', updated_at = $2 WHERE run_id = $1",
+        [runId, at],
+      );
+    });
+    return this.requireFixtureLease(runId);
+  }
+
+  async recordFixtureResourceCleanup(
+    runId: string,
+    resource: AcceptanceFixtureResourceDescriptor,
+    outcome: { status: 'released' | 'leaked'; error?: string; at?: Date },
+  ): Promise<void> {
+    const at = outcome.at ?? new Date();
+    requireDate(at, 'at');
+    const error = redactSystemTestText(outcome.error ?? '').slice(0, 2_000);
+    await this.#transaction(async (client) => {
+      await lockRun(client, runId);
+      const result = await client.query<{
+        identifier: string;
+        cleanup_order: number;
+        status: AcceptanceFixtureResourceStatus;
+      }>(
+        `SELECT identifier, cleanup_order, status
+           FROM system_test_fixture_resource
+          WHERE run_id = $1 AND kind = $2
+          FOR UPDATE`,
+        [runId, resource.kind],
+      );
+      const row = result.rows[0];
+      if (!row) throw new SystemTestRunStoreError(`run ${runId} has no ${resource.kind} fixture resource`);
+      if (row.identifier !== resource.identifier || row.cleanup_order !== resource.cleanupOrder) {
+        throw new SystemTestRunConflictError(`run ${runId} has a different ${resource.kind} fixture resource`);
+      }
+      if (row.status === 'released') {
+        if (outcome.status === 'released') return;
+        throw new SystemTestRunConflictError(`released ${resource.kind} fixture cannot become leaked`);
+      }
+      await client.query(
+        `UPDATE system_test_fixture_resource
+            SET status = $3::text,
+                cleanup_attempts = cleanup_attempts + 1,
+                last_error = $4,
+                released_at = CASE WHEN $3::text = 'released' THEN $5::timestamptz ELSE NULL END,
+                updated_at = $5::timestamptz
+          WHERE run_id = $1 AND kind = $2`,
+        [runId, resource.kind, outcome.status, error, at],
+      );
+    });
+  }
+
+  async finishFixtureCleanup(
+    runId: string,
+    status: 'released' | 'leaked',
+    at = new Date(),
+  ): Promise<StoredAcceptanceFixtureLease> {
+    requireDate(at, 'at');
+    await this.#transaction(async (client) => {
+      await lockRun(client, runId);
+      const lease = await client.query<{ status: StoredAcceptanceFixtureLease['status'] }>(
+        'SELECT status FROM system_test_fixture_lease WHERE run_id = $1 FOR UPDATE',
+        [runId],
+      );
+      const leaseRow = lease.rows[0];
+      if (!leaseRow) throw new SystemTestRunStoreError(`fixture lease for ${runId} does not exist`);
+      if (leaseRow.status === 'released') {
+        if (status === 'released') return;
+        throw new SystemTestRunConflictError(`released fixture lease ${runId} cannot become leaked`);
+      }
+      const resources = await client.query<{ status: AcceptanceFixtureResourceStatus; count: string }>(
+        `SELECT status, count(*)::text AS count
+           FROM system_test_fixture_resource
+          WHERE run_id = $1
+          GROUP BY status`,
+        [runId],
+      );
+      const counts = Object.fromEntries(resources.rows.map((row) => [row.status, Number(row.count)]));
+      const unreleased = fixtureResourceCount(counts, 'leased', 'active', 'leaked');
+      if (status === 'released' && unreleased > 0) {
+        throw new SystemTestRunConflictError(`fixture lease ${runId} still has ${unreleased} unreleased resource(s)`);
+      }
+      if (status === 'leaked' && (counts.leaked ?? 0) === 0) {
+        throw new SystemTestRunConflictError(`fixture lease ${runId} has no leaked resources to surface`);
+      }
+      await client.query(
+        `UPDATE system_test_fixture_lease
+            SET status = $2::text,
+                released_at = CASE WHEN $2::text = 'released' THEN $3::timestamptz ELSE NULL END,
+                updated_at = $3::timestamptz
+          WHERE run_id = $1`,
+        [runId, status, at],
+      );
+    });
+    return this.requireFixtureLease(runId);
+  }
+
+  async listFixtureRunIdsForReaping(expiresBefore: Date, limit = 100): Promise<string[]> {
+    requireDate(expiresBefore, 'expiresBefore');
+    if (!Number.isInteger(limit) || limit < 1 || limit > 1_000) {
+      throw new SystemTestRunStoreError('fixture reaper limit must be an integer between 1 and 1000');
+    }
+    const result = await this.#pool.query<{ run_id: string }>(
+      `SELECT run_id
+         FROM system_test_fixture_lease
+        WHERE status = 'leaked'
+           OR (status <> 'released' AND expires_at <= $1)
+        ORDER BY CASE WHEN status = 'leaked' THEN 0 ELSE 1 END, expires_at, run_id
+        LIMIT $2`,
+      [expiresBefore, limit],
+    );
+    return result.rows.map((row) => row.run_id);
   }
 
   async createRun(input: CreateSystemTestRunInput): Promise<StoredSystemTestRunSnapshot> {
@@ -848,7 +1195,7 @@ export class PostgresSystemTestRunStore implements SystemTestRunQueueStore {
       pending: ['running', 'succeeded', 'failed'],
       running: ['succeeded', 'failed'],
       succeeded: ['failed'],
-      failed: [],
+      failed: ['running'],
     };
     await this.#transaction(async (client) => {
       const run = await lockRun(client, runId);
