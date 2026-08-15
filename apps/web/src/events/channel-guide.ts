@@ -47,6 +47,10 @@ const MINUTE = 60 * SECOND;
 const HOUR = 60 * MINUTE;
 const DAY = 24 * HOUR;
 
+function roundedUnits(ms: number, unit: number): number {
+  return Math.max(1, Math.floor(ms / unit));
+}
+
 /**
  * Live, second-resolution countdown copy for an upcoming event.
  *
