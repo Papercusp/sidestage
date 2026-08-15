@@ -1,13 +1,26 @@
 import { useMemo, useState } from 'react';
 import { useSyncQuery } from '@papercusp/sync';
+import { useBuyerCheckout } from './BuyerCheckout';
 import { useBuyerIdentity } from './buyer-identity';
 import { formatReplayTime } from './ReplayChapters';
 import './orders.css';
 
 export type BuyerOrderSource = 'checkout' | 'auction' | 'offer';
 export type BuyerOrderStatus = 'pending' | 'paid' | 'failed' | 'accepted' | 'expired' | 'cancelled';
+export type BuyerOrderPaymentState =
+  | 'payment_required'
+  | 'payment_processing'
+  | 'paid'
+  | 'payment_failed'
+  | 'cancelled'
+  | 'expired';
 export type OrderFilter = 'all' | 'needs-action' | 'in-progress' | 'completed';
 export type OrderSort = 'newest' | 'oldest' | 'highest-total';
+
+export interface BuyerOrderCheckoutCapability {
+  action: 'checkout' | 'resume';
+  orderId: string;
+}
 
 export interface BuyerOrderItem {
   productId: string;
@@ -35,17 +48,21 @@ export interface BuyerOrderVideoSnapshot {
 export interface BuyerOrder {
   id: string;
   source: BuyerOrderSource;
+  sourceId: string;
   buyerId: string;
   eventId: string;
   eventTitle: string;
   sellerName?: string;
   status: BuyerOrderStatus;
+  paymentState: BuyerOrderPaymentState | null;
+  checkoutCapability: BuyerOrderCheckoutCapability | null;
   createdAt: string;
   subtotalCents: number;
   shippingCents: number;
   totalCents: number;
   currency: 'USD';
   items: BuyerOrderItem[];
+  sourceSnapshot: Readonly<Record<string, unknown>>;
   videoSnapshots: BuyerOrderVideoSnapshot[];
 }
 
@@ -76,7 +93,16 @@ export function formatOrderDate(createdAt: string): string {
   return Number.isNaN(value.getTime()) ? 'Date unavailable' : dateFormatter.format(value);
 }
 
-export function orderStatusLabel(status: BuyerOrderStatus): string {
+export function orderStatusLabel(
+  status: BuyerOrderStatus,
+  paymentState: BuyerOrderPaymentState | null = null,
+): string {
+  if (paymentState === 'payment_required') return 'Payment required';
+  if (paymentState === 'payment_processing') return 'Processing';
+  if (paymentState === 'payment_failed') return 'Payment failed';
+  if (paymentState === 'paid') return 'Paid';
+  if (paymentState === 'cancelled') return 'Cancelled';
+  if (paymentState === 'expired') return 'Expired';
   if (status === 'paid') return 'Paid';
   if (status === 'accepted') return 'Offer accepted';
   if (status === 'failed') return 'Payment failed';
@@ -91,7 +117,13 @@ export function orderSourceLabel(source: BuyerOrderSource): string {
   return 'Buy now';
 }
 
-export function orderFilterForStatus(status: BuyerOrderStatus): Exclude<OrderFilter, 'all'> {
+export function orderFilterForStatus(
+  status: BuyerOrderStatus,
+  paymentState: BuyerOrderPaymentState | null = null,
+): Exclude<OrderFilter, 'all'> {
+  if (paymentState === 'payment_required' || paymentState === 'payment_failed') return 'needs-action';
+  if (paymentState === 'payment_processing') return 'in-progress';
+  if (paymentState !== null) return 'completed';
   if (status === 'failed') return 'needs-action';
   if (status === 'pending' || status === 'accepted') return 'in-progress';
   return 'completed';
@@ -99,9 +131,11 @@ export function orderFilterForStatus(status: BuyerOrderStatus): Exclude<OrderFil
 
 export function summarizeOrders(orders: readonly BuyerOrder[]): BuyerOrderSummary {
   const summary = orders.reduce<BuyerOrderSummary>((result, order) => {
-    if (order.status === 'paid') result.paidTotalCents += order.totalCents;
-    if (orderFilterForStatus(order.status) === 'needs-action') result.needsActionCount += 1;
-    if (orderFilterForStatus(order.status) === 'in-progress') result.inProgressCount += 1;
+    if (order.paymentState === 'paid' || (order.paymentState === null && order.status === 'paid')) {
+      result.paidTotalCents += order.totalCents;
+    }
+    if (orderFilterForStatus(order.status, order.paymentState) === 'needs-action') result.needsActionCount += 1;
+    if (orderFilterForStatus(order.status, order.paymentState) === 'in-progress') result.inProgressCount += 1;
     return result;
   }, {
     orderCount: orders.length,
@@ -126,14 +160,14 @@ export function filterAndSortOrders(
 ): BuyerOrder[] {
   const query = search.trim().toLocaleLowerCase();
   const matches = orders.filter((order) => {
-    if (filter !== 'all' && orderFilterForStatus(order.status) !== filter) return false;
+    if (filter !== 'all' && orderFilterForStatus(order.status, order.paymentState) !== filter) return false;
     if (!query) return true;
     const searchable = [
       order.id,
       order.eventTitle,
       order.sellerName,
       orderSourceLabel(order.source),
-      orderStatusLabel(order.status),
+      orderStatusLabel(order.status, order.paymentState),
       ...order.items.flatMap((item) => [item.title, item.productId]),
     ].filter(Boolean).join(' ').toLocaleLowerCase();
     return searchable.includes(query);
@@ -158,6 +192,10 @@ function orderActionLabel(order: BuyerOrder): string {
   if (order.status === 'accepted') return 'View accepted offer';
   if (order.status === 'expired' || order.status === 'cancelled') return 'Browse event';
   return 'View live event';
+}
+
+function checkoutActionLabel(capability: BuyerOrderCheckoutCapability): string {
+  return capability.action === 'resume' ? 'Resume checkout' : 'Checkout';
 }
 
 function orderHeadline(order: BuyerOrder): string {
@@ -220,12 +258,15 @@ function OrdersEmpty({ buyerId }: { buyerId: string }) {
   );
 }
 
-function StatusBadge({ status }: { status: BuyerOrderStatus }) {
-  const symbol = status === 'failed' ? '!' : status === 'paid' || status === 'accepted' ? '✓' : status === 'expired' || status === 'cancelled' ? '×' : '•';
+function StatusBadge({ order }: { order: BuyerOrder }) {
+  const visualState = order.paymentState === 'payment_failed'
+    ? 'failed'
+    : order.paymentState ?? order.status;
+  const symbol = visualState === 'failed' ? '!' : visualState === 'paid' || visualState === 'accepted' ? '✓' : visualState === 'expired' || visualState === 'cancelled' ? '×' : '•';
   return (
-    <span className={`order-status order-status-${status}`}>
+    <span className={`order-status order-status-${visualState}`}>
       <span aria-hidden="true">{symbol}</span>
-      {orderStatusLabel(status)}
+      {orderStatusLabel(order.status, order.paymentState)}
     </span>
   );
 }
@@ -254,7 +295,7 @@ export function OrderDetails({ order }: { order: BuyerOrder }) {
         <div><dt>Subtotal</dt><dd>{formatOrderMoney(order.subtotalCents)}</dd></div>
         <div><dt>Shipping</dt><dd>{order.shippingCents > 0 ? formatOrderMoney(order.shippingCents) : 'Included'}</dd></div>
         <div><dt>Order total</dt><dd>{formatOrderMoney(order.totalCents)}</dd></div>
-        <div><dt>Purchase state</dt><dd>{orderStatusLabel(order.status)}</dd></div>
+        <div><dt>Purchase state</dt><dd>{orderStatusLabel(order.status, order.paymentState)}</dd></div>
       </dl>
 
       {order.videoSnapshots.length > 0 ? (
@@ -282,7 +323,15 @@ export function OrderDetails({ order }: { order: BuyerOrder }) {
   );
 }
 
-export function OrderHistory({ orders, buyerId }: { orders: readonly BuyerOrder[]; buyerId: string }) {
+export function OrderHistory({
+  orders,
+  buyerId,
+  onOpenOrder,
+}: {
+  orders: readonly BuyerOrder[];
+  buyerId: string;
+  onOpenOrder?: (orderId: string) => Promise<void>;
+}) {
   const [expandedOrderKey, setExpandedOrderKey] = useState(() => orders[0] ? orderKey(orders[0]) : null);
 
   if (orders.length === 0) return <OrdersEmpty buyerId={buyerId} />;
@@ -303,7 +352,7 @@ export function OrderHistory({ orders, buyerId }: { orders: readonly BuyerOrder[
                 </div>
                 <div className="order-card-title">
                   <div className="order-card-meta">
-                    <StatusBadge status={order.status} />
+                    <StatusBadge order={order} />
                     <span>Order {order.id}</span>
                   </div>
                   <h2>{orderHeadline(order)}</h2>
@@ -315,9 +364,21 @@ export function OrderHistory({ orders, buyerId }: { orders: readonly BuyerOrder[
                   <strong>{formatOrderMoney(order.totalCents)}</strong>
                   <small>{order.status === 'paid' ? 'Paid' : 'Order total'}</small>
                 </div>
-                <a className={`button ${order.status === 'failed' ? 'primary' : 'secondary'}`} href={orderEventHref(order.eventId)}>
-                  {orderActionLabel(order)}
-                </a>
+                {order.checkoutCapability ? (
+                  <button
+                    aria-label={`${checkoutActionLabel(order.checkoutCapability)} order ${order.id}`}
+                    className="button primary"
+                    type="button"
+                    disabled={!onOpenOrder}
+                    onClick={() => { if (onOpenOrder) void onOpenOrder(order.checkoutCapability!.orderId); }}
+                  >
+                    {checkoutActionLabel(order.checkoutCapability)}
+                  </button>
+                ) : (
+                  <a className="button secondary" href={orderEventHref(order.eventId)}>
+                    {orderActionLabel(order)}
+                  </a>
+                )}
                 <button
                   className="order-expand-button"
                   type="button"
@@ -342,10 +403,12 @@ export function OrdersWorkspace({
   orders,
   buyerId,
   refreshing = false,
+  onOpenOrder,
 }: {
   orders: readonly BuyerOrder[];
   buyerId: string;
   refreshing?: boolean;
+  onOpenOrder?: (orderId: string) => Promise<void>;
 }) {
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState<OrderFilter>('all');
@@ -402,7 +465,7 @@ export function OrdersWorkspace({
       </p>
 
       {visibleOrders.length > 0 ? (
-        <OrderHistory orders={visibleOrders} buyerId={buyerId} />
+        <OrderHistory orders={visibleOrders} buyerId={buyerId} onOpenOrder={onOpenOrder} />
       ) : hasActiveQuery ? (
         <section className="orders-empty orders-empty-filtered">
           <p className="eyebrow">No matches</p>
@@ -425,6 +488,7 @@ export function OrdersWorkspace({
 
 export function OrdersTab() {
   const { buyerId } = useBuyerIdentity();
+  const buyerCheckout = useBuyerCheckout();
   const ordersQuery = useSyncQuery<BuyerOrder>({
     queryName: 'orders.byBuyer',
     args: { buyerId },
@@ -464,7 +528,12 @@ export function OrdersTab() {
           <span>Loading orders for {buyerId}…</span>
         </section>
       ) : (
-        <OrdersWorkspace orders={orders} buyerId={buyerId} refreshing={refreshing} />
+        <OrdersWorkspace
+          orders={orders}
+          buyerId={buyerId}
+          refreshing={refreshing}
+          onOpenOrder={buyerCheckout?.openOrder}
+        />
       )}
     </section>
   );

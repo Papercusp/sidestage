@@ -15,17 +15,21 @@ import {
 const order: BuyerOrder = {
   id: 'order-1',
   source: 'auction',
+  sourceId: 'auction-1',
   buyerId: 'buyer-1',
   eventId: 'event-1',
   eventTitle: 'Ceramics after dark',
   sellerName: 'Kiln & Coast',
   status: 'paid',
+  paymentState: 'paid',
+  checkoutCapability: null,
   createdAt: '2026-08-14T01:00:00.000Z',
   subtotalCents: 2500,
   shippingCents: 500,
   totalCents: 3000,
   currency: 'USD',
   items: [{ productId: 'cup', title: 'Aurora cup', quantity: 2, unitPriceCents: 1250 }],
+  sourceSnapshot: { auctionId: 'auction-1', winningPriceCents: 2500 },
   videoSnapshots: [{
     id: 'snapshot-1',
     eventId: 'event-1',
@@ -49,6 +53,8 @@ const failedOrder: BuyerOrder = {
   eventTitle: 'Studio launch',
   sellerName: 'SideStage Supply',
   status: 'failed',
+  paymentState: 'payment_failed',
+  checkoutCapability: { action: 'resume', orderId: 'order-failed' },
   createdAt: '2026-08-14T02:00:00.000Z',
   subtotalCents: 9900,
   shippingCents: 0,
@@ -64,6 +70,8 @@ const pendingOrder: BuyerOrder = {
   eventId: 'event-3',
   eventTitle: 'Field notes live',
   status: 'pending',
+  paymentState: null,
+  checkoutCapability: null,
   createdAt: '2026-08-14T03:00:00.000Z',
   subtotalCents: 4500,
   shippingCents: 0,
@@ -118,6 +126,38 @@ describe('OrdersTab', () => {
     expect(filterAndSortOrders(source, '', 'all', 'highest-total').map((item) => item.id))
       .toEqual(['order-failed', 'offer-pending', 'order-1']);
     expect(source.map((item) => item.id)).toEqual(['order-1', 'order-failed', 'offer-pending']);
+  });
+
+  it('uses canonical payment states for labels, action filters, and recovery controls', () => {
+    const requiredOrder: BuyerOrder = {
+      ...order,
+      id: 'order-required',
+      status: 'pending',
+      paymentState: 'payment_required',
+      checkoutCapability: { action: 'checkout', orderId: 'order-required' },
+    };
+    const processingOrder: BuyerOrder = {
+      ...order,
+      id: 'order-processing',
+      status: 'pending',
+      paymentState: 'payment_processing',
+      checkoutCapability: null,
+    };
+
+    const html = renderToStaticMarkup(
+      <OrderHistory orders={[requiredOrder, failedOrder, processingOrder, order]} buyerId="buyer-1" />,
+    );
+
+    expect(html).toContain('Payment required');
+    expect(html).toContain('Payment failed');
+    expect(html).toContain('Processing');
+    expect(html).toContain('Paid');
+    expect(html).toContain('Checkout');
+    expect(html).toContain('Resume checkout');
+    expect(filterAndSortOrders([requiredOrder, failedOrder, processingOrder, order], '', 'needs-action', 'newest')
+      .map((item) => item.id)).toEqual(['order-failed', 'order-required']);
+    expect(filterAndSortOrders([requiredOrder, failedOrder, processingOrder, order], '', 'in-progress', 'newest')
+      .map((item) => item.id)).toEqual(['order-processing']);
   });
 
   it('counts only completed payments as paid spend', () => {
@@ -202,5 +242,7 @@ describe('OrdersTab', () => {
     expect(formatOrderMoney(1250)).toBe('$12.50');
     expect(orderStatusLabel('accepted')).toBe('Offer accepted');
     expect(orderStatusLabel('failed')).toBe('Payment failed');
+    expect(orderStatusLabel('pending', 'payment_required')).toBe('Payment required');
+    expect(orderStatusLabel('pending', 'payment_processing')).toBe('Processing');
   });
 });

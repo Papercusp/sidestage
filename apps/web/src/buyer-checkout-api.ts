@@ -4,6 +4,8 @@ import { DEMO_PRINCIPAL_HEADER } from '@papercusp/sync';
 
 export interface BuyerCartItem {
   productId: string;
+  eventId?: string;
+  eventItemId?: string;
   title: string;
   priceCents: number;
   quantity: number;
@@ -151,13 +153,26 @@ export async function addHeldProductToCart(
   apiBaseUrl?: string,
   storage = browserStorage(),
 ): Promise<BuyerCart> {
+  const eventScoped = Boolean(product.eventId || product.eventItemId);
+  let cartId = readBuyerCartId(buyerId, storage);
+  if (eventScoped && !cartId) {
+    // Event holds require a stable aggregate identity before the first request
+    // so a lost response can be retried against the same locked cart row.
+    cartId = globalThis.crypto.randomUUID();
+    persistBuyerCartId(buyerId, cartId, storage);
+  }
   const cart = await requestJson<BuyerCart>('/cart/items', jsonPost({
-    cartId: readBuyerCartId(buyerId, storage),
+    cartId,
     productId: product.id,
     title: product.title,
     priceCents: product.priceCents,
     quantity: 1,
     imageUrl: product.imageUrl,
+    ...(eventScoped ? {
+      eventId: product.eventId,
+      eventItemId: product.eventItemId,
+      idempotencyKey: `cart-hold:${globalThis.crypto.randomUUID()}`,
+    } : {}),
   }), apiBaseUrl);
   persistBuyerCartId(buyerId, cart.id, storage);
   return cart;

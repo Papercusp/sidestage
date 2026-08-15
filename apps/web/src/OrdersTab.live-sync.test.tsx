@@ -5,7 +5,7 @@ import { createRoot, type Root } from 'react-dom/client';
 import { SyncProvider } from '@papercusp/sync';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { DEMO_IDENTITY_STORAGE_KEY } from './buyer-identity';
-import { OrdersTab, type BuyerOrder } from './OrdersTab';
+import { OrdersTab, OrdersWorkspace, type BuyerOrder } from './OrdersTab';
 
 type FakeListener = (event: { data: string; lastEventId?: string; type: string }) => void;
 
@@ -48,17 +48,21 @@ class FakeEventSource {
 const initialOrder: BuyerOrder = {
   id: 'order-live',
   source: 'checkout',
+  sourceId: 'cart-live',
   buyerId: 'buyer-placeholder',
   eventId: 'event-live',
   eventTitle: 'Live sync studio',
   sellerName: 'SideStage Supply',
   status: 'pending',
+  paymentState: 'payment_required',
+  checkoutCapability: { action: 'checkout', orderId: 'order-live' },
   createdAt: '2026-08-14T14:00:00.000Z',
   subtotalCents: 3200,
   shippingCents: 0,
   totalCents: 3200,
   currency: 'USD',
   items: [{ productId: 'initial-item', title: 'Pending studio order', quantity: 1, unitPriceCents: 3200 }],
+  sourceSnapshot: { cartId: 'cart-live' },
   videoSnapshots: [],
 };
 
@@ -146,6 +150,8 @@ describe('OrdersTab live sync', () => {
           buyerId,
           source,
           status: 'paid',
+          paymentState: 'paid',
+          checkoutCapability: null,
           items: [{ productId: `${slug}-item`, title: updatedTitle, quantity: 1, unitPriceCents: 3200 }],
         }],
       ];
@@ -205,4 +211,34 @@ describe('OrdersTab live sync', () => {
       ]);
     },
   );
+
+  it('opens the existing checkout drawer action with the canonical order id', async () => {
+    const openOrder = vi.fn().mockResolvedValue(undefined);
+    const resumableOrder: BuyerOrder = {
+      ...initialOrder,
+      id: 'order-resume',
+      sourceId: 'cart-resume',
+      status: 'failed',
+      paymentState: 'payment_failed',
+      checkoutCapability: { action: 'resume', orderId: 'order-resume' },
+    };
+
+    await act(async () => {
+      root?.render(
+        <OrdersWorkspace orders={[resumableOrder]} buyerId="buyer-1" onOpenOrder={openOrder} />,
+      );
+    });
+
+    const action = Array.from(container.querySelectorAll('button'))
+      .find((button) => button.textContent?.trim() === 'Resume checkout');
+    expect(action).toBeDefined();
+
+    await act(async () => {
+      action?.click();
+      await Promise.resolve();
+    });
+
+    expect(openOrder).toHaveBeenCalledOnce();
+    expect(openOrder).toHaveBeenCalledWith('order-resume');
+  });
 });
