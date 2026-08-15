@@ -53,13 +53,15 @@ function button(label: string): HTMLButtonElement {
   return match;
 }
 
-async function mount(proposal: CopilotProposal = baseProposal) {
+async function mount(input: CopilotProposal | CopilotProposal[] = baseProposal) {
+  const proposalRows = Array.isArray(input) ? input : [input];
+  const primaryProposal = proposalRows[0] ?? baseProposal;
   const invalidate = vi.fn();
   const queryRequests: unknown[] = [];
   const useDataImpl = <T,>(options: unknown) => {
     queryRequests.push(options);
     return {
-      data: [proposal] as unknown as T[],
+      data: proposalRows as unknown as T[],
       loading: false,
       fetching: false,
       transport: 'POLLING' as const,
@@ -67,10 +69,10 @@ async function mount(proposal: CopilotProposal = baseProposal) {
       error: null,
     };
   };
-  const createTurn = vi.fn(async () => proposal);
-  const approve = vi.fn(async () => ({ ...proposal, status: 'approved' as const }));
-  const skip = vi.fn(async () => ({ ...proposal, status: 'skipped' as const }));
-  const confirmAction = vi.fn(async () => ({ ...proposal, status: 'executed' as const }));
+  const createTurn = vi.fn(async () => primaryProposal);
+  const approve = vi.fn(async () => ({ ...primaryProposal, status: 'approved' as const }));
+  const skip = vi.fn(async () => ({ ...primaryProposal, status: 'skipped' as const }));
+  const confirmAction = vi.fn(async () => ({ ...primaryProposal, status: 'executed' as const }));
   const chatSend = vi.fn();
   const value = {
     transport: 'POLLING' as const,
@@ -95,6 +97,36 @@ async function mount(proposal: CopilotProposal = baseProposal) {
 }
 
 describe('CopilotPanel sync integration', () => {
+  it('keeps the proposal queue visible while switching one focused review inspector', async () => {
+    const secondProposal: CopilotProposal = {
+      ...baseProposal,
+      id: 'proposal-2',
+      question: {
+        ...baseProposal.question,
+        buyerId: 'buyer-2',
+        buyerName: 'Diego',
+        text: 'Can you ship this to Toronto?',
+      },
+      reply: 'Yes — the verified shipping policy includes Toronto delivery.',
+    };
+    await mount([baseProposal, secondProposal]);
+
+    const firstQueueItem = container.querySelector<HTMLButtonElement>('[data-copilot-queue-item="proposal-1"]');
+    const secondQueueItem = container.querySelector<HTMLButtonElement>('[data-copilot-queue-item="proposal-2"]');
+    expect(firstQueueItem?.getAttribute('aria-pressed')).toBe('true');
+    expect(secondQueueItem?.getAttribute('aria-pressed')).toBe('false');
+    expect(container.querySelectorAll('.copilot-proposal')).toHaveLength(1);
+    expect(container.querySelector('textarea')?.getAttribute('aria-label')).toBe('Reply to Maya');
+
+    await act(async () => secondQueueItem?.click());
+
+    expect(firstQueueItem?.getAttribute('aria-pressed')).toBe('false');
+    expect(secondQueueItem?.getAttribute('aria-pressed')).toBe('true');
+    expect(container.querySelectorAll('.copilot-proposal')).toHaveLength(1);
+    expect(container.querySelector('textarea')?.getAttribute('aria-label')).toBe('Reply to Diego');
+    expect(container.textContent).toContain('verified shipping policy includes Toronto delivery');
+  });
+
   it('reads the live proposal queue and approves the grounded reply through the named mutator', async () => {
     const runtime = await mount();
 
@@ -141,7 +173,7 @@ describe('CopilotPanel sync integration', () => {
   it('marks a skipped proposal status as a polite atomic announcement', async () => {
     await mount({ ...baseProposal, status: 'skipped' });
 
-    const status = container.querySelector('.copilot-review-status');
+    const status = container.querySelector('.copilot-inspector .copilot-review-status');
     expect(status?.getAttribute('role')).toBe('status');
     expect(status?.getAttribute('aria-live')).toBe('polite');
     expect(status?.getAttribute('aria-atomic')).toBe('true');
