@@ -62,7 +62,7 @@ export function DemoIdentityControl({
           spellCheck={false}
           aria-invalid={Boolean(error)}
         />
-        <button className="button secondary" type="submit">Switch</button>
+        <button className="button primary" type="submit">Switch</button>
       </div>
       {error ? <span className="demo-identity-error" role="alert">{error}</span> : null}
     </form>

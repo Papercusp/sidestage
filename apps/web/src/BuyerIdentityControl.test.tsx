@@ -24,6 +24,7 @@ describe('DemoIdentityControl', () => {
     expect(markup).not.toContain('seller-baf59833');
     expect(markup).toContain('Enter any user id');
     expect(markup).not.toContain('Demo only — any non-empty id, no password.');
+    expect(markup).toContain('class="button primary"');
     expect(markup).toContain('>Switch</button>');
   });
 
@@ -43,5 +44,20 @@ describe('DemoIdentityControl', () => {
     expect(identityCss).toMatch(/\.demo-identity-heading\s*\{[^}]*min-width:\s*0;/s);
     expect(identityCss).toMatch(/\.demo-identity-heading strong\s*\{[^}]*min-width:\s*0;/s);
     expect(identityCss).toMatch(/\.demo-identity-row\s*\{[^}]*min-width:\s*0;/s);
+  });
+
+  it('gives the demo switcher an unmistakable high-contrast treatment', () => {
+    expect(identityCss).toMatch(
+      /\.demo-identity\s*\{[^}]*border:\s*2px solid var\(--brand-red\);[^}]*background:\s*var\(--brand-yellow\);[^}]*box-shadow:/s,
+    );
+    expect(identityCss).toMatch(
+      /\.demo-identity-heading > span\s*\{[^}]*color:\s*var\(--on-brand-red\);[^}]*background:\s*var\(--brand-red\);/s,
+    );
+    expect(identityCss).toMatch(
+      /\.demo-identity-row input\s*\{[^}]*min-height:\s*2\.65rem;[^}]*border:\s*2px solid var\(--brand-red-active\);[^}]*font-weight:\s*720;/s,
+    );
+    expect(identityCss).toMatch(
+      /\.demo-identity-row \.button\s*\{[^}]*min-height:\s*2\.65rem;[^}]*font-weight:\s*900;/s,
+    );
   });
 });

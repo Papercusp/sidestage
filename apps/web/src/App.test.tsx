@@ -92,15 +92,25 @@ describe('P-005 product card and shell', () => {
     expect(stylesCss).toMatch(/\.app-shell\s*\{[^}]*grid-template-columns:\s*var\(--channel-guide-width\) minmax\(0, 1fr\)/);
     expect(stylesCss).toMatch(/\.app-site-column\s*\{[^}]*min-width:\s*0/);
     expect(stylesCss).toMatch(
-      /@media \(min-width: 761px\) and \(max-width: 1399px\)[\s\S]*?\.topbar-brand-group\s*\{[^}]*grid-column:\s*1 \/ -1[^}]*grid-row:\s*1/,
+      /@media \(min-width: 761px\) and \(max-width: 1699px\)[\s\S]*?\.topbar-brand-group\s*\{[^}]*grid-column:\s*1 \/ -1[^}]*grid-row:\s*1/,
     );
     expect(stylesCss).toMatch(
-      /@media \(min-width: 761px\) and \(max-width: 1399px\)[\s\S]*?\.tab-nav\s*\{[^}]*grid-column:\s*1[^}]*grid-row:\s*2[^}]*overflow-x:\s*auto/,
+      /@media \(min-width: 761px\) and \(max-width: 1699px\)[\s\S]*?\.tab-nav\s*\{[^}]*grid-column:\s*1[^}]*grid-row:\s*2[^}]*overflow-x:\s*auto/,
     );
     expect(stylesCss).toMatch(
-      /@media \(min-width: 761px\) and \(max-width: 1399px\)[\s\S]*?\.topbar-status-group\s*\{[^}]*grid-column:\s*2[^}]*grid-row:\s*2/,
+      /@media \(min-width: 761px\) and \(max-width: 1699px\)[\s\S]*?\.topbar-status-group\s*\{[^}]*grid-column:\s*2[^}]*grid-row:\s*2/,
     );
     expect(stylesCss).toMatch(/@media \(max-width: 600px\)\s*\{\s*\.app-shell\s*\{[^}]*--channel-guide-width:\s*10rem/);
+  });
+
+  it('keeps the prominent demo-user callout usable across topbar widths', () => {
+    expect(stylesCss).toMatch(/\.topbar-demo-user\s*\{[^}]*width:\s*13\.75rem/);
+    expect(stylesCss).toMatch(
+      /\.topbar-demo-user \.demo-identity\s*\{[^}]*grid-template-columns:\s*minmax\(0, 1fr\)[^}]*padding:\s*\.42rem \.5rem/,
+    );
+    expect(stylesCss).toMatch(
+      /@media \(max-width: 680px\)\s*\{[^}]*\.topbar-install-and-identity\s*\{[^}]*flex-wrap:\s*wrap[^}]*}[^}]*\.topbar-demo-user\s*\{[^}]*flex:\s*1 0 100%[^}]*width:\s*100%/,
+    );
   });
 });
 
