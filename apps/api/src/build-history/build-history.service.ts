@@ -1,6 +1,16 @@
 import { Injectable } from '@nestjs/common';
 import { BUILD_HISTORY_SNAPSHOT } from './build-history.snapshot';
 
+export interface BuildHistoryCommit {
+  sha: string;
+  url: string | null;
+  subject: string | null;
+  committedAt: string | null;
+  files: string[];
+  remoteStatus: 'confirmed' | 'local-only' | 'unknown';
+  attribution: 'authoritative' | 'body-reference' | 'inferred';
+}
+
 export interface BuildHistoryWorkItem {
   id: string;
   kind: string;
@@ -10,6 +20,20 @@ export interface BuildHistoryWorkItem {
   completionAuthority: string | null;
   completionSummary: string | null;
   completionEvidence: Record<string, unknown> | null;
+  commits: BuildHistoryCommit[];
+}
+
+export interface BuildHistoryRepository {
+  provider: 'github' | 'git';
+  url: string;
+  webUrl: string | null;
+  defaultBranch?: string | null;
+}
+
+export interface BuildHistoryProject {
+  id: string;
+  name: string;
+  repository: BuildHistoryRepository | null;
 }
 
 export interface BuildHistoryPlanItem {
@@ -55,6 +79,7 @@ export interface BuildHistoryPlan {
   items: BuildHistoryPlanItem[];
   decisions: BuildHistoryDecision[];
   completedItems: BuildHistoryWorkItem[];
+  project: BuildHistoryProject;
   snapshot: BuildHistorySnapshotSource;
 }
 
@@ -65,8 +90,15 @@ export interface BuildHistoryPlan {
  */
 export function loadBuildHistorySnapshot(): BuildHistoryPlan[] {
   const snapshot = { ...BUILD_HISTORY_SNAPSHOT.source } as BuildHistorySnapshotSource;
+  const project = {
+    ...BUILD_HISTORY_SNAPSHOT.project,
+    repository: BUILD_HISTORY_SNAPSHOT.project.repository
+      ? { ...BUILD_HISTORY_SNAPSHOT.project.repository }
+      : null,
+  } as BuildHistoryProject;
   return BUILD_HISTORY_SNAPSHOT.plans.map((plan) => ({
-    ...(plan as unknown as Omit<BuildHistoryPlan, 'snapshot'>),
+    ...(plan as unknown as Omit<BuildHistoryPlan, 'project' | 'snapshot'>),
+    project,
     snapshot,
   }));
 }

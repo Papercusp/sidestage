@@ -16,13 +16,21 @@ describe('BuildHistoryService', () => {
     expect(acceptancePlan).toBeDefined();
     expect(popupPlan).toMatchObject({
       title: 'SideStage History tab and full Vditor plan popup',
+      project: {
+        id: 'sidestage',
+        name: 'SideStage',
+        repository: {
+          provider: 'github',
+          webUrl: 'https://github.com/Papercusp/sidestage',
+        },
+      },
       snapshot: {
         kind: 'papercusp-plan-export',
         workspace: 'papercusp-workspace',
         harness: 'sidestage',
         planPrefix: null,
         planCount: history.length,
-        generator: 'scripts/generate-build-history-snapshot.mjs',
+        generator: 'papercusp project-history generate',
       },
     });
     expect(popupPlan?.contentHash).toMatch(/^[a-f0-9]{64}$/);
@@ -35,6 +43,13 @@ describe('BuildHistoryService', () => {
     expect(popupPlan?.decisions).toEqual(expect.arrayContaining([
       expect.objectContaining({ id: 'D-002', title: 'History popup is read-only and production-safe', itemRefs: ['P-002', 'P-003'] }),
     ]));
+    const committedItem = history.flatMap(({ completedItems }) => completedItems)
+      .find(({ commits }) => commits.length > 0);
+    expect(committedItem?.commits[0]).toMatchObject({
+      url: expect.stringMatching(/^https:\/\/github\.com\/Papercusp\/sidestage\/commit\/[a-f0-9]+$/),
+      remoteStatus: expect.stringMatching(/^(confirmed|local-only)$/),
+      attribution: expect.stringMatching(/^(authoritative|body-reference|inferred)$/),
+    });
     expect(fetchMock).not.toHaveBeenCalled();
 
     vi.unstubAllGlobals();
