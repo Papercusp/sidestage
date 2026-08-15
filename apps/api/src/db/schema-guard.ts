@@ -104,6 +104,7 @@ export const REQUIRED_OWNERSHIP_STRUCTURES: readonly string[] = [
   'constraint:inventory_reservation_variant_owner_fk',
   'trigger:auction_state_preserve_seller',
   'trigger:event_preserve_seller',
+  'trigger:inventory_reservation_validate_source_owner',
   'trigger:inventory_reservation_preserve_seller',
   'trigger:scout_session_preserve_buyer',
   'trigger:storefront_product_preserve_seller',

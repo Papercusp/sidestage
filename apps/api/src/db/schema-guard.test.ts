@@ -145,6 +145,7 @@ describe('ownership schema guard', () => {
         'constraint:event_config_event_fk',
         'constraint:auction_state_event_owner_fk',
         'trigger:event_preserve_seller',
+        'trigger:inventory_reservation_validate_source_owner',
         'trigger:scout_session_preserve_buyer',
       ]),
     );
