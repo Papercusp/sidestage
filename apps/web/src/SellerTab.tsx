@@ -6,7 +6,7 @@ import { TabHeader } from './components/TabHeader';
 import { EventChat, resolveApiOrigin } from './EventChat';
 import { browserEventId, chatEventId, DEFAULT_EVENT_TITLE, mediaBaseUrl } from './event-identity';
 import { sellerPrivateRequestHeaders, type GuideEvent } from './events/api';
-import { useCopyState, useStreamSession } from './hooks';
+import { useStreamSession } from './hooks';
 import { studioViewHref, useUrlStudioView, type StudioView } from './app-routing';
 import { InventoryPanel } from './InventoryPanel';
 import { emptyStageLog, stageLogOnProductChange } from './run-of-show';
@@ -180,7 +180,6 @@ export function SellerTab({
   const [room, setRoom] = useState<EventRoom | null>(null);
   const [runOfShowLog, setRunOfShowLog] = useState(emptyStageLog);
   const stream = useStreamSession<PublisherSession>();
-  const { copyState, copy } = useCopyState();
   const { userId, impersonate } = useDemoIdentity('seller');
   const principal = useSyncPrincipal() ?? userId;
   const [studioView, navigateStudioView] = useUrlStudioView();
@@ -303,9 +302,6 @@ export function SellerTab({
       isSessionActive: Boolean(stream.session),
       onStartEvent: () => void startEvent(),
       onEndEvent: stream.stop,
-      onShareRoom: () => room && void copy(room.shareUrl),
-      shareDisabled: !room,
-      copyState,
       chat: <EventChat {...eventChatProps} surface="audience-overlay" />,
       transcript,
     },

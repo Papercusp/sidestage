@@ -1,5 +1,5 @@
 import type { ReactNode, Ref } from 'react';
-import { streamLabel, type CopyState, type StreamState } from '../hooks';
+import { streamLabel, type StreamState } from '../hooks';
 import { liveTranscriptPresentation } from '../LiveTranscriptOverlay';
 import type { LiveTranscriptController } from '../use-live-transcript';
 import { VideoEngagementOverlay } from '../VideoEngagementOverlay';
@@ -20,10 +20,6 @@ export interface StageStatusPanelProps {
   isSessionActive: boolean;
   onStartEvent: () => void;
   onEndEvent: () => void;
-  onShareRoom: () => void;
-  /** True before a room exists, when there is no share URL to copy. */
-  shareDisabled: boolean;
-  copyState: CopyState;
   /** Live EventChat content kept mounted inside the shared video engagement surface. */
   chat: ReactNode;
   /** Long-lived transcript runtime rendered as captions over the camera surface. */
@@ -49,9 +45,6 @@ export function StageStatusPanel({
   isSessionActive,
   onStartEvent,
   onEndEvent,
-  onShareRoom,
-  shareDisabled,
-  copyState,
   chat,
   transcript,
 }: StageStatusPanelProps) {
@@ -90,9 +83,6 @@ export function StageStatusPanel({
             {streamState === 'connecting' ? 'Starting…' : 'Start event'}
           </button>
         )}
-        <button className="button secondary" type="button" onClick={onShareRoom} disabled={shareDisabled}>
-          {copyState === 'copied' ? 'Link copied' : copyState === 'failed' ? 'Copy failed' : 'Share room'}
-        </button>
       </div>
     </section>
   );

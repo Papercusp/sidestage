@@ -1,24 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 
-/** The three states a "Share room" copy control can be in (P-104). */
-export type CopyState = 'idle' | 'copied' | 'failed';
-
-/** Copy-to-clipboard button state, shared by every "Share room" control (P-104). */
-export function useCopyState(resetMs = 1800) {
-  const [copyState, setCopyState] = useState<CopyState>('idle');
-  const copy = async (text: string) => {
-    try {
-      if (!navigator.clipboard) throw new Error('Clipboard unavailable');
-      await navigator.clipboard.writeText(text);
-      setCopyState('copied');
-    } catch {
-      setCopyState('failed');
-    }
-    globalThis.setTimeout(() => setCopyState('idle'), resetMs);
-  };
-  return { copyState, copy };
-}
-
 export type StreamState = 'idle' | 'connecting' | 'live' | 'error';
 
 export function streamLabel(state: StreamState): string {

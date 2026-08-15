@@ -32,9 +32,6 @@ function stageProps(overrides: Partial<StageStatusPanelProps> = {}): StageStatus
     isSessionActive: false,
     onStartEvent: noop,
     onEndEvent: noop,
-    onShareRoom: noop,
-    shareDisabled: true,
-    copyState: 'idle',
     chat: <p>Seller room chat</p>,
     transcript: TRANSCRIPT_FIXTURE,
     ...overrides,
@@ -81,30 +78,21 @@ describe('StageStatusPanel', () => {
     expect(connecting).toContain('disabled=""');
   });
 
-  it('swaps to End event and enables sharing once a room is live', () => {
+  it('swaps to End event without exposing a Share room action once a room is live', () => {
     const markup = renderToStaticMarkup(
       <StageStatusPanel
         {...stageProps({
           isSessionActive: true,
           streamState: 'live',
           roomEventId: 'demo-room',
-          shareDisabled: false,
-          copyState: 'copied',
         })}
       />,
     );
     expect(markup).toContain('>End event</button>');
     expect(markup).not.toContain('>Start event</button>');
     expect(markup).toContain('<span class="live-badge">demo-room</span>');
-    expect(markup).toContain('Link copied');
+    expect(markup).not.toContain('Share room');
     expect(markup).toContain('Your camera and microphone are live.');
-  });
-
-  it('reports a failed copy without losing the share control', () => {
-    const markup = renderToStaticMarkup(
-      <StageStatusPanel {...stageProps({ shareDisabled: false, copyState: 'failed' })} />,
-    );
-    expect(markup).toContain('Copy failed');
   });
 });
 
