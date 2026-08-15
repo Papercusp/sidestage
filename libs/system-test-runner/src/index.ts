@@ -512,5 +512,6 @@ export class AcceptanceEnvironmentProvisioner {
 }
 
 export * from './acceptance-fixtures';
+export * from './black-box-clients';
 export * from './postgres-run-store';
 export * from './queue-worker';

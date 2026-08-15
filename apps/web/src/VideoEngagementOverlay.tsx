@@ -15,7 +15,8 @@ export interface EventTranscriptMoment extends TranscriptOverlaySegment {
 }
 
 export interface VideoEngagementOverlayProps {
-  chat: ReactNode;
+  /** Omit when chat is presented in a dedicated room-context panel. */
+  chat?: ReactNode;
   transcript: TranscriptOverlayPresentation;
   chatLabel?: string;
   defaultChatOpen?: boolean;
@@ -64,7 +65,8 @@ export function VideoEngagementOverlay({
   className,
 }: VideoEngagementOverlayProps) {
   const [internalChatOpen, setInternalChatOpen] = useState(defaultChatOpen);
-  const expanded = chatOpen ?? internalChatOpen;
+  const hasChat = chat !== undefined && chat !== null;
+  const expanded = hasChat && (chatOpen ?? internalChatOpen);
   const chatId = useId();
   const chatRef = useRef<HTMLDivElement>(null);
 
@@ -82,17 +84,19 @@ export function VideoEngagementOverlay({
       className={`video-engagement-overlay${className ? ` ${className}` : ''}`}
       data-chat-open={expanded || undefined}
     >
-      <div
-        ref={chatRef}
-        id={chatId}
-        className="video-engagement-chat-panel"
-        hidden={!expanded}
-      >
-        {chat}
-      </div>
+      {hasChat ? (
+        <div
+          ref={chatRef}
+          id={chatId}
+          className="video-engagement-chat-panel"
+          hidden={!expanded}
+        >
+          {chat}
+        </div>
+      ) : null}
       <TranscriptOverlayView
         transcript={transcript}
-        toolbarActions={(
+        toolbarActions={hasChat ? (
           <button
             type="button"
             className="video-engagement-chat-toggle"
@@ -102,7 +106,7 @@ export function VideoEngagementOverlay({
           >
             {expanded ? `Hide ${chatLabel.toLocaleLowerCase()}` : chatLabel}
           </button>
-        )}
+        ) : undefined}
       />
     </div>
   );

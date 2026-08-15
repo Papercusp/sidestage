@@ -7,6 +7,13 @@ export type BuyerProduct = {
   eventItemId?: string;
   title: string;
   subtitle: string;
+  description?: string;
+  brand?: string;
+  productType?: string;
+  color?: string;
+  size?: string;
+  condition?: string;
+  handlingDays?: number;
   priceCents: number;
   compareAtPriceCents?: number;
   availableQty: number;
