@@ -7,6 +7,7 @@ import {
   initialSellerEventIdentity,
   shouldUseMobileStudio,
   sellerEventIdentity,
+  sellerEventTitleBindings,
   STUDIO_VIEW_TABS,
   studioBoardConfig,
   useSellerDeepgramTokenProvider,
@@ -67,6 +68,31 @@ describe('Studio board selection', () => {
     expect(initialSellerEventIdentity()).toEqual({
       eventId: 'avi-real-test',
       eventTitle: 'Sunday vintage drop',
+    });
+  });
+
+  it('propagates the selected guide event title to every seller panel', () => {
+    const initial = sellerEventTitleBindings(
+      sellerEventIdentity('sunday-drop', 'Sunday vintage drop'),
+      [{ eventId: 'sunday-drop', title: 'Sunday vintage drop' }],
+    );
+    const selected = sellerEventTitleBindings(
+      sellerEventIdentity('avi-real-test', 'Sunday vintage drop'),
+      [
+        { eventId: 'sunday-drop', title: 'Sunday vintage drop' },
+        { eventId: 'avi-real-test', title: 'Avi Real Test' },
+      ],
+    );
+
+    expect(initial).toEqual({
+      stageStatus: 'Sunday vintage drop',
+      eventChat: 'Sunday vintage drop',
+      eventManager: 'Sunday vintage drop',
+    });
+    expect(selected).toEqual({
+      stageStatus: 'Avi Real Test',
+      eventChat: 'Avi Real Test',
+      eventManager: 'Avi Real Test',
     });
   });
 

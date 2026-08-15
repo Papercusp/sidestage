@@ -1,11 +1,11 @@
-import { useCallback, useEffect, useState } from 'react';
-import { useSyncMutate, useSyncPrincipal } from '@papercusp/sync';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useSyncMutate, useSyncPrincipal, useSyncQuery } from '@papercusp/sync';
 import { useDemoIdentity } from './buyer-identity';
 import { requestChatJson } from './chat-api';
 import { TabHeader } from './components/TabHeader';
 import { EventChat, resolveApiOrigin } from './EventChat';
 import { browserEventId, chatEventId, DEFAULT_EVENT_TITLE, mediaBaseUrl } from './event-identity';
-import { sellerPrivateRequestHeaders } from './events/api';
+import { sellerPrivateRequestHeaders, type GuideEvent } from './events/api';
 import { useCopyState, useStreamSession } from './hooks';
 import { studioViewHref, useUrlStudioView, type StudioView } from './app-routing';
 import { InventoryPanel } from './InventoryPanel';
@@ -74,6 +74,28 @@ export function sellerEventIdentity(eventId: string, eventTitle?: string): Selle
 /** Restore the selected event after a reload, remount, or desktop/mobile host swap. */
 export function initialSellerEventIdentity(): SellerEventIdentity {
   return sellerEventIdentity(browserEventId(), DEFAULT_EVENT_TITLE);
+}
+
+export interface SellerEventTitleBindings {
+  stageStatus: string;
+  eventChat: string;
+  eventManager: string;
+}
+
+/** Resolve every seller panel from the same authoritative guide record. */
+export function sellerEventTitleBindings(
+  identity: SellerEventIdentity,
+  guideEvents: readonly Pick<GuideEvent, 'eventId' | 'title'>[],
+): SellerEventTitleBindings {
+  const guideTitle = guideEvents
+    .find((event) => event.eventId === identity.eventId)
+    ?.title.trim();
+  const resolvedTitle = guideTitle || identity.eventTitle;
+  return {
+    stageStatus: resolvedTitle,
+    eventChat: resolvedTitle,
+    eventManager: resolvedTitle,
+  };
 }
 
 export interface TranscriptMomentMutationInput {
@@ -163,6 +185,15 @@ export function SellerTab({
   const principal = useSyncPrincipal() ?? userId;
   const [studioView, navigateStudioView] = useUrlStudioView();
   const mobileStudio = useMobileStudioViewport();
+  const guideQuery = useSyncQuery<GuideEvent>({
+    queryName: 'events.guide',
+    args: {},
+    pollIntervalMs: 15_000,
+  });
+  const eventTitles = useMemo(
+    () => sellerEventTitleBindings({ eventId, eventTitle }, guideQuery.data ?? []),
+    [eventId, eventTitle, guideQuery.data],
+  );
 
   // The desktop dock and mobile tab host remount their panels at the breakpoint.
   // Keep the live show clock above both hosts so that transition history survives.
@@ -251,13 +282,13 @@ export function SellerTab({
     role: 'seller',
     userId,
     displayName: userId,
-    eventTitle,
+    eventTitle: eventTitles.eventChat,
     apiBaseUrl: import.meta.env.VITE_API_URL,
   };
 
   const panels: SellerDockPanelContextValue = {
     'stage-status': {
-      eventTitle,
+      eventTitle: eventTitles.stageStatus,
       eventId,
       onEventIdChange: (nextEventId) => setEventIdentity((current) => (
         sellerEventIdentity(
@@ -289,7 +320,7 @@ export function SellerTab({
       eventId,
       actorId: userId,
       sellerName: userId,
-      eventName: eventTitle,
+      eventName: eventTitles.eventManager,
       apiBaseUrl: import.meta.env.VITE_API_URL,
       onEventReady: (nextEventId: string, nextEventTitle: string) => {
         setEventIdentity(sellerEventIdentity(nextEventId, nextEventTitle));
