@@ -68,6 +68,16 @@ const PLAN: BuildHistoryPlan = {
     lineNumber: 20,
   }],
   completedItems: [],
+  project: {
+    id: 'sidestage',
+    name: 'SideStage',
+    repository: {
+      provider: 'github',
+      url: 'git@github.com:Papercusp/sidestage.git',
+      webUrl: 'https://github.com/Papercusp/sidestage',
+      defaultBranch: 'main',
+    },
+  },
   snapshot: {
     kind: 'papercusp-plan-export',
     workspace: 'papercusp-workspace',
@@ -75,7 +85,7 @@ const PLAN: BuildHistoryPlan = {
     planPrefix: 'sidestage-',
     generatedAt: '2026-08-14T22:10:57.495Z',
     planCount: 1,
-    generator: 'scripts/generate-build-history-snapshot.mjs',
+    generator: 'papercusp project-history generate',
   },
 };
 
@@ -148,6 +158,9 @@ describe('History plan document dialog', () => {
     expect(viewer?.dataset.itemCount).toBe('1');
     expect(viewer?.dataset.decisionCount).toBe('1');
     expect(document.querySelector('[aria-label="Plan snapshot provenance"]')?.textContent).toContain('papercusp-workspace / sidestage');
+    expect(document.querySelector('[aria-label="Plan snapshot provenance"]')?.textContent).toContain('papercusp project-history generate');
+    expect(document.querySelector<HTMLAnchorElement>('[aria-label="Plan snapshot provenance"] a')?.href)
+      .toBe('https://github.com/Papercusp/sidestage');
 
     await act(async () => {
       window.history.back();

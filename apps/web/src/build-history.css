@@ -431,6 +431,104 @@
   margin-top: .85rem;
 }
 
+.build-item-commits {
+  margin-top: .85rem;
+  padding: .8rem;
+  border: 1px solid var(--border);
+  border-radius: .65rem;
+  background: var(--surface-sunken);
+}
+
+.build-item-commits > header,
+.build-commit-title,
+.build-commit-meta {
+  display: flex;
+  align-items: center;
+  gap: .5rem;
+}
+
+.build-item-commits > header {
+  justify-content: space-between;
+}
+
+.build-item-commits h4 {
+  margin: 0;
+  color: var(--red-text);
+}
+
+.build-item-commits > header > span {
+  color: var(--muted);
+  font-size: .65rem;
+}
+
+.build-item-commits ul {
+  display: grid;
+  gap: .55rem;
+  margin: .65rem 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.build-item-commits li {
+  min-width: 0;
+  padding-top: .55rem;
+  border-top: 1px solid var(--border);
+}
+
+.build-commit-title {
+  justify-content: space-between;
+  min-width: 0;
+}
+
+.build-commit-title a,
+.build-commit-title strong {
+  min-width: 0;
+  color: var(--text);
+  font-size: .72rem;
+  overflow-wrap: anywhere;
+}
+
+.build-commit-title a {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: .65rem;
+  flex: 1;
+  text-decoration: none;
+}
+
+.build-commit-title a:hover span {
+  color: var(--red-text);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.build-commit-title small,
+.build-commit-title code,
+.build-commit-meta {
+  color: var(--muted);
+  font-size: .62rem;
+}
+
+.build-commit-title small,
+.build-commit-title code {
+  flex: none;
+}
+
+.build-commit-meta {
+  flex-wrap: wrap;
+  margin-top: .35rem;
+}
+
+.build-commit-meta .is-confirmed {
+  color: var(--success);
+}
+
+.build-commit-meta .is-local-only,
+.build-commit-meta .is-unknown {
+  color: var(--yellow-text);
+}
+
 .build-raw-evidence {
   margin-top: .8rem;
 }
@@ -587,7 +685,7 @@
 
 .build-plan-dialog-provenance {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr));
   gap: .65rem;
   margin: 0;
   padding: .7rem 1.2rem;
@@ -610,6 +708,10 @@
 
 .build-plan-dialog-provenance code {
   color: var(--text);
+}
+
+.build-plan-dialog-provenance a {
+  color: var(--red-text);
 }
 
 .build-plan-dialog-document {
