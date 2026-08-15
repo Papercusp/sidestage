@@ -1,5 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { InMemoryActionItemStore } from '../actions/action-item.store';
 import { InMemoryAuctionInventory } from '../auction/auction.service';
+import { InMemoryEventStore, type EventRecord } from '../events/event.service';
 import { BUYER_HOLD_DURATION_MS } from '../inventory/hold-policy';
 import { SyncInvalidationService, type SyncInvalidation } from '../sync/sync-invalidation.service';
 import { SyncQueryRegistry } from '../sync/sync-query.registry';
@@ -61,6 +63,83 @@ describe('CartService', () => {
       undefined,
       undefined,
     ]);
+  });
+
+  it('holds a published event item at server-authoritative price and replays idempotently', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime('2026-08-14T06:00:00Z');
+    const eventItems = new InMemoryActionItemStore();
+    await eventItems.register('event-live', [{
+      eventId: 'event-live', eventItemId: 'event-live:mug', productId: 'mug',
+      title: 'Authoritative mug', referencePriceCents: 2_000, priceCents: 1_500,
+      quantity: 2, availableQty: 2, position: 0, stageState: 'on-stage', onStage: true,
+      attributes: {},
+    }]);
+    const events = new InMemoryEventStore([eventRecord('event-live', 'live')]);
+    const inventory = new InMemoryAuctionInventory();
+    await inventory.seed('mug', 2);
+    const invalidations = new SyncInvalidationService();
+    const published: SyncInvalidation[] = [];
+    const subscription = invalidations.events().subscribe((event) => published.push(event));
+    const carts = new CartService(
+      new InMemoryCartStore(eventItems, events, inventory),
+      inventory,
+      invalidations,
+    );
+    const input = {
+      cartId: 'cart-event', eventId: 'event-live', eventItemId: 'event-live:mug',
+      productId: 'mug', title: 'Client title', priceCents: 1, quantity: 1,
+      idempotencyKey: 'hold-1',
+    };
+
+    const held = await carts.holdItem(input);
+    const replay = await carts.holdItem(input);
+
+    expect(held).toMatchObject({
+      subtotalCents: 1_500,
+      items: [{
+        eventId: 'event-live', eventItemId: 'event-live:mug', productId: 'mug',
+        title: 'Authoritative mug', priceCents: 1_500, quantity: 1,
+      }],
+      eventHoldKeys: ['hold-1'],
+    });
+    expect(replay).toEqual(held);
+    await expect(eventItems.list('event-live')).resolves.toMatchObject([{ availableQty: 1 }]);
+    await expect(inventory.get('mug')).resolves.toMatchObject({ reservedQty: 1, availableQty: 1 });
+    expect(published.map(({ name }) => name)).toEqual(expect.arrayContaining([
+      'cart.byId', 'event.lineup.items', 'event.actions.items', 'inventory.snapshot', 'catalog.page',
+    ]));
+    subscription.unsubscribe();
+  });
+
+  it('hides draft, missing, and foreign event-lineup combinations behind one not-found boundary', async () => {
+    const eventItems = new InMemoryActionItemStore();
+    await eventItems.register('event-draft', [{
+      eventId: 'event-draft', eventItemId: 'event-draft:mug', productId: 'mug',
+      title: 'Draft mug', referencePriceCents: 2_000, priceCents: 1_500,
+      quantity: 2, availableQty: 2, position: 0, stageState: 'queued', onStage: false,
+      attributes: {},
+    }]);
+    const inventory = new InMemoryAuctionInventory();
+    await inventory.seed('mug', 2);
+    const carts = new CartService(
+      new InMemoryCartStore(
+        eventItems,
+        new InMemoryEventStore([eventRecord('event-draft', 'draft')]),
+        inventory,
+      ),
+      inventory,
+    );
+    const base = {
+      cartId: 'cart-hidden', eventId: 'event-draft', eventItemId: 'event-draft:mug',
+      productId: 'mug', title: 'Draft mug', priceCents: 1_500, idempotencyKey: 'hold-hidden',
+    };
+
+    await expect(carts.holdItem(base)).rejects.toThrow('Event item is not available');
+    await expect(carts.holdItem({ ...base, eventId: 'missing' })).rejects.toThrow('Event item is not available');
+    await expect(carts.holdItem({ ...base, eventItemId: 'foreign:item' })).rejects.toThrow('Event item is not available');
+    await expect(eventItems.list('event-draft')).resolves.toMatchObject([{ availableQty: 2 }]);
+    await expect(inventory.get('mug')).resolves.toMatchObject({ reservedQty: 0, availableQty: 2 });
   });
   it('merges repeated products and calculates a cents subtotal', async () => {
     const carts = new CartService(new InMemoryCartStore());
@@ -124,3 +203,15 @@ describe('CartService', () => {
     await expect(inventory.get('p-cancel')).resolves.toMatchObject({ reservedQty: 0, availableQty: 1 });
   });
 });
+
+function eventRecord(eventId: string, status: EventRecord['status']): EventRecord {
+  return {
+    eventId,
+    title: eventId,
+    sellerId: 'seller-1',
+    sellerName: 'Seller One',
+    status,
+    startsAt: '2026-08-14T05:00:00Z',
+    endedAt: null,
+  };
+}
