@@ -46,7 +46,37 @@ describe('PgAuctionInventory hold lifecycle', () => {
     expect(sql).toContain('price_cents = $3');
     expect(sql).toContain('reserved_qty <= $2');
     expect(sql).not.toMatch(/SET[\s\S]*reserved_qty\s*=/);
-    expect(params).toEqual(['product-1', 8, 1_500]);
+    expect(params).toEqual(['product-1', 8, 1_500, null]);
+  });
+
+  it('scopes seller-owned saves to the selected seller', async () => {
+    const row = { productId: 'product-1', qty: 8, reservedQty: 2, availableQty: 6, priceCents: 1_500 };
+    const query = vi.fn().mockResolvedValue({ rows: [row] });
+    const inventory = new PgAuctionInventory({ query } as never);
+
+    await expect(inventory.saveOwned('product-1', 8, 1_500, 'seller-avi')).resolves.toEqual(row);
+
+    const [sql, params] = query.mock.calls[0] as [string, unknown[]];
+    expect(sql).toContain('seller_id = $4');
+    expect(params).toEqual(['product-1', 8, 1_500, 'seller-avi']);
+  });
+
+  it('does not reserve another seller\'s product', async () => {
+    const query = vi.fn().mockResolvedValue({ rows: [] });
+    const inventory = new PgAuctionInventory({ query } as never);
+
+    await expect(inventory.reserveOwned(
+      'product-1',
+      1,
+      { kind: 'event', id: 'event-avi' },
+      'seller-avi',
+    )).resolves.toBe(false);
+
+    expect(query).toHaveBeenCalledOnce();
+    expect(query).toHaveBeenCalledWith(
+      'SELECT 1 FROM storefront_product WHERE id = $1 AND seller_id = $2',
+      ['product-1', 'seller-avi'],
+    );
   });
 
   it('rejects a total quantity below the current reservation floor', async () => {
