@@ -1,7 +1,7 @@
 import { BadRequestException, Body, Controller, Headers, Inject, Post } from '@nestjs/common';
 import { DEMO_PRINCIPAL_HEADER, rolePrincipal } from '../sync/sync-request-context';
 import { packItems, type PackerItem } from './box-packer';
-import { ShippingService, type ShippingRateInput } from './shipping.service';
+import { ShippingService, type ShippingMeterInput, type ShippingRateInput } from './shipping.service';
 
 @Controller('shipping')
 export class ShippingController {
@@ -18,6 +18,14 @@ export class ShippingController {
     @Headers(DEMO_PRINCIPAL_HEADER) principal?: string,
   ) {
     return this.shipping.getRatesForBuyer(body, this.buyerId(principal));
+  }
+
+  @Post('meter')
+  getMeter(
+    @Body() body: ShippingMeterInput,
+    @Headers(DEMO_PRINCIPAL_HEADER) principal?: string,
+  ) {
+    return this.shipping.getMeterForBuyer(body, this.buyerId(principal));
   }
 
   private buyerId(principal: unknown): string {

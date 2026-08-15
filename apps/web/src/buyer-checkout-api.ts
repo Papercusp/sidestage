@@ -42,6 +42,37 @@ export interface BuyerShippingRate {
   quotedAt: string;
 }
 
+export interface BuyerShippingMeter {
+  cartId: string;
+  revision: string;
+  totalUnits: number;
+  parcelCount: number;
+  fillPercent: number;
+  parcels: Array<{
+    boxName?: string;
+    length: number;
+    width: number;
+    height: number;
+    weightOz: number;
+    usedVolumeIn3: number;
+    capacityVolumeIn3: number;
+    fillPercent: number;
+  }>;
+  suggestion: null | {
+    status: 'packing-only' | 'price-confirmed';
+    productId: string;
+    title: string;
+    nextQuantity: number;
+    hypotheticalParcelCount: number;
+    shippingStays?: {
+      rateId: string;
+      carrier: string;
+      service: string;
+      totalCents: number;
+    };
+  };
+}
+
 export interface BuyerPaymentSession {
   provider: 'stripe';
   mode: 'test' | 'live' | null;
@@ -218,6 +249,15 @@ export function fetchBuyerShippingRates(
   apiBaseUrl?: string,
 ): Promise<BuyerShippingRate[]> {
   return requestJson<BuyerShippingRate[]>('/shipping/rates', jsonPost({ cartId, address }), apiBaseUrl, buyerId);
+}
+
+export function fetchBuyerShippingMeter(
+  cartId: string,
+  buyerId: string,
+  apiBaseUrl?: string,
+  quote?: { address: BuyerShippingAddress; rateId: string },
+): Promise<BuyerShippingMeter> {
+  return requestJson<BuyerShippingMeter>('/shipping/meter', jsonPost({ cartId, ...quote }), apiBaseUrl, buyerId);
 }
 
 export function fetchBuyerOrder(

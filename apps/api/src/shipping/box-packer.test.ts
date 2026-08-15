@@ -10,6 +10,9 @@ describe('packItems', () => {
     const [parcel] = packItems([{ length: 6, width: 4, height: 2, weightOz: 10, quantity: 1 }]);
     expect(parcel.boxName).toBe('8x6x4');
     expect(parcel.weightOz).toBe(10);
+    expect(parcel.usedVolumeIn3).toBeCloseTo(57.6);
+    expect(parcel.capacityVolumeIn3).toBe(192);
+    expect(parcel.fillPercent).toBe(30);
   });
 
   it('splits heavy units at the 50 pound parcel ceiling', () => {
@@ -23,6 +26,7 @@ describe('packItems', () => {
     expect(parcel.boxName).toBeUndefined();
     expect(parcel.length).toBe(40);
     expect(parcel.weightOz).toBe(100);
+    expect(parcel.fillPercent).toBe(100);
   });
 
   it('rejects malformed package input', () => {

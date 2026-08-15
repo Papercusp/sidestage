@@ -20,6 +20,12 @@ export interface Parcel {
   width: number;
   height: number;
   weightOz: number;
+  /** Padded item volume consumed inside this parcel, authored by the packer. */
+  usedVolumeIn3: number;
+  /** Physical parcel volume used as the fill denominator. */
+  capacityVolumeIn3: number;
+  /** Rounded volume fill for presentation; never inferred in the browser. */
+  fillPercent: number;
 }
 
 export const MAX_WEIGHT_OZ = 800;
@@ -65,7 +71,18 @@ export function packItems(items: readonly PackerItem[]): Parcel[] {
   const largestBox = STANDARD_BOXES[STANDARD_BOXES.length - 1];
   const oversized = units.filter(({ item }) => !dimensionsFit(item, largestBox));
   const normal = units.filter(({ item }) => dimensionsFit(item, largestBox)).sort((a, b) => b.volume - a.volume);
-  const parcels: Parcel[] = oversized.map(({ item }) => ({ length: item.length, width: item.width, height: item.height, weightOz: Math.max(1, Math.round(item.weightOz)) }));
+  const parcels: Parcel[] = oversized.map(({ item }) => {
+    const capacityVolumeIn3 = volume(item);
+    return {
+      length: item.length,
+      width: item.width,
+      height: item.height,
+      weightOz: Math.max(1, Math.round(item.weightOz)),
+      usedVolumeIn3: capacityVolumeIn3,
+      capacityVolumeIn3,
+      fillPercent: 100,
+    };
+  });
   const bins: Array<{ paddedVolume: number; weightOz: number }> = [];
 
   for (const unit of normal) {
@@ -81,6 +98,16 @@ export function packItems(items: readonly PackerItem[]): Parcel[] {
 
   return parcels.concat(bins.map((bin) => {
     const box = smallestBoxForVolume(bin.paddedVolume);
-    return { boxName: box.name, length: box.length, width: box.width, height: box.height, weightOz: Math.max(1, Math.round(bin.weightOz)) };
+    const capacityVolumeIn3 = volume(box);
+    return {
+      boxName: box.name,
+      length: box.length,
+      width: box.width,
+      height: box.height,
+      weightOz: Math.max(1, Math.round(bin.weightOz)),
+      usedVolumeIn3: bin.paddedVolume,
+      capacityVolumeIn3,
+      fillPercent: Math.min(100, Math.max(0, Math.round((bin.paddedVolume / capacityVolumeIn3) * 100))),
+    };
   }));
 }

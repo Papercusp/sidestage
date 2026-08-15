@@ -8,7 +8,7 @@ import {
   type CatalogSource,
   type CatalogVariant,
 } from '../catalog/catalog.types';
-import { packItems, type PackerItem } from './box-packer';
+import { packItems, type PackerItem, type Parcel } from './box-packer';
 import {
   EasyPostClient,
   type EasyPostAddress,
@@ -33,6 +33,36 @@ export interface ShippingAddressInput {
 export interface ShippingRateInput {
   cartId: string;
   address: ShippingAddressInput;
+}
+
+export interface ShippingMeterInput {
+  cartId: string;
+  address?: ShippingAddressInput;
+  rateId?: string;
+}
+
+export interface ShippingMeterSuggestion {
+  status: 'packing-only' | 'price-confirmed';
+  productId: string;
+  title: string;
+  nextQuantity: number;
+  hypotheticalParcelCount: number;
+  shippingStays?: {
+    rateId: string;
+    carrier: string;
+    service: string;
+    totalCents: number;
+  };
+}
+
+export interface ShippingMeter {
+  cartId: string;
+  revision: string;
+  totalUnits: number;
+  parcelCount: number;
+  fillPercent: number;
+  parcels: Parcel[];
+  suggestion: ShippingMeterSuggestion | null;
 }
 
 export interface ShippingItemsRateInput {
@@ -309,6 +339,87 @@ export class ShippingService {
       items: cart.items,
       address,
     });
+  }
+
+  async getMeterForBuyer(input: ShippingMeterInput, buyerId: string): Promise<ShippingMeter> {
+    const cartId = optionalTrim(input?.cartId);
+    if (!cartId) throw new BadRequestException('cartId is required');
+    const cart = await this.carts.findCartForBuyer(cartId, buyerId);
+    if (!cart || cart.items.length === 0) throw new BadRequestException('Cart is empty or not found');
+
+    const variants = await Promise.all(cart.items.map((item) => this.catalog.variant(item.productId)));
+    const packerItems = cart.items.map((item, index) => packerItemFor(variants[index], item.quantity));
+    const parcels = packItems(packerItems);
+    const totals = parcels.reduce(
+      (sum, parcel) => ({ used: sum.used + parcel.usedVolumeIn3, capacity: sum.capacity + parcel.capacityVolumeIn3 }),
+      { used: 0, capacity: 0 },
+    );
+
+    let suggestion: ShippingMeterSuggestion | null = null;
+    let hypotheticalItems: CartItem[] | undefined;
+    for (let index = 0; index < cart.items.length; index += 1) {
+      const hypotheticalPackerItems = packerItems.map((item, itemIndex) => (
+        itemIndex === index ? { ...item, quantity: item.quantity + 1 } : item
+      ));
+      const hypotheticalParcels = packItems(hypotheticalPackerItems);
+      if (hypotheticalParcels.length !== parcels.length) continue;
+      const candidate = cart.items[index];
+      hypotheticalItems = cart.items.map((item, itemIndex) => (
+        itemIndex === index ? { ...item, quantity: item.quantity + 1 } : { ...item }
+      ));
+      suggestion = {
+        status: 'packing-only',
+        productId: candidate.productId,
+        title: candidate.title,
+        nextQuantity: candidate.quantity + 1,
+        hypotheticalParcelCount: hypotheticalParcels.length,
+      };
+      break;
+    }
+
+    const rateId = optionalTrim(input?.rateId);
+    if (suggestion && hypotheticalItems && input.address && rateId) {
+      const currentQuoteInput: ShippingItemsRateInput = {
+        sourceKind: 'cart',
+        sourceId: cart.id,
+        revision: cart.updatedAt,
+        items: cart.items,
+        address: input.address,
+      };
+      const hypotheticalQuoteInput: ShippingItemsRateInput = {
+        ...currentQuoteInput,
+        revision: `${cart.updatedAt}:one-more:${suggestion.productId}`,
+        items: hypotheticalItems,
+      };
+      const [currentRates, hypotheticalRates] = await Promise.all([
+        this.getRatesForItems(currentQuoteInput),
+        this.getRatesForItems(hypotheticalQuoteInput),
+      ]);
+      const currentRate = currentRates.find((rate) => rate.id === rateId);
+      const hypotheticalRate = hypotheticalRates.find((rate) => rate.id === rateId);
+      if (currentRate && hypotheticalRate && currentRate.totalCents === hypotheticalRate.totalCents) {
+        suggestion = {
+          ...suggestion,
+          status: 'price-confirmed',
+          shippingStays: {
+            rateId: currentRate.id,
+            carrier: currentRate.carrier,
+            service: currentRate.service,
+            totalCents: currentRate.totalCents,
+          },
+        };
+      }
+    }
+
+    return {
+      cartId: cart.id,
+      revision: cart.updatedAt,
+      totalUnits: cart.items.reduce((sum, item) => sum + item.quantity, 0),
+      parcelCount: parcels.length,
+      fillPercent: totals.capacity > 0 ? Math.round((totals.used / totals.capacity) * 100) : 0,
+      parcels,
+      suggestion,
+    };
   }
 
   async getRatesForItems(input: ShippingItemsRateInput): Promise<AggregatedRate[]> {

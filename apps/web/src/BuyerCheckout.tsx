@@ -17,6 +17,7 @@ import {
   createBuyerCheckoutSession,
   fetchBuyerOrder,
   fetchBuyerOrderShippingRates,
+  fetchBuyerShippingMeter,
   fetchBuyerShippingRates,
   persistBuyerCartId,
   readBuyerCartId,
@@ -26,6 +27,7 @@ import {
   type BuyerCheckoutOrder,
   type BuyerCheckoutSessionResponse,
   type BuyerShippingAddress,
+  type BuyerShippingMeter,
   type BuyerShippingRate,
 } from './buyer-checkout-api';
 import { useBuyerIdentity } from './buyer-identity';
@@ -262,6 +264,8 @@ function BuyerCheckoutProviderForBuyer({
   const [draft, setDraft] = useState<CheckoutDraft>(EMPTY_DRAFT);
   const [rates, setRates] = useState<BuyerShippingRate[]>([]);
   const [selectedRateId, setSelectedRateId] = useState('');
+  const [shippingMeter, setShippingMeter] = useState<BuyerShippingMeter | null>(null);
+  const [shippingMeterLoading, setShippingMeterLoading] = useState(false);
   const [order, setOrder] = useState<BuyerCheckoutOrder | null>(null);
   const [checkout, setCheckout] = useState<BuyerCheckoutSessionResponse | null>(null);
   const [completedOrder, setCompletedOrder] = useState<BuyerCheckoutOrder | null>(null);
@@ -305,6 +309,16 @@ function BuyerCheckoutProviderForBuyer({
     { cartId: string; address: BuyerShippingAddress },
     BuyerShippingRate[]
   >('shipping.rates', ratesFallback);
+  const meterFallback = useCallback(
+    ({ cartId: nextCartId, quote }: { cartId: string; quote?: { address: BuyerShippingAddress; rateId: string } }) => (
+      fetchBuyerShippingMeter(nextCartId, buyerId, apiBaseUrl, quote)
+    ),
+    [apiBaseUrl, buyerId],
+  );
+  const mutateShippingMeter = useSyncMutate<
+    { cartId: string; quote?: { address: BuyerShippingAddress; rateId: string } },
+    BuyerShippingMeter
+  >('shipping.meter', meterFallback);
   const checkoutFallback = useCallback(
     (input: Parameters<typeof createBuyerCheckoutSession>[0]) => createBuyerCheckoutSession(input, buyerId, apiBaseUrl),
     [apiBaseUrl, buyerId],
@@ -398,6 +412,27 @@ function BuyerCheckoutProviderForBuyer({
     country: draft.country || 'US',
     phone: draft.phone || undefined,
   }), [draft]);
+
+  useEffect(() => {
+    if (!cartOpen || !cart) return;
+    let cancelled = false;
+    const hasQuoteContext = Boolean(
+      selectedRateId && address.name.trim() && address.line1.trim() && address.city.trim()
+      && address.state.trim() && address.postalCode.trim(),
+    );
+    setShippingMeterLoading(true);
+    void mutateShippingMeter({
+      cartId: cart.id,
+      ...(hasQuoteContext ? { quote: { address, rateId: selectedRateId } } : {}),
+    }).then((meter) => {
+      if (!cancelled) setShippingMeter(meter);
+    }).catch(() => {
+      if (!cancelled) setShippingMeter(null);
+    }).finally(() => {
+      if (!cancelled) setShippingMeterLoading(false);
+    });
+    return () => { cancelled = true; };
+  }, [address, cart, cartOpen, mutateShippingMeter, selectedRateId]);
 
   const loadRates = async () => {
     if ((!cart && !order) || !draft.email.trim() || !address.name.trim() || !address.line1.trim()
@@ -622,6 +657,8 @@ function BuyerCheckoutProviderForBuyer({
         nowMs={nowMs}
         busy={busy}
         error={cartError}
+        shippingMeter={shippingMeter}
+        shippingMeterLoading={shippingMeterLoading}
         adapter={cartAdapter}
         onCheckout={beginCheckout}
         onClose={() => setCartOpen(false)}

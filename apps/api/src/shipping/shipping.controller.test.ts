@@ -28,4 +28,13 @@ describe('ShippingController buyer principal boundary', () => {
     await expect(controller.getRates(INPUT, 'seller-demo-avi')).resolves.toEqual([]);
     expect(shipping.getRatesForBuyer).toHaveBeenCalledWith(INPUT, 'buyer-demo-avi');
   });
+
+  it('applies the same principal boundary to the shipping meter', async () => {
+    const shipping = { getMeterForBuyer: vi.fn().mockResolvedValue({}) } as unknown as ShippingService;
+    const controller = new ShippingController(shipping);
+
+    expect(() => controller.getMeter({ cartId: 'cart-avi' }, undefined)).toThrow('Buyer principal is required');
+    await expect(controller.getMeter({ cartId: 'cart-avi' }, 'demo-avi')).resolves.toEqual({});
+    expect(shipping.getMeterForBuyer).toHaveBeenCalledWith({ cartId: 'cart-avi' }, 'buyer-demo-avi');
+  });
 });

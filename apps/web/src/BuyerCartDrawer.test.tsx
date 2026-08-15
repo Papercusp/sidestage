@@ -107,4 +107,43 @@ describe('BuyerCartPanel', () => {
         .toMatch(new RegExp(`disabled=""[^>]*aria-label="${control}"`));
     }
   });
+
+  it('renders server-authored box fill and packing-only guidance without inventing a price', () => {
+    const html = renderToStaticMarkup(<BuyerCartPanel {...props({
+      shippingMeter: {
+        cartId: cart.id,
+        revision: cart.updatedAt,
+        totalUnits: 1,
+        parcelCount: 1,
+        fillPercent: 45,
+        parcels: [{ boxName: '8x6x4', length: 8, width: 6, height: 4, weightOz: 10, usedVolumeIn3: 86.4, capacityVolumeIn3: 192, fillPercent: 45 }],
+        suggestion: { status: 'packing-only', productId: 'mug', title: 'Aurora mug', nextQuantity: 2, hypotheticalParcelCount: 1 },
+      },
+    })} />);
+    expect(html).toContain('Combined shipping');
+    expect(html).toContain('1 box');
+    expect(html).toContain('45% full');
+    expect(html).toContain('45% filled');
+    expect(html).toContain('Enter an address at checkout to verify shipping.');
+    expect(html).not.toContain('shipping stays');
+  });
+
+  it('shows shipping-stays copy only for a server-confirmed equal hypothetical quote', () => {
+    const html = renderToStaticMarkup(<BuyerCartPanel {...props({
+      shippingMeter: {
+        cartId: cart.id,
+        revision: cart.updatedAt,
+        totalUnits: 1,
+        parcelCount: 1,
+        fillPercent: 45,
+        parcels: [{ boxName: '8x6x4', length: 8, width: 6, height: 4, weightOz: 10, usedVolumeIn3: 86.4, capacityVolumeIn3: 192, fillPercent: 45 }],
+        suggestion: {
+          status: 'price-confirmed', productId: 'mug', title: 'Aurora mug', nextQuantity: 2, hypotheticalParcelCount: 1,
+          shippingStays: { rateId: 'UPS:Ground', carrier: 'UPS', service: 'Ground', totalCents: 1_099 },
+        },
+      },
+    })} />);
+    expect(html).toContain('Add one more Aurora mug');
+    expect(html).toContain('shipping stays $10.99 with UPS Ground');
+  });
 });

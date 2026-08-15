@@ -6,6 +6,7 @@ import {
   fetchBuyerCart,
   fetchBuyerOrder,
   fetchBuyerOrderShippingRates,
+  fetchBuyerShippingMeter,
   fetchBuyerShippingRates,
   removeBuyerCartItem,
   setBuyerCartQuantity,
@@ -128,6 +129,22 @@ describe('buyer checkout API adapter', () => {
     await expect(fetchBuyerShippingRates('cart-1', address, 'buyer-1', 'https://api.example.test')).resolves.toEqual(rates);
     expect(fetchMock).toHaveBeenCalledWith('https://api.example.test/shipping/rates', expect.objectContaining({ method: 'POST' }));
     expect(JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body))).toEqual({ cartId: 'cart-1', address });
+  });
+
+  it('requests the server-authored shipping meter with optional quote proof and buyer authority', async () => {
+    const meter = { cartId: 'cart-1', parcelCount: 1, fillPercent: 45, parcels: [], suggestion: null };
+    const fetchMock = vi.fn().mockResolvedValue(response(meter));
+    vi.stubGlobal('fetch', fetchMock);
+
+    await expect(fetchBuyerShippingMeter('cart-1', 'buyer-1', 'https://api.example.test', {
+      address,
+      rateId: 'UPS:Ground',
+    })).resolves.toEqual(meter);
+    expect(fetchMock).toHaveBeenCalledWith('https://api.example.test/shipping/meter', expect.objectContaining({ method: 'POST' }));
+    expect(JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body))).toEqual({
+      cartId: 'cart-1', address, rateId: 'UPS:Ground',
+    });
+    expect(new Headers(fetchMock.mock.calls[0]?.[1]?.headers).get('x-demo-principal')).toBe('buyer-1');
   });
 
   it('starts checkout with server-authoritative shippingRateId and never sends shipping cents', async () => {

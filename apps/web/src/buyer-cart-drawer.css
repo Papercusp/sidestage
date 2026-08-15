@@ -32,6 +32,76 @@
   width: 100%;
 }
 
+.buyer-shipping-meter {
+  display: grid;
+  gap: .75rem;
+  padding: 1rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--surface-raised);
+}
+
+.buyer-shipping-meter-heading,
+.buyer-shipping-parcel,
+.buyer-shipping-parcel > span:first-child {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: .75rem;
+}
+
+.buyer-shipping-meter-heading h3,
+.buyer-shipping-meter-heading p,
+.buyer-shipping-suggestion {
+  margin: 0;
+}
+
+.buyer-shipping-meter-heading > strong {
+  color: var(--brand-red);
+  font-variant-numeric: tabular-nums;
+}
+
+.buyer-shipping-parcels {
+  display: grid;
+  gap: .6rem;
+}
+
+.buyer-shipping-parcel {
+  align-items: stretch;
+  flex-direction: column;
+}
+
+.buyer-shipping-parcel small {
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.buyer-shipping-fill {
+  display: block;
+  height: .55rem;
+  overflow: hidden;
+  border-radius: 999px;
+  background: var(--surface-muted);
+}
+
+.buyer-shipping-fill > span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--brand-yellow);
+}
+
+.buyer-shipping-suggestion {
+  color: var(--text-muted);
+  font-size: .82rem;
+  line-height: 1.45;
+}
+
+.buyer-shipping-suggestion.is-confirmed {
+  color: var(--text);
+  font-weight: 650;
+}
+
 /* Rail trigger: the drawer-stack portals this into the shared right-edge column
    it also gives the scout launcher, so the two side surfaces stack rather than
    each inventing a floating button. */

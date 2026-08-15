@@ -16,7 +16,7 @@ import {
   useLineAlerts,
 } from '@papercusp/cart-drawer';
 import { formatBuyerPrice } from './buyer';
-import type { BuyerCart } from './buyer-checkout-api';
+import type { BuyerCart, BuyerShippingMeter } from './buyer-checkout-api';
 import {
   formatHoldCountdown,
   holdRemainingMs,
@@ -51,6 +51,8 @@ export interface BuyerCartPanelProps {
   busy?: boolean;
   /** Drawer-level failure (a failed hold, an expired hold). */
   error?: string;
+  shippingMeter?: BuyerShippingMeter | null;
+  shippingMeterLoading?: boolean;
   /** The holds/expiry seam; every write in this panel goes through it. */
   adapter: BuyerCartAdapter;
   /** Hand off to the existing BuyerCheckout flow. */
@@ -63,6 +65,8 @@ export function BuyerCartPanel({
   nowMs,
   busy = false,
   error,
+  shippingMeter,
+  shippingMeterLoading = false,
   adapter,
   onCheckout,
   onClose,
@@ -166,6 +170,39 @@ export function BuyerCartPanel({
             })}
           </CartLineList>
         )}
+
+        {lines.length > 0 ? (
+          <section className="buyer-shipping-meter" aria-label="Combined shipping meter">
+            <div className="buyer-shipping-meter-heading">
+              <div>
+                <p className="eyebrow">Combined shipping</p>
+                <h3>{shippingMeterLoading && !shippingMeter ? 'Packing your items…' : `${shippingMeter?.parcelCount ?? '—'} ${shippingMeter?.parcelCount === 1 ? 'box' : 'boxes'}`}</h3>
+              </div>
+              {shippingMeter ? <strong>{shippingMeter.fillPercent}% full</strong> : null}
+            </div>
+            {shippingMeter ? (
+              <div className="buyer-shipping-parcels" aria-label={`${shippingMeter.parcelCount} packed ${shippingMeter.parcelCount === 1 ? 'box' : 'boxes'}`}>
+                {shippingMeter.parcels.map((parcel, index) => (
+                  <div className="buyer-shipping-parcel" key={`${parcel.boxName ?? 'custom'}-${index}`}>
+                    <span><strong>{parcel.boxName ?? 'Custom box'}</strong><small>{parcel.fillPercent}% filled</small></span>
+                    <span className="buyer-shipping-fill" aria-hidden="true"><span style={{ width: `${parcel.fillPercent}%` }} /></span>
+                  </div>
+                ))}
+              </div>
+            ) : null}
+            {shippingMeter?.suggestion?.status === 'price-confirmed' && shippingMeter.suggestion.shippingStays ? (
+              <p className="buyer-shipping-suggestion is-confirmed">
+                Add one more {shippingMeter.suggestion.title} — shipping stays {formatBuyerPrice(shippingMeter.suggestion.shippingStays.totalCents)} with {shippingMeter.suggestion.shippingStays.carrier} {shippingMeter.suggestion.shippingStays.service}.
+              </p>
+            ) : shippingMeter?.suggestion ? (
+              <p className="buyer-shipping-suggestion">
+                One more {shippingMeter.suggestion.title} still fits this packing plan. Enter an address at checkout to verify shipping.
+              </p>
+            ) : shippingMeter ? (
+              <p className="buyer-shipping-suggestion">Another item may require a new box.</p>
+            ) : null}
+          </section>
+        ) : null}
       </CartDrawerBody>
 
       <CartDrawerFooter>

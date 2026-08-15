@@ -106,6 +106,57 @@ describe('ShippingService', () => {
       .resolves.toMatchObject([{ id: 'USPS:Priority', totalCents: 1_250 }]);
   });
 
+  it('authors box fill on the server and confirms unchanged shipping only from equal quotes', async () => {
+    const carts = new CartService(new InMemoryCartStore());
+    const cart = await carts.addItem({
+      cartId: 'cart-meter',
+      buyerId: 'buyer-demo-avi',
+      productId: 'mug',
+      title: 'Harbor Kettle',
+      priceCents: 7_600,
+    });
+    const createShipment = vi.fn().mockResolvedValue(shipment('shipment-1', [
+      rate('rate-1', 'USPS', 'Priority', '5.00', 3),
+    ]));
+    const service = new ShippingService(carts, catalog([variant('mug', {
+      weight: { value: 8, unit: 'ounces' },
+      dimensions: { length: 2, width: 2, height: 2, unit: 'inches' },
+    })]), carrier(createShipment));
+
+    await expect(service.getMeterForBuyer({ cartId: cart.id }, 'buyer-demo-avi')).resolves.toMatchObject({
+      cartId: 'cart-meter',
+      totalUnits: 1,
+      parcelCount: 1,
+      fillPercent: 5,
+      parcels: [{ boxName: '8x6x4', fillPercent: 5 }],
+      suggestion: {
+        status: 'packing-only',
+        productId: 'mug',
+        title: 'Harbor Kettle',
+        nextQuantity: 2,
+        hypotheticalParcelCount: 1,
+      },
+    });
+    expect(createShipment).not.toHaveBeenCalled();
+
+    await expect(service.getMeterForBuyer({
+      cartId: cart.id,
+      address: ADDRESS,
+      rateId: 'USPS:Priority',
+    }, 'buyer-demo-avi')).resolves.toMatchObject({
+      suggestion: {
+        status: 'price-confirmed',
+        shippingStays: {
+          rateId: 'USPS:Priority',
+          carrier: 'USPS',
+          service: 'Priority',
+          totalCents: 500,
+        },
+      },
+    });
+    expect(createShipment).toHaveBeenCalledTimes(2);
+  });
+
   it('degrades to empty rates without EasyPost configuration', async () => {
     const easyPost = carrier(vi.fn(), false);
     const source = catalog([]);
