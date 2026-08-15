@@ -338,8 +338,10 @@ export class AuthenticatedSseClient {
     const events: SystemTestSseEvent[] = [];
     let lastEventId: string | null = null;
     let lastError: unknown;
+    let attemptsUsed = 0;
 
     for (let attempt = 1; attempt <= this.#maxAttempts && events.length < maxEvents; attempt += 1) {
+      attemptsUsed = attempt;
       try {
         const headers = this.#endpoint.headers({ accept: 'text/event-stream' });
         if (lastEventId) headers.set('last-event-id', lastEventId);
@@ -373,7 +375,7 @@ export class AuthenticatedSseClient {
         { cause: lastError },
       );
     }
-    const reconnects = Math.max(0, this.#maxAttempts === 0 ? 0 : Math.min(this.#maxAttempts - 1, countReconnects(events)));
+    const reconnects = Math.max(0, attemptsUsed - 1);
     const evidence = await this.#evidence.captureJson({
       artifactId: input.artifactId,
       caseId: input.caseId,
@@ -457,7 +459,11 @@ export class AuthenticatedWebSocketClient {
         return { messages, attempts: attempt, evidence };
       } catch (error) {
         lastError = error;
-        await connection?.close(1011, 'connection lost').catch?.(() => undefined);
+        try {
+          await connection?.close(1011, 'connection lost');
+        } catch {
+          // Preserve the exchange failure when best-effort cleanup also fails.
+        }
         if (attempt >= this.#maxAttempts || input.signal?.aborted) throw error;
         await this.#retryDelay(attempt, input.signal);
       }
@@ -687,7 +693,8 @@ export interface PlaywrightPageLike {
 }
 
 export interface PlaywrightTraceSource {
-  stop(): Promise<Uint8Array>;
+  /** Return a structured, already-bounded trace summary; raw trace archives can contain credentials. */
+  stopAndSanitise(): Promise<unknown>;
 }
 
 /**
@@ -747,13 +754,12 @@ export class PlaywrightBrowserEvidenceCollector {
         }),
       ]);
       if (input.trace) {
-        artifacts.push(await this.evidence.capture({
+        artifacts.push(await this.evidence.captureJson({
           artifactId: `${input.artifactPrefix}.trace`,
           caseId: input.caseId,
           kind: 'log',
-          summary: `Playwright trace for ${safePagePath(input.page.url())}`,
-          contentType: 'application/zip',
-          body: await input.trace.stop(),
+          summary: `Sanitised Playwright trace summary for ${safePagePath(input.page.url())}`,
+          value: await input.trace.stopAndSanitise(),
         }));
       }
       return { value, evidence: artifacts };
@@ -787,6 +793,9 @@ class FixedProtocolEndpoint {
     for (const [name, value] of Object.entries(this.#authentication)) {
       if (!name.trim() || /[\r\n]/.test(name) || /[\r\n]/.test(value)) {
         throw new SystemTestBlackBoxError('authentication headers contain an invalid name or value');
+      }
+      if (['host', 'content-length', 'connection', 'transfer-encoding'].includes(name.toLowerCase())) {
+        throw new SystemTestBlackBoxError(`authentication cannot set transport header ${name}`);
       }
     }
   }
@@ -923,12 +932,6 @@ function parseSseBlock(block: string): SystemTestSseEvent | null {
     else if (field === 'data') data.push(value);
   }
   return data.length > 0 ? { id, event, data: data.join('\n') } : null;
-}
-
-function countReconnects(events: readonly SystemTestSseEvent[]): number {
-  // IDs are monotonic provenance; a reconnect is visible when more than one
-  // event survives collection and is also recorded in the artifact summary.
-  return events.length > 1 ? 1 : 0;
 }
 
 function messageText(value: string | Uint8Array): string {

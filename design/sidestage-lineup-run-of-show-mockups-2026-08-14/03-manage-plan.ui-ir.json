@@ -1,0 +1,345 @@
+{
+  "irVersion": "0.1",
+  "surface": "SideStage Event Lineup — Manage / Plan",
+  "ecosystem": "react-tailwind",
+  "layout": {
+    "kind": "stack",
+    "direction": "vertical",
+    "children": [
+      {
+        "kind": "header",
+        "children": [
+          {
+            "kind": "heading",
+            "title": {
+              "key": "mode.title",
+              "default": "Keep one Lineup destination; make the task explicit."
+            }
+          },
+          {
+            "kind": "text",
+            "copy": {
+              "key": "mode.description",
+              "default": "Manage answers what can sell. Plan answers what happens when."
+            }
+          },
+          {
+            "kind": "component",
+            "ref": "mode-save"
+          }
+        ]
+      },
+      {
+        "kind": "tabs",
+        "a11y": {
+          "role": "tablist",
+          "ariaLabel": {
+            "key": "mode.tabs.aria",
+            "default": "Lineup task mode"
+          }
+        },
+        "children": [
+          {
+            "kind": "component",
+            "ref": "manage-mode-tab"
+          },
+          {
+            "kind": "component",
+            "ref": "plan-mode-tab"
+          }
+        ],
+        "slots": {
+          "manage": {
+            "kind": "stack",
+            "direction": "vertical",
+            "children": [
+              {
+                "kind": "heading",
+                "title": {
+                  "key": "mode.manage.title",
+                  "default": "Manage products."
+                }
+              },
+              {
+                "kind": "text",
+                "copy": {
+                  "key": "mode.manage.copy",
+                  "default": "Review event inventory and the products reserved for this room."
+                }
+              },
+              {
+                "kind": "list",
+                "binding": {
+                  "slot": "eventProducts",
+                  "repeats": true,
+                  "shape": "EventProduct"
+                },
+                "item": {
+                  "kind": "grid",
+                  "children": [
+                    {
+                      "kind": "heading",
+                      "title": {
+                        "key": "mode.manage.item",
+                        "default": "{product.title}"
+                      },
+                      "binding": {
+                        "slot": "product.title",
+                        "shape": "string"
+                      }
+                    },
+                    {
+                      "kind": "text",
+                      "copy": {
+                        "key": "mode.manage.stock",
+                        "default": "{stock} units"
+                      },
+                      "binding": {
+                        "slot": "product.stockSummary",
+                        "shape": "string"
+                      }
+                    },
+                    {
+                      "kind": "text",
+                      "copy": {
+                        "key": "mode.manage.price",
+                        "default": "{price}"
+                      },
+                      "binding": {
+                        "slot": "product.price",
+                        "shape": "currency"
+                      }
+                    },
+                    {
+                      "kind": "component",
+                      "ref": "plan-membership-toggle"
+                    }
+                  ]
+                }
+              }
+            ]
+          },
+          "plan": {
+            "kind": "stack",
+            "direction": "vertical",
+            "children": [
+              {
+                "kind": "heading",
+                "title": {
+                  "key": "mode.plan.title",
+                  "default": "Plan the show."
+                }
+              },
+              {
+                "kind": "text",
+                "copy": {
+                  "key": "mode.plan.copy",
+                  "default": "Order the room, budget each beat, and prepare seller notes."
+                }
+              },
+              {
+                "kind": "list",
+                "binding": {
+                  "slot": "plannedItems",
+                  "repeats": true,
+                  "shape": "RunOfShowItem"
+                },
+                "item": {
+                  "kind": "card",
+                  "children": [
+                    {
+                      "kind": "heading",
+                      "title": {
+                        "key": "mode.plan.item",
+                        "default": "{position}. {product.title}"
+                      },
+                      "binding": {
+                        "slot": "product.positionedTitle",
+                        "shape": "string"
+                      }
+                    },
+                    {
+                      "kind": "input",
+                      "label": {
+                        "key": "mode.plan.minutes",
+                        "default": "Minutes"
+                      },
+                      "binding": {
+                        "slot": "product.durationMinutes",
+                        "shape": "number"
+                      },
+                      "interactions": [
+                        "update-duration"
+                      ],
+                      "a11y": {
+                        "role": "spinbutton",
+                        "ariaLabel": {
+                          "key": "mode.plan.minutes.aria",
+                          "default": "Planned minutes for {product.title}"
+                        }
+                      }
+                    },
+                    {
+                      "kind": "textarea",
+                      "label": {
+                        "key": "mode.plan.notes",
+                        "default": "Seller notes"
+                      },
+                      "binding": {
+                        "slot": "product.notes",
+                        "shape": "string"
+                      },
+                      "interactions": [
+                        "update-notes"
+                      ],
+                      "a11y": {
+                        "role": "textbox",
+                        "ariaLabel": {
+                          "key": "mode.plan.notes.aria",
+                          "default": "Seller notes for {product.title}"
+                        }
+                      }
+                    },
+                    {
+                      "kind": "stack",
+                      "direction": "horizontal",
+                      "children": [
+                        {
+                          "kind": "component",
+                          "ref": "mode-move-up"
+                        },
+                        {
+                          "kind": "component",
+                          "ref": "mode-move-down"
+                        }
+                      ]
+                    }
+                  ]
+                }
+              },
+              {
+                "kind": "list",
+                "binding": {
+                  "slot": "reservedItems",
+                  "repeats": true,
+                  "shape": "ReservedProduct"
+                },
+                "item": {
+                  "kind": "card",
+                  "children": [
+                    {
+                      "kind": "heading",
+                      "title": {
+                        "key": "mode.reserve.item",
+                        "default": "{product.title}"
+                      },
+                      "binding": {
+                        "slot": "product.title",
+                        "shape": "string"
+                      }
+                    },
+                    {
+                      "kind": "component",
+                      "ref": "mode-add"
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        }
+      }
+    ]
+  },
+  "components": [
+    {
+      "id": "mode-save",
+      "registry": "action.primary",
+      "props": {
+        "label": "Save Lineup",
+        "action": "save-draft"
+      }
+    },
+    {
+      "id": "manage-mode-tab",
+      "registry": "action.secondary",
+      "props": {
+        "label": "Manage",
+        "action": "open-manage-mode",
+        "selected": true
+      }
+    },
+    {
+      "id": "plan-mode-tab",
+      "registry": "action.secondary",
+      "props": {
+        "label": "Plan show",
+        "action": "open-plan-mode",
+        "selected": false
+      }
+    },
+    {
+      "id": "plan-membership-toggle",
+      "registry": "control.checkbox",
+      "props": {
+        "label": "Include in show plan",
+        "valueSlot": "product.planned"
+      }
+    },
+    {
+      "id": "mode-move-up",
+      "registry": "action.secondary",
+      "props": {
+        "label": "Move up",
+        "action": "move-item-up"
+      }
+    },
+    {
+      "id": "mode-move-down",
+      "registry": "action.secondary",
+      "props": {
+        "label": "Move down",
+        "action": "move-item-down"
+      }
+    },
+    {
+      "id": "mode-add",
+      "registry": "action.secondary",
+      "props": {
+        "label": "Add to plan",
+        "action": "add-to-plan"
+      }
+    }
+  ],
+  "states": {
+    "loading": {
+      "kind": "banner",
+      "copy": {
+        "key": "lineup.loading",
+        "default": "Loading the event Lineup…"
+      },
+      "a11y": {
+        "role": "status",
+        "ariaLive": "polite"
+      }
+    },
+    "error": {
+      "kind": "banner",
+      "copy": {
+        "key": "lineup.error",
+        "default": "The Lineup could not be loaded."
+      },
+      "interactions": [
+        "retry"
+      ],
+      "a11y": {
+        "role": "alert",
+        "ariaLive": "assertive"
+      }
+    }
+  },
+  "a11y": {
+    "landmark": "main",
+    "headingLevel": 1
+  }
+}

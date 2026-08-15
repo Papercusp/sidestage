@@ -1,0 +1,325 @@
+{
+  "irVersion": "0.1",
+  "surface": "SideStage Event Lineup — Inline flow",
+  "ecosystem": "react-tailwind",
+  "layout": {
+    "kind": "stack",
+    "direction": "vertical",
+    "children": [
+      {
+        "kind": "header",
+        "children": [
+          {
+            "kind": "heading",
+            "title": {
+              "key": "inline.title",
+              "default": "Plan the room in one pass."
+            }
+          },
+          {
+            "kind": "text",
+            "copy": {
+              "key": "inline.description",
+              "default": "Drag products into show order, then add only the timing and notes you need."
+            }
+          },
+          {
+            "kind": "stack",
+            "direction": "horizontal",
+            "children": [
+              {
+                "kind": "component",
+                "ref": "reset-lineup"
+              },
+              {
+                "kind": "component",
+                "ref": "save-lineup"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "kind": "banner",
+        "copy": {
+          "key": "inline.live_protection",
+          "default": "Planning edits never stage or un-stage the live product."
+        },
+        "a11y": {
+          "role": "status",
+          "ariaLive": "polite"
+        }
+      },
+      {
+        "kind": "list",
+        "binding": {
+          "slot": "plannedItems",
+          "repeats": true,
+          "shape": "RunOfShowItem"
+        },
+        "item": {
+          "kind": "card",
+          "children": [
+            {
+              "kind": "stack",
+              "direction": "horizontal",
+              "children": [
+                {
+                  "kind": "heading",
+                  "title": {
+                    "key": "inline.item.title",
+                    "default": "{product.title}"
+                  },
+                  "binding": {
+                    "slot": "product.title",
+                    "shape": "string"
+                  }
+                },
+                {
+                  "kind": "text",
+                  "copy": {
+                    "key": "inline.item.commerce",
+                    "default": "{price} · {stock} available · {sku}"
+                  },
+                  "binding": {
+                    "slot": "product.commerceSummary",
+                    "shape": "string"
+                  }
+                },
+                {
+                  "kind": "badge",
+                  "copy": {
+                    "key": "inline.item.stage",
+                    "default": "{stageLabel}"
+                  },
+                  "binding": {
+                    "slot": "product.stageLabel",
+                    "shape": "string"
+                  }
+                }
+              ]
+            },
+            {
+              "kind": "stack",
+              "direction": "vertical",
+              "children": [
+                {
+                  "kind": "input",
+                  "label": {
+                    "key": "inline.minutes.label",
+                    "default": "Minutes"
+                  },
+                  "placeholder": {
+                    "key": "inline.minutes.placeholder",
+                    "default": "1–240"
+                  },
+                  "binding": {
+                    "slot": "product.durationMinutes",
+                    "shape": "number"
+                  },
+                  "interactions": [
+                    "update-duration"
+                  ],
+                  "a11y": {
+                    "role": "spinbutton",
+                    "ariaLabel": {
+                      "key": "inline.minutes.aria",
+                      "default": "Planned minutes for {product.title}"
+                    }
+                  }
+                },
+                {
+                  "kind": "textarea",
+                  "label": {
+                    "key": "inline.notes.label",
+                    "default": "Seller notes"
+                  },
+                  "placeholder": {
+                    "key": "inline.notes.placeholder",
+                    "default": "Add talking notes"
+                  },
+                  "binding": {
+                    "slot": "product.notes",
+                    "shape": "string"
+                  },
+                  "interactions": [
+                    "update-notes"
+                  ],
+                  "a11y": {
+                    "role": "textbox",
+                    "ariaLabel": {
+                      "key": "inline.notes.aria",
+                      "default": "Seller notes for {product.title}"
+                    }
+                  }
+                }
+              ]
+            },
+            {
+              "kind": "stack",
+              "direction": "horizontal",
+              "children": [
+                {
+                  "kind": "component",
+                  "ref": "move-up"
+                },
+                {
+                  "kind": "component",
+                  "ref": "move-down"
+                },
+                {
+                  "kind": "component",
+                  "ref": "remove-from-plan"
+                }
+              ]
+            }
+          ]
+        },
+        "emptyState": {
+          "kind": "empty-state",
+          "title": {
+            "key": "inline.empty.title",
+            "default": "No products are planned yet."
+          },
+          "copy": {
+            "key": "inline.empty.copy",
+            "default": "Add a reserved product to begin the show plan."
+          }
+        }
+      },
+      {
+        "kind": "stack",
+        "direction": "vertical",
+        "children": [
+          {
+            "kind": "heading",
+            "title": {
+              "key": "inline.reserve.title",
+              "default": "Reserved inventory not in the plan"
+            }
+          },
+          {
+            "kind": "list",
+            "binding": {
+              "slot": "reservedItems",
+              "repeats": true,
+              "shape": "ReservedProduct"
+            },
+            "item": {
+              "kind": "card",
+              "children": [
+                {
+                  "kind": "heading",
+                  "title": {
+                    "key": "inline.reserve.item",
+                    "default": "{product.title}"
+                  },
+                  "binding": {
+                    "slot": "product.title",
+                    "shape": "string"
+                  }
+                },
+                {
+                  "kind": "text",
+                  "copy": {
+                    "key": "inline.reserve.commerce",
+                    "default": "{price} · {stock} available"
+                  },
+                  "binding": {
+                    "slot": "product.commerceSummary",
+                    "shape": "string"
+                  }
+                },
+                {
+                  "kind": "component",
+                  "ref": "add-to-plan"
+                }
+              ]
+            }
+          }
+        ]
+      }
+    ]
+  },
+  "components": [
+    {
+      "id": "save-lineup",
+      "registry": "action.primary",
+      "props": {
+        "label": "Save Lineup",
+        "action": "save-draft"
+      }
+    },
+    {
+      "id": "reset-lineup",
+      "registry": "action.secondary",
+      "props": {
+        "label": "Reset",
+        "action": "reset-scenario"
+      }
+    },
+    {
+      "id": "move-up",
+      "registry": "action.secondary",
+      "props": {
+        "label": "Move up",
+        "action": "move-item-up"
+      }
+    },
+    {
+      "id": "move-down",
+      "registry": "action.secondary",
+      "props": {
+        "label": "Move down",
+        "action": "move-item-down"
+      }
+    },
+    {
+      "id": "remove-from-plan",
+      "registry": "action.secondary",
+      "props": {
+        "label": "Remove",
+        "action": "remove-from-plan"
+      }
+    },
+    {
+      "id": "add-to-plan",
+      "registry": "action.secondary",
+      "props": {
+        "label": "Add",
+        "action": "add-to-plan"
+      }
+    }
+  ],
+  "states": {
+    "loading": {
+      "kind": "banner",
+      "copy": {
+        "key": "lineup.loading",
+        "default": "Loading the event Lineup…"
+      },
+      "a11y": {
+        "role": "status",
+        "ariaLive": "polite"
+      }
+    },
+    "error": {
+      "kind": "banner",
+      "copy": {
+        "key": "lineup.error",
+        "default": "The Lineup could not be loaded."
+      },
+      "interactions": [
+        "retry"
+      ],
+      "a11y": {
+        "role": "alert",
+        "ariaLive": "assertive"
+      }
+    }
+  },
+  "a11y": {
+    "landmark": "main",
+    "headingLevel": 1
+  }
+}

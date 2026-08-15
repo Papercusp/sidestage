@@ -68,12 +68,31 @@ observed_sha() {
 }
 RUNNING="$(observed_sha)"
 
-# Prefer observed reality over the recorded claim.
-CURRENT="${RUNNING:-$RECORDED}"
+# When the candidate API cannot answer, Compose still records the immutable
+# image tag selected for its container. This distinguishes a failed unrecorded
+# candidate from the previously proven sha in .deployed-sha.
+container_image_sha() {
+  local image_ref tag
+  image_ref="$("${SSH[@]}" "cd $PROD_DIR && container_id=\$($COMPOSE ps -q api) && test -n \"\$container_id\" && docker inspect --format '{{.Config.Image}}' \"\$container_id\"" 2>/dev/null || true)"
+  image_ref="${image_ref//[$'\r\n']/}"
+  tag="${image_ref##*:}"
+  [[ "$tag" =~ ^[0-9a-f]{40}$ ]] && printf '%s' "$tag"
+}
+CONTAINER_SHA="$(container_image_sha)"
+
+select_current_sha() {
+  printf '%s' "${RUNNING:-${CONTAINER_SHA:-$RECORDED}}"
+}
+CURRENT="$(select_current_sha)"
 
 if [[ -n "$RUNNING" && -n "$RECORDED" && "$RUNNING" != "$RECORDED" ]]; then
   echo "WARN: prod is RUNNING ${RUNNING:0:7} but $DEPLOYED_SHA_FILE records ${RECORDED:0:7}." >&2
   echo "      The record is STALE -- trusting what the process reports." >&2
+elif [[ -z "$RUNNING" && -n "$CONTAINER_SHA" ]]; then
+  echo "WARN: the API cannot report its sha; the selected container image is ${CONTAINER_SHA:0:7}." >&2
+  if [[ -n "$RECORDED" && "$CONTAINER_SHA" != "$RECORDED" ]]; then
+    echo "      $DEPLOYED_SHA_FILE is STALE -- recovering from the actual container image." >&2
+  fi
 fi
 
 if $LIST; then
@@ -163,6 +182,11 @@ say "Health check"
 # never pass, every "healthy" verdict was really the fallback. Report the leg.
 HEALTH_LEG=none
 HEALTH_BODY=""
+health_body_reports_sha() {
+  local compact="${1//[[:space:]]/}"
+  [[ "$compact" == *"\"sha\":\"$2\""* ]]
+}
+
 health_probe() {
   local body
   # Call this function directly. Command substitution would run it in a
@@ -172,12 +196,12 @@ health_probe() {
   if body="$(curl -sf --max-time 6 "$HEALTH_URL" 2>/dev/null)"; then
     HEALTH_LEG=public
     HEALTH_BODY="$body"
-    return 0
+    health_body_reports_sha "$body" "$TARGET" && return 0
   fi
   if body="$("${SSH[@]}" "cd $PROD_DIR && SIDESTAGE_SHA=$TARGET $COMPOSE exec -T api node -e 'fetch(\"http://127.0.0.1:3100/healthz\").then(r=>{if(!r.ok)process.exit(1);return r.text()}).then(t=>process.stdout.write(t)).catch(()=>process.exit(1))'" 2>/dev/null)"; then
     HEALTH_LEG=container
     HEALTH_BODY="$body"
-    return 0
+    health_body_reports_sha "$body" "$TARGET" && return 0
   fi
   return 1
 }

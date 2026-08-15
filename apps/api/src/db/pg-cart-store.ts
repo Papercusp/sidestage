@@ -95,6 +95,22 @@ export class PgCartStore implements CartStore {
       const nextQuantity = previousQuantity + input.quantity;
       assertEventCartQuantity(nextQuantity);
 
+      // Establish the buyer-visible tuple before reading physical inventory.
+      // The authoritative row is locked again below after the storefront lock,
+      // preserving the shared storefront-before-lineup lock order while making
+      // missing, foreign, and draft combinations uniformly non-enumerating.
+      const visibleItem = await client.query<{ event_item_id: string }>(
+        `SELECT item.event_item_id
+           FROM event_lineup_item AS item
+           JOIN event AS published ON published.event_id = item.event_id
+          WHERE item.event_id = $1
+            AND item.event_item_id = $2
+            AND item.product_id = $3
+            AND published.status <> 'draft'`,
+        [input.eventId, input.eventItemId, input.productId],
+      );
+      if (!visibleItem.rows[0]) throw new NotFoundException('Event item is not available');
+
       // Match PgAuctionStore's storefront-before-lineup lock order. Holding the
       // variant makes the generated availableQty stable through the reservation
       // upsert and prevents two carts from both observing the same stock.

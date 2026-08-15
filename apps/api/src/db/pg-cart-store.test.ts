@@ -66,6 +66,7 @@ describe('PgCartStore event hold transaction', () => {
       'BEGIN',
       expect.stringContaining('INSERT INTO cart'),
       'SELECT payload FROM cart WHERE id = $1 FOR UPDATE',
+      expect.stringContaining('FROM event_lineup_item AS item'),
       expect.stringContaining('FROM storefront_product'),
       expect.stringContaining('FROM inventory_reservation'),
       expect.stringContaining('FROM event_lineup_item AS item'),
@@ -74,11 +75,11 @@ describe('PgCartStore event hold transaction', () => {
       'UPDATE cart SET payload = $2::jsonb, updated_at = now() WHERE id = $1',
       'COMMIT',
     ]);
-    expect(harness.query.mock.calls[6]?.[1]).toEqual(['event-1', 'item-1', 'product-1', 1]);
-    expect(harness.query.mock.calls[7]?.[1]).toEqual([
+    expect(harness.query.mock.calls[7]?.[1]).toEqual(['event-1', 'item-1', 'product-1', 1]);
+    expect(harness.query.mock.calls[8]?.[1]).toEqual([
       'product-1', 'cart-1', 1, '2099-08-14T18:15:00.000Z',
     ]);
-    const persisted = JSON.parse(String(harness.query.mock.calls[8]?.[1]?.[1])) as Cart;
+    const persisted = JSON.parse(String(harness.query.mock.calls[9]?.[1]?.[1])) as Cart;
     expect(persisted.items[0]).toMatchObject({ title: 'Authoritative title', priceCents: 1_500 });
     expect(harness.release).toHaveBeenCalledOnce();
   });
@@ -109,6 +110,7 @@ describe('PgCartStore event hold transaction', () => {
   it('rolls back before any event or cart write when physical stock cannot cover the delta', async () => {
     const harness = transactionalPool((sql) => {
       if (sql.includes('SELECT payload FROM cart')) return { rows: [{ payload: emptyCart('cart-1') }] };
+      if (sql.includes('FROM event_lineup_item AS item')) return { rows: [lineupRow()] };
       if (sql.includes('FROM storefront_product')) return { rows: [{ available_qty: 0 }] };
       if (sql.includes('FROM inventory_reservation')) return { rows: [] };
       return { rows: [] };
@@ -137,6 +139,22 @@ describe('PgCartStore event hold transaction', () => {
     expect(statements.at(-1)).toBe('ROLLBACK');
     expect(statements.some((sql) => sql.startsWith('INSERT INTO inventory_reservation'))).toBe(false);
     expect(statements.some((sql) => sql.startsWith('UPDATE cart'))).toBe(false);
+  });
+
+  it('rejects a hidden event tuple before reading physical stock', async () => {
+    const harness = transactionalPool((sql) => {
+      if (sql.includes('SELECT payload FROM cart')) return { rows: [{ payload: emptyCart('cart-1') }] };
+      if (sql.includes('FROM event_lineup_item AS item')) return { rows: [] };
+      if (sql.includes('FROM storefront_product')) return { rows: [{ available_qty: 0 }] };
+      return { rows: [] };
+    });
+
+    await expect(new PgCartStore(harness.pool).holdEventItem(holdInput()))
+      .rejects.toThrow('Event item is not available');
+    const statements = harness.query.mock.calls.map(([sql]) => sql.replace(/\s+/g, ' ').trim());
+    expect(statements.at(-1)).toBe('ROLLBACK');
+    expect(statements.some((sql) => sql.includes('FROM storefront_product'))).toBe(false);
+    expect(statements.some((sql) => sql.startsWith('UPDATE event_lineup_item'))).toBe(false);
   });
 });
 

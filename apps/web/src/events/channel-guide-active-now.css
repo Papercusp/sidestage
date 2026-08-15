@@ -1,0 +1,70 @@
+/* Approved Channel Guide "Signal rail" treatment (D-003).
+ *
+ * This stylesheet is intentionally isolated while the countdown and seller
+ * hygiene atoms own ChannelGuide.tsx and channel-guide.css. Importing the
+ * component later activates the production selectors without duplicating the
+ * guide's base row anatomy. */
+
+.channel-guide-row.is-active-now {
+  border-color: color-mix(in srgb, var(--brand-red) 27%, var(--border));
+  background: color-mix(in srgb, var(--brand-red) 6%, var(--surface));
+  box-shadow: inset .24rem 0 0 var(--brand-red);
+}
+
+.channel-guide-row.is-active-now:hover {
+  border-color: color-mix(in srgb, var(--brand-red) 38%, var(--border));
+  background: color-mix(in srgb, var(--brand-red) 9%, var(--surface));
+}
+
+.channel-guide-row.is-active-now.is-current {
+  border-color: var(--brand-red);
+}
+
+.channel-guide-active-now {
+  display: flex;
+  align-items: center;
+  gap: .42rem;
+  min-width: 0;
+}
+
+.channel-guide-active-now-badge {
+  display: inline-flex;
+  min-height: 1.05rem;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: .3rem;
+  padding: .2rem .36rem;
+  border-radius: 999px;
+  color: var(--on-brand-red);
+  background: var(--brand-red);
+  font-size: .52rem;
+  font-weight: 900;
+  letter-spacing: .075em;
+  line-height: 1;
+  text-transform: uppercase;
+}
+
+.channel-guide-active-now-dot {
+  width: .34rem;
+  height: .34rem;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.channel-guide-active-now-watchers {
+  overflow: hidden;
+  color: var(--red-text);
+  font-size: .68rem;
+  font-weight: 650;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+@media (max-width: 24rem) {
+  .channel-guide-active-now {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: .22rem;
+  }
+}
