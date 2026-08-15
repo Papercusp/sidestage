@@ -203,33 +203,33 @@ export function EventManager({
 
   const actionFallback = useCallback(
     async ({ eventId: resolvedEventId, actorId: resolvedActorId, action }: ExecuteActionMutation) => (
-      executeSellerAction(resolvedEventId, resolvedActorId, action, apiBaseUrl)
+      executeSellerAction(resolvedEventId, resolvedActorId, action, apiBaseUrl, demoPrincipal)
     ),
-    [apiBaseUrl],
+    [apiBaseUrl, demoPrincipal],
   );
   const mutateAction = useSyncMutate<ExecuteActionMutation, SellerActionResult>('event.executeAction', actionFallback);
 
   const stockFallback = useCallback(
     async ({ eventId: resolvedEventId, actorId: resolvedActorId, item, quantity }: AdjustStockMutation) => (
-      adjustSellerEventStock(resolvedEventId, resolvedActorId, item, quantity, apiBaseUrl)
+      adjustSellerEventStock(resolvedEventId, resolvedActorId, item, quantity, apiBaseUrl, demoPrincipal)
     ),
-    [apiBaseUrl],
+    [apiBaseUrl, demoPrincipal],
   );
   const mutateStock = useSyncMutate<AdjustStockMutation, SellerActionResult>('event.adjustStock', stockFallback);
 
   const auctionFallback = useCallback(
     async ({ eventId: resolvedEventId, item, quantity, startingPriceCents }: StartAuctionMutation) => (
-      startSellerAuction(resolvedEventId, item, quantity, startingPriceCents, apiBaseUrl, sellerAuctionToken || undefined)
+      startSellerAuction(resolvedEventId, item, quantity, startingPriceCents, apiBaseUrl, sellerAuctionToken || undefined, demoPrincipal)
     ),
-    [apiBaseUrl, sellerAuctionToken],
+    [apiBaseUrl, demoPrincipal, sellerAuctionToken],
   );
   const mutateStartAuction = useSyncMutate<StartAuctionMutation, SellerAuction>('auction.start', auctionFallback);
 
   const closeAuctionFallback = useCallback(
     async ({ auctionId }: CloseAuctionMutation) => (
-      closeSellerAuction(auctionId, apiBaseUrl, sellerAuctionToken || undefined)
+      closeSellerAuction(auctionId, apiBaseUrl, sellerAuctionToken || undefined, demoPrincipal)
     ),
-    [apiBaseUrl, sellerAuctionToken],
+    [apiBaseUrl, demoPrincipal, sellerAuctionToken],
   );
   const mutateCloseAuction = useSyncMutate<CloseAuctionMutation, SellerAuction>('auction.close', closeAuctionFallback);
 
@@ -273,7 +273,7 @@ export function EventManager({
     setSellerAccessBusy(true);
     setMessage(null);
     try {
-      await verifySellerAuctionAccess(token, apiBaseUrl);
+      await verifySellerAuctionAccess(token, apiBaseUrl, demoPrincipal);
       rememberSellerAuctionToken(token);
       setSellerAuctionToken(token);
       setSellerAccessDraft('');

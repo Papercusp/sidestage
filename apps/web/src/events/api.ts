@@ -130,10 +130,17 @@ export function rememberSellerAuctionToken(token: string): void {
   }
 }
 
-export async function verifySellerAuctionAccess(token: string, apiBaseUrl?: string): Promise<void> {
+export async function verifySellerAuctionAccess(
+  token: string,
+  apiBaseUrl?: string,
+  principal?: string,
+): Promise<void> {
   await requestJson(eventUrl('/auctions/access/seller', apiBaseUrl), {
     method: 'POST',
-    headers: { authorization: `Bearer ${token.trim()}` },
+    headers: {
+      authorization: `Bearer ${token.trim()}`,
+      ...(principal ? { [DEMO_PRINCIPAL_HEADER]: principal } : {}),
+    },
   });
 }
 
@@ -268,11 +275,13 @@ async function registerItems(
   policy: SellerEventPolicy,
   items: readonly SellerEventItem[],
   apiBaseUrl?: string,
+  principal?: string,
 ): Promise<SellerEventItem[]> {
   const result = await requestJson<{ items: SellerEventItem[] }>(
     eventUrl(`/actions/events/${encodeURIComponent(eventId)}/register`, apiBaseUrl),
     {
       method: 'POST',
+      headers: principal ? { [DEMO_PRINCIPAL_HEADER]: principal } : undefined,
       body: JSON.stringify({ policy: policyWithVerifiedFloors(policy, items), items }),
     },
   );
@@ -282,11 +291,13 @@ async function registerItems(
 export async function fetchSellerEvent(
   eventId: string,
   apiBaseUrl?: string,
+  principal?: string,
 ): Promise<SellerEventSetup> {
   const [config, actionState] = await Promise.all([
-    fetchEventConfig(eventId, apiBaseUrl),
+    fetchEventConfig(eventId, apiBaseUrl, principal),
     requestJson<{ items: SellerEventItem[] }>(
       eventUrl(`/actions/events/${encodeURIComponent(eventId)}/items`, apiBaseUrl),
+      principal ? { headers: { [DEMO_PRINCIPAL_HEADER]: principal } } : undefined,
     ),
   ]);
   return { eventId, name: config.name, policy: config.policy, items: actionState.items };
@@ -316,7 +327,7 @@ async function reserveAndRegister(
       await holdInventory(eventId, item.productId, item.quantity, apiBaseUrl);
       held.push(item);
     }
-    const registered = await registerItems(eventId, config.policy, items, apiBaseUrl);
+    const registered = await registerItems(eventId, config.policy, items, apiBaseUrl, principal);
     return { eventId, name: config.name, policy: config.policy, items: registered };
   } catch (error) {
     await Promise.allSettled(
@@ -364,11 +375,13 @@ export async function executeSellerAction(
   actorId: string,
   action: ActionProposal,
   apiBaseUrl?: string,
+  principal?: string,
 ): Promise<SellerActionResult> {
   return requestJson<SellerActionResult>(
     eventUrl(`/actions/events/${encodeURIComponent(eventId)}/execute`, apiBaseUrl),
     {
       method: 'POST',
+      headers: principal ? { [DEMO_PRINCIPAL_HEADER]: principal } : undefined,
       body: JSON.stringify({ actorId, action }),
     },
   );
@@ -381,10 +394,14 @@ export async function startSellerAuction(
   startingPriceCents: number,
   apiBaseUrl?: string,
   sellerAccessToken = readSellerAuctionToken(),
+  principal?: string,
 ): Promise<SellerAuction> {
   return requestJson<SellerAuction>(eventUrl('/auctions/start', apiBaseUrl), {
     method: 'POST',
-    headers: sellerAccessToken ? { authorization: `Bearer ${sellerAccessToken}` } : undefined,
+    headers: {
+      ...(sellerAccessToken ? { authorization: `Bearer ${sellerAccessToken}` } : {}),
+      ...(principal ? { [DEMO_PRINCIPAL_HEADER]: principal } : {}),
+    },
     body: JSON.stringify({
       eventId,
       eventItemId: item.eventItemId,
@@ -400,12 +417,16 @@ export async function closeSellerAuction(
   auctionId: string,
   apiBaseUrl?: string,
   sellerAccessToken = readSellerAuctionToken(),
+  principal?: string,
 ): Promise<SellerAuction> {
   return requestJson<SellerAuction>(
     eventUrl(`/auctions/${encodeURIComponent(auctionId)}/close`, apiBaseUrl),
     {
       method: 'POST',
-      headers: sellerAccessToken ? { authorization: `Bearer ${sellerAccessToken}` } : undefined,
+      headers: {
+        ...(sellerAccessToken ? { authorization: `Bearer ${sellerAccessToken}` } : {}),
+        ...(principal ? { [DEMO_PRINCIPAL_HEADER]: principal } : {}),
+      },
     },
   );
 }
@@ -419,9 +440,14 @@ export async function closeSellerAuction(
  * pure logic. Reads should prefer useSyncQuery('event.runOfShow'); this GET
  * exists for non-hook callers, and the PUT is the useSyncMutate REST fallback.
  */
-export async function fetchRunOfShowPlan(eventId: string, apiBaseUrl?: string): Promise<RunOfShowPlan> {
+export async function fetchRunOfShowPlan(
+  eventId: string,
+  apiBaseUrl?: string,
+  principal?: string,
+): Promise<RunOfShowPlan> {
   return requestJson<RunOfShowPlan>(
     eventUrl(`/events/${encodeURIComponent(eventId)}/run-of-show`, apiBaseUrl),
+    principal ? { headers: { [DEMO_PRINCIPAL_HEADER]: principal } } : undefined,
   );
 }
 
@@ -429,12 +455,16 @@ export async function saveRunOfShowPlan(
   eventId: string,
   entries: readonly RunOfShowEntry[],
   apiBaseUrl?: string,
+  principal?: string,
 ): Promise<RunOfShowPlan> {
   return requestJson<RunOfShowPlan>(
     eventUrl(`/events/${encodeURIComponent(eventId)}/run-of-show`, apiBaseUrl),
     {
       method: 'PUT',
-      headers: { 'content-type': 'application/json' },
+      headers: {
+        'content-type': 'application/json',
+        ...(principal ? { [DEMO_PRINCIPAL_HEADER]: principal } : {}),
+      },
       body: JSON.stringify({ entries }),
     },
   );
@@ -446,6 +476,7 @@ export async function adjustSellerEventStock(
   item: SellerEventItem,
   quantity: number,
   apiBaseUrl?: string,
+  principal?: string,
 ): Promise<SellerActionResult> {
   await holdInventory(eventId, item.productId, quantity, apiBaseUrl);
   try {
@@ -454,7 +485,7 @@ export async function adjustSellerEventStock(
       productId: item.productId,
       quantity,
       reason: 'Seller adjusted the live-event quantity against verified inventory',
-    }, apiBaseUrl);
+    }, apiBaseUrl, principal);
   } catch (error) {
     await holdInventory(eventId, item.productId, item.quantity, apiBaseUrl).catch(() => undefined);
     throw error;
