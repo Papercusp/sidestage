@@ -108,7 +108,19 @@ describe('CartService', () => {
     const held = await carts.holdItem({ cartId: 'cart-paid', productId: 'p-1', title: 'Mug', priceCents: 1250 });
 
     await expect(carts.commit(held.id)).resolves.toMatchObject({ items: [], subtotalCents: 0 });
+    await expect(carts.commit(held.id)).resolves.toMatchObject({ items: [], subtotalCents: 0 });
     vi.advanceTimersByTime(BUYER_HOLD_DURATION_MS + 1);
     await expect(inventory.get('p-1')).resolves.toMatchObject({ reservedQty: 1, availableQty: 0 });
+  });
+
+  it('releases a cancelled cart hold exactly once and clears the reusable cart', async () => {
+    const inventory = new InMemoryAuctionInventory();
+    await inventory.seed('p-cancel', 1);
+    const carts = new CartService(new InMemoryCartStore(), inventory);
+    const held = await carts.holdItem({ cartId: 'cart-cancel', productId: 'p-cancel', title: 'Mug', priceCents: 1_250 });
+
+    await expect(carts.release(held.id)).resolves.toMatchObject({ items: [], subtotalCents: 0 });
+    await expect(carts.release(held.id)).resolves.toMatchObject({ items: [], subtotalCents: 0 });
+    await expect(inventory.get('p-cancel')).resolves.toMatchObject({ reservedQty: 0, availableQty: 1 });
   });
 });

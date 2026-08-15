@@ -188,7 +188,8 @@ export class CartService {
 
   async commit(cartId: string): Promise<Cart> {
     const cart = await this.store.get(cartId);
-    if (!cart || cart.items.length === 0) throw new Error('Cart is empty or not found');
+    if (!cart) throw new Error('Cart is empty or not found');
+    if (cart.items.length === 0) return cloneCart(cart);
     if (this.inventory) {
       await Promise.all(cart.items.map(async (item) => {
         if (!item.expiresAt) return;
@@ -196,6 +197,18 @@ export class CartService {
         if (!committed) throw new Error(`Inventory hold for ${item.productId} could not be committed`);
       }));
     }
+    const updated = summarize({ ...cart, items: [] });
+    await this.persist(updated);
+    this.invalidateInventory(cart.items.filter((item) => item.expiresAt).map((item) => item.productId));
+    return cloneCart(updated);
+  }
+
+  /** Releases every source-tracked hold in a cancelled checkout, idempotently. */
+  async release(cartId: string): Promise<Cart> {
+    const cart = await this.store.get(cartId);
+    if (!cart) throw new Error('Cart is empty or not found');
+    if (cart.items.length === 0) return cloneCart(cart);
+    await Promise.all(cart.items.map((item) => this.releaseReservation(cart.id, item)));
     const updated = summarize({ ...cart, items: [] });
     await this.persist(updated);
     this.invalidateInventory(cart.items.filter((item) => item.expiresAt).map((item) => item.productId));
