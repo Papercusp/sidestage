@@ -121,8 +121,12 @@ export function BuyerTab({
     pollIntervalMs: 5_000,
   });
   const transcript = useMemo(
-    () => remoteTranscriptPresentation(transcriptQuery.data ?? [], transcriptQuery.error),
-    [transcriptQuery.data, transcriptQuery.error],
+    () => remoteTranscriptPresentation(
+      transcriptQuery.data ?? [],
+      transcriptQuery.error,
+      transcriptQuery.loading,
+    ),
+    [transcriptQuery.data, transcriptQuery.error, transcriptQuery.loading],
   );
   // The event's product rail comes from the ONE catalog source (P-102): the
   // API read model when reachable; explicit development builds may use the
