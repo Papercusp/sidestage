@@ -18,6 +18,9 @@ export class CartController {
     priceCents: number;
     quantity?: number;
     imageUrl?: string;
+    eventId?: string;
+    eventItemId?: string;
+    idempotencyKey?: string;
   }) {
     return this.carts.holdItem(body);
   }

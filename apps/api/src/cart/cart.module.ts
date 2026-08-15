@@ -1,8 +1,13 @@
 import { Inject, Injectable, Module, type OnModuleInit } from '@nestjs/common';
 import type { Pool } from 'pg';
+import { ActionModule } from '../actions/action.module';
+import { ACTION_ITEM_STORE, type ActionItemStore } from '../actions/action-item.store';
+import { AUCTION_INVENTORY, type AuctionInventory } from '../auction/auction.service';
 import { DatabaseModule, PG_POOL } from '../db/database.module';
 import { InventoryModule } from '../inventory/inventory.module';
 import { PgCartStore } from '../db/pg-cart-store';
+import { EventModule } from '../events/event.module';
+import { EVENT_STORE, type EventStore } from '../events/event.service';
 import { SyncModule } from '../sync/sync.module';
 import { SyncQueryRegistry } from '../sync/sync-query.registry';
 import { CartController } from './cart.controller';
@@ -26,15 +31,20 @@ export class CartSyncQueries implements OnModuleInit {
 }
 
 @Module({
-  imports: [DatabaseModule, InventoryModule, SyncModule],
+  imports: [ActionModule, DatabaseModule, EventModule, InventoryModule, SyncModule],
   controllers: [CartController],
   providers: [
     CartService,
     CartSyncQueries,
     {
       provide: CART_STORE,
-      inject: [PG_POOL],
-      useFactory: (pool: Pool | null) => (pool ? new PgCartStore(pool) : new InMemoryCartStore()),
+      inject: [PG_POOL, ACTION_ITEM_STORE, EVENT_STORE, AUCTION_INVENTORY],
+      useFactory: (
+        pool: Pool | null,
+        eventItems: ActionItemStore,
+        events: EventStore,
+        inventory: AuctionInventory,
+      ) => (pool ? new PgCartStore(pool) : new InMemoryCartStore(eventItems, events, inventory)),
     },
   ],
   exports: [CartService],
