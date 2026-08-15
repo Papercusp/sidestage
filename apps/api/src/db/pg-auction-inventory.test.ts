@@ -1,4 +1,7 @@
+import { randomUUID } from 'node:crypto';
+import { Pool } from 'pg';
 import { describe, expect, it, vi } from 'vitest';
+import { DEFAULT_DATABASE_URL } from './database.module';
 import { PgAuctionInventory } from './pg-auction-inventory';
 
 describe('PgAuctionInventory hold lifecycle', () => {
@@ -123,5 +126,115 @@ describe('PgAuctionInventory hold lifecycle', () => {
     await expect(inventory.save('product-1', 1, 1_500)).rejects.toThrow(
       'Quantity cannot be lower than 2 reserved units',
     );
+  });
+});
+
+describe.runIf(process.env.SIDESTAGE_PG_INTEGRATION === '1')('PgAuctionInventory against Postgres', () => {
+  it('onboards idempotent seller-qualified clones while preserving source ownership and options', async () => {
+    const pool = new Pool({ connectionString: process.env.DATABASE_URL ?? DEFAULT_DATABASE_URL, max: 1 });
+    const client = await pool.connect();
+    const suffix = randomUUID();
+    const groupId = `inventory-onboard-group-${suffix}`;
+    const axisId = `inventory-onboard-axis-${suffix}`;
+    const valueId = `inventory-onboard-value-${suffix}`;
+    const sourceProductId = `inventory-onboard-source-${suffix}`;
+    const sellerAlpha = `inventory-onboard-alpha-${suffix}`;
+    const sellerBeta = `inventory-onboard-beta-${suffix}`;
+
+    try {
+      await client.query('BEGIN');
+      await client.query(
+        `INSERT INTO product_catalog (group_id, region, product_type, title)
+         VALUES ($1, 'US', 'KITCHEN', 'Postgres onboarding control')`,
+        [groupId],
+      );
+      await client.query(
+        `INSERT INTO product_option_axes (id, group_id, region, slug, label, position, required)
+         VALUES ($1, $2, 'US', 'finish', 'Finish', 0, true)`,
+        [axisId, groupId],
+      );
+      await client.query(
+        `INSERT INTO product_option_values (id, axis_id, slug, label, position, metadata)
+         VALUES ($1, $2, 'matte', 'Matte', 0, '{"swatch":"#202020"}')`,
+        [valueId, axisId],
+      );
+      await client.query(
+        `INSERT INTO storefront_product
+           (id, slug, region, sku, price_cents, active, group_id, condition, handling,
+            option_signature, variant_images, qty, reserved_qty, seller_id)
+         VALUES ($1, $1, 'US', $2, 3100, true, $3, 'NEW', 2,
+                 'finish=matte', '[{"url":"/control.png","isPrimary":true}]', 7, 0, 'demo-seller')`,
+        [sourceProductId, `ONBOARD-CONTROL-${suffix}`, groupId],
+      );
+      await client.query(
+        `INSERT INTO storefront_product_option (variant_id, axis_id, value_id)
+         VALUES ($1, $2, $3)`,
+        [sourceProductId, axisId, valueId],
+      );
+
+      const inventory = new PgAuctionInventory(client as never);
+      const first = await inventory.onboardOwned(sourceProductId, 3, 2_500, sellerAlpha);
+      const updated = await inventory.onboardOwned(sourceProductId, 5, 2_700, sellerAlpha);
+      const otherSeller = await inventory.onboardOwned(sourceProductId, 2, 2_400, sellerBeta);
+
+      expect(first?.productId).toMatch(/^seller-listing-[a-f0-9]{12}-[a-f0-9]{24}$/);
+      expect(updated).toMatchObject({ productId: first?.productId, qty: 5, priceCents: 2_700 });
+      expect(otherSeller?.productId).not.toBe(first?.productId);
+
+      const listings = await client.query<{
+        id: string;
+        sellerId: string;
+        qty: number;
+        priceCents: number;
+        optionSignature: string;
+        variantImages: Array<{ url: string; isPrimary: boolean }>;
+      }>(
+        `SELECT id, seller_id AS "sellerId", qty, price_cents AS "priceCents",
+                option_signature AS "optionSignature", variant_images AS "variantImages"
+           FROM storefront_product
+          WHERE group_id = $1 AND region = 'US'
+          ORDER BY seller_id`,
+        [groupId],
+      );
+      expect(listings.rows).toHaveLength(3);
+      expect(listings.rows).toEqual(expect.arrayContaining([
+        expect.objectContaining({
+          id: sourceProductId,
+          sellerId: 'demo-seller',
+          qty: 7,
+          priceCents: 3_100,
+          optionSignature: 'finish=matte',
+        }),
+        expect.objectContaining({
+          id: first?.productId,
+          sellerId: sellerAlpha,
+          qty: 5,
+          priceCents: 2_700,
+          variantImages: [{ url: '/control.png', isPrimary: true }],
+        }),
+        expect.objectContaining({
+          id: otherSeller?.productId,
+          sellerId: sellerBeta,
+          qty: 2,
+          priceCents: 2_400,
+        }),
+      ]));
+
+      const copiedOptions = await client.query<{ variantId: string; axisId: string; valueId: string }>(
+        `SELECT variant_id AS "variantId", axis_id AS "axisId", value_id AS "valueId"
+           FROM storefront_product_option
+          WHERE variant_id = ANY($1::text[])
+          ORDER BY variant_id`,
+        [[first?.productId, otherSeller?.productId]],
+      );
+      expect(copiedOptions.rows).toEqual([
+        { variantId: first?.productId, axisId, valueId },
+        { variantId: otherSeller?.productId, axisId, valueId },
+      ].sort((left, right) => String(left.variantId).localeCompare(String(right.variantId))));
+    } finally {
+      await client.query('ROLLBACK');
+      client.release();
+      await pool.end();
+    }
   });
 });
