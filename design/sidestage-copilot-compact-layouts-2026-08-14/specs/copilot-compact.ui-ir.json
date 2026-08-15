@@ -1,0 +1,296 @@
+{
+  "irVersion": "0.1",
+  "surface": "sidestage-studio-copilot-compact-layout-comparison",
+  "ecosystem": "react-tailwind",
+  "layout": {
+    "kind": "stack",
+    "direction": "vertical",
+    "children": [
+      {
+        "kind": "header",
+        "title": {
+          "key": "copilot.compact.title",
+          "default": "Compact the seller review loop"
+        },
+        "slots": {
+          "status": {
+            "kind": "component",
+            "ref": "concept-status"
+          }
+        }
+      },
+      {
+        "kind": "tabs",
+        "label": {
+          "key": "copilot.compact.variants",
+          "default": "Choose a compact-layout concept"
+        },
+        "interactions": [
+          "select"
+        ],
+        "a11y": {
+          "role": "tablist",
+          "ariaLabel": {
+            "key": "copilot.compact.variants.a11y",
+            "default": "Copilot compact-layout concepts"
+          }
+        }
+      },
+      {
+        "kind": "grid",
+        "responsive": {
+          "viewport.narrow": {
+            "kind": "stack"
+          }
+        },
+        "children": [
+          {
+            "kind": "card",
+            "title": {
+              "key": "copilot.compact.stack.title",
+              "default": "Condensed stack"
+            },
+            "slots": {
+              "composer": {
+                "kind": "component",
+                "ref": "research-composer"
+              },
+              "question": {
+                "kind": "text",
+                "copy": {
+                  "key": "copilot.sample.question",
+                  "default": "Is the blue mug still available?"
+                }
+              },
+              "reply": {
+                "kind": "input",
+                "label": {
+                  "key": "copilot.reply.label",
+                  "default": "Seller reply"
+                },
+                "interactions": [
+                  "edit"
+                ],
+                "a11y": {
+                  "role": "textbox",
+                  "ariaLabel": {
+                    "key": "copilot.reply.a11y",
+                    "default": "Edit grounded seller reply"
+                  }
+                }
+              },
+              "evidence": {
+                "kind": "component",
+                "ref": "evidence-banner"
+              },
+              "actions": {
+                "kind": "stack",
+                "direction": "horizontal",
+                "children": [
+                  {
+                    "kind": "component",
+                    "ref": "approve-reply"
+                  },
+                  {
+                    "kind": "component",
+                    "ref": "skip-reply"
+                  }
+                ]
+              }
+            }
+          },
+          {
+            "kind": "card",
+            "title": {
+              "key": "copilot.compact.inspector.title",
+              "default": "Queue and inspector"
+            },
+            "slots": {
+              "queue": {
+                "kind": "list",
+                "binding": {
+                  "slot": "copilotProposals",
+                  "repeats": true,
+                  "shape": "CopilotProposal"
+                },
+                "item": {
+                  "kind": "text",
+                  "copy": {
+                    "key": "copilot.queue.item",
+                    "default": "Buyer question and proposal state"
+                  }
+                }
+              },
+              "inspector": {
+                "kind": "stack",
+                "direction": "vertical",
+                "children": [
+                  {
+                    "kind": "input",
+                    "label": {
+                      "key": "copilot.inspector.reply",
+                      "default": "Edit grounded reply"
+                    },
+                    "interactions": [
+                      "edit"
+                    ],
+                    "a11y": {
+                      "role": "textbox",
+                      "ariaLabel": {
+                        "key": "copilot.inspector.reply.a11y",
+                        "default": "Edit the selected grounded seller reply"
+                      }
+                    }
+                  },
+                  {
+                    "kind": "component",
+                    "ref": "confirm-guarded-action"
+                  }
+                ]
+              }
+            }
+          },
+          {
+            "kind": "card",
+            "title": {
+              "key": "copilot.compact.triage.title",
+              "default": "Triage accordion"
+            },
+            "slots": {
+              "rows": {
+                "kind": "list",
+                "binding": {
+                  "slot": "copilotProposals",
+                  "repeats": true,
+                  "shape": "CopilotProposal"
+                },
+                "item": {
+                  "kind": "button",
+                  "label": {
+                    "key": "copilot.triage.row",
+                    "default": "Expand buyer proposal"
+                  },
+                  "interactions": [
+                    "select"
+                  ],
+                  "a11y": {
+                    "role": "button"
+                  }
+                }
+              },
+              "expandedReview": {
+                "kind": "stack",
+                "direction": "vertical",
+                "children": [
+                  {
+                    "kind": "component",
+                    "ref": "evidence-banner"
+                  },
+                  {
+                    "kind": "component",
+                    "ref": "approve-reply"
+                  }
+                ]
+              }
+            }
+          }
+        ]
+      }
+    ]
+  },
+  "components": [
+    {
+      "id": "concept-status",
+      "registry": "feedback.banner",
+      "props": {
+        "tone": "info",
+        "message": "Isolated design checkpoint — product implementation is unchanged"
+      }
+    },
+    {
+      "id": "research-composer",
+      "registry": "action.primary",
+      "props": {
+        "label": "Prepare"
+      }
+    },
+    {
+      "id": "evidence-banner",
+      "registry": "feedback.banner",
+      "props": {
+        "tone": "success",
+        "message": "Grounded by Blue mug live event listing"
+      }
+    },
+    {
+      "id": "approve-reply",
+      "registry": "action.primary",
+      "props": {
+        "label": "Approve reply"
+      }
+    },
+    {
+      "id": "skip-reply",
+      "registry": "action.secondary",
+      "props": {
+        "label": "Skip"
+      }
+    },
+    {
+      "id": "confirm-guarded-action",
+      "registry": "action.secondary",
+      "props": {
+        "label": "Confirm action"
+      }
+    }
+  ],
+  "states": {
+    "loading": {
+      "kind": "spinner",
+      "label": {
+        "key": "copilot.loading",
+        "default": "Loading grounded proposals"
+      },
+      "a11y": {
+        "role": "status",
+        "ariaLive": "polite"
+      }
+    },
+    "empty": {
+      "kind": "text",
+      "copy": {
+        "key": "copilot.empty",
+        "default": "Buyer questions will appear here for seller review."
+      }
+    },
+    "error": {
+      "kind": "stack",
+      "children": [
+        {
+          "kind": "text",
+          "copy": {
+            "key": "copilot.error",
+            "default": "Unable to load proposals."
+          }
+        },
+        {
+          "kind": "button",
+          "label": {
+            "key": "copilot.retry",
+            "default": "Try again"
+          },
+          "interactions": [
+            "retry"
+          ],
+          "a11y": {
+            "role": "button"
+          }
+        }
+      ]
+    }
+  },
+  "a11y": {
+    "landmark": "main",
+    "headingLevel": 1
+  }
+}

@@ -1,5 +1,6 @@
 import { type KeyboardEvent, useEffect, useRef, useState } from 'react';
 import { CopilotPanel } from './CopilotPanel';
+import { ActiveEventInventoryPanel } from './ActiveEventInventoryPanel';
 import type { SellerDockPanelContextValue } from './seller-dock-panel-props';
 import { RunOfShowPanel } from './seller/RunOfShowPanel';
 import { StageStatusPanel } from './seller/StageStatusPanel';
@@ -9,6 +10,7 @@ export const STUDIO_MOBILE_MEDIA_QUERY = '(max-width: 760px)';
 export const STUDIO_MOBILE_MODES = [
   { id: 'stage', label: 'Stage' },
   { id: 'lineup', label: 'Lineup' },
+  { id: 'inventory', label: 'Inventory' },
   { id: 'copilot', label: 'Copilot' },
 ] as const;
 
@@ -81,6 +83,7 @@ export function SellerMobileStudio({ panels }: { panels: SellerDockPanelContextV
       >
         {mode === 'stage' ? <StageStatusPanel {...panels['stage-status']} /> : null}
         {mode === 'lineup' ? <RunOfShowPanel {...panels['run-of-show']} /> : null}
+        {mode === 'inventory' ? <ActiveEventInventoryPanel {...panels.inventory} /> : null}
         {mode === 'copilot' ? <CopilotPanel {...panels.copilot} /> : null}
       </section>
 

@@ -12,6 +12,14 @@ export type PayableOrderPaymentState =
   | 'cancelled'
   | 'expired';
 export type CheckoutOrderStatus = 'pending' | 'paid' | 'failed';
+export type EventCartCommitmentState = 'active' | 'released' | 'committed';
+
+export interface EventCartSourceCommitment {
+  kind: 'event-cart';
+  state: EventCartCommitmentState;
+  /** Exact cart aggregate revision authorized when this payment attempt began. */
+  revision: string;
+}
 
 export interface OrderStore {
   get(id: string): Promise<CheckoutOrder | undefined>;
@@ -43,6 +51,7 @@ export interface CheckoutOrder {
   createdAt: string;
   items: Cart['items'];
   cartUpdatedAt?: string;
+  sourceCommitment?: EventCartSourceCommitment;
   shippingAddress?: import('../shipping/shipping.service').NormalizedShippingAddress;
   selectedShippingRate?: import('../shipping/shipping.service').AggregatedRate;
   sourceSnapshot?: Record<string, unknown>;
@@ -55,6 +64,7 @@ export function cloneCheckoutOrder(order: CheckoutOrder): CheckoutOrder {
     shippingAddress: order.shippingAddress ? { ...order.shippingAddress } : undefined,
     selectedShippingRate: order.selectedShippingRate ? { ...order.selectedShippingRate } : undefined,
     sourceSnapshot: order.sourceSnapshot ? { ...order.sourceSnapshot } : undefined,
+    sourceCommitment: order.sourceCommitment ? { ...order.sourceCommitment } : undefined,
   };
 }
 

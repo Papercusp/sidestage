@@ -1,0 +1,525 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Three compact-layout concepts for the SideStage Studio Copilot pane.">
+  <title>Compact Copilot layouts — SideStage design checkpoint</title>
+  <link rel="stylesheet" href="../../sidestage-page-redesign-2026-08-14/mockups/shared.css">
+  <link rel="stylesheet" href="copilot-compact.css">
+</head>
+<body>
+  <a class="skip-link" href="#comparison">Skip to compact-layout comparison</a>
+
+  <header class="app-header">
+    <div class="app-header-inner">
+      <a class="brand" href="#comparison" aria-label="SideStage compact Copilot concepts">
+        <span class="brand-mark" aria-hidden="true">S</span>
+        <span class="brand-copy"><strong>SideStage</strong><small>Live commerce</small></span>
+      </a>
+      <nav class="primary-nav" aria-label="SideStage preview navigation">
+        <span class="nav-cluster">
+          <a class="nav-link" href="#comparison">Watch</a>
+          <a class="nav-link" href="#comparison">Orders</a>
+        </span>
+        <span class="nav-cluster">
+          <a class="nav-link" aria-current="page" href="#comparison">Studio</a>
+          <a class="nav-link" href="#comparison">History</a>
+          <a class="nav-link" href="#comparison">Tests</a>
+        </span>
+      </nav>
+      <div class="header-actions">
+        <span class="badge">Design checkpoint</span>
+        <span class="avatar" aria-label="Demo seller Maya Chen">MC</span>
+      </div>
+    </div>
+  </header>
+
+  <main class="comparison-shell" id="comparison">
+    <header class="comparison-head">
+      <div>
+        <span class="page-kicker">Studio / Copilot / compactness study</span>
+        <h1>Three ways to shorten the seller review loop.</h1>
+        <p>
+          Every direction preserves the current research composer, editable grounded reply,
+          evidence, guarded action, and seller approval controls. Only hierarchy and density
+          change; production code remains untouched.
+        </p>
+      </div>
+      <aside class="checkpoint-note" aria-label="Design checkpoint status">
+        <strong>Mockup only</strong>
+        <span>Choose a direction before any implementation begins.</span>
+      </aside>
+    </header>
+
+    <div class="concept-switcher-wrap">
+      <span class="concept-switcher-label">Compare direction</span>
+      <div class="concept-switcher" role="tablist" aria-label="Compact Copilot layout concepts">
+        <button
+          class="concept-tab"
+          id="tab-stack"
+          type="button"
+          role="tab"
+          aria-selected="true"
+          aria-controls="concept-stack"
+          data-concept-target="stack"
+        >1 · Condensed stack</button>
+        <button
+          class="concept-tab"
+          id="tab-split"
+          type="button"
+          role="tab"
+          aria-selected="false"
+          aria-controls="concept-split"
+          tabindex="-1"
+          data-concept-target="split"
+        >2 · Queue + inspector</button>
+        <button
+          class="concept-tab"
+          id="tab-triage"
+          type="button"
+          role="tab"
+          aria-selected="false"
+          aria-controls="concept-triage"
+          tabindex="-1"
+          data-concept-target="triage"
+        >3 · Triage accordion</button>
+      </div>
+    </div>
+
+    <section
+      class="concept-panel"
+      id="concept-stack"
+      role="tabpanel"
+      aria-labelledby="tab-stack"
+      data-concept="stack"
+    >
+      <div class="concept-layout">
+        <div class="preview-card">
+          <div class="preview-context">
+            <div class="preview-breadcrumbs" aria-label="Preview context">
+              <span>Studio</span><span>Active Event</span><strong>Sunday vintage drop</strong>
+            </div>
+            <span class="preview-status">Preview ready</span>
+          </div>
+          <div class="dock-tabs" aria-label="Dock panel chrome">
+            <span class="dock-tab active">Copilot <span class="dock-close" aria-hidden="true">×</span></span>
+            <span class="dock-spacer"></span>
+            <span class="dock-hint">Resizable dock panel</span>
+          </div>
+          <div class="copilot-canvas">
+            <div class="stack-panel-head">
+              <div class="stack-panel-title">
+                <p class="compact-kicker">Grounded seller copilot</p>
+                <h2>Review queue</h2>
+              </div>
+              <span class="pending-pill" role="status">1 pending</span>
+            </div>
+
+            <form class="stack-composer" action="#" data-demo-form>
+              <label class="sr-only" for="stack-research">Research a buyer question</label>
+              <input class="compact-input" id="stack-research" placeholder="Ask using live event facts" autocomplete="off">
+              <button class="compact-button primary" type="submit">Prepare</button>
+            </form>
+
+            <article class="stack-review" aria-labelledby="stack-question">
+              <header class="stack-review-head">
+                <div class="question-line">
+                  <div class="question-meta"><strong>Maya</strong><span>Buyer question</span><span>12s ago</span></div>
+                  <strong id="stack-question">Is the blue mug still available?</strong>
+                </div>
+                <span class="pending-pill">Pending review</span>
+              </header>
+
+              <label class="editor-label" for="stack-reply">
+                Seller reply
+                <textarea class="compact-textarea" id="stack-reply">Yes — the verified live listing has five blue mugs available.</textarea>
+              </label>
+
+              <div class="stack-detail-grid">
+                <div class="evidence-well">
+                  <span class="well-label">Verified grounding</span>
+                  <div class="evidence-line">
+                    <span class="source-chip">Blue mug live event listing</span>
+                    <span class="latency-chip">184ms · within budget</span>
+                    <span class="evidence-copy">2 cited facts</span>
+                  </div>
+                </div>
+                <div class="action-well">
+                  <div class="action-well-copy">
+                    <span class="well-label">Guarded action</span>
+                    <strong>Targeted offer · $12.00</strong>
+                    <small>Seller-confirmed live offer</small>
+                  </div>
+                  <button class="compact-button" type="button">Confirm</button>
+                </div>
+              </div>
+
+              <footer class="review-footer">
+                <span class="review-footer-note">Evidence remains visible</span>
+                <div class="review-footer-actions">
+                  <button class="compact-button ghost" type="button">Skip</button>
+                  <button class="compact-button primary" type="button">Approve reply</button>
+                </div>
+              </footer>
+            </article>
+          </div>
+        </div>
+
+        <aside class="decision-card" aria-labelledby="stack-decision-title">
+          <span class="eyebrow">Decision lens</span>
+          <h2 id="stack-decision-title">Condensed stack</h2>
+          <p>The safest compression: preserve today’s reading order and remove the nested-card spaciousness.</p>
+          <span class="direction-tag">Lowest implementation risk</span>
+          <dl class="decision-list">
+            <div><dt>Best when</dt><dd>One proposal is usually reviewed at a time.</dd></div>
+            <div><dt>What changes</dt><dd>One-line header, shallow composer, inline evidence and action wells.</dd></div>
+            <div><dt>Trade-off</dt><dd>Multiple proposals still create a long vertical queue.</dd></div>
+          </dl>
+        </aside>
+      </div>
+    </section>
+
+    <section
+      class="concept-panel"
+      id="concept-split"
+      role="tabpanel"
+      aria-labelledby="tab-split"
+      data-concept="split"
+      hidden
+    >
+      <div class="concept-layout">
+        <div class="preview-card">
+          <div class="preview-context">
+            <div class="preview-breadcrumbs" aria-label="Preview context">
+              <span>Studio</span><span>Active Event</span><strong>Sunday vintage drop</strong>
+            </div>
+            <span class="preview-status">Preview ready</span>
+          </div>
+          <div class="dock-tabs" aria-label="Dock panel chrome">
+            <span class="dock-tab active">Copilot <span class="dock-close" aria-hidden="true">×</span></span>
+            <span class="dock-spacer"></span>
+            <span class="dock-hint">Resizable dock panel</span>
+          </div>
+          <div class="split-shell">
+            <div class="split-toolbar">
+              <div class="split-toolbar-title">
+                <p class="compact-kicker">Copilot</p>
+                <span class="pending-pill">2 pending</span>
+              </div>
+              <form class="split-composer" action="#" data-demo-form>
+                <label class="sr-only" for="split-research">Research a buyer question</label>
+                <input class="compact-input" id="split-research" placeholder="Ask using live event facts" autocomplete="off">
+                <button class="compact-button primary" type="submit">Prepare</button>
+              </form>
+            </div>
+
+            <div class="split-workspace">
+              <aside class="proposal-queue" aria-label="Copilot proposal queue">
+                <div class="queue-head"><strong>Queue</strong><span>3 proposals</span></div>
+                <div class="queue-list">
+                  <button class="queue-item" type="button" aria-pressed="true">
+                    <span class="queue-item-copy"><strong>Maya</strong><span>Is the blue mug still available?</span></span>
+                    <span class="queue-time">12s</span>
+                    <span class="state-pill queue-state">Pending</span>
+                  </button>
+                  <button class="queue-item" type="button" aria-pressed="false">
+                    <span class="queue-item-copy"><strong>Diego</strong><span>Can you ship this to Toronto?</span></span>
+                    <span class="queue-time">31s</span>
+                    <span class="state-pill queue-state">Pending</span>
+                  </button>
+                  <button class="queue-item" type="button" aria-pressed="false">
+                    <span class="queue-item-copy"><strong>Nora</strong><span>Is the glaze food safe?</span></span>
+                    <span class="queue-time">1m</span>
+                    <span class="state-pill blocked queue-state">Blocked</span>
+                  </button>
+                </div>
+              </aside>
+
+              <article class="review-inspector" aria-labelledby="inspector-question">
+                <header class="inspector-head">
+                  <div>
+                    <div class="question-meta"><strong>Maya</strong><span>Buyer question</span><span>12s ago</span></div>
+                    <h2 id="inspector-question">Is the blue mug still available?</h2>
+                  </div>
+                  <span class="pending-pill">Pending review</span>
+                </header>
+
+                <label class="editor-label" for="split-reply">
+                  Seller reply
+                  <textarea class="compact-textarea" id="split-reply">Yes — the verified live listing has five blue mugs available.</textarea>
+                </label>
+
+                <div class="inspector-meta" aria-label="Grounding summary">
+                  <span class="source-chip">Blue mug live event listing</span>
+                  <span class="latency-chip">184ms · within budget</span>
+                </div>
+
+                <div class="inspector-lower">
+                  <div class="inspector-evidence">
+                    <span class="well-label">Why this answer is grounded</span>
+                    <div class="evidence-line">
+                      <span class="source-chip">Live listing</span>
+                      <span class="source-chip">Inventory count</span>
+                    </div>
+                    <span class="evidence-copy">Both sources were refreshed for this proposal.</span>
+                  </div>
+                  <div class="inspector-action">
+                    <span class="well-label">Guarded action</span>
+                    <strong>Targeted offer · $12.00</strong>
+                    <p>Seller-confirmed live offer for one blue mug.</p>
+                    <button class="compact-button full" type="button">Confirm action</button>
+                  </div>
+                </div>
+
+                <footer class="review-footer">
+                  <span class="review-footer-note">Selection stays in the queue</span>
+                  <div class="review-footer-actions">
+                    <button class="compact-button ghost" type="button">Skip</button>
+                    <button class="compact-button primary" type="button">Approve reply</button>
+                  </div>
+                </footer>
+              </article>
+            </div>
+          </div>
+        </div>
+
+        <aside class="decision-card" aria-labelledby="split-decision-title">
+          <span class="eyebrow">Decision lens</span>
+          <h2 id="split-decision-title">Queue + inspector</h2>
+          <p>Use dock width as working memory: scan incoming questions without collapsing the reply currently being edited.</p>
+          <span class="direction-tag">Best balanced workflow</span>
+          <dl class="decision-list">
+            <div><dt>Best when</dt><dd>Several questions arrive while one reply is under review.</dd></div>
+            <div><dt>What changes</dt><dd>A persistent queue rail drives one focused review inspector.</dd></div>
+            <div><dt>Trade-off</dt><dd>Needs a clean stacked fallback when the dock becomes narrow.</dd></div>
+          </dl>
+        </aside>
+      </div>
+    </section>
+
+    <section
+      class="concept-panel"
+      id="concept-triage"
+      role="tabpanel"
+      aria-labelledby="tab-triage"
+      data-concept="triage"
+      hidden
+    >
+      <div class="concept-layout">
+        <div class="preview-card">
+          <div class="preview-context">
+            <div class="preview-breadcrumbs" aria-label="Preview context">
+              <span>Studio</span><span>Active Event</span><strong>Sunday vintage drop</strong>
+            </div>
+            <span class="preview-status">Preview ready</span>
+          </div>
+          <div class="dock-tabs" aria-label="Dock panel chrome">
+            <span class="dock-tab active">Copilot <span class="dock-close" aria-hidden="true">×</span></span>
+            <span class="dock-spacer"></span>
+            <span class="dock-hint">Resizable dock panel</span>
+          </div>
+          <div class="copilot-canvas">
+            <div class="triage-shell">
+              <div class="triage-toolbar">
+                <div>
+                  <p class="compact-kicker">Grounded seller copilot</p>
+                  <h2>Fast triage</h2>
+                </div>
+                <form class="triage-composer" action="#" data-demo-form>
+                  <label class="sr-only" for="triage-research">Research a buyer question</label>
+                  <input class="compact-input" id="triage-research" placeholder="Ask using live event facts" autocomplete="off">
+                  <button class="compact-button primary" type="submit">Prepare</button>
+                </form>
+              </div>
+
+              <div class="triage-list" aria-label="Copilot proposal triage">
+                <article class="triage-row">
+                  <button
+                    class="triage-summary"
+                    id="triage-trigger-maya"
+                    type="button"
+                    aria-expanded="true"
+                    aria-controls="triage-detail-maya"
+                    data-triage-trigger
+                  >
+                    <span class="triage-caret" aria-hidden="true">⌄</span>
+                    <span class="triage-buyer"><strong>Maya</strong><span>12s ago</span></span>
+                    <span class="triage-question">Is the blue mug still available?</span>
+                    <span class="triage-sources">2 verified facts</span>
+                    <span class="state-pill">Pending</span>
+                  </button>
+                  <div class="triage-detail" id="triage-detail-maya" aria-labelledby="triage-trigger-maya">
+                    <label class="editor-label" for="triage-reply-maya">
+                      Seller reply
+                      <textarea class="compact-textarea" id="triage-reply-maya">Yes — the verified live listing has five blue mugs available.</textarea>
+                    </label>
+                    <div class="triage-side">
+                      <div class="triage-evidence">
+                        <span class="source-chip">Blue mug live listing</span>
+                        <span class="latency-chip">184ms</span>
+                      </div>
+                      <div class="triage-action">
+                        <span class="well-label">Guarded action</span>
+                        <strong>Targeted offer · $12.00</strong>
+                        <small>Seller-confirmed live offer</small>
+                        <button class="compact-button full" type="button">Confirm action</button>
+                      </div>
+                      <div class="triage-actions">
+                        <button class="compact-button ghost" type="button">Skip</button>
+                        <button class="compact-button primary" type="button">Approve reply</button>
+                      </div>
+                    </div>
+                  </div>
+                </article>
+
+                <article class="triage-row">
+                  <button
+                    class="triage-summary"
+                    id="triage-trigger-diego"
+                    type="button"
+                    aria-expanded="false"
+                    aria-controls="triage-detail-diego"
+                    data-triage-trigger
+                  >
+                    <span class="triage-caret" aria-hidden="true">⌄</span>
+                    <span class="triage-buyer"><strong>Diego</strong><span>31s ago</span></span>
+                    <span class="triage-question">Can you ship this to Toronto?</span>
+                    <span class="triage-sources">Policy + catalog</span>
+                    <span class="state-pill">Pending</span>
+                  </button>
+                  <div class="triage-detail" id="triage-detail-diego" aria-labelledby="triage-trigger-diego" hidden>
+                    <label class="editor-label" for="triage-reply-diego">
+                      Seller reply
+                      <textarea class="compact-textarea" id="triage-reply-diego">Yes — the verified shipping policy includes Toronto delivery.</textarea>
+                    </label>
+                    <div class="triage-side">
+                      <div class="triage-evidence"><span class="source-chip">Shipping policy</span><span class="source-chip">Live item</span></div>
+                      <div class="triage-actions"><button class="compact-button ghost" type="button">Skip</button><button class="compact-button primary" type="button">Approve reply</button></div>
+                    </div>
+                  </div>
+                </article>
+
+                <article class="triage-row">
+                  <button
+                    class="triage-summary"
+                    id="triage-trigger-nora"
+                    type="button"
+                    aria-expanded="false"
+                    aria-controls="triage-detail-nora"
+                    data-triage-trigger
+                  >
+                    <span class="triage-caret" aria-hidden="true">⌄</span>
+                    <span class="triage-buyer"><strong>Nora</strong><span>1m ago</span></span>
+                    <span class="triage-question">Is the glaze food safe?</span>
+                    <span class="triage-sources">Citation missing</span>
+                    <span class="state-pill blocked">Blocked</span>
+                  </button>
+                  <div class="triage-detail" id="triage-detail-nora" aria-labelledby="triage-trigger-nora" hidden>
+                    <div class="banner warning">
+                      <span class="banner-mark" aria-hidden="true">!</span>
+                      <div><strong>Verified fact required</strong><p>The current catalog does not establish food-safety certification.</p></div>
+                    </div>
+                    <div class="triage-side">
+                      <span class="evidence-copy">Review controls stay unavailable until a source is verified.</span>
+                      <button class="compact-button" type="button">Open catalog record</button>
+                    </div>
+                  </div>
+                </article>
+
+                <article class="triage-row">
+                  <button
+                    class="triage-summary"
+                    id="triage-trigger-eli"
+                    type="button"
+                    aria-expanded="false"
+                    aria-controls="triage-detail-eli"
+                    data-triage-trigger
+                  >
+                    <span class="triage-caret" aria-hidden="true">⌄</span>
+                    <span class="triage-buyer"><strong>Eli</strong><span>2m ago</span></span>
+                    <span class="triage-question">Could you hold one while I check out?</span>
+                    <span class="triage-sources">Inventory + policy</span>
+                    <span class="state-pill approved">Approved</span>
+                  </button>
+                  <div class="triage-detail" id="triage-detail-eli" aria-labelledby="triage-trigger-eli" hidden>
+                    <p class="review-footer-note">Reply sent to live event chat with an audit record.</p>
+                    <div class="triage-side"><button class="compact-button" type="button">View audit</button></div>
+                  </div>
+                </article>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <aside class="decision-card" aria-labelledby="triage-decision-title">
+          <span class="eyebrow">Decision lens</span>
+          <h2 id="triage-decision-title">Triage accordion</h2>
+          <p>Make queue state the dominant visual layer and spend height only on the proposal being reviewed.</p>
+          <span class="direction-tag">Highest queue density</span>
+          <dl class="decision-list">
+            <div><dt>Best when</dt><dd>Proposal volume is high and scan speed matters most.</dd></div>
+            <div><dt>What changes</dt><dd>Every proposal becomes a compact summary row; one row expands in place.</dd></div>
+            <div><dt>Trade-off</dt><dd>Opening and closing rows adds one interaction to detailed review.</dd></div>
+          </dl>
+        </aside>
+      </div>
+    </section>
+
+    <footer class="comparison-footer">
+      <span>SideStage Studio Copilot compact-layout checkpoint · 2026-08-14</span>
+      <a href="../README.md">Read the preserved-functionality and registry notes</a>
+    </footer>
+  </main>
+
+  <script>
+    const conceptTabs = Array.from(document.querySelectorAll('[data-concept-target]'));
+    const conceptPanels = Array.from(document.querySelectorAll('[data-concept]'));
+
+    function activateConcept(nextTab, moveFocus = false) {
+      const target = nextTab.dataset.conceptTarget;
+      conceptTabs.forEach((tab) => {
+        const selected = tab === nextTab;
+        tab.setAttribute('aria-selected', String(selected));
+        tab.tabIndex = selected ? 0 : -1;
+      });
+      conceptPanels.forEach((panel) => {
+        panel.hidden = panel.dataset.concept !== target;
+      });
+      if (moveFocus) nextTab.focus();
+      history.replaceState(null, '', `#${target}`);
+    }
+
+    conceptTabs.forEach((tab, index) => {
+      tab.addEventListener('click', () => activateConcept(tab));
+      tab.addEventListener('keydown', (event) => {
+        if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;
+        event.preventDefault();
+        let nextIndex = index;
+        if (event.key === 'ArrowLeft') nextIndex = (index - 1 + conceptTabs.length) % conceptTabs.length;
+        if (event.key === 'ArrowRight') nextIndex = (index + 1) % conceptTabs.length;
+        if (event.key === 'Home') nextIndex = 0;
+        if (event.key === 'End') nextIndex = conceptTabs.length - 1;
+        activateConcept(conceptTabs[nextIndex], true);
+      });
+    });
+
+    document.querySelectorAll('[data-triage-trigger]').forEach((trigger) => {
+      trigger.addEventListener('click', () => {
+        const detail = document.getElementById(trigger.getAttribute('aria-controls'));
+        const expanded = trigger.getAttribute('aria-expanded') === 'true';
+        trigger.setAttribute('aria-expanded', String(!expanded));
+        detail.hidden = expanded;
+      });
+    });
+
+    document.querySelectorAll('[data-demo-form]').forEach((form) => {
+      form.addEventListener('submit', (event) => event.preventDefault());
+    });
+
+    const initialConcept = location.hash.slice(1);
+    const initialTab = conceptTabs.find((tab) => tab.dataset.conceptTarget === initialConcept);
+    if (initialTab) activateConcept(initialTab);
+  </script>
+</body>
+</html>
