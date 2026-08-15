@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { FormEvent } from 'react';
-import { useSyncMutate, useSyncPrincipal, useSyncQuery } from '@papercusp/sync';
+import { DEMO_PRINCIPAL_HEADER, useSyncMutate, useSyncPrincipal, useSyncQuery } from '@papercusp/sync';
 import { requestChatJson } from './chat-api';
 import { sellerPrivateRequestHeaders } from './events/api';
 import { MESSAGE_IMPORTANCE_ORDER, triageMessages, type MessageImportance, type TriagedMessage } from './message-triage';
@@ -147,24 +147,24 @@ function EventChatSurface({
   const touchPresenceFallback = useCallback((input: EventChatPresenceInput) => (
     requestChatJson<EventChatPresence>(`${apiOrigin}/chat/events/${encodeURIComponent(eventId)}/presence`, {
       method: 'POST',
-      headers: input.role === 'seller' ? sellerPrivateRequestHeaders(principal) : undefined,
+      headers: { [DEMO_PRINCIPAL_HEADER]: principal },
       body: JSON.stringify(input),
     })
   ), [apiOrigin, eventId, principal]);
-  const leavePresenceFallback = useCallback(({ userId: leavingUserId }: { userId: string }) => (
+  const leavePresenceFallback = useCallback(({ role: leavingRole }: { role: EventChatRole }) => (
     requestChatJson<{ ok: true }>(
-      `${apiOrigin}/chat/events/${encodeURIComponent(eventId)}/presence/${encodeURIComponent(leavingUserId)}`,
+      `${apiOrigin}/chat/events/${encodeURIComponent(eventId)}/presence/${leavingRole}`,
       {
         method: 'DELETE',
-        headers: role === 'seller' ? sellerPrivateRequestHeaders(principal) : undefined,
+        headers: { [DEMO_PRINCIPAL_HEADER]: principal },
       },
     )
-  ), [apiOrigin, eventId, principal, role]);
+  ), [apiOrigin, eventId, principal]);
   const touchPresence = useSyncMutate<EventChatPresenceInput, EventChatPresence>(
     'chat.touchPresence',
     touchPresenceFallback,
   );
-  const leavePresence = useSyncMutate<{ userId: string }, { ok: true }>(
+  const leavePresence = useSyncMutate<{ role: EventChatRole }, { ok: true }>(
     'chat.leavePresence',
     leavePresenceFallback,
   );
@@ -189,7 +189,7 @@ function EventChatSurface({
     return () => {
       stopped = true;
       if (timer) clearTimeout(timer);
-      void leavePresence({ userId }).catch(() => undefined);
+      void leavePresence({ role }).catch(() => undefined);
     };
   }, [displayName, eventId, leavePresence, role, touchPresence, userId]);
 

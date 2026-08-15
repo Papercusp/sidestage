@@ -247,17 +247,29 @@ describe('EventChat', () => {
     (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
     const container = document.createElement('div');
     const root = createRoot(container);
+    const syncValue = {
+      transport: 'POLLING' as const,
+      principal: 'demo-1',
+      useDataImpl: () => ({
+        data: [], loading: false, fetching: false, transport: 'POLLING' as const,
+        invalidate: vi.fn(), error: null,
+      }),
+      prefetch: vi.fn(),
+      mutate: null,
+    };
 
     try {
       await act(async () => {
         root.render(
-          <EventChat
-            eventId="sunday drop"
-            role="buyer"
-            userId="buyer/1"
-            displayName="Maya"
-            apiBaseUrl="https://sidestage.example/"
-          />,
+          <SyncContext.Provider value={syncValue}>
+            <EventChat
+              eventId="sunday drop"
+              role="buyer"
+              userId="buyer-demo-1"
+              displayName="Maya"
+              apiBaseUrl="https://sidestage.example/"
+            />
+          </SyncContext.Provider>,
         );
         await Promise.resolve();
         await Promise.resolve();
@@ -268,8 +280,9 @@ describe('EventChat', () => {
         init: { method: 'POST' },
       });
       expect(JSON.parse(String(calls[0]?.init?.body))).toEqual({
-        userId: 'buyer/1', displayName: 'Maya', role: 'buyer',
+        userId: 'buyer-demo-1', displayName: 'Maya', role: 'buyer',
       });
+      expect(new Headers(calls[0]?.init?.headers).get('x-demo-principal')).toBe('demo-1');
 
       await act(async () => {
         root.unmount();
@@ -277,9 +290,10 @@ describe('EventChat', () => {
         await Promise.resolve();
       });
       expect(calls.at(-1)).toMatchObject({
-        url: 'https://sidestage.example/chat/events/sunday%20drop/presence/buyer%2F1',
+        url: 'https://sidestage.example/chat/events/sunday%20drop/presence/buyer',
         init: { method: 'DELETE' },
       });
+      expect(new Headers(calls.at(-1)?.init?.headers).get('x-demo-principal')).toBe('demo-1');
     } finally {
       vi.unstubAllGlobals();
       delete (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT;
@@ -341,6 +355,7 @@ describe('EventChat', () => {
         await Promise.resolve();
       });
       const leave = calls.find((call) => call.init?.method === 'DELETE');
+      expect(leave?.url).toBe('https://sidestage.example/chat/events/sunday-drop/presence/seller');
       expect(new Headers(leave?.init?.headers).has('authorization')).toBe(false);
       expect(new Headers(leave?.init?.headers).get('x-demo-principal')).toBe('demo-1');
     } finally {

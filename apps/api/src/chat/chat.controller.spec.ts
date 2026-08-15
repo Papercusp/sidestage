@@ -145,4 +145,79 @@ describe('ChatController', () => {
       '127.0.0.1',
     )).resolves.toMatchObject({ userId: 'seller-demo', role: 'seller' });
   });
+
+  it('derives presence identity from the caller and rejects client-selected leave targets', async () => {
+    const service = new ChatService();
+    const controller = new ChatController(
+      service,
+      {} as ConfiguredProductFocusClassifier,
+      new AuctionAccessService(),
+      ownership(service),
+    );
+
+    await expect(controller.joinPresence(
+      'demo-event',
+      { userId: 'buyer-two', displayName: 'Buyer one', role: 'buyer' },
+      { 'x-demo-principal': 'demo-one' },
+      '127.0.0.1',
+    )).resolves.toMatchObject({ userId: 'buyer-demo-one', role: 'buyer' });
+    await controller.joinPresence(
+      'demo-event',
+      { userId: 'forged', displayName: 'Buyer two', role: 'buyer' },
+      { 'x-demo-principal': 'demo-two' },
+      '127.0.0.2',
+    );
+
+    await expect(controller.leavePresence(
+      'demo-event',
+      'buyer-two',
+      { 'x-demo-principal': 'demo-one' },
+      '127.0.0.1',
+    )).rejects.toThrow('Presence role must be buyer or seller.');
+    expect(await service.getPresence('demo-event')).toEqual([
+      expect.objectContaining({ userId: 'buyer-demo-one' }),
+      expect.objectContaining({ userId: 'buyer-demo-two' }),
+    ]);
+
+    await expect(controller.leavePresence(
+      'demo-event',
+      'buyer',
+      { 'x-demo-principal': 'demo-one' },
+      '127.0.0.1',
+    )).resolves.toEqual({ ok: true });
+    expect(await service.getPresence('demo-event')).toEqual([
+      expect.objectContaining({ userId: 'buyer-demo-two' }),
+    ]);
+  });
+
+  it('owner-checks seller presence and requires a principal for every leave', async () => {
+    const service = new ChatService();
+    const controller = new ChatController(
+      service,
+      {} as ConfiguredProductFocusClassifier,
+      new AuctionAccessService(),
+      ownership(service),
+    );
+
+    await expect(controller.joinPresence(
+      'demo-event',
+      { userId: 'forged', displayName: 'Host', role: 'seller' },
+      { 'x-demo-principal': 'demo' },
+      '127.0.0.1',
+    )).resolves.toMatchObject({ userId: 'seller-demo', role: 'seller' });
+    await expect(controller.leavePresence(
+      'demo-event',
+      'seller',
+      { 'x-demo-principal': 'seller-other' },
+      '127.0.0.2',
+    )).rejects.toThrow('Event not found for this seller.');
+    await expect(controller.leavePresence('demo-event', 'seller', {}, '127.0.0.2'))
+      .rejects.toThrow('x-demo-principal is required for chat presence.');
+    await expect(controller.leavePresence(
+      'demo-event',
+      'seller',
+      { 'x-demo-principal': 'demo' },
+      '127.0.0.1',
+    )).resolves.toEqual({ ok: true });
+  });
 });

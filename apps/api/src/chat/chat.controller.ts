@@ -1,8 +1,8 @@
-import { Body, Controller, Delete, Get, Headers, Inject, Ip, Logger, NotFoundException, Param, Post, Query } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Delete, Get, Headers, Inject, Ip, Logger, NotFoundException, Param, Post, Query, UnauthorizedException } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
 import { AuctionAccessService, auctionHeader } from '../auction/auction-access.service';
 import { EventOwnershipGuard } from '../events/event-ownership.guard';
-import { DEMO_PRINCIPAL_HEADER } from '../sync/sync-request-context';
+import { DEMO_PRINCIPAL_HEADER, rolePrincipal, type DemoPrincipalRole } from '../sync/sync-request-context';
 import { ChatService, type ChatMessageInput, type PresenceInput, type TranscriptMomentInput } from './chat.service';
 import { ConfiguredProductFocusClassifier } from './product-focus.classifier';
 
@@ -64,21 +64,24 @@ export class ChatController {
   @Post('chat/events/:eventId/presence')
   async joinPresence(@Param('eventId') eventId: string, @Body() body: PresenceInput, @Headers() headers: HeadersMap, @Ip() ip: string) {
     this.access.assertPayloadSize(body, 1_024);
-    const seller = body?.role === 'seller'
-      ? this.access.requireSellerPrincipal(auctionHeader(headers, DEMO_PRINCIPAL_HEADER))
-      : null;
-    if (seller) await this.ownership.requireOwnedForSeller(eventId, seller.sellerId);
-    const input: PresenceInput = seller
-      ? { ...body, userId: seller.sellerId, displayName: body?.displayName ?? 'Host', role: 'seller' }
-      : { ...body, role: 'buyer' };
-    const actorId = seller?.sellerId ?? (typeof input.userId === 'string' ? input.userId : 'anonymous');
-    this.access.consumeRateLimit('chat-presence', ip || actorId, 180, 60_000);
+    const actor = this.requirePresencePrincipal(headers, body?.role);
+    if (actor.role === 'seller') await this.ownership.requireOwnedForSeller(eventId, actor.userId);
+    const input: PresenceInput = {
+      ...body,
+      userId: actor.userId,
+      displayName: body?.displayName ?? (actor.role === 'seller' ? 'Host' : actor.userId),
+      role: actor.role,
+    };
+    this.access.consumeRateLimit('chat-presence', ip || actor.userId, 180, 60_000);
     return this.chat.touchPresence(eventId, input);
   }
 
-  @Delete('chat/events/:eventId/presence/:userId')
-  async leavePresence(@Param('eventId') eventId: string, @Param('userId') userId: string) {
-    await this.chat.removePresence(eventId, userId);
+  @Delete('chat/events/:eventId/presence/:role')
+  async leavePresence(@Param('eventId') eventId: string, @Param('role') role: string, @Headers() headers: HeadersMap, @Ip() ip: string) {
+    const actor = this.requirePresencePrincipal(headers, role);
+    if (actor.role === 'seller') await this.ownership.requireOwnedForSeller(eventId, actor.userId);
+    this.access.consumeRateLimit('chat-presence', ip || actor.userId, 180, 60_000);
+    await this.chat.removePresence(eventId, actor.userId);
     return { ok: true as const };
   }
 
@@ -113,6 +116,17 @@ export class ChatController {
     if (eventId) await this.ownership.requireOwnedForSeller(eventId, seller.sellerId);
     this.access.consumeRateLimit(bucket, `${seller.sellerId}:${ip || 'unknown'}`, limit, 60_000);
     return seller;
+  }
+
+  private requirePresencePrincipal(headers: HeadersMap, role: unknown): { role: DemoPrincipalRole; userId: string } {
+    if (role !== 'buyer' && role !== 'seller') {
+      throw new BadRequestException('Presence role must be buyer or seller.');
+    }
+    const userId = rolePrincipal(auctionHeader(headers, DEMO_PRINCIPAL_HEADER), role);
+    if (!userId) {
+      throw new UnauthorizedException(`${DEMO_PRINCIPAL_HEADER} is required for chat presence.`);
+    }
+    return { role, userId };
   }
 
   private audit(requestId: string, action: string, outcome: 'accepted' | 'rejected', actorId: string, eventId: string, messageId?: string, error?: unknown): void {
