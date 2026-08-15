@@ -1,5 +1,6 @@
 import { Test } from '@nestjs/testing';
 import { describe, expect, it, vi } from 'vitest';
+import { EventModule } from '../events/event.module';
 import { SyncQueryRegistry } from '../sync/sync-query.registry';
 import {
   EventStatsService,
@@ -17,7 +18,7 @@ describe('StatsModule wiring', () => {
   it('resolves EventVisibilityGuard from EventModule at application bootstrap', async () => {
     const moduleRef = await Test.createTestingModule({ imports: [StatsModule] }).compile();
 
-    expect(moduleRef.select(StatsModule).get(EventVisibilityGuard, { strict: true })).toBeInstanceOf(EventVisibilityGuard);
+    expect(moduleRef.select(EventModule).get(EventVisibilityGuard, { strict: true })).toBeInstanceOf(EventVisibilityGuard);
     await moduleRef.close();
   });
 });
