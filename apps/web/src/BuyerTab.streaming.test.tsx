@@ -5,6 +5,7 @@ import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { BuyerTab } from './BuyerTab';
+import type { GuideEvent } from './events/api';
 import type { ViewerSession } from './streaming';
 
 const connectViewerMock = vi.hoisted(() => vi.fn());
@@ -53,14 +54,30 @@ function viewerSession() {
   };
 }
 
-function buyer(eventId: string) {
+function guideEvent(eventId: string, status: GuideEvent['status']): GuideEvent {
+  return {
+    eventId,
+    title: `${eventId} title`,
+    sellerId: 'seller-one',
+    sellerName: 'Seller One',
+    status,
+    startsAt: null,
+    endedAt: null,
+    viewers: 0,
+  };
+}
+
+function buyer(
+  eventId: string,
+  guideEvents: readonly GuideEvent[] = [guideEvent(eventId, 'live')],
+) {
   return (
     <BuyerTab
       eventId={eventId}
       eventTitle={`${eventId} title`}
       products={[]}
       stats={STATS}
-      guideEvents={[]}
+      guideEvents={guideEvents}
     />
   );
 }
@@ -82,6 +99,25 @@ describe('BuyerTab stream lifecycle', () => {
     root = null;
     container.remove();
     delete (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT;
+  });
+
+  it('stays idle until the current guide event is live and disconnects when it ends', async () => {
+    await act(async () => root?.render(buyer('guide-room', [])));
+    expect(connectViewerMock).not.toHaveBeenCalled();
+
+    await act(async () => root?.render(buyer('guide-room', [guideEvent('guide-room', 'scheduled')])));
+    expect(connectViewerMock).not.toHaveBeenCalled();
+
+    const live = viewerSession();
+    connectViewerMock.mockResolvedValueOnce(live.session);
+    await act(async () => root?.render(buyer('guide-room', [guideEvent('guide-room', 'live')])));
+
+    expect(connectViewerMock).toHaveBeenCalledOnce();
+    expect(connectViewerMock.mock.calls[0]?.[0].room.eventId).toBe('guide-room');
+    expect(container.textContent).toContain('Disconnect');
+
+    await act(async () => root?.render(buyer('guide-room', [guideEvent('guide-room', 'ended')])));
+    expect(live.stop).toHaveBeenCalledOnce();
   });
 
   it('connects automatically and replaces an in-flight room without exposing a Connect button', async () => {
