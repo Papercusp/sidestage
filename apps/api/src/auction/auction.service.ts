@@ -35,10 +35,14 @@ export interface InventoryHoldSource {
  */
 export interface AuctionInventory {
   get(productId: string): Promise<AuctionInventorySnapshot | undefined>;
-  seed(productId: string, qty: number, reservedQty?: number): Promise<AuctionInventorySnapshot>;
+  getOwned(productId: string, sellerId: string): Promise<AuctionInventorySnapshot | undefined>;
+  seed(productId: string, qty: number, reservedQty?: number, sellerId?: string): Promise<AuctionInventorySnapshot>;
   save(productId: string, quantity: number, priceCents: number): Promise<AuctionInventorySnapshot | undefined>;
+  saveOwned(productId: string, quantity: number, priceCents: number, sellerId: string): Promise<AuctionInventorySnapshot | undefined>;
   reserve(productId: string, quantity: number, source: InventoryHoldSource, expiresAt?: string): Promise<boolean>;
+  reserveOwned(productId: string, quantity: number, source: InventoryHoldSource, sellerId: string, expiresAt?: string): Promise<boolean>;
   release(productId: string, quantity: number, source: InventoryHoldSource): Promise<boolean>;
+  releaseOwned(productId: string, quantity: number, source: InventoryHoldSource, sellerId: string): Promise<boolean>;
   commit(productId: string, source: InventoryHoldSource): Promise<boolean>;
 }
 
@@ -51,6 +55,7 @@ interface InMemoryInventoryHold {
 @Injectable()
 export class InMemoryAuctionInventory implements AuctionInventory {
   private readonly items = new Map<string, AuctionInventorySnapshot>();
+  private readonly owners = new Map<string, string>();
   private readonly holds = new Map<string, InMemoryInventoryHold>();
   private readonly releasedHolds = new Set<string>();
 
@@ -62,7 +67,11 @@ export class InMemoryAuctionInventory implements AuctionInventory {
     return item ? { ...item } : undefined;
   }
 
-  async seed(productId: string, qty: number, reservedQty = 0): Promise<AuctionInventorySnapshot> {
+  async getOwned(productId: string, sellerId: string): Promise<AuctionInventorySnapshot | undefined> {
+    return await this.isOwned(productId, sellerId) ? this.get(productId) : undefined;
+  }
+
+  async seed(productId: string, qty: number, reservedQty = 0, sellerId = 'demo-seller'): Promise<AuctionInventorySnapshot> {
     const id = this.readId(productId, 'productId');
     if (!Number.isInteger(qty) || qty < 0) throw new BadRequestException('qty must be a non-negative integer');
     if (!Number.isInteger(reservedQty) || reservedQty < 0 || reservedQty > qty) {
@@ -70,6 +79,7 @@ export class InMemoryAuctionInventory implements AuctionInventory {
     }
     const item = { productId: id, qty, reservedQty, availableQty: Math.max(0, qty - reservedQty) };
     this.items.set(id, item);
+    this.owners.set(id, sellerId);
     return { ...item };
   }
 
@@ -102,6 +112,11 @@ export class InMemoryAuctionInventory implements AuctionInventory {
     return { ...next };
   }
 
+  async saveOwned(productId: string, quantity: number, priceCents: number, sellerId: string): Promise<AuctionInventorySnapshot | undefined> {
+    if (!(await this.isOwned(productId, sellerId))) return undefined;
+    return this.save(productId, quantity, priceCents);
+  }
+
   async reserve(productId: string, quantity: number, source: InventoryHoldSource, expiresAt?: string): Promise<boolean> {
     if (!Number.isInteger(quantity) || quantity <= 0) throw new BadRequestException('quantity must be a positive integer');
     this.expireHolds(productId);
@@ -120,6 +135,11 @@ export class InMemoryAuctionInventory implements AuctionInventory {
     return true;
   }
 
+  async reserveOwned(productId: string, quantity: number, source: InventoryHoldSource, sellerId: string, expiresAt?: string): Promise<boolean> {
+    if (!(await this.isOwned(productId, sellerId))) return false;
+    return this.reserve(productId, quantity, source, expiresAt);
+  }
+
   async release(productId: string, quantity: number, source: InventoryHoldSource): Promise<boolean> {
     if (!Number.isInteger(quantity) || quantity <= 0) throw new BadRequestException('quantity must be a positive integer');
     this.expireHolds(productId);
@@ -132,6 +152,11 @@ export class InMemoryAuctionInventory implements AuctionInventory {
     this.holds.delete(holdKey);
     this.releasedHolds.add(holdKey);
     return true;
+  }
+
+  async releaseOwned(productId: string, quantity: number, source: InventoryHoldSource, sellerId: string): Promise<boolean> {
+    if (!(await this.isOwned(productId, sellerId))) return false;
+    return this.release(productId, quantity, source);
   }
 
   async commit(productId: string, source: InventoryHoldSource): Promise<boolean> {
@@ -159,6 +184,17 @@ export class InMemoryAuctionInventory implements AuctionInventory {
 
   private holdKey(productId: string, source: InventoryHoldSource): string {
     return `${source.kind}:${source.id}:${productId}`;
+  }
+
+  private async isOwned(productId: string, sellerId: string): Promise<boolean> {
+    const owner = this.owners.get(productId);
+    if (owner) return owner === sellerId;
+    if (!(await this.catalog?.variant(productId))) return false;
+    // The clean-clone catalog is an explicit legacy fixture, matching the
+    // seller_id used by db/seed/demo.sql. Runtime-created rows always seed an
+    // owner explicitly through the seller path.
+    this.owners.set(productId, 'demo-seller');
+    return sellerId === 'demo-seller';
   }
 
   private readId(value: string, field: string): string {

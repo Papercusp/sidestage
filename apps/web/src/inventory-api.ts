@@ -1,5 +1,5 @@
 import { resolveApiBaseUrl } from './catalog';
-import { requestJson } from './events/api';
+import { requestJson, sellerPrivateRequestHeaders } from './events/api';
 
 export interface InventorySaveMutation {
   productId: string;
@@ -23,11 +23,13 @@ export interface InventorySaveResult {
 export async function saveInventory(
   input: InventorySaveMutation,
   apiBaseUrl?: string,
+  principal?: string,
 ): Promise<InventorySaveResult> {
   return requestJson<InventorySaveResult>(
     `${resolveApiBaseUrl(apiBaseUrl)}/inventory/${encodeURIComponent(input.productId)}`,
     {
       method: 'PUT',
+      headers: sellerPrivateRequestHeaders(principal),
       body: JSON.stringify({ quantity: input.quantity, priceCents: input.priceCents }),
     },
   );

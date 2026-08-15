@@ -1,5 +1,5 @@
 import { useCallback, useState } from 'react';
-import { useSyncMutate } from '@papercusp/sync';
+import { useSyncMutate, useSyncPrincipal } from '@papercusp/sync';
 import type { CatalogRow, EventItemDraft } from './event-creation/catalog';
 import { EventCreationPanel } from './event-creation/EventCreationPanel';
 import { saveInventory, type InventorySaveMutation, type InventorySaveResult } from './inventory-api';
@@ -7,13 +7,15 @@ import { saveInventory, type InventorySaveMutation, type InventorySaveResult } f
 export interface InventoryPanelProps {
   apiBaseUrl?: string;
   catalog?: readonly CatalogRow[];
+  principal?: string;
 }
 
-export function InventoryPanel({ apiBaseUrl, catalog }: InventoryPanelProps) {
+export function InventoryPanel({ apiBaseUrl, catalog, principal: principalProp }: InventoryPanelProps) {
+  const principal = useSyncPrincipal() ?? principalProp;
   const [confirmation, setConfirmation] = useState<string | null>(null);
   const fallback = useCallback(
-    (input: InventorySaveMutation) => saveInventory(input, apiBaseUrl),
-    [apiBaseUrl],
+    (input: InventorySaveMutation) => saveInventory(input, apiBaseUrl, principal ?? undefined),
+    [apiBaseUrl, principal],
   );
   const mutateSave = useSyncMutate<InventorySaveMutation, InventorySaveResult>(
     'inventory.save',
