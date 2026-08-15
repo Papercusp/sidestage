@@ -2,6 +2,9 @@ import { createEventRoom } from './streaming';
 
 export type BuyerProduct = {
   id: string;
+  /** Present only for products projected from a published event lineup. */
+  eventId?: string;
+  eventItemId?: string;
   title: string;
   subtitle: string;
   priceCents: number;

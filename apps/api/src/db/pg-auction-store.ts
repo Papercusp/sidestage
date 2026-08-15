@@ -108,10 +108,11 @@ export class PgAuctionStore implements AuctionStore {
 
         await client.query(
           `INSERT INTO auction_state
-             (id, event_id, event_item_id, product_id, status, quantity,
+             (id, event_id, seller_id, event_item_id, product_id, status, quantity,
               current_price_cents, winner_bidder_id, started_at, ends_at,
               closed_at, payload, updated_at)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, NULL, $8, $9, NULL, $10::jsonb, now())`,
+           VALUES ($1, $2, (SELECT seller_id FROM event WHERE event_id = $2),
+                   $3, $4, $5, $6, $7, NULL, $8, $9, NULL, $10::jsonb, now())`,
           [
             auction.id,
             auction.eventId,
