@@ -1,11 +1,11 @@
 import { useCallback, useEffect, useState } from 'react';
-import { useSyncMutate } from '@papercusp/sync';
+import { useSyncMutate, useSyncPrincipal } from '@papercusp/sync';
 import { useDemoIdentity } from './buyer-identity';
 import { requestChatJson } from './chat-api';
 import { TabHeader } from './components/TabHeader';
 import { EventChat, resolveApiOrigin } from './EventChat';
 import { chatEventId, DEFAULT_EVENT_ID, DEFAULT_EVENT_TITLE, mediaBaseUrl } from './event-identity';
-import { readSellerAuctionToken } from './events/api';
+import { readSellerAuctionToken, sellerPrivateRequestHeaders } from './events/api';
 import { useCopyState, useStreamSession } from './hooks';
 import { studioViewHref, useUrlStudioView, type StudioView } from './app-routing';
 import { InventoryPanel } from './InventoryPanel';
@@ -86,20 +86,26 @@ export function useTranscriptMomentRecorder({
   selectedProductId,
   transcriptProducts,
   apiBaseUrl,
+  principal,
 }: {
   eventId: string;
   roomEventId?: string;
   selectedProductId: string | null;
   transcriptProducts: readonly TranscriptProductOption[];
   apiBaseUrl?: string;
+  principal?: string;
 }) {
   const transcriptEventId = roomEventId ?? chatEventId(eventId);
   const transcriptFallback = useCallback((input: TranscriptMomentMutationInput) => (
     requestChatJson<unknown>(
       `${resolveApiOrigin(apiBaseUrl)}/chat/events/${encodeURIComponent(transcriptEventId)}/transcript`,
-      { method: 'POST', body: JSON.stringify(input) },
+      {
+        method: 'POST',
+        headers: sellerPrivateRequestHeaders(principal),
+        body: JSON.stringify(input),
+      },
     )
-  ), [apiBaseUrl, transcriptEventId]);
+  ), [apiBaseUrl, principal, transcriptEventId]);
   const mutateTranscript = useSyncMutate<TranscriptMomentMutationInput, unknown>(
     'chat.addTranscriptMoment',
     transcriptFallback,
@@ -125,10 +131,11 @@ export function useTranscriptMomentRecorder({
  * another render until React trips its maximum-depth guard. Read the seller
  * token at invocation time so a stable callback still uses the latest grant.
  */
-export function useSellerDeepgramTokenProvider(apiBaseUrl?: string) {
+export function useSellerDeepgramTokenProvider(apiBaseUrl?: string, principal?: string) {
   return useCallback(() => requestDeepgramToken(apiBaseUrl, {
     sellerAccessToken: readSellerAuctionToken(),
-  }), [apiBaseUrl]);
+    principal,
+  }), [apiBaseUrl, principal]);
 }
 
 export function SellerTab({
@@ -150,6 +157,7 @@ export function SellerTab({
   const stream = useStreamSession<PublisherSession>();
   const { copyState, copy } = useCopyState();
   const { userId, impersonate } = useDemoIdentity('seller');
+  const principal = useSyncPrincipal() ?? userId;
   const [studioView, navigateStudioView] = useUrlStudioView();
   const mobileStudio = useMobileStudioViewport();
 
@@ -165,15 +173,20 @@ export function SellerTab({
     selectedProductId,
     transcriptProducts,
     apiBaseUrl: import.meta.env.VITE_API_URL,
+    principal,
   });
   const transcriptEventId = room?.eventId ?? chatEventId(eventId);
-  const deepgramTokenProvider = useSellerDeepgramTokenProvider(import.meta.env.VITE_API_URL);
+  const deepgramTokenProvider = useSellerDeepgramTokenProvider(import.meta.env.VITE_API_URL, principal);
   const classifyProductFocus = useCallback<TranscriptProductFocusClassifier>((input) => (
     requestChatJson<TranscriptSemanticFocusResult>(
       `${resolveApiOrigin(import.meta.env.VITE_API_URL)}/chat/events/${encodeURIComponent(transcriptEventId)}/transcript/product-focus`,
-      { method: 'POST', body: JSON.stringify(input) },
+      {
+        method: 'POST',
+        headers: sellerPrivateRequestHeaders(principal),
+        body: JSON.stringify(input),
+      },
     )
-  ), [transcriptEventId]);
+  ), [principal, transcriptEventId]);
   const transcript = useLiveTranscript({
     active: Boolean(stream.session?.localStream),
     mediaStream: stream.session?.localStream,
