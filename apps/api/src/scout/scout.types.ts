@@ -153,7 +153,9 @@ export const SCOUT_TOOL_GET_CART = 'get_cart';
  * replays what the dropped connection missed, so `message` is absent on a
  * resume by design.
  */
-export interface ScoutStreamRequest extends ScoutChatRequest {
+export interface ScoutStreamRequest extends Omit<ScoutChatRequest, 'message'> {
+  /** Required for a new turn; deliberately absent when re-attaching by turnId. */
+  message?: string;
   sessionId?: string;
   /** App-defined page-awareness payload; carried for future turns, unused today. */
   pageContext?: unknown;

@@ -512,7 +512,7 @@ function systemPrompt(input: ScoutStreamRequest, memories: readonly ScoutMemory[
   ].filter(Boolean).join('\n');
 }
 
-function productLimit(input: ScoutChatRequest): number {
+function productLimit(input: Pick<ScoutChatRequest, 'maxProducts'>): number {
   return Math.max(1, Math.min(input.maxProducts ?? 6, 20));
 }
 
