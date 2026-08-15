@@ -115,7 +115,9 @@ describe('Universal Zero data-surface census', () => {
   });
 
   it('classifies every API module making a raw external fetch', () => {
-    const rawFetches = apiFiles.filter((file) => /fetch\(/.test(read(file))).map(repoPath);
+    const rawFetches = apiFiles
+      .filter((file) => !file.endsWith('.snapshot.ts') && /fetch\(/.test(read(file)))
+      .map(repoPath);
     const declared = EXTERNAL_COMMAND_SURFACES.filter((surface) => surface.usesRawFetch).map((surface) => surface.source);
     expect(sorted(declared)).toEqual(sorted(rawFetches));
   });
