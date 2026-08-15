@@ -65,7 +65,7 @@ export interface BuildHistorySnapshotSource {
   kind: 'papercusp-plan-export';
   workspace: string;
   harness: string;
-  planPrefix: string;
+  planPrefix: string | null;
   generatedAt: string;
   planCount: number;
   generator: string;
@@ -102,7 +102,7 @@ const LIVE_SITE_URL = 'https://sidestage.buyrestart.com';
 const PLAN_PAGE_SIZE = 12;
 const ITEM_PAGE_SIZE = 12;
 const HISTORY_DOCUMENT_STATE = '__sidestageHistoryDocument';
-const TERMINAL_PLAN_STATES = new Set(['archived', 'cancelled', 'canceled', 'complete', 'completed', 'done', 'superseded']);
+const TERMINAL_PLAN_STATES = new Set(['archived', 'cancelled', 'canceled', 'complete', 'completed', 'done', 'shipped', 'superseded']);
 const buildDateFormatter = new Intl.DateTimeFormat('en-US', {
   dateStyle: 'medium',
   timeStyle: 'short',

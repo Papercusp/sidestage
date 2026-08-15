@@ -24,7 +24,7 @@ const SNAPSHOT = {
   kind: 'papercusp-plan-export' as const,
   workspace: 'papercusp-workspace',
   harness: 'sidestage',
-  planPrefix: 'sidestage-',
+  planPrefix: null,
   generatedAt: '2026-08-14T03:00:00Z',
   planCount: 2,
   generator: 'scripts/generate-build-history-snapshot.mjs',
@@ -75,7 +75,7 @@ const HISTORY: BuildHistoryPlan[] = [{
 }, {
   slug: 'sidestage-theme-r3',
   title: 'R3 Ticket theme',
-  status: 'completed',
+  status: 'shipped',
   updatedAt: '2026-07-01T01:00:00Z',
   contentHash: 'b'.repeat(64),
   markdown: '# R3 Ticket theme',
