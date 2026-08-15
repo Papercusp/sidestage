@@ -167,7 +167,8 @@ say "Checking .env.production exists on prod"
   echo "ERROR: $PROD_DIR/.env.production is missing on prod. Create it with:" >&2
   echo "  POSTGRES_PASSWORD=… TYPESENSE_API_KEY=… EASYPOST_API_KEY=…" >&2
   echo "  WAREHOUSE_FROM_STREET1=… WAREHOUSE_FROM_CITY=… WAREHOUSE_FROM_STATE=… WAREHOUSE_FROM_ZIP=…" >&2
-  echo "  SQUARE_APP_ID=… SQUARE_LOCATION_ID=… SQUARE_ACCESS_TOKEN=…" >&2
+  echo "  STRIPE_SECRET_KEY=… STRIPE_PUBLISHABLE_KEY=… STRIPE_WEBHOOK_SECRET=…" >&2
+  echo "  DEEPGRAM_API_KEY=…" >&2
   echo "  PUBLIC_HOSTNAME=sidestage.buyrestart.com" >&2
   echo "  MEDIAMTX_PUBLIC_IP=178.156.254.59" >&2
   echo "  TURN_AUTH_SECRET=<strong random secret>" >&2
