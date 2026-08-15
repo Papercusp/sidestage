@@ -186,12 +186,14 @@ async function holdInventory(
   productId: string,
   quantity: number,
   apiBaseUrl?: string,
+  principal?: string,
 ): Promise<void> {
   const endpoint = quantity > 0 ? 'hold' : 'release';
   await requestJson(
     eventUrl(`/inventory/${encodeURIComponent(productId)}/${endpoint}`, apiBaseUrl),
     {
       method: 'POST',
+      headers: sellerPrivateRequestHeaders(principal),
       body: JSON.stringify({
         ...(quantity > 0 ? { quantity } : {}),
         sourceKind: 'event',
@@ -300,14 +302,14 @@ async function reserveAndRegister(
   const held: SellerEventItem[] = [];
   try {
     for (const item of items) {
-      await holdInventory(eventId, item.productId, item.quantity, apiBaseUrl);
+      await holdInventory(eventId, item.productId, item.quantity, apiBaseUrl, principal);
       held.push(item);
     }
     const registered = await registerItems(eventId, config.policy, items, apiBaseUrl, principal);
     return { eventId, name: config.name, policy: config.policy, items: registered };
   } catch (error) {
     await Promise.allSettled(
-      held.map((item) => holdInventory(eventId, item.productId, 0, apiBaseUrl)),
+      held.map((item) => holdInventory(eventId, item.productId, 0, apiBaseUrl, principal)),
     );
     throw error;
   }
@@ -448,7 +450,7 @@ export async function adjustSellerEventStock(
   apiBaseUrl?: string,
   principal?: string,
 ): Promise<SellerActionResult> {
-  await holdInventory(eventId, item.productId, quantity, apiBaseUrl);
+  await holdInventory(eventId, item.productId, quantity, apiBaseUrl, principal);
   try {
     return await executeSellerAction(eventId, actorId, {
       kind: 'stock-adjust',
@@ -457,7 +459,7 @@ export async function adjustSellerEventStock(
       reason: 'Seller adjusted the live-event quantity against verified inventory',
     }, apiBaseUrl, principal);
   } catch (error) {
-    await holdInventory(eventId, item.productId, item.quantity, apiBaseUrl).catch(() => undefined);
+    await holdInventory(eventId, item.productId, item.quantity, apiBaseUrl, principal).catch(() => undefined);
     throw error;
   }
 }
