@@ -130,6 +130,7 @@ export function useCatalog(
   apiBaseUrl?: string,
   debounceMs = 250,
   allowDemoData: boolean = catalogDemoDataEnabled(),
+  scope: 'public' | 'seller' = 'public',
 ): UseCatalogState {
   const { q = '', productType = 'all', availability = 'all', page = 1, pageSize = 24 } = search;
   const [debouncedSearch, setDebouncedSearch] = useState<CatalogSearch>(() => ({
@@ -144,7 +145,7 @@ export function useCatalog(
   }, [q, productType, availability, page, pageSize, debounceMs]);
 
   const pageQuery = useSyncQuery<CatalogPage>({
-    queryName: 'catalog.page',
+    queryName: scope === 'seller' ? 'inventory.page' : 'catalog.page',
     args: { ...debouncedSearch },
     pollIntervalMs: 10_000,
   });
@@ -158,9 +159,10 @@ export function useCatalog(
   );
   const pageResult = pageQuery.data?.[0];
   const offline = Boolean(pageQuery.error);
-  const showingDemo = offline && allowDemoData;
+  const effectiveDemoData = scope === 'public' && allowDemoData;
+  const showingDemo = offline && effectiveDemoData;
   const productTypes = typesQuery.error
-    ? allowDemoData
+    ? effectiveDemoData
       ? [...new Set(OFFLINE_FIXTURE.map((row) => row.productType))]
       : EMPTY_PRODUCT_TYPES
     : typesQuery.data ?? EMPTY_PRODUCT_TYPES;
@@ -170,13 +172,13 @@ export function useCatalog(
   void apiBaseUrl;
 
   return {
-    rows: resolveCatalogRows(offline, offlineRows, pageResult, allowDemoData),
+    rows: resolveCatalogRows(offline, offlineRows, pageResult, effectiveDemoData),
     total: showingDemo ? offlineRows.length : pageResult?.total ?? 0,
     totalIsFloor: offline ? false : pageResult?.totalIsFloor ?? false,
     loading: pageQuery.loading || pageQuery.fetching,
     offline,
     showingDemo,
-    unavailable: offline && !allowDemoData,
+    unavailable: offline && !effectiveDemoData,
     productTypes,
   };
 }

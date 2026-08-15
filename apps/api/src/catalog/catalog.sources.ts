@@ -236,12 +236,36 @@ export class PgCatalogSource implements CatalogSource {
     });
   }
 
-  private async runSearch(query: CatalogQuery, search: SqlSearchQuery | null): Promise<CatalogPage> {
+  async searchOwned(query: CatalogQuery, sellerId: string): Promise<CatalogPage> {
+    await this.pool.query('SELECT expire_inventory_reservations()', []);
+    const { q } = normalizeQuery(query);
+    const tokens = memoryTokens(q);
+    if (q && tokens.length === 0) {
+      return { rows: [], page: normalizeQuery(query).page, pageSize: normalizeQuery(query).pageSize, total: 0, totalIsFloor: false };
+    }
+    const tsQuery = `to_tsquery('english', array_to_string($Q::text[], ':* | ') || ':*')`;
+    const primary = await this.runSearch(query, q ? {
+      predicate: `c.search_tsv @@ ${tsQuery}`,
+      rank: `ts_rank(c.search_tsv, ${tsQuery})`,
+      value: tokens,
+    } : null, sellerId);
+    if (primary.rows.length > 0 || !q) return primary;
+    return this.runSearch(query, {
+      predicate: `v.slug ILIKE '%' || $Q || '%'`,
+      value: q,
+    }, sellerId);
+  }
+
+  private async runSearch(query: CatalogQuery, search: SqlSearchQuery | null, sellerId?: string): Promise<CatalogPage> {
     const { q, productType, availability, page, pageSize } = normalizeQuery(query);
     const where: string[] = ['v.active'];
     const params: unknown[] = [];
     const collectionWhere = collectionPredicate(this.collection, params);
     if (collectionWhere) where.push(collectionWhere);
+    if (sellerId) {
+      params.push(sellerId);
+      where.push(`v.seller_id = $${params.length}`);
+    }
 
     let rankSql: string | undefined;
     if (q && search) {
@@ -344,6 +368,14 @@ export class FixtureCatalogSource implements CatalogSource {
     };
   }
 
+  async searchOwned(query: CatalogQuery, sellerId: string): Promise<CatalogPage> {
+    if (sellerId !== 'demo-seller') {
+      const { page, pageSize } = normalizeQuery(query);
+      return { rows: [], page, pageSize, total: 0, totalIsFloor: false };
+    }
+    return this.search(query);
+  }
+
   async productTypes(): Promise<string[]> {
     return [...new Set(this.fixture.map((variant) => variant.productType))];
   }
@@ -378,6 +410,10 @@ export class UnavailableCatalogSource implements CatalogSource {
   }
 
   async search(): Promise<CatalogPage> {
+    return this.unavailable();
+  }
+
+  async searchOwned(): Promise<CatalogPage> {
     return this.unavailable();
   }
 

@@ -76,6 +76,8 @@ export interface CatalogPage {
  */
 export interface CatalogSource {
   search(query: CatalogQuery): Promise<CatalogPage>;
+  /** Seller-private stock projection; never accepts an owner from query args. */
+  searchOwned(query: CatalogQuery, sellerId: string): Promise<CatalogPage>;
   productTypes(limit?: number): Promise<string[]>;
   variant(id: string): Promise<CatalogVariant | undefined>;
   /** Clean-clone write-through used by the shared inventory authority. */
