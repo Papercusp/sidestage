@@ -99,7 +99,11 @@ export class PgAuctionInventory implements AuctionInventory {
       owner,
       `${identity.groupId ?? identity.id}\0${identity.region}\0${identity.optionSignature}`,
     );
-    const qualifier = targetId.slice(-12);
+    // slug+region and region+SKU are global uniqueness boundaries, so the
+    // qualifier must carry BOTH hashes from sellerListingId. Using only its
+    // trailing source hash makes two sellers cloning the same public variant
+    // collide even though their primary listing ids are correctly distinct.
+    const qualifier = targetId.slice('seller-listing-'.length);
     const result = await this.pool.query<VariantRow>(
       `WITH upserted AS (
          INSERT INTO storefront_product

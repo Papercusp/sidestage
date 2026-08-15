@@ -1,4 +1,6 @@
 import { randomUUID } from 'node:crypto';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { Pool } from 'pg';
 import { describe, expect, it, vi } from 'vitest';
 import { DEFAULT_DATABASE_URL } from './database.module';
@@ -12,14 +14,18 @@ describe('PgAuctionInventory hold lifecycle', () => {
       .mockResolvedValueOnce({ rows: [identity] })
       .mockResolvedValueOnce({ rows: [row] })
       .mockResolvedValueOnce({ rows: [identity] })
+      .mockResolvedValueOnce({ rows: [row] })
+      .mockResolvedValueOnce({ rows: [identity] })
       .mockResolvedValueOnce({ rows: [row] });
     const inventory = new PgAuctionInventory({ query } as never);
 
     await expect(inventory.onboardOwned('source-1', 3, 2_500, 'seller-alpha')).resolves.toEqual(row);
     await expect(inventory.onboardOwned('source-1', 3, 2_500, 'seller-alpha')).resolves.toEqual(row);
+    await expect(inventory.onboardOwned('source-1', 3, 2_500, 'seller-beta')).resolves.toEqual(row);
 
     const [firstSql, firstParams] = query.mock.calls[1] as [string, unknown[]];
     const [, secondParams] = query.mock.calls[3] as [string, unknown[]];
+    const [, otherSellerParams] = query.mock.calls[5] as [string, unknown[]];
     expect(firstSql).toContain('INSERT INTO storefront_product');
     expect(firstSql).toContain('source.variant_images');
     expect(firstSql).toContain('INSERT INTO storefront_product_option');
@@ -27,7 +33,11 @@ describe('PgAuctionInventory hold lifecycle', () => {
     expect(firstParams[0]).toBe('source-1');
     expect(firstParams[5]).toBe('seller-alpha');
     expect(firstParams[1]).toBe(secondParams[1]);
+    expect(firstParams[1]).not.toBe(otherSellerParams[1]);
+    expect(firstParams[2]).toBe(secondParams[2]);
+    expect(firstParams[2]).not.toBe(otherSellerParams[2]);
     expect(String(firstParams[1])).toMatch(/^seller-listing-[a-f0-9]{12}-[a-f0-9]{24}$/);
+    expect(String(firstParams[2])).toMatch(/^[a-f0-9]{12}-[a-f0-9]{24}$/);
     const conflictSet = firstSql.split('ON CONFLICT (id) DO UPDATE')[1]?.split('WHERE')[0] ?? '';
     expect(conflictSet).not.toMatch(/seller_id\s*=/);
   });
@@ -177,6 +187,11 @@ describe.runIf(process.env.SIDESTAGE_PG_INTEGRATION === '1')('PgAuctionInventory
       const updated = await inventory.onboardOwned(sourceProductId, 5, 2_700, sellerAlpha);
       const otherSeller = await inventory.onboardOwned(sourceProductId, 2, 2_400, sellerBeta);
 
+      // db-apply is deliberately rerunnable. Reapply the real schema after
+      // seller-qualified duplicates exist so its legacy convergence block
+      // cannot silently rewrite one seller's option signature on a later deploy.
+      await client.query(readFileSync(join(__dirname, '../../../../db/schema.sql'), 'utf8'));
+
       expect(first?.productId).toMatch(/^seller-listing-[a-f0-9]{12}-[a-f0-9]{24}$/);
       expect(updated).toMatchObject({ productId: first?.productId, qty: 5, priceCents: 2_700 });
       expect(otherSeller?.productId).not.toBe(first?.productId);
@@ -217,6 +232,7 @@ describe.runIf(process.env.SIDESTAGE_PG_INTEGRATION === '1')('PgAuctionInventory
           sellerId: sellerBeta,
           qty: 2,
           priceCents: 2_400,
+          optionSignature: 'finish=matte',
         }),
       ]));
 
@@ -236,5 +252,5 @@ describe.runIf(process.env.SIDESTAGE_PG_INTEGRATION === '1')('PgAuctionInventory
       client.release();
       await pool.end();
     }
-  });
+  }, 45_000);
 });
