@@ -1,3 +1,5 @@
+/** @vitest-environment jsdom */
+
 import { describe, expect, it } from 'vitest';
 import {
   buildSideStageScoutBody,
@@ -95,6 +97,18 @@ describe('SideStage Scout transport', () => {
       priceCents: 12999,
       availableQty: 4,
       imageUrl: 'https://example.test/p-1.jpg',
+    });
+  });
+
+  it('projects imported merchant HTML into safe plain-text product copy', () => {
+    expect(scoutProductToBuyerProduct({
+      productId: 'tape-1',
+      title: 'HP StoreEver tape drive',
+      description: '<p>External <strong>LTO</strong> tape&nbsp;drive.</p><script>ignore me</script><p>USB &amp; SAS</p>',
+      priceCents: 39900,
+      availableQty: 2,
+    })).toMatchObject({
+      subtitle: 'External LTO tape drive. USB & SAS',
     });
   });
 });

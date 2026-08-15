@@ -85,6 +85,28 @@ function nonEmptyString(value: unknown): string | undefined {
   return typeof value === 'string' && value.trim() ? value.trim() : undefined;
 }
 
+/**
+ * Imported catalog descriptions sometimes contain merchant HTML. Product-card
+ * copy is text-only, so parse it at the transport boundary and carry clean
+ * prose through the rest of the buyer UI. Joining text nodes also preserves a
+ * readable separator between adjacent block tags without rendering markup.
+ */
+function scoutDescriptionText(value: unknown): string | undefined {
+  const raw = nonEmptyString(value);
+  if (!raw || typeof document === 'undefined' || !/[<&]/.test(raw)) return raw;
+
+  const template = document.createElement('template');
+  template.innerHTML = raw;
+  template.content.querySelectorAll('script, style, template, noscript').forEach((node) => node.remove());
+  const parts: string[] = [];
+  const collect = (node: Node): void => {
+    if (node.nodeType === 3 && node.textContent) parts.push(node.textContent);
+    node.childNodes.forEach(collect);
+  };
+  collect(template.content);
+  return nonEmptyString(parts.join(' ').replace(/\s+/g, ' '));
+}
+
 /** Promote only SideStage's existing cart/event inputs; identity stays server-resolved. */
 export const buildSideStageScoutBody: NonNullable<HttpChatTransportOptions['buildBody']> = (turn, resume) => {
   const base = buildTurnBody(turn, resume);
@@ -155,7 +177,7 @@ export function scoutProductToBuyerProduct(value: unknown): BuyerProduct | null 
   return {
     id: product.productId!.trim(),
     title: product.title!.trim(),
-    subtitle: nonEmptyString(product.description) ?? 'Verified SideStage catalog item',
+    subtitle: scoutDescriptionText(product.description) ?? 'Verified SideStage catalog item',
     priceCents: Math.max(0, Math.round(product.priceCents!)),
     availableQty: Math.max(0, Math.floor(product.availableQty!)),
     ...(nonEmptyString(product.imageUrl) ? { imageUrl: product.imageUrl!.trim() } : {}),
