@@ -25,8 +25,20 @@ export interface Cart {
   items: CartItem[];
   subtotalCents: number;
   updatedAt: string;
+  /** Monotonic aggregate revision; absent only on carts written before event-cart support. */
+  revision?: number;
   /** Durable retry ledger for event holds, retained after the cart is emptied. */
   eventHoldKeys?: string[];
+  /** Makes a retried terminal transition idempotent without applying its allocation delta twice. */
+  eventTerminalTransition?: EventCartTerminalTransition;
+}
+
+export type EventCartTerminalState = 'released' | 'committed';
+
+export interface EventCartTerminalTransition {
+  eventId: string;
+  state: EventCartTerminalState;
+  sourceRevision: string;
 }
 
 export interface CartStore {
@@ -37,6 +49,9 @@ export interface CartStore {
    * allocation, physical reservation, and cart payload atomically.
    */
   holdEventItem?(input: EventCartHoldInput): Promise<Cart>;
+  setEventItemQuantity?(input: EventCartQuantityInput): Promise<Cart>;
+  releaseEventCart?(input: EventCartTerminalInput): Promise<Cart>;
+  commitEventCart?(input: EventCartTerminalInput): Promise<Cart>;
 }
 
 export interface EventCartHoldInput {
@@ -50,11 +65,30 @@ export interface EventCartHoldInput {
   imageUrl?: string;
 }
 
+export interface EventCartQuantityInput {
+  cartId: string;
+  eventId: string;
+  eventItemId: string;
+  productId: string;
+  /** Zero removes the item and releases its event and physical allocation. */
+  quantity: number;
+  expectedRevision: string;
+}
+
+export interface EventCartTerminalInput {
+  cartId: string;
+  eventId: string;
+  expectedRevision?: string;
+}
+
 export function cloneCart(cart: Cart): Cart {
   return {
     ...cart,
     items: cart.items.map((item) => ({ ...item })),
     eventHoldKeys: cart.eventHoldKeys ? [...cart.eventHoldKeys] : undefined,
+    eventTerminalTransition: cart.eventTerminalTransition
+      ? { ...cart.eventTerminalTransition }
+      : undefined,
   };
 }
 
@@ -63,7 +97,12 @@ export function summarizeCart(cart: Cart): Cart {
     ...cart,
     subtotalCents: cart.items.reduce((sum, item) => sum + item.priceCents * item.quantity, 0),
     updatedAt: new Date().toISOString(),
+    revision: (cart.revision ?? 0) + 1,
   };
+}
+
+export function cartRevision(cart: Cart): string {
+  return `${cart.id}:${cart.revision ?? 0}:${cart.updatedAt}`;
 }
 
 /**
@@ -145,9 +184,129 @@ export class InMemoryCartStore implements CartStore {
     if (!authoritative) throw new Error('Event lineup transaction lost its updated item');
     upsertEventCartItem(cart, authoritative, input, nextQuantity);
     recordEventHoldKey(cart, input.idempotencyKey);
+    cart.eventTerminalTransition = undefined;
     const updated = summarizeCart(cart);
     await this.set(updated);
     return cloneCart(updated);
+  }
+
+  async setEventItemQuantity(input: EventCartQuantityInput): Promise<Cart> {
+    if (!this.eventItems || !this.inventory) throw new Error('Event-aware cart storage is unavailable');
+    const cart = this.requireStoredCart(input.cartId);
+    assertExpectedCartRevision(cart, input.expectedRevision);
+    assertEventCartScope(cart, input.eventId);
+    const existing = cart.items.find((candidate) => (
+      candidate.eventId === input.eventId
+      && candidate.eventItemId === input.eventItemId
+      && candidate.productId === input.productId
+    ));
+    if (!existing) throw new NotFoundException('Event cart item is not available');
+    assertEventCartTargetQuantity(input.quantity);
+    if (existing.quantity === input.quantity) return cloneCart(cart);
+
+    const lineup = await this.eventItems.list(input.eventId);
+    const item = lineup.find((candidate) => (
+      candidate.eventItemId === input.eventItemId && candidate.productId === input.productId
+    ));
+    if (!item) throw new NotFoundException('Event cart item is not available');
+    const delta = input.quantity - existing.quantity;
+    if (delta > 0 && item.availableQty < delta) {
+      throw new ConflictException(`Insufficient event allocation for ${input.eventItemId}`);
+    }
+
+    const source: InventoryHoldSource = { kind: 'cart', id: input.cartId };
+    const physicalChanged = input.quantity === 0
+      ? await this.inventory.release(input.productId, existing.quantity, source)
+      : await this.inventory.reserve(input.productId, input.quantity, source, existing.expiresAt);
+    if (!physicalChanged) {
+      throw new ConflictException(`Inventory hold for ${input.productId} changed; reload the cart and retry`);
+    }
+
+    let updatedLineup: StoredActionEventItem[];
+    try {
+      updatedLineup = await this.eventItems.write(input.eventId, [{
+        expectedVersion: item.version,
+        item: { ...item, availableQty: item.availableQty - delta },
+      }]);
+    } catch (error) {
+      await this.inventory.reserve(input.productId, existing.quantity, source, existing.expiresAt);
+      throw error;
+    }
+
+    if (input.quantity === 0) {
+      cart.items = cart.items.filter((candidate) => candidate !== existing);
+    } else {
+      const authoritative = updatedLineup.find((candidate) => candidate.eventItemId === input.eventItemId);
+      if (!authoritative) throw new Error('Event lineup transaction lost its updated item');
+      existing.quantity = input.quantity;
+      existing.title = authoritative.title;
+      existing.priceCents = authoritative.priceCents;
+    }
+    const updated = summarizeCart(cart);
+    await this.set(updated);
+    return cloneCart(updated);
+  }
+
+  async releaseEventCart(input: EventCartTerminalInput): Promise<Cart> {
+    return this.transitionEventCart(input, 'released');
+  }
+
+  async commitEventCart(input: EventCartTerminalInput): Promise<Cart> {
+    return this.transitionEventCart(input, 'committed');
+  }
+
+  private async transitionEventCart(
+    input: EventCartTerminalInput,
+    state: EventCartTerminalState,
+  ): Promise<Cart> {
+    if (!this.eventItems || !this.inventory) throw new Error('Event-aware cart storage is unavailable');
+    const cart = this.requireStoredCart(input.cartId);
+    const replay = terminalTransitionReplay(cart, input, state);
+    if (replay) return replay;
+    assertExpectedCartRevision(cart, input.expectedRevision);
+    const context = requireEventCartContext(cart);
+    if (context.eventId !== input.eventId) throw new ConflictException('Event cart context changed');
+
+    if (state === 'released') {
+      const lineup = await this.eventItems.list(input.eventId);
+      const changes = cart.items.map((cartItem) => {
+        const item = lineup.find((candidate) => (
+          candidate.eventItemId === cartItem.eventItemId && candidate.productId === cartItem.productId
+        ));
+        if (!item) throw new ConflictException('Event cart allocation changed; reload the cart and retry');
+        return {
+          expectedVersion: item.version,
+          item: { ...item, availableQty: item.availableQty + cartItem.quantity },
+        };
+      });
+      for (const item of cart.items) {
+        const released = await this.inventory.release(
+          item.productId,
+          item.quantity,
+          { kind: 'cart', id: cart.id },
+        );
+        if (!released) throw new ConflictException(`Inventory hold for ${item.productId} changed; reload the cart and retry`);
+      }
+      await this.eventItems.write(input.eventId, changes);
+    } else {
+      for (const item of cart.items) {
+        const committed = await this.inventory.commit(item.productId, { kind: 'cart', id: cart.id });
+        if (!committed) throw new ConflictException(`Inventory hold for ${item.productId} could not be committed`);
+      }
+    }
+
+    const sourceRevision = input.expectedRevision ?? cartRevision(cart);
+    cart.items = [];
+    cart.eventTerminalTransition = { eventId: input.eventId, state, sourceRevision };
+    const updated = summarizeCart(cart);
+    await this.set(updated);
+    return cloneCart(updated);
+  }
+
+  private requireStoredCart(id: string): Cart {
+    const cart = this.carts.get(id);
+    if (!cart) throw new NotFoundException(`Cart ${id} was not found`);
+    return cloneCart(cart);
   }
 }
 
@@ -160,15 +319,29 @@ export class CartService {
   ) {}
 
   async findCart(id: string): Promise<Cart | null> {
-    const cart = await this.store.get(id);
+    let cart = await this.store.get(id);
     if (!cart) return null;
-    const expired = cart.items.filter((item) => this.isExpired(item));
-    if (expired.length === 0) return cloneCart(cart);
-    await Promise.all(expired.map((item) => this.releaseReservation(cart.id, item)));
+    const expiredEventItems = cart.items.filter((item) => this.isExpired(item) && isEventCartItem(item));
+    for (const item of expiredEventItems) {
+      if (!this.store.setEventItemQuantity) throw new Error('Event-aware cart storage is unavailable');
+      cart = await this.store.setEventItemQuantity({
+        cartId: cart.id,
+        eventId: item.eventId!,
+        eventItemId: item.eventItemId!,
+        productId: item.productId,
+        quantity: 0,
+        expectedRevision: cartRevision(cart),
+      });
+      this.invalidateEventCart(cart.id, item.eventId!, [item.productId]);
+    }
+
+    const expiredLegacyItems = cart.items.filter((item) => this.isExpired(item));
+    if (expiredLegacyItems.length === 0) return cloneCart(cart);
+    await Promise.all(expiredLegacyItems.map((item) => this.releaseReservation(cart.id, item)));
     cart.items = cart.items.filter((item) => !this.isExpired(item));
     const updated = summarizeCart(cart);
     await this.persist(updated);
-    this.invalidateInventory(expired.map((item) => item.productId));
+    this.invalidateInventory(expiredLegacyItems.map((item) => item.productId));
     return cloneCart(updated);
   }
 
@@ -178,13 +351,7 @@ export class CartService {
       if (existing) return existing;
     }
 
-    const cart: Cart = {
-      id: id?.trim() || randomUUID(),
-      currency: 'USD',
-      items: [],
-      subtotalCents: 0,
-      updatedAt: new Date().toISOString(),
-    };
+    const cart = emptyCart(id?.trim() || randomUUID());
     await this.persist(cart);
     return cloneCart(cart);
   }
@@ -201,6 +368,9 @@ export class CartService {
     this.assertProduct(input.productId, input.title, input.priceCents);
     const quantity = this.assertQuantity(input.quantity ?? 1);
     const cart = await this.getCart(input.cartId);
+    if (cart.items.some(isEventCartItem)) {
+      throw new ConflictException('Empty the cart before adding a product outside the event');
+    }
     const existing = cart.items.find((item) => item.productId === input.productId);
     if (existing) {
       existing.quantity = this.assertQuantity(existing.quantity + quantity);
@@ -253,7 +423,7 @@ export class CartService {
         idempotencyKey,
         imageUrl: input.imageUrl,
       });
-      this.invalidateEventHold(updated.id, eventContext.eventId, input.productId);
+      this.invalidateEventCart(updated.id, eventContext.eventId, [input.productId]);
       return cloneCart(updated);
     }
 
@@ -281,6 +451,19 @@ export class CartService {
     const item = cart.items.find((candidate) => candidate.productId === productId);
     if (!item) throw new Error(`Product ${productId} is not in cart`);
     const nextQuantity = this.assertQuantity(quantity);
+    if (isEventCartItem(item)) {
+      if (!this.store.setEventItemQuantity) throw new Error('Event-aware cart storage is unavailable');
+      const updated = await this.store.setEventItemQuantity({
+        cartId: cart.id,
+        eventId: item.eventId!,
+        eventItemId: item.eventItemId!,
+        productId: item.productId,
+        quantity: nextQuantity,
+        expectedRevision: cartRevision(cart),
+      });
+      this.invalidateEventCart(updated.id, item.eventId!, [item.productId]);
+      return cloneCart(updated);
+    }
     if (this.inventory && item.expiresAt) {
       const reserved = await this.inventory.reserve(productId, nextQuantity, this.holdSource(cart.id), item.expiresAt);
       if (!reserved) throw new ConflictException(`Insufficient available quantity for ${productId}`);
@@ -295,6 +478,19 @@ export class CartService {
   async removeItem(cartId: string, productId: string): Promise<Cart> {
     const cart = await this.requireCart(cartId);
     const heldItem = cart.items.find((item) => item.productId === productId);
+    if (heldItem && isEventCartItem(heldItem)) {
+      if (!this.store.setEventItemQuantity) throw new Error('Event-aware cart storage is unavailable');
+      const updated = await this.store.setEventItemQuantity({
+        cartId: cart.id,
+        eventId: heldItem.eventId!,
+        eventItemId: heldItem.eventItemId!,
+        productId: heldItem.productId,
+        quantity: 0,
+        expectedRevision: cartRevision(cart),
+      });
+      this.invalidateEventCart(updated.id, heldItem.eventId!, [heldItem.productId]);
+      return cloneCart(updated);
+    }
     if (heldItem) await this.releaseReservation(cart.id, heldItem);
     cart.items = cart.items.filter((item) => item.productId !== productId);
     const updated = summarizeCart(cart);
@@ -303,9 +499,27 @@ export class CartService {
     return cloneCart(updated);
   }
 
-  async commit(cartId: string): Promise<Cart> {
+  async commit(cartId: string, expectedRevision?: string): Promise<Cart> {
     const cart = await this.store.get(cartId);
     if (!cart) throw new Error('Cart is empty or not found');
+    if (cart.items.length === 0 && cart.eventTerminalTransition) {
+      return terminalTransitionReplay(cart, {
+        cartId,
+        eventId: cart.eventTerminalTransition.eventId,
+        expectedRevision,
+      }, 'committed')!;
+    }
+    const eventContext = eventCartContext(cart);
+    if (eventContext) {
+      if (!this.store.commitEventCart) throw new Error('Event-aware cart storage is unavailable');
+      const updated = await this.store.commitEventCart({
+        cartId,
+        eventId: eventContext.eventId,
+        expectedRevision,
+      });
+      this.invalidateEventCart(cartId, eventContext.eventId, cart.items.map((item) => item.productId));
+      return cloneCart(updated);
+    }
     if (cart.items.length === 0) return cloneCart(cart);
     if (this.inventory) {
       await Promise.all(cart.items.map(async (item) => {
@@ -321,9 +535,27 @@ export class CartService {
   }
 
   /** Releases every source-tracked hold in a cancelled checkout, idempotently. */
-  async release(cartId: string): Promise<Cart> {
+  async release(cartId: string, expectedRevision?: string): Promise<Cart> {
     const cart = await this.store.get(cartId);
     if (!cart) throw new Error('Cart is empty or not found');
+    if (cart.items.length === 0 && cart.eventTerminalTransition) {
+      return terminalTransitionReplay(cart, {
+        cartId,
+        eventId: cart.eventTerminalTransition.eventId,
+        expectedRevision,
+      }, 'released')!;
+    }
+    const eventContext = eventCartContext(cart);
+    if (eventContext) {
+      if (!this.store.releaseEventCart) throw new Error('Event-aware cart storage is unavailable');
+      const updated = await this.store.releaseEventCart({
+        cartId,
+        eventId: eventContext.eventId,
+        expectedRevision,
+      });
+      this.invalidateEventCart(cartId, eventContext.eventId, cart.items.map((item) => item.productId));
+      return cloneCart(updated);
+    }
     if (cart.items.length === 0) return cloneCart(cart);
     await Promise.all(cart.items.map((item) => this.releaseReservation(cart.id, item)));
     const updated = summarizeCart({ ...cart, items: [] });
@@ -350,11 +582,11 @@ export class CartService {
     }
   }
 
-  private invalidateEventHold(cartId: string, eventId: string, productId: string): void {
+  private invalidateEventCart(cartId: string, eventId: string, productIds: readonly string[]): void {
     this.syncInvalidations?.invalidate('cart.byId', { cartId });
     this.syncInvalidations?.invalidate('event.lineup.items', { eventId });
     this.syncInvalidations?.invalidate('event.actions.items', { eventId });
-    this.invalidateInventory([productId]);
+    this.invalidateInventory(productIds);
   }
 
   private async requireCart(id: string): Promise<Cart> {
@@ -412,7 +644,61 @@ export function emptyCart(id: string): Cart {
     items: [],
     subtotalCents: 0,
     updatedAt: new Date().toISOString(),
+    revision: 0,
   };
+}
+
+export function isEventCartItem(item: CartItem): boolean {
+  return Boolean(item.eventId || item.eventItemId);
+}
+
+export function eventCartContext(cart: Cart): { eventId: string } | null {
+  if (cart.items.length === 0) return null;
+  const eventItems = cart.items.filter(isEventCartItem);
+  if (eventItems.length === 0) return null;
+  if (eventItems.length !== cart.items.length) {
+    throw new ConflictException('Event carts cannot contain products outside the event');
+  }
+  const eventIds = new Set(eventItems.map((item) => item.eventId).filter(Boolean));
+  if (eventIds.size !== 1 || eventItems.some((item) => !item.eventId || !item.eventItemId)) {
+    throw new ConflictException('Event cart context is incomplete or mixed');
+  }
+  return { eventId: [...eventIds][0]! };
+}
+
+export function requireEventCartContext(cart: Cart): { eventId: string } {
+  const context = eventCartContext(cart);
+  if (!context) throw new ConflictException('Event cart is empty or no longer active');
+  return context;
+}
+
+export function assertExpectedCartRevision(cart: Cart, expectedRevision?: string): void {
+  if (expectedRevision && cartRevision(cart) !== expectedRevision) {
+    throw new ConflictException('Event cart changed; reload the cart and retry');
+  }
+}
+
+export function assertEventCartTargetQuantity(quantity: number): void {
+  if (!Number.isInteger(quantity) || quantity < 0 || quantity > 99) {
+    throw new ConflictException('Event cart quantity must be between 0 and 99');
+  }
+}
+
+export function terminalTransitionReplay(
+  cart: Cart,
+  input: EventCartTerminalInput,
+  state: EventCartTerminalState,
+): Cart | null {
+  const terminal = cart.eventTerminalTransition;
+  if (cart.items.length > 0 || !terminal) return null;
+  if (
+    terminal.eventId === input.eventId
+    && terminal.state === state
+    && (!input.expectedRevision || terminal.sourceRevision === input.expectedRevision)
+  ) {
+    return cloneCart(cart);
+  }
+  throw new ConflictException(`Event cart was already ${terminal.state}`);
 }
 
 export function assertEventCartScope(cart: Cart, eventId: string): void {
