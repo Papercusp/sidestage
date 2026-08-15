@@ -43,7 +43,7 @@ export class ActionController {
     @Headers(DEMO_PRINCIPAL_HEADER) principalHeader?: string,
   ) {
     await this.ownership.requireOwned(eventId, principalHeader);
-    return { audits: this.actions.listAudit(eventId) };
+    return { audits: await this.actions.listAudit(eventId) };
   }
 
   @Post('events/:eventId/execute')
@@ -68,8 +68,9 @@ export class ActionController {
     @Headers(DEMO_PRINCIPAL_HEADER) principalHeader?: string,
   ) {
     const sellerId = this.ownership.sellerId(principalHeader);
+    const audit = await this.actions.findAudit(auditId);
     await this.ownership.requireOwnedForSeller(
-      this.actions.findAudit(auditId)?.eventId,
+      audit?.eventId,
       sellerId,
     );
     return this.actions.rollback(auditId, sellerId, body?.reason);

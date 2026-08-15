@@ -5,6 +5,7 @@ import { CATALOG_SOURCE, type CatalogSource } from '../catalog/catalog.types';
 import { EventConfigModule } from '../config/event-config.module';
 import { DatabaseModule, PG_POOL } from '../db/database.module';
 import { PgActionItemStore } from '../db/pg-action-item-store';
+import { PgActionAuditStore } from '../db/pg-action-audit-store';
 import { EventModule } from '../events/event.module';
 import { EventOwnershipGuard } from '../events/event-ownership.guard';
 import { EventVisibilityGuard } from '../events/event-visibility.guard';
@@ -14,11 +15,16 @@ import { SyncModule } from '../sync/sync.module';
 import { SyncQueryRegistry } from '../sync/sync-query.registry';
 import { ActionController } from './action.controller';
 import { ACTION_ITEM_STORE, InMemoryActionItemStore, type ActionItemStore } from './action-item.store';
+import { ACTION_AUDIT_STORE, InMemoryActionAuditStore, type ActionAuditStore } from './action-audit.store';
 import { GuardedActionService } from './action.service';
 import { projectBuyerLineupItems } from './buyer-lineup.dto';
 
 export function actionItemStoreForPool(pool: Pool | null): ActionItemStore {
   return pool ? new PgActionItemStore(pool) : new InMemoryActionItemStore();
+}
+
+export function actionAuditStoreForPool(pool: Pool | null): ActionAuditStore {
+  return pool ? new PgActionAuditStore(pool) : new InMemoryActionAuditStore();
 }
 
 @Injectable()
@@ -58,7 +64,12 @@ export class ActionSyncQueries implements OnModuleInit {
       inject: [PG_POOL],
       useFactory: actionItemStoreForPool,
     },
+    {
+      provide: ACTION_AUDIT_STORE,
+      inject: [PG_POOL],
+      useFactory: actionAuditStoreForPool,
+    },
   ],
-  exports: [GuardedActionService, ACTION_ITEM_STORE],
+  exports: [GuardedActionService, ACTION_ITEM_STORE, ACTION_AUDIT_STORE],
 })
 export class ActionModule {}

@@ -20,6 +20,11 @@ import {
   type ActionItemStore,
   type StoredActionEventItem,
 } from './action-item.store';
+import {
+  ACTION_AUDIT_STORE,
+  InMemoryActionAuditStore,
+  type ActionAuditStore,
+} from './action-audit.store';
 import type {
   ActionAuditRecord,
   ActionEventItem,
@@ -45,14 +50,6 @@ function cloneSnapshot(snapshot: ActionStateSnapshot): ActionStateSnapshot {
   return {
     item: cloneItem(snapshot.item),
     offers: snapshot.offers.map(cloneOffer),
-  };
-}
-
-function cloneAudit(audit: ActionAuditRecord): ActionAuditRecord {
-  return {
-    ...audit,
-    before: cloneSnapshot(audit.before),
-    after: cloneSnapshot(audit.after),
   };
 }
 
@@ -115,10 +112,9 @@ export class GuardedActionService implements ActionExecutor {
   private readonly guard = new PolicyActionGuard();
   private readonly policies = new Map<string, CopilotPolicy>();
   private readonly offers = new Map<string, TargetedOffer>();
-  private readonly audits = new Map<string, ActionAuditRecord>();
-  private readonly auditOrder: string[] = [];
   private readonly idempotentExecutions = new Map<string, Promise<ActionExecutionResult>>();
   private readonly itemStore: ActionItemStore;
+  private readonly auditStore: ActionAuditStore;
 
   /**
    * WI-38673: when the config-backed resolver is wired (the production DI
@@ -132,8 +128,10 @@ export class GuardedActionService implements ActionExecutor {
     @Optional() @Inject(SyncInvalidationService) private readonly syncInvalidations?: SyncInvalidationService,
     @Optional() @Inject(ORDER_STORE) private readonly orders?: OrderStore,
     @Optional() @Inject(ACTION_ITEM_STORE) itemStore?: ActionItemStore,
+    @Optional() @Inject(ACTION_AUDIT_STORE) auditStore?: ActionAuditStore,
   ) {
     this.itemStore = itemStore ?? new InMemoryActionItemStore();
+    this.auditStore = auditStore ?? new InMemoryActionAuditStore();
   }
 
   async registerEvent(eventIdInput: string, input: RegisterActionEventInput): Promise<ActionEventItem[]> {
@@ -159,27 +157,23 @@ export class GuardedActionService implements ActionExecutor {
     return this.itemStore.list(eventId);
   }
 
-  getAudit(auditIdInput: string): ActionAuditRecord {
+  async getAudit(auditIdInput: string): Promise<ActionAuditRecord> {
     const auditId = assertText(auditIdInput, 'auditId');
-    const audit = this.audits.get(auditId);
+    const audit = await this.auditStore.get(auditId);
     if (!audit) throw new NotFoundException(`Audit ${auditId} was not found`);
-    return cloneAudit(audit);
+    return audit;
   }
 
   /** Lookup seam for owner-checking an audit id before exposing its resource. */
-  findAudit(auditIdInput: string): ActionAuditRecord | undefined {
+  async findAudit(auditIdInput: string): Promise<ActionAuditRecord | undefined> {
     const auditId = auditIdInput?.trim();
     if (!auditId) return undefined;
-    const audit = this.audits.get(auditId);
-    return audit ? cloneAudit(audit) : undefined;
+    return this.auditStore.get(auditId);
   }
 
-  listAudit(eventIdInput: string): ActionAuditRecord[] {
+  async listAudit(eventIdInput: string): Promise<ActionAuditRecord[]> {
     const eventId = assertText(eventIdInput, 'eventId');
-    return this.auditOrder
-      .map((id) => this.audits.get(id))
-      .filter((audit): audit is ActionAuditRecord => Boolean(audit && audit.eventId === eventId))
-      .map(cloneAudit);
+    return this.auditStore.list(eventId);
   }
 
   listOffersForBuyer(buyerIdInput: string): TargetedOffer[] {
@@ -274,13 +268,17 @@ export class GuardedActionService implements ActionExecutor {
     const existing = this.idempotentExecutions.get(key);
     if (existing) return structuredClone(await existing);
 
-    const pending = this.applyOnce({ ...input, eventId, clientRequestId: requestId });
+    const pending = (async () => {
+      const prior = await this.auditStore.findByRequest(eventId, requestId);
+      return prior
+        ? this.resultFromAudit(prior)
+        : this.applyOnce({ ...input, eventId, clientRequestId: requestId });
+    })();
     this.idempotentExecutions.set(key, pending);
     try {
       return structuredClone(await pending);
-    } catch (error) {
+    } finally {
       if (this.idempotentExecutions.get(key) === pending) this.idempotentExecutions.delete(key);
-      throw error;
     }
   }
 
@@ -366,18 +364,26 @@ export class GuardedActionService implements ActionExecutor {
     afterItem = persisted.find((item) => item.productId === current.productId) ?? afterItem;
     if (offer) this.offers.set(offer.id, offer);
     const after = this.snapshot(eventId, afterItem);
-    const audit = this.recordAudit({ eventId, actorId, action, before, after, offer });
+    const audit = await this.recordAudit({
+      eventId,
+      actorId,
+      action,
+      before,
+      after,
+      offer,
+      clientRequestId: input.clientRequestId,
+    });
     this.invalidateEventItems(eventId);
     this.invalidatePricingHistory(eventId, action.productId);
     if (offer) this.invalidateBuyerOrders(offer.buyerId);
-    return { auditId: audit.id, status: 'executed', state: cloneItem(afterItem), offer: offer && cloneOffer(offer) };
+    return this.resultFromAudit(audit);
   }
 
   async rollback(auditIdInput: string, actorIdInput: string, reasonInput = 'Seller rollback'): Promise<RollbackResult> {
     const auditId = assertText(auditIdInput, 'auditId');
     const actorId = assertText(actorIdInput, 'actorId');
     const reason = assertText(reasonInput, 'reason');
-    const original = this.audits.get(auditId);
+    const original = await this.auditStore.get(auditId);
     if (!original) throw new NotFoundException(`Audit ${auditId} was not found`);
     if (original.rolledBackAt) throw new ConflictException(`Audit ${auditId} was already rolled back`);
 
@@ -402,7 +408,7 @@ export class GuardedActionService implements ActionExecutor {
     }
     const restoredItem = persisted.find((item) => item.productId === restored.productId) ?? restored;
     const after = this.snapshot(original.eventId, restoredItem);
-    const rollbackAudit = this.recordAudit({
+    const rollbackAudit = this.buildAudit({
       eventId: original.eventId,
       actorId,
       action: {
@@ -417,12 +423,12 @@ export class GuardedActionService implements ActionExecutor {
       rollbackOf: original.id,
       auditKind: 'rollback',
     });
-    original.rolledBackAt = rollbackAudit.createdAt;
+    const recordedRollback = await this.auditStore.recordRollback(original.id, rollbackAudit);
     this.invalidateEventItems(original.eventId);
     this.invalidatePricingHistory(original.eventId, original.productId);
     if (original.buyerId) this.invalidateBuyerOrders(original.buyerId);
     return {
-      auditId: rollbackAudit.id,
+      auditId: recordedRollback.id,
       rolledBackAuditId: original.id,
       status: 'executed',
       state: cloneItem(restoredItem),
@@ -575,13 +581,14 @@ export class GuardedActionService implements ActionExecutor {
     };
   }
 
-  private recordAudit(input: {
+  private buildAudit(input: {
     eventId: string;
     actorId: string;
     action: GuardedActionProposal;
     before: ActionStateSnapshot;
     after: ActionStateSnapshot;
     offer?: TargetedOffer;
+    clientRequestId?: string;
     rollbackOf?: string;
     auditKind?: ActionAuditRecord['kind'];
   }): ActionAuditRecord {
@@ -596,10 +603,24 @@ export class GuardedActionService implements ActionExecutor {
       before: cloneSnapshot(input.before),
       after: cloneSnapshot(input.after),
       createdAt: new Date().toISOString(),
+      clientRequestId: input.clientRequestId,
       rollbackOf: input.rollbackOf,
     };
-    this.audits.set(audit.id, audit);
-    this.auditOrder.push(audit.id);
     return audit;
+  }
+
+  private recordAudit(input: Parameters<GuardedActionService['buildAudit']>[0]): Promise<ActionAuditRecord> {
+    return this.auditStore.record(this.buildAudit(input));
+  }
+
+  private resultFromAudit(audit: ActionAuditRecord): ActionExecutionResult {
+    const priorOfferIds = new Set(audit.before.offers.map((offer) => offer.id));
+    const offer = audit.after.offers.find((candidate) => !priorOfferIds.has(candidate.id));
+    return {
+      auditId: audit.id,
+      status: 'executed',
+      state: cloneItem(audit.after.item),
+      ...(offer ? { offer: cloneOffer(offer) } : {}),
+    };
   }
 }
