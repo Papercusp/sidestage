@@ -1,6 +1,7 @@
 import { useCallback, useMemo, useState } from 'react';
 import { useSyncQuery } from '@papercusp/sync';
 import { TAB_GROUPS, tabHref, type TabId, useUrlTab } from './app-routing';
+import { ArchitectureTab } from './ArchitectureTab';
 import { AppDownloadButtons } from './components/AppDownloadButtons';
 import { DemoIdentityControl } from './BuyerIdentityControl';
 import { BuildHistoryTab } from './BuildHistoryTab';
@@ -215,6 +216,7 @@ export function App() {
             ) : null}
             {tab === 'history' ? <BuildHistoryTab /> : null}
             {tab === 'test' ? <SystemTestsTab /> : null}
+            {tab === 'architecture' ? <ArchitectureTab /> : null}
           {layout.showFooter ? (
               <footer className="footer">
                 <span>SideStage preview</span>

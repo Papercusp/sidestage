@@ -25,6 +25,7 @@ describe('SideStage tab state', () => {
     expect(getTabFromUrl('/config')).toBe('seller');
     expect(getTabFromUrl('/?tab=config')).toBe('seller');
     expect(getTabFromUrl('/?tab=test')).toBe('test');
+    expect(getTabFromUrl('/?tab=architecture')).toBe('architecture');
     expect(getTabFromUrl('/?tab=unknown')).toBe('buyer');
   });
 
@@ -53,9 +54,9 @@ describe('P-005 product card and shell', () => {
     const markup = renderToStaticMarkup(<App />);
     expect(TAB_GROUPS.map((group) => group.tabs.map((tab) => tab.id))).toEqual([
       ['buyer', 'orders'],
-      ['seller', 'history', 'test'],
+      ['seller', 'history', 'test', 'architecture'],
     ]);
-    for (const tab of ['Watch', 'Orders', 'Studio', 'History', 'Tests']) {
+    for (const tab of ['Watch', 'Orders', 'Studio', 'History', 'Tests', 'Architecture']) {
       expect(markup).toContain(`>${tab}</a>`);
     }
     expect(markup).not.toContain('>Settings</a>');
@@ -153,6 +154,7 @@ describe('Seller workbench shell', () => {
     expect(appLayoutForTab('orders').showBuyerScout).toBe(true);
     expect(appLayoutForTab('history').showBuyerScout).toBe(false);
     expect(appLayoutForTab('test').showBuyerScout).toBe(false);
+    expect(appLayoutForTab('architecture').showBuyerScout).toBe(false);
   });
 });
 

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 
-export type TabId = 'buyer' | 'orders' | 'seller' | 'history' | 'config' | 'test';
+export type TabId = 'buyer' | 'orders' | 'seller' | 'history' | 'config' | 'test' | 'architecture';
 export type StudioView = 'active-event' | 'event-manager' | 'inventory';
 export type EventManagerView = 'events' | 'create';
 export type EventManagerSection = 'lineup' | 'settings' | 'rehearse';
@@ -26,6 +26,7 @@ export const TABS: ReadonlyArray<TabDefinition> = [
   { id: 'seller', label: 'Studio', description: 'Run the stage', group: 'operator-work' },
   { id: 'history', label: 'History', description: 'Review shipped plans', group: 'operator-work' },
   { id: 'test', label: 'Tests', description: 'Run isolated synthetic suites', group: 'operator-work' },
+  { id: 'architecture', label: 'Architecture', description: 'Understand how SideStage works', group: 'operator-work' },
 ];
 
 export const TAB_GROUPS: ReadonlyArray<{
