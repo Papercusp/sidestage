@@ -154,7 +154,7 @@ export class GuardedActionService implements ActionExecutor {
     return items;
   }
 
-  async listItems(eventIdInput: string): Promise<ActionEventItem[]> {
+  async listItems(eventIdInput: string): Promise<StoredActionEventItem[]> {
     const eventId = assertText(eventIdInput, 'eventId');
     return this.itemStore.list(eventId);
   }
@@ -480,6 +480,7 @@ export class GuardedActionService implements ActionExecutor {
 
   private invalidateEventItems(eventId: string): void {
     this.syncInvalidations?.invalidate('event.actions.items', { eventId });
+    this.syncInvalidations?.invalidate('event.lineup.items', { eventId });
   }
 
   private invalidatePricingHistory(eventId: string, productId: string): void {
