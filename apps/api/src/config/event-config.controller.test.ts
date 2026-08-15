@@ -79,6 +79,7 @@ describe('create → GET /events (EI-20426845001666103 / P-014)', () => {
     });
     expect(invalidated.map(({ name }) => name)).toEqual([
       'event.config',
+      'event.lineup.items',
       'events.guide',
       'events.mine',
     ]);
@@ -87,6 +88,11 @@ describe('create → GET /events (EI-20426845001666103 / P-014)', () => {
         name: 'event.config',
         args: { eventId: 'acceptance-dock-thumbnail-2026-08-14' },
         context: { principal: 'seller-acceptance' },
+      },
+      {
+        name: 'event.lineup.items',
+        args: { eventId: 'acceptance-dock-thumbnail-2026-08-14' },
+        context: undefined,
       },
       { name: 'events.guide', args: undefined, context: undefined },
       {

@@ -98,6 +98,7 @@ export class EventConfigController {
     }
     const context = { principal: principalHeader };
     this.invalidations.invalidate('event.config', { eventId: config.eventId }, context);
+    this.invalidations.invalidate('event.lineup.items', { eventId: config.eventId });
     // The guide is a global directory query. Omitting args invalidates every
     // cached events.guide subscriber; event-scoped args would not match its
     // empty query key and would leave titles/thumbnails stale.
