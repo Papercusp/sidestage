@@ -158,12 +158,34 @@ describe('createSellerDockStore — round trip', () => {
     expect(layoutPanelIds(migratedLayout)).not.toContain('transcript-floating');
     expect(layoutPanelIds(migratedLayout)).not.toContain('event-chat-floating');
     expect(layoutPanelIds(migratedLayout)).toContain('run-of-show');
+    expect(layoutPanelIds(migratedLayout)).toContain('inventory');
     expect((migratedLayout.root as Extract<LayoutDoc['root'], { kind: 'group' }>).children[0]?.size).toBe(701);
     expect(migratedLayout.floating).toBeUndefined();
     expect(layoutPanelIds(migrateSellerActiveEventLayout(migratedLayout))).toEqual(
       layoutPanelIds(migratedLayout),
     );
     expect(JSON.parse(store.get(KEY)!).layoutJson).toEqual(migratedLayout);
+  });
+
+  it('adds Inventory beside Run of Show in a saved pre-feature layout without losing geometry', async () => {
+    const saved = sellerDockDefaultLayout();
+    const root = saved.root as Extract<LayoutDoc['root'], { kind: 'group' }>;
+    const rail = root.children.find((node) => node.id === 'seller-active-rail') as Extract<LayoutDoc['root'], { kind: 'group' }>;
+    const utility = rail.children[0] as Extract<LayoutDoc['root'], { kind: 'tabs' }>;
+    utility.panels = utility.panels.filter((panel) => panel.id !== 'inventory');
+    utility.activePanelId = 'run-of-show';
+    root.children[0]!.size = 713;
+
+    await createSellerDockStore().save(SELLER_DOCK_LAYOUT_NAME, saved);
+    const migrated = (await createSellerDockStore().load(SELLER_DOCK_LAYOUT_NAME)).layoutJson as LayoutDoc;
+    const migratedRoot = migrated.root as Extract<LayoutDoc['root'], { kind: 'group' }>;
+    const migratedRail = migratedRoot.children.find((node) => node.id === 'seller-active-rail') as Extract<LayoutDoc['root'], { kind: 'group' }>;
+    const migratedUtility = migratedRail.children[0] as Extract<LayoutDoc['root'], { kind: 'tabs' }>;
+
+    expect(migratedUtility.panels.map((panel) => panel.id)).toEqual(['run-of-show', 'inventory']);
+    expect(migratedUtility.activePanelId).toBe('run-of-show');
+    expect(migratedRoot.children[0]!.size).toBe(713);
+    expect(migrateSellerActiveEventLayout(migrated)).toBe(migrated);
   });
 
   it('preserves a canonical single-pane manager layout and its saved geometry', async () => {

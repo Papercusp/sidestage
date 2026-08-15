@@ -14,6 +14,7 @@ import {
   SELLER_ACTIVE_DOCK_LAYOUT_NAME,
   SELLER_DOCK_LAYOUT_NAME,
   SELLER_MANAGER_DOCK_LAYOUT_NAME,
+  SELLER_PANEL_TITLES,
   sellerActiveEventDockDefaultLayout,
   sellerDockDefaultLayout,
   sellerEventManagerDockDefaultLayout,
@@ -190,18 +191,16 @@ export function migrateSellerActiveEventLayout(layout: LayoutDoc): LayoutDoc {
   const retiredIds = RETIRED_ACTIVE_EVENT_PANEL_IDS.filter((panelId) => (
     containsPanel(layout.root, panelId) || floatingContainsPanel(layout, panelId)
   ));
-  if (retiredIds.length === 0) return layout;
-
   const hasOnDeck = retiredIds.includes('on-deck');
   if (hasOnDeck && !containsPanel(layout.root, 'run-of-show') && !floatingContainsPanel(layout, 'run-of-show')) {
     return sellerActiveEventDockDefaultLayout();
   }
 
-  const root = retiredIds.reduce<GroupNode | TabStrip | null>(
+  const cleanedRoot = retiredIds.reduce<GroupNode | TabStrip | null>(
     (current, panelId) => current ? withoutPanel(current, panelId) : null,
     layout.root,
   );
-  if (!root) return sellerActiveEventDockDefaultLayout();
+  if (!cleanedRoot) return sellerActiveEventDockDefaultLayout();
   const floating = layout.floating
     ?.map((group) => {
       const panels = group.panels.filter((panel) => !isRetiredActiveEventPanel(panel));
@@ -216,11 +215,51 @@ export function migrateSellerActiveEventLayout(layout: LayoutDoc): LayoutDoc {
     })
     .filter((group): group is NonNullable<typeof group> => group !== null);
 
-  return {
+  const cleaned: LayoutDoc = retiredIds.length === 0 ? layout : {
     ...layout,
-    root,
+    root: cleanedRoot,
     floating: floating && floating.length > 0 ? floating : undefined,
   };
+
+  if (containsPanel(cleaned.root, 'inventory') || floatingContainsPanel(cleaned, 'inventory')) {
+    return cleaned;
+  }
+
+  const inventoryPanel: PanelInstance = {
+    id: 'inventory',
+    type: 'inventory',
+    title: SELLER_PANEL_TITLES.inventory,
+  };
+  const addBesideRunOfShow = (node: GroupNode | TabStrip): GroupNode | TabStrip | null => {
+    if (node.kind === 'tabs') {
+      if (!node.panels.some((panel) => panel.id === 'run-of-show' || panel.type === 'run-of-show')) return null;
+      return { ...node, panels: [...node.panels, inventoryPanel] };
+    }
+    for (let index = 0; index < node.children.length; index += 1) {
+      const migrated = addBesideRunOfShow(node.children[index]!);
+      if (!migrated) continue;
+      const children = [...node.children];
+      children[index] = migrated;
+      return { ...node, children };
+    }
+    return null;
+  };
+  const migratedRoot = addBesideRunOfShow(cleaned.root);
+  if (migratedRoot) return { ...cleaned, root: migratedRoot };
+
+  const floatingIndex = cleaned.floating?.findIndex((group) => (
+    group.panels.some((panel) => panel.id === 'run-of-show' || panel.type === 'run-of-show')
+  )) ?? -1;
+  if (floatingIndex >= 0 && cleaned.floating) {
+    const floating = [...cleaned.floating];
+    floating[floatingIndex] = {
+      ...floating[floatingIndex]!,
+      panels: [...floating[floatingIndex]!.panels, inventoryPanel],
+    };
+    return { ...cleaned, floating };
+  }
+
+  return sellerActiveEventDockDefaultLayout();
 }
 
 /**
