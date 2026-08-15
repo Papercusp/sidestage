@@ -74,6 +74,8 @@ export const REQUIRED_TABLES: readonly string[] = [
   'system_test_case',
   'system_test_cleanup',
   'system_test_environment',
+  'system_test_fixture_lease',
+  'system_test_fixture_resource',
   'system_test_retention',
   'system_test_run',
   'system_test_suite',

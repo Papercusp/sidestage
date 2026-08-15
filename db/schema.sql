@@ -1139,6 +1139,57 @@ CREATE TABLE IF NOT EXISTS system_test_cleanup (
   CONSTRAINT system_test_cleanup_attempts_nonnegative CHECK (attempts >= 0)
 );
 
+CREATE TABLE IF NOT EXISTS system_test_fixture_lease (
+  run_id text PRIMARY KEY REFERENCES system_test_run (id) ON DELETE CASCADE,
+  namespace text NOT NULL UNIQUE,
+  status text NOT NULL DEFAULT 'active',
+  acquired_at timestamptz NOT NULL,
+  expires_at timestamptz NOT NULL,
+  released_at timestamptz,
+  updated_at timestamptz NOT NULL,
+  CONSTRAINT system_test_fixture_lease_namespace_format
+    CHECK (namespace ~ '^sst_[a-z0-9_]{1,58}$'),
+  CONSTRAINT system_test_fixture_lease_status_known
+    CHECK (status IN ('active', 'cleaning', 'leaked', 'released')),
+  CONSTRAINT system_test_fixture_lease_expiry_order
+    CHECK (expires_at > acquired_at)
+);
+
+CREATE INDEX IF NOT EXISTS system_test_fixture_lease_reaper_idx
+  ON system_test_fixture_lease (status, expires_at);
+
+CREATE TABLE IF NOT EXISTS system_test_fixture_resource (
+  run_id text NOT NULL REFERENCES system_test_fixture_lease (run_id) ON DELETE CASCADE,
+  kind text NOT NULL,
+  identifier text NOT NULL,
+  cleanup_order integer NOT NULL,
+  status text NOT NULL DEFAULT 'leased',
+  metadata jsonb NOT NULL DEFAULT '{}'::jsonb,
+  cleanup_attempts integer NOT NULL DEFAULT 0,
+  last_error text NOT NULL DEFAULT '',
+  updated_at timestamptz NOT NULL,
+  released_at timestamptz,
+  PRIMARY KEY (run_id, kind),
+  UNIQUE (kind, identifier),
+  UNIQUE (run_id, cleanup_order),
+  CONSTRAINT system_test_fixture_resource_kind_known CHECK (kind IN (
+    'postgres-database', 'postgres-schema', 'typesense-collection-prefix',
+    'redis-key-prefix', 'mediamtx-path-prefix', 'user-id', 'event-id',
+    'order-id', 'idempotency-key', 'external-sandbox'
+  )),
+  CONSTRAINT system_test_fixture_resource_status_known
+    CHECK (status IN ('leased', 'active', 'leaked', 'released')),
+  CONSTRAINT system_test_fixture_resource_metadata_object
+    CHECK (jsonb_typeof(metadata) = 'object'),
+  CONSTRAINT system_test_fixture_resource_cleanup_order_nonnegative
+    CHECK (cleanup_order >= 0),
+  CONSTRAINT system_test_fixture_resource_attempts_nonnegative
+    CHECK (cleanup_attempts >= 0)
+);
+
+CREATE INDEX IF NOT EXISTS system_test_fixture_resource_cleanup_idx
+  ON system_test_fixture_resource (run_id, status, cleanup_order DESC);
+
 -- ── Canonical payable orders (P-001, Stripe/order recovery plan) ────────────
 -- SideStage owns the complete purchase record. Payment processors contribute
 -- only an external reference and webhook evidence; cart, auction, and offer
