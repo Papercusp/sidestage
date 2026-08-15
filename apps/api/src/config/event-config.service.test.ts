@@ -4,6 +4,7 @@ import {
   EventConfigService,
   InMemoryEventConfigStore,
   defaultEventConfig,
+  policyFromConfig,
   type EventConfig,
 } from './event-config.service';
 
@@ -160,5 +161,16 @@ describe('EventConfigService thumbnailUrl validation', () => {
     expect(config.replyTone).toBe('playful');
     expect(config.guardrails.priceChanges).toBe(false);
     expect(config.thumbnailUrl).toBe(url);
+  });
+});
+
+describe('policyFromConfig reply tones', () => {
+  it('maps Warm, Playful, and Minimal to three distinct runtime tones', () => {
+    const runtimeTones = (['warm', 'playful', 'minimal'] as const).map((replyTone) => (
+      policyFromConfig({ ...defaultEventConfig(EVENT_ID), replyTone }).tone
+    ));
+
+    expect(runtimeTones).toEqual(['warm', 'playful', 'concise']);
+    expect(new Set(runtimeTones).size).toBe(3);
   });
 });

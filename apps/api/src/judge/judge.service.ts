@@ -88,6 +88,11 @@ function scoreTone(testCase: JudgeCase): JudgeDimensionScore {
       ? { score: 1, rationale: 'The reply stays short enough for the concise event tone.' }
       : { score: 0.5, rationale: 'The reply is longer than the concise event tone allows.' };
   }
+  if (target === 'playful') {
+    return /[!]|[\p{Extended_Pictographic}]|\b(great|nice|fun|pick|ready)\b/iu.test(reply)
+      ? { score: 1, rationale: 'The reply uses light, upbeat energy for the playful event tone.' }
+      : { score: 0.5, rationale: 'The reply is restrained; add light energy for the playful event tone.' };
+  }
   if (target === 'professional') {
     return !(/[\p{Extended_Pictographic}]|!!/u.test(reply))
       ? { score: 1, rationale: 'The reply uses a restrained professional presentation.' }

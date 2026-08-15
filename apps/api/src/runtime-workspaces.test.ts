@@ -91,4 +91,14 @@ describe('API runtime workspace packages', () => {
 
     expect(typesenseService).toMatch(/\n    ulimits:\n      nofile:\n        soft: 65536\n        hard: 65536\n/);
   });
+
+  it('passes optional Copilot model configuration through the production API seam', () => {
+    const compose = readFileSync(resolve(repoRoot, 'docker-compose.prod.yml'), 'utf8');
+    const envExample = readFileSync(resolve(repoRoot, '.env.example'), 'utf8');
+
+    for (const variable of ['OPENAI_API_KEY', 'OPENAI_BASE_URL', 'SIDESTAGE_COPILOT_MODEL']) {
+      expect(compose).toContain(`${variable}: \${${variable}:-}`);
+      expect(envExample).toMatch(new RegExp(`^${variable}=$`, 'm'));
+    }
+  });
 });

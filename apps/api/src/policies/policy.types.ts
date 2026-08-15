@@ -1,4 +1,4 @@
-import type { CopilotActionKind, CopilotPolicy } from '../copilot/copilot.types';
+import type { CopilotActionKind, CopilotPolicy, CopilotTone } from '../copilot/copilot.types';
 
 /**
  * Seller policy contract types (P-114, docs/config-policies.md).
@@ -60,7 +60,7 @@ export interface AutomationPolicy {
   priceFloorCentsByProduct: Record<string, number>;
   maxMarkdownPercent: number;
   blockedActionKinds: CopilotActionKind[];
-  tone: 'concise' | 'warm' | 'professional';
+  tone: CopilotTone;
   confidenceFloor: number;
   maxOrderValueCents: number;
 }

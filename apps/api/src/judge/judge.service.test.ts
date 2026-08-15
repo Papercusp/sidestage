@@ -81,6 +81,19 @@ describe('AutoResponderJudgeService', () => {
     expect(report.cases[0].dimensions.tone.score).toBe(0);
   });
 
+  it('scores light upbeat wording as playful when the event requires it', async () => {
+    const playfulContext = { ...context, policy: { ...policy, tone: 'playful' as const } };
+    const report = await new AutoResponderJudgeService(new DeterministicReplyJudgeModel()).run({
+      cases: [makeCase({
+        reply: 'Great pick! The Aurora cup is $28 and 18 are ready to go.',
+        context: playfulContext,
+        declaredTone: 'playful',
+      })],
+    });
+
+    expect(report.cases[0].dimensions.tone).toMatchObject({ score: 1, passed: true });
+  });
+
   it('uses the provider seam and applies the report threshold centrally', async () => {
     const model = {
       grade: async () => ({

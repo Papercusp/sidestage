@@ -8,6 +8,18 @@
 
 export type AutomationLevel = 'suggest' | 'confirm' | 'auto';
 
+/**
+ * Provider-neutral reply voices supported by every Copilot generation path.
+ * `professional` remains available to published policies even though the
+ * event Settings surface currently exposes Warm, Playful, and Minimal.
+ */
+export const COPILOT_TONES = ['concise', 'warm', 'playful', 'professional'] as const;
+export type CopilotTone = (typeof COPILOT_TONES)[number];
+
+export function isCopilotTone(value: unknown): value is CopilotTone {
+  return typeof value === 'string' && COPILOT_TONES.includes(value as CopilotTone);
+}
+
 export type CopilotActionKind =
   | 'markdown'
   | 'price-adjust'
@@ -62,7 +74,7 @@ export interface CopilotPolicy {
   priceFloorCentsByProduct: Record<string, number>;
   maxMarkdownPercent: number;
   blockedActionKinds: readonly CopilotActionKind[];
-  tone: 'concise' | 'warm' | 'professional';
+  tone: CopilotTone;
   /**
    * Action kinds the seller's always-ask guardrail toggles cap at 'confirm'
    * (WI-38815): buyer-sensitive → targeted-offer; inventory claims →

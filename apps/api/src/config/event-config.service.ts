@@ -1,6 +1,6 @@
 import { BadRequestException, Inject, Injectable } from '@nestjs/common';
 import type { Pool } from 'pg';
-import type { CopilotPolicy } from '../copilot/copilot.types';
+import type { CopilotPolicy, CopilotTone } from '../copilot/copilot.types';
 
 export const EVENT_CONFIG_STORE = Symbol('EVENT_CONFIG_STORE');
 
@@ -110,6 +110,12 @@ export function defaultEventConfig(eventId: string): EventConfig {
 
 const REPLY_TONES = new Set<ReplyTone>(['warm', 'playful', 'minimal']);
 
+const COPILOT_TONE_BY_REPLY_TONE = {
+  warm: 'warm',
+  playful: 'playful',
+  minimal: 'concise',
+} as const satisfies Record<ReplyTone, CopilotTone>;
+
 /** Raster image types accepted for an event thumbnail. SVG is excluded on purpose: it can carry script. */
 const ALLOWED_THUMBNAIL_MEDIA_TYPES: readonly string[] = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
 
@@ -145,7 +151,7 @@ export function policyFromConfig(config: EventConfig): CopilotPolicy {
     maxMarkdownPercent: guarded ? 30 : 100,
     priceFloorCentsByProduct: {},
     blockedActionKinds: [],
-    tone: config.replyTone === 'minimal' ? 'concise' : config.replyTone === 'playful' ? 'warm' : 'warm',
+    tone: COPILOT_TONE_BY_REPLY_TONE[config.replyTone],
     ...(alwaysConfirmActionKinds.length > 0 ? { alwaysConfirmActionKinds } : {}),
   };
 }

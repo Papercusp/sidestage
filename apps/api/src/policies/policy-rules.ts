@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto';
+import { COPILOT_TONES } from '../copilot/copilot.types';
 import type {
   AutomationDecision,
   AutomationLevel,
@@ -44,7 +45,7 @@ const SERVICE_LEVELS = ['standard', 'expedited', 'local_pickup'] as const;
 const PAYMENT_METHODS = ['card', 'wallet'] as const;
 const CAPTURE_MODES = ['on_order', 'on_fulfillment'] as const;
 const AUTOMATION_LEVELS = ['suggest', 'confirm', 'auto'] as const;
-const TONES = ['concise', 'warm', 'professional'] as const;
+const TONES = COPILOT_TONES;
 const ACTION_KINDS = ['markdown', 'price-adjust', 'targeted-offer', 'push', 'swap', 'stock-adjust'] as const;
 
 /** Platform baseline (docs/config-policies.md): Restart-compatible resale defaults. */

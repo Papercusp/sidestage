@@ -77,6 +77,15 @@ describe('ConfigEventPolicyResolver', () => {
     expect(policy.priceFloorCentsByProduct.poster).toBe(630);
   });
 
+  it('preserves the event-default playful tone when no published policy overrides it', async () => {
+    const configs = new EventConfigService(new InMemoryEventConfigStore());
+    const prepared = await configs.prepare('event-1', { replyTone: 'playful' }, 'seller-alice');
+    await configs.persistOwned(prepared, 'seller-alice');
+    const resolver = new ConfigEventPolicyResolver(configs, policyStub(null), eventService());
+
+    await expect(resolver.resolve('event-1', ITEMS)).resolves.toMatchObject({ tone: 'playful' });
+  });
+
   it('prefers a published seller policy, with derivation filling unnamed products', async () => {
     const published: CopilotPolicy = {
       automationLevel: 'auto',

@@ -24,7 +24,7 @@ export interface SellerEventPolicy {
   priceFloorCentsByProduct: Record<string, number>;
   maxMarkdownPercent: number;
   blockedActionKinds: readonly string[];
-  tone: 'concise' | 'warm' | 'professional';
+  tone: 'concise' | 'warm' | 'playful' | 'professional';
 }
 
 export interface SellerEventSetup {

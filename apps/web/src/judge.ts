@@ -8,7 +8,7 @@ export const JUDGE_DIMENSIONS = [
 ] as const;
 
 export type JudgeDimension = (typeof JUDGE_DIMENSIONS)[number];
-export type JudgeTone = 'concise' | 'warm' | 'professional';
+export type JudgeTone = 'concise' | 'warm' | 'playful' | 'professional';
 
 interface JudgePolicy {
   automationLevel: 'suggest' | 'confirm' | 'auto';

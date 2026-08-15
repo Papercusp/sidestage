@@ -6,6 +6,7 @@ import type {
   CopilotActionProposal,
   CopilotRequest,
   CopilotResponse,
+  CopilotTone,
   GroundingContext,
   GroundingRetriever,
   ReplyGuard,
@@ -34,6 +35,13 @@ export interface CopilotPipelineDependencies {
 
 const FALLBACK_REPLY =
   "I don't have enough verified event or catalog information to answer that yet.";
+
+const TONE_GUIDANCE: Record<CopilotTone, string> = {
+  concise: 'Be direct and compact. Prefer one short sentence and omit conversational padding.',
+  warm: 'Be welcoming and helpful. Use a calm conversational cue without exaggeration.',
+  playful: 'Be lively and upbeat. Use light, tasteful energy while keeping every fact precise.',
+  professional: 'Be polished and restrained. Avoid slang, emoji, and excessive punctuation.',
+};
 
 /**
  * Builds the provider-neutral context sent to the reply model.
@@ -80,6 +88,7 @@ export function buildGroundingPrompt(context: GroundingContext): string {
     'If the context does not support an answer, say that plainly; do not invent price, stock, or product facts.',
     'Return citation IDs for every factual answer. Never execute an action; return a proposal for the caller to gate.',
     `Use the required ${context.policy.tone} tone and return it as tone when the provider supports tone metadata.`,
+    `Tone instruction: ${TONE_GUIDANCE[context.policy.tone]}`,
     'VERIFIED_CONTEXT:',
     JSON.stringify({
       eventItems,

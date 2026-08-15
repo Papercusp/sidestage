@@ -128,6 +128,66 @@ describe('GroundedCopilotPipeline', () => {
     }
   });
 
+  it('makes every event Settings tone observably distinct without a model credential', async () => {
+    vi.stubEnv('OPENAI_API_KEY', '');
+    vi.stubEnv('SIDESTAGE_COPILOT_MODEL', '');
+    try {
+      const model = new ConfiguredCopilotReplyModel();
+      const replies = await Promise.all((['warm', 'playful', 'concise'] as const).map(async (tone) => (
+        model.generate({
+          event: { eventId: 'event-1', message: 'Is the blue mug in stock and how much is it?' },
+          context: { ...context, policy: { ...policy, tone } },
+          groundingPrompt: buildGroundingPrompt({ ...context, policy: { ...policy, tone } }),
+        })
+      )));
+
+      expect(new Set(replies.map((draft) => draft.reply)).size).toBe(3);
+      expect(replies.map((draft) => draft.tone)).toEqual(['warm', 'playful', 'concise']);
+      expect(replies[1].reply).toContain('Great pick!');
+      expect(replies[2].reply).toBe('Blue mug: $15.00; 4 available.');
+    } finally {
+      vi.unstubAllEnvs();
+    }
+  });
+
+  it('keeps blank production base-url configuration optional and accepts playful remote output', async () => {
+    vi.stubEnv('OPENAI_API_KEY', 'test-key');
+    vi.stubEnv('SIDESTAGE_COPILOT_MODEL', 'test-model');
+    vi.stubEnv('OPENAI_BASE_URL', '');
+    const fetchMock = vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
+      const requestBody = JSON.parse(String(init?.body)) as {
+        text: { format: { schema: { properties: { tone: { enum: string[] } } } } };
+      };
+      expect(String(input)).toBe('https://api.openai.com/v1/responses');
+      expect(requestBody.text.format.schema.properties.tone.enum).toContain('playful');
+      return new Response(JSON.stringify({
+        output_text: JSON.stringify({
+          reply: 'Great pick! The blue mug is ready to go.',
+          citations: ['event-item:ei-1'],
+          confidence: 0.95,
+          tone: 'playful',
+          action: null,
+        }),
+      }), { status: 200, headers: { 'content-type': 'application/json' } });
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    try {
+      const playfulContext = { ...context, policy: { ...policy, tone: 'playful' as const } };
+      const draft = await new ConfiguredCopilotReplyModel().generate({
+        event: { eventId: 'event-1', message: 'Is the blue mug available?' },
+        context: playfulContext,
+        groundingPrompt: buildGroundingPrompt(playfulContext),
+      });
+
+      expect(draft).toMatchObject({ tone: 'playful', citations: ['event-item:ei-1'] });
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+    } finally {
+      vi.unstubAllGlobals();
+      vi.unstubAllEnvs();
+    }
+  });
+
   it('uses the seller policy ladder and never lets a request elevate it', async () => {
     const pipeline = makePipeline(
       {
@@ -284,6 +344,17 @@ describe('GroundedCopilotPipeline', () => {
     expect(prompt).toContain('catalog-product:p-1');
     expect(prompt).toContain('availableQty');
     expect(prompt).toContain('priceFloorCentsByProduct');
+  });
+
+  it('gives each canonical tone distinct provider guidance', () => {
+    const guidance = (['concise', 'warm', 'playful', 'professional'] as const).map((tone) => (
+      buildGroundingPrompt({ ...context, policy: { ...policy, tone } })
+        .split('\n')
+        .find((line) => line.startsWith('Tone instruction:'))
+    ));
+
+    expect(guidance.every(Boolean)).toBe(true);
+    expect(new Set(guidance).size).toBe(4);
   });
 
   it('includes web research findings in the provider-neutral prompt', () => {

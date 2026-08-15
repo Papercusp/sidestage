@@ -16,6 +16,7 @@ import {
   type RequestContext,
 } from './policy.service';
 import type { PolicyBody, ProviderCapabilities } from './policy.types';
+import { COPILOT_TONES } from '../copilot/copilot.types';
 
 const CAPS: ProviderCapabilities = { configuredPaymentMethods: ['card', 'wallet'], extendedWarrantyMonths: 12 };
 
@@ -57,6 +58,13 @@ describe('normalizePolicyBody', () => {
     const a = normalizePolicyBody(body((b) => { b.shipping.shipsTo = ['US', 'CA']; b.payment.methods = ['wallet', 'card']; }));
     const b2 = normalizePolicyBody(body((b) => { b.shipping.shipsTo = ['CA', 'US', 'CA']; b.payment.methods = ['card', 'wallet']; }));
     expect(policyFingerprint(a)).toBe(policyFingerprint(b2));
+  });
+
+  it('accepts every canonical Copilot tone, including playful', () => {
+    for (const tone of COPILOT_TONES) {
+      expect(normalizePolicyBody(body((candidate) => { candidate.automation.tone = tone; })).automation.tone)
+        .toBe(tone);
+    }
   });
 
   it('rejects unknown fields, decimal cents, invalid enums, duplicate methods, and bad country codes with stable paths', () => {

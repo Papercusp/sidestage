@@ -1,10 +1,12 @@
 import { Injectable } from '@nestjs/common';
 import type {
   CopilotActionKind,
+  CopilotTone,
   ModelDraft,
   ReplyGenerationRequest,
   ReplyModel,
 } from './copilot.types';
+import { COPILOT_TONES, isCopilotTone } from './copilot.types';
 import { firstRelevantSourceId } from './copilot.relevance';
 
 const ACTION_KINDS = new Set<CopilotActionKind>([
@@ -13,6 +15,50 @@ const ACTION_KINDS = new Set<CopilotActionKind>([
 
 function money(cents: number): string {
   return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(cents / 100);
+}
+
+function eventItemReply(
+  tone: CopilotTone,
+  item: { title: string; priceCents: number; availableQty: number },
+): string {
+  const price = money(item.priceCents);
+  switch (tone) {
+    case 'concise':
+      return `${item.title}: ${price}; ${item.availableQty} available.`;
+    case 'playful':
+      return `Great pick! ${item.title} is ${price}, and ${item.availableQty} are ready to go.`;
+    case 'professional':
+      return `${item.title} is priced at ${price}, with ${item.availableQty} unit${item.availableQty === 1 ? '' : 's'} currently available.`;
+    case 'warm':
+      return `Thanks for asking — ${item.title} is ${price}, with ${item.availableQty} currently available.`;
+  }
+}
+
+function catalogReply(tone: CopilotTone, product: { title: string; priceCents: number }): string {
+  const price = money(product.priceCents);
+  switch (tone) {
+    case 'concise':
+      return `${product.title}: ${price} in the verified catalog.`;
+    case 'playful':
+      return `Nice find! The verified catalog has ${product.title} at ${price}.`;
+    case 'professional':
+      return `The verified catalog lists ${product.title} at ${price}.`;
+    case 'warm':
+      return `Thanks for asking — I found ${product.title} in the verified catalog at ${price}.`;
+  }
+}
+
+function transcriptReply(tone: CopilotTone, text: string): string {
+  switch (tone) {
+    case 'concise':
+      return `Host: “${text}”`;
+    case 'playful':
+      return `Hot off the mic: “${text}”`;
+    case 'professional':
+      return `The host stated: “${text}”`;
+    case 'warm':
+      return `The host shared: “${text}”`;
+  }
 }
 
 @Injectable()
@@ -27,7 +73,7 @@ export class ConfiguredCopilotReplyModel implements ReplyModel {
 
   private async generateRemote(request: ReplyGenerationRequest, apiKey: string, model: string): Promise<ModelDraft> {
     const started = Date.now();
-    const base = (process.env.OPENAI_BASE_URL ?? 'https://api.openai.com').replace(/\/+$/, '');
+    const base = process.env.OPENAI_BASE_URL?.trim().replace(/\/+$/, '') || 'https://api.openai.com';
     const response = await fetch(`${base}/v1/responses`, {
       method: 'POST',
       headers: { authorization: `Bearer ${apiKey}`, 'content-type': 'application/json' },
@@ -46,7 +92,7 @@ export class ConfiguredCopilotReplyModel implements ReplyModel {
                 reply: { type: 'string' },
                 citations: { type: 'array', items: { type: 'string' } },
                 confidence: { type: 'number' },
-                tone: { type: 'string', enum: ['concise', 'warm', 'professional'] },
+                tone: { type: 'string', enum: [...COPILOT_TONES] },
                 action: {
                   anyOf: [
                     { type: 'null' },
@@ -93,7 +139,7 @@ export class ConfiguredCopilotReplyModel implements ReplyModel {
       reply: typeof raw.reply === 'string' ? raw.reply : '',
       citations: Array.isArray(raw.citations) ? raw.citations.filter((value): value is string => typeof value === 'string') : [],
       confidence: typeof raw.confidence === 'number' ? raw.confidence : 0,
-      tone: raw.tone === 'concise' || raw.tone === 'warm' || raw.tone === 'professional' ? raw.tone : undefined,
+      tone: isCopilotTone(raw.tone) ? raw.tone : undefined,
       action,
       latency: { completeMs: Date.now() - started },
     };
@@ -114,7 +160,7 @@ export class ConfiguredCopilotReplyModel implements ReplyModel {
       : undefined;
     if (item) {
       return {
-        reply: `Thanks for asking — ${item.title} is ${money(item.priceCents)}, with ${item.availableQty} currently available.`,
+        reply: eventItemReply(request.context.policy.tone, item),
         citations: [eventSource!],
         confidence: 0.98,
         tone: request.context.policy.tone,
@@ -122,7 +168,7 @@ export class ConfiguredCopilotReplyModel implements ReplyModel {
     }
     if (product) {
       return {
-        reply: `Thanks for asking — I found ${product.title} in the verified catalog at ${money(product.priceCents)}.`,
+        reply: catalogReply(request.context.policy.tone, product),
         citations: [catalogSource!],
         confidence: 0.92,
         tone: request.context.policy.tone,
@@ -130,7 +176,7 @@ export class ConfiguredCopilotReplyModel implements ReplyModel {
     }
     if (transcript) {
       return {
-        reply: `The host shared: “${transcript.text}”`,
+        reply: transcriptReply(request.context.policy.tone, transcript.text),
         citations: [transcriptSource!],
         confidence: 0.9,
         tone: request.context.policy.tone,

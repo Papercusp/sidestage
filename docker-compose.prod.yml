@@ -155,6 +155,11 @@ services:
       SIDESTAGE_AUCTION_SELLER_TOKEN: ${SIDESTAGE_AUCTION_SELLER_TOKEN:?set in .env.production}
       SIDESTAGE_AUCTION_SIGNING_SECRET: ${SIDESTAGE_AUCTION_SIGNING_SECRET:?set in .env.production}
       DEEPGRAM_API_KEY: ${DEEPGRAM_API_KEY:?set in .env.production}
+      # Optional: blank values keep the provider-independent deterministic
+      # Copilot active. Production may inject all three without rebuilding.
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      OPENAI_BASE_URL: ${OPENAI_BASE_URL:-}
+      SIDESTAGE_COPILOT_MODEL: ${SIDESTAGE_COPILOT_MODEL:-}
     depends_on:
       postgres:
         condition: service_healthy
