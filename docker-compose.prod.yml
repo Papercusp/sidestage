@@ -152,7 +152,6 @@ services:
       STRIPE_SECRET_KEY: ${STRIPE_SECRET_KEY:?set in .env.production}
       STRIPE_PUBLISHABLE_KEY: ${STRIPE_PUBLISHABLE_KEY:?set in .env.production}
       STRIPE_WEBHOOK_SECRET: ${STRIPE_WEBHOOK_SECRET:?set in .env.production}
-      SIDESTAGE_AUCTION_SELLER_TOKEN: ${SIDESTAGE_AUCTION_SELLER_TOKEN:?set in .env.production}
       SIDESTAGE_AUCTION_SIGNING_SECRET: ${SIDESTAGE_AUCTION_SIGNING_SECRET:?set in .env.production}
       DEEPGRAM_API_KEY: ${DEEPGRAM_API_KEY:?set in .env.production}
       # Optional: blank values keep the provider-independent deterministic
