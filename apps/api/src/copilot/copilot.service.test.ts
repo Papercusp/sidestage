@@ -123,7 +123,7 @@ describe('CopilotProposalService', () => {
       variant: async () => variant(),
     };
     const actions = new GuardedActionService();
-    actions.registerEvent('event-1', {
+    await actions.registerEvent('event-1', {
       policy: context.policy,
       items: [{
         eventId: 'event-1', eventItemId: 'event-1:mug', productId: 'mug', title: 'Blue mug',
@@ -270,7 +270,7 @@ describe('CopilotProposalService', () => {
 
   it('executes a confirmed action once and still allows its reply to be approved', async () => {
     const actions = new GuardedActionService();
-    actions.registerEvent('event-1', {
+    await actions.registerEvent('event-1', {
       policy: context.policy,
       items: [{
         eventId: 'event-1', eventItemId: 'event-1:mug', productId: 'mug', title: 'Blue mug',

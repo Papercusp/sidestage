@@ -285,7 +285,7 @@ describe('seller Copilot integration', () => {
       guardrail: { allowed: true },
     };
     const runtime = integrationRuntime(action);
-    runtime.actions.registerEvent('event-live', {
+    await runtime.actions.registerEvent('event-live', {
       policy: context.policy,
       items: [{
         eventId: 'event-live',
