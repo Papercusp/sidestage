@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { FormEvent } from 'react';
-import { useSyncMutate, useSyncQuery } from '@papercusp/sync';
+import { useSyncMutate, useSyncPrincipal, useSyncQuery } from '@papercusp/sync';
 import { requestChatJson } from './chat-api';
+import { sellerPrivateRequestHeaders } from './events/api';
 import { MESSAGE_IMPORTANCE_ORDER, triageMessages, type MessageImportance, type TriagedMessage } from './message-triage';
 
 export type EventChatRole = 'buyer' | 'seller';
@@ -85,12 +86,16 @@ export function useEventChatSender({
   apiBaseUrl,
 }: Pick<EventChatProps, 'eventId' | 'apiBaseUrl'>) {
   const apiOrigin = resolveApiOrigin(apiBaseUrl);
+  const principal = useSyncPrincipal() ?? undefined;
   const fallback = useCallback(async (input: EventChatMessageInput) => {
     return requestChatJson<EventChatMessage>(`${apiOrigin}/chat/events/${encodeURIComponent(eventId)}/messages`, {
       method: 'POST',
+      headers: input.role === 'seller'
+        ? sellerPrivateRequestHeaders(principal ?? input.userId)
+        : undefined,
       body: JSON.stringify(input),
     });
-  }, [apiOrigin, eventId]);
+  }, [apiOrigin, eventId, principal]);
   return useSyncMutate<EventChatMessageInput, EventChatMessage>('chat.sendMessage', fallback);
 }
 
@@ -114,6 +119,7 @@ function EventChatSurface({
   apiBaseUrl,
 }: EventChatProps) {
   const apiOrigin = resolveApiOrigin(apiBaseUrl);
+  const principal = useSyncPrincipal() ?? userId;
   const messagesQuery = useSyncQuery<EventChatMessage>({
     queryName: 'event.chat.messages',
     args: { eventId },
@@ -141,15 +147,19 @@ function EventChatSurface({
   const touchPresenceFallback = useCallback((input: EventChatPresenceInput) => (
     requestChatJson<EventChatPresence>(`${apiOrigin}/chat/events/${encodeURIComponent(eventId)}/presence`, {
       method: 'POST',
+      headers: input.role === 'seller' ? sellerPrivateRequestHeaders(principal) : undefined,
       body: JSON.stringify(input),
     })
-  ), [apiOrigin, eventId]);
+  ), [apiOrigin, eventId, principal]);
   const leavePresenceFallback = useCallback(({ userId: leavingUserId }: { userId: string }) => (
     requestChatJson<{ ok: true }>(
       `${apiOrigin}/chat/events/${encodeURIComponent(eventId)}/presence/${encodeURIComponent(leavingUserId)}`,
-      { method: 'DELETE' },
+      {
+        method: 'DELETE',
+        headers: role === 'seller' ? sellerPrivateRequestHeaders(principal) : undefined,
+      },
     )
-  ), [apiOrigin, eventId]);
+  ), [apiOrigin, eventId, principal, role]);
   const touchPresence = useSyncMutate<EventChatPresenceInput, EventChatPresence>(
     'chat.touchPresence',
     touchPresenceFallback,

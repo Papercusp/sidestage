@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
-import { useSyncMutate, useSyncQuery } from '@papercusp/sync';
+import { useSyncMutate, useSyncPrincipal, useSyncQuery } from '@papercusp/sync';
 import { fetchCatalog } from './catalog';
 import { TabHeader } from './components/TabHeader';
 import { browserEventId, DEFAULT_EVENT_TITLE } from './event-identity';
@@ -182,6 +182,7 @@ type RehearsalErrors = Partial<Record<RehearsalKind, string>>;
 
 export function TestTab() {
   const eventId = browserEventId();
+  const principal = useSyncPrincipal() ?? undefined;
   const [activeSuite, setActiveSuite] = useState<TestSuiteId>('preflight');
   const [selectedCheckId, setSelectedCheckId] = useState<string | null>(null);
   const eventConfigQuery = useSyncQuery<EventConfigRead>({
@@ -227,14 +228,14 @@ export function TestTab() {
   const refreshClientPreflight = useCallback(() => {
     setClientPreflightRunning(true);
     setClientPreflightError(null);
-    void runClientPreflight(eventId)
+    void runClientPreflight(eventId, { realtime: { principal } })
       .then(setClientPreflight)
       .catch((error: unknown) => {
         setClientPreflight(null);
         setClientPreflightError(error instanceof Error ? error.message : 'The browser checks could not run.');
       })
       .finally(() => setClientPreflightRunning(false));
-  }, [eventId]);
+  }, [eventId, principal]);
   useEffect(() => {
     // React StrictMode replays effects in development. A readiness probe may
     // prompt for camera/microphone access, so it must still run only once.
