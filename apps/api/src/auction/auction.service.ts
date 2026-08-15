@@ -1,5 +1,5 @@
 import { BadRequestException, ConflictException, Inject, Injectable, NotFoundException, Optional } from '@nestjs/common';
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { Subject, type Observable } from 'rxjs';
 import type { CatalogSource } from '../catalog/catalog.types';
 import { ORDER_STORE, type CheckoutOrder, type OrderStore } from '../checkout/order-store';
@@ -39,11 +39,19 @@ export interface AuctionInventory {
   seed(productId: string, qty: number, reservedQty?: number, sellerId?: string): Promise<AuctionInventorySnapshot>;
   save(productId: string, quantity: number, priceCents: number): Promise<AuctionInventorySnapshot | undefined>;
   saveOwned(productId: string, quantity: number, priceCents: number, sellerId: string): Promise<AuctionInventorySnapshot | undefined>;
+  onboardOwned(sourceProductId: string, quantity: number, priceCents: number, sellerId: string): Promise<AuctionInventorySnapshot | undefined>;
   reserve(productId: string, quantity: number, source: InventoryHoldSource, expiresAt?: string): Promise<boolean>;
   reserveOwned(productId: string, quantity: number, source: InventoryHoldSource, sellerId: string, expiresAt?: string): Promise<boolean>;
   release(productId: string, quantity: number, source: InventoryHoldSource): Promise<boolean>;
   releaseOwned(productId: string, quantity: number, source: InventoryHoldSource, sellerId: string): Promise<boolean>;
   commit(productId: string, source: InventoryHoldSource): Promise<boolean>;
+}
+
+/** Stable, bounded identity for a seller's clone of one catalog variant. */
+export function sellerListingId(sellerId: string, sourceIdentity: string): string {
+  const sellerKey = createHash('sha256').update(sellerId).digest('hex').slice(0, 12);
+  const sourceKey = createHash('sha256').update(sourceIdentity).digest('hex').slice(0, 24);
+  return `seller-listing-${sellerKey}-${sourceKey}`;
 }
 
 interface InMemoryInventoryHold {
@@ -115,6 +123,38 @@ export class InMemoryAuctionInventory implements AuctionInventory {
   async saveOwned(productId: string, quantity: number, priceCents: number, sellerId: string): Promise<AuctionInventorySnapshot | undefined> {
     if (!(await this.isOwned(productId, sellerId))) return undefined;
     return this.save(productId, quantity, priceCents);
+  }
+
+  async onboardOwned(sourceProductId: string, quantity: number, priceCents: number, sellerId: string): Promise<AuctionInventorySnapshot | undefined> {
+    const sourceId = this.readId(sourceProductId, 'sourceProductId');
+    const owner = this.readId(sellerId, 'sellerId');
+    if (!Number.isInteger(quantity) || quantity < 0) throw new BadRequestException('quantity must be a non-negative integer');
+    if (!Number.isInteger(priceCents) || priceCents < 0) throw new BadRequestException('priceCents must be a non-negative integer');
+    const source = await this.catalog?.variant(sourceId);
+    if (!source) return undefined;
+    const targetId = sellerListingId(owner, `${source.groupId ?? source.id}\0${source.id}`);
+    const existing = this.items.get(targetId);
+    if (existing && quantity < existing.reservedQty) {
+      throw new ConflictException(`Quantity cannot be lower than ${existing.reservedQty} reserved units for ${targetId}`);
+    }
+    const cloned = await this.catalog?.onboardInventory?.(
+      sourceId,
+      targetId,
+      owner,
+      quantity,
+      priceCents,
+    );
+    if (!cloned) return undefined;
+    const next: AuctionInventorySnapshot = {
+      productId: targetId,
+      qty: quantity,
+      reservedQty: existing?.reservedQty ?? 0,
+      availableQty: Math.max(0, quantity - (existing?.reservedQty ?? 0)),
+      priceCents,
+    };
+    this.items.set(targetId, next);
+    this.owners.set(targetId, owner);
+    return { ...next };
   }
 
   async reserve(productId: string, quantity: number, source: InventoryHoldSource, expiresAt?: string): Promise<boolean> {
