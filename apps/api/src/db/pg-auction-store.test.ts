@@ -225,6 +225,11 @@ describe.runIf(process.env.SIDESTAGE_PG_INTEGRATION === '1')('PgAuctionStore aga
 
     try {
       await pool.query(
+        `INSERT INTO event (event_id, title, seller_id, seller_name, status)
+         VALUES ($1, 'Auction test event', 'demo-seller', 'Demo Seller', 'live')`,
+        [auction.eventId],
+      );
+      await pool.query(
         `INSERT INTO storefront_product (id, slug, region, sku, price_cents, active, qty, reserved_qty)
          VALUES ($1, $1, 'US', $2, 1000, true, 3, 0)`,
         [productId, `AUCTION-TEST-${suffix}`],
@@ -273,6 +278,7 @@ describe.runIf(process.env.SIDESTAGE_PG_INTEGRATION === '1')('PgAuctionStore aga
       await pool.query('DELETE FROM auction_state WHERE id = $1', [auction.id]);
       await pool.query("DELETE FROM inventory_reservation WHERE source_kind = 'auction' AND source_id = $1", [auction.id]);
       await pool.query('DELETE FROM storefront_product WHERE id = $1', [productId]);
+      await pool.query('DELETE FROM event WHERE event_id = $1', [auction.eventId]);
       await pool.end();
     }
   });
