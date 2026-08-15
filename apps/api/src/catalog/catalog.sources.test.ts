@@ -324,4 +324,23 @@ describe('FixtureCatalogSource', () => {
     await expect(source.saveInventory('mug', 1, 1_500)).rejects.toThrow('Quantity cannot be lower than 2 reserved units');
     expect(fixture[0]).toMatchObject({ qty: 5, availableQty: 3, priceCents: 1_200 });
   });
+
+  it('clones a fixture listing into seller-owned search without reassigning the source', async () => {
+    const source = new FixtureCatalogSource([{
+      id: 'kettle', groupId: 'kettles', title: 'Harbor Kettle', brand: 'Harbor', productType: 'KITCHEN', sku: 'HK-1',
+      condition: 'NEW', handlingDays: 1, priceCents: 3_000, qty: 9, reservedQty: 1, availableQty: 8,
+    }]);
+
+    await expect(source.onboardInventory('kettle', 'seller-kettle', 'seller-alpha', 2, 2_500)).resolves.toMatchObject({
+      id: 'seller-kettle', qty: 2, reservedQty: 0, availableQty: 2, priceCents: 2_500,
+    });
+    await expect(source.searchOwned({}, 'seller-alpha')).resolves.toMatchObject({
+      total: 1,
+      rows: [expect.objectContaining({ id: 'seller-kettle' })],
+    });
+    await expect(source.searchOwned({}, 'demo-seller')).resolves.toMatchObject({
+      total: 1,
+      rows: [expect.objectContaining({ id: 'kettle', qty: 9, reservedQty: 1 })],
+    });
+  });
 });
