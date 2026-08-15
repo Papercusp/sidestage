@@ -4,6 +4,9 @@ SideStage is a live-selling copilot for event sellers and buyers. The public
 contest repo keeps the seller shell, API, streaming gateway, and shared Papercusp
 libraries in one clean-clone-runnable npm workspace.
 
+The native Android and iOS apps live in the companion
+[`sidestage-mobile` repository](https://github.com/Papercusp/sidestage-mobile).
+
 ## Prerequisites
 
 - Node.js 20.19+ and npm 10+
