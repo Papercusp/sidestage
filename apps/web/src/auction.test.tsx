@@ -182,6 +182,34 @@ describe('AuctionPanel', () => {
     expect(activeAuctionFromSyncRows([])).toBeNull();
   });
 
+  it('uses the same authoritative card for idle current-offer content', () => {
+    const useDataImpl = vi.fn().mockReturnValue({
+      data: [],
+      loading: false,
+      fetching: false,
+      transport: 'SSE',
+      invalidate: vi.fn(),
+      error: null,
+    });
+    const markup = renderToStaticMarkup(
+      <SyncContext.Provider value={{ transport: 'SSE', useDataImpl, prefetch: vi.fn() } as never}>
+        <AuctionPanel
+          className="buyer-current-offer-slot"
+          eventId="sunday-drop"
+          products={PRODUCTS}
+          idleContent={<article data-current-product-id="stoneware-mug-matte-12oz">Now selling Stoneware mug</article>}
+        />
+      </SyncContext.Provider>,
+    );
+
+    expect(markup).toContain('class="auction-card buyer-current-offer-slot"');
+    expect(markup).toContain('aria-label="Current offer"');
+    expect(markup).toContain('data-offer-state="idle"');
+    expect(markup).toContain('Now selling Stoneware mug');
+    expect(markup).not.toContain('Live auction');
+    expect(markup).not.toContain('No auction is live yet');
+  });
+
   it('renders the synced current price, leader state, and bid action', () => {
     const markup = render(ACTIVE_AUCTION);
     expect(markup).toContain('Stoneware mug');
