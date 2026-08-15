@@ -4,7 +4,7 @@ import { AuctionModule } from '../auction/auction.module';
 import { DatabaseModule, PG_POOL } from '../db/database.module';
 import { PgChatStore } from '../db/pg-chat-store';
 import { EventModule } from '../events/event.module';
-import { EventOwnershipGuard } from '../events/event-ownership.guard';
+import { EventVisibilityGuard } from '../events/event-visibility.guard';
 import { SyncModule } from '../sync/sync.module';
 import { SyncQueryRegistry, type SyncQueryArgs } from '../sync/sync-query.registry';
 import { ChatController } from './chat.controller';
@@ -19,14 +19,14 @@ export class ChatSyncQueries implements OnModuleInit {
   constructor(
     @Inject(ChatService) private readonly chat: ChatService,
     @Inject(SyncQueryRegistry) private readonly queries: SyncQueryRegistry,
-    @Inject(EventOwnershipGuard) private readonly ownership: EventOwnershipGuard,
+    @Inject(EventVisibilityGuard) private readonly visibility: EventVisibilityGuard,
   ) {}
 
   onModuleInit(): void {
     this.queries.register('event.chat.messages', (args) => this.chat.getMessages(eventIdFrom(args)));
-    this.queries.register('event.chat.transcript', async (args, context) => {
+    this.queries.register('event.chat.transcript', async (args) => {
       const eventId = eventIdFrom(args);
-      await this.ownership.requireOwned(eventId, context.principal);
+      await this.visibility.assertBuyerVisible(eventId);
       return this.chat.getTranscript(eventId);
     });
     this.queries.register('event.chat.presence', (args) => this.chat.getPresence(eventIdFrom(args)));
