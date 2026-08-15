@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { ConflictException, Injectable, Logger } from '@nestjs/common';
 import type { Pool } from 'pg';
 import { memoryTokens } from '../scout/scout-memory';
 import { DEMO_CATALOG_FIXTURE } from './catalog.fixture';
@@ -71,7 +71,7 @@ function collectionPredicate(
  * one row per variant.
  */
 const VARIANT_COLUMNS = `v.id, v.group_id AS "groupId", c.title, c.brand, c.product_type AS "productType",
-              v.sku, v.condition, v.handling AS "handlingDays", v.price_cents AS "priceCents",
+              v.sku, v.condition, v.handling AS "handlingDays", v.price_cents AS "priceCents", v.qty,
               v.reserved_qty AS "reservedQty", v."availableQty",
               -- A colour variant that ships its own photo must show THAT photo:
               -- falling straight through to the group image rendered both
@@ -110,6 +110,7 @@ interface VariantRow {
   condition: string | null;
   handlingDays: number | null;
   priceCents: number;
+  qty: number;
   reservedQty: number;
   availableQty: number;
   imageUrl: string | null;
@@ -137,6 +138,7 @@ function rowToVariant(row: VariantRow): CatalogVariant {
     condition: row.condition,
     handlingDays: row.handlingDays,
     priceCents: row.priceCents,
+    qty: row.qty,
     reservedQty: row.reservedQty,
     availableQty: row.availableQty,
     imageUrl: row.imageUrl ?? undefined,
@@ -350,14 +352,18 @@ export class FixtureCatalogSource implements CatalogSource {
     return this.fixture.find((variant) => variant.id === id);
   }
 
-  async restock(id: string, quantity: number, priceCents?: number): Promise<CatalogVariant | undefined> {
+  async saveInventory(id: string, quantity: number, priceCents: number): Promise<CatalogVariant | undefined> {
     const index = this.fixture.findIndex((variant) => variant.id === id);
     if (index < 0) return undefined;
     const current = this.fixture[index];
+    if (quantity < current.reservedQty) {
+      throw new ConflictException(`Quantity cannot be lower than ${current.reservedQty} reserved units for ${id}`);
+    }
     const next: CatalogVariant = {
       ...current,
-      availableQty: current.availableQty + quantity,
-      priceCents: priceCents ?? current.priceCents,
+      qty: quantity,
+      availableQty: Math.max(0, quantity - current.reservedQty),
+      priceCents,
     };
     this.fixture[index] = next;
     return { ...next };

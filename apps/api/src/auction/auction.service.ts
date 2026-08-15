@@ -2,6 +2,7 @@ import { BadRequestException, ConflictException, Inject, Injectable, NotFoundExc
 import { randomUUID } from 'node:crypto';
 import { Subject, type Observable } from 'rxjs';
 import type { CatalogSource } from '../catalog/catalog.types';
+import { ORDER_STORE, type CheckoutOrder, type OrderStore } from '../checkout/order-store';
 import { SyncInvalidationService } from '../sync/sync-invalidation.service';
 
 export const AUCTION_INVENTORY = Symbol('AUCTION_INVENTORY');
@@ -33,7 +34,7 @@ export interface InventoryHoldSource {
 export interface AuctionInventory {
   get(productId: string): Promise<AuctionInventorySnapshot | undefined>;
   seed(productId: string, qty: number, reservedQty?: number): Promise<AuctionInventorySnapshot>;
-  restock(productId: string, quantity: number, priceCents?: number): Promise<AuctionInventorySnapshot | undefined>;
+  save(productId: string, quantity: number, priceCents: number): Promise<AuctionInventorySnapshot | undefined>;
   reserve(productId: string, quantity: number, source: InventoryHoldSource, expiresAt?: string): Promise<boolean>;
   release(productId: string, quantity: number, source: InventoryHoldSource): Promise<boolean>;
   commit(productId: string, source: InventoryHoldSource): Promise<boolean>;
@@ -49,6 +50,7 @@ interface InMemoryInventoryHold {
 export class InMemoryAuctionInventory implements AuctionInventory {
   private readonly items = new Map<string, AuctionInventorySnapshot>();
   private readonly holds = new Map<string, InMemoryInventoryHold>();
+  private readonly releasedHolds = new Set<string>();
 
   constructor(private readonly catalog?: CatalogSource) {}
 
@@ -69,34 +71,31 @@ export class InMemoryAuctionInventory implements AuctionInventory {
     return { ...item };
   }
 
-  async restock(productId: string, quantity: number, priceCents?: number): Promise<AuctionInventorySnapshot | undefined> {
+  async save(productId: string, quantity: number, priceCents: number): Promise<AuctionInventorySnapshot | undefined> {
     const id = this.readId(productId, 'productId');
-    if (!Number.isInteger(quantity) || quantity <= 0) throw new BadRequestException('quantity must be a positive integer');
-    if (priceCents !== undefined && (!Number.isInteger(priceCents) || priceCents < 0)) {
-      throw new BadRequestException('priceCents must be a non-negative integer');
-    }
+    if (!Number.isInteger(quantity) || quantity < 0) throw new BadRequestException('quantity must be a non-negative integer');
+    if (!Number.isInteger(priceCents) || priceCents < 0) throw new BadRequestException('priceCents must be a non-negative integer');
 
-    // The clean-clone catalog is the existing read authority. Mirror intake
-    // there first so catalog.page invalidation exposes the same stock change;
-    // do not grow a second fixture/store just for Studio inventory.
-    const catalogVariant = this.catalog?.restock
-      ? await this.catalog.restock(id, quantity, priceCents)
-      : undefined;
     const item = this.items.get(id);
+    const catalogVariant = await this.catalog?.variant(id);
     if (!item && !catalogVariant) return undefined;
-
+    const reservedQty = item?.reservedQty ?? catalogVariant!.reservedQty;
+    if (quantity < reservedQty) {
+      throw new ConflictException(`Quantity cannot be lower than ${reservedQty} reserved units for ${id}`);
+    }
+    const savedCatalogVariant = this.catalog?.saveInventory
+      ? await this.catalog.saveInventory(id, quantity, priceCents)
+      : catalogVariant;
     const next = item ?? {
       productId: id,
-      qty: catalogVariant!.availableQty,
-      reservedQty: 0,
-      availableQty: catalogVariant!.availableQty,
-      priceCents: catalogVariant!.priceCents,
+      qty: quantity,
+      reservedQty,
+      availableQty: Math.max(0, quantity - reservedQty),
+      priceCents: savedCatalogVariant?.priceCents ?? priceCents,
     };
-    if (item) {
-      next.qty += quantity;
-      next.availableQty = Math.max(0, next.qty - next.reservedQty);
-      if (priceCents !== undefined) next.priceCents = priceCents;
-    }
+    next.qty = quantity;
+    next.availableQty = Math.max(0, quantity - next.reservedQty);
+    next.priceCents = priceCents;
     this.items.set(id, next);
     return { ...next };
   }
@@ -107,6 +106,7 @@ export class InMemoryAuctionInventory implements AuctionInventory {
     const item = this.items.get(productId);
     if (!item) return false;
     const holdKey = this.holdKey(productId, source);
+    this.releasedHolds.delete(holdKey);
     const previousHold = this.holds.get(holdKey);
     if (previousHold?.committed) return true;
     const previous = previousHold?.quantity ?? 0;
@@ -124,10 +124,11 @@ export class InMemoryAuctionInventory implements AuctionInventory {
     const item = this.items.get(productId);
     const holdKey = this.holdKey(productId, source);
     const hold = this.holds.get(holdKey);
-    if (!item || !hold) return false;
+    if (!item || !hold) return this.releasedHolds.has(holdKey);
     item.reservedQty = Math.max(0, item.reservedQty - hold.quantity);
     item.availableQty = Math.max(0, item.qty - item.reservedQty);
     this.holds.delete(holdKey);
+    this.releasedHolds.add(holdKey);
     return true;
   }
 
@@ -285,6 +286,9 @@ export class AuctionService {
     @Optional()
     @Inject(AUCTION_STORE)
     private readonly store?: AuctionStore | null,
+    @Optional()
+    @Inject(ORDER_STORE)
+    private readonly orders?: OrderStore,
   ) {}
 
   async startAuction(input: StartAuctionInput): Promise<Auction> {
@@ -365,13 +369,17 @@ export class AuctionService {
     const resolvedEventId = this.readId(eventId, 'eventId');
     if (this.store) {
       const auction = await this.store.getCurrentByEvent(resolvedEventId);
-      return auction ? this.cloneAuction(await this.settleStoredAuction(auction)) : null;
+      if (!auction) return null;
+      const settled = await this.settleStoredAuction(auction);
+      await this.ensureCanonicalWinnerOrder(settled.winnerOrder);
+      return this.cloneAuction(settled);
     }
     const id = this.currentByEvent.get(resolvedEventId);
     if (!id) return null;
     // Settles a run-out clock first, so a caller never sees a stale 'active'.
     await this.expireActive(resolvedEventId);
     const auction = this.auctions.get(id);
+    await this.ensureCanonicalWinnerOrder(auction?.winnerOrder);
     return auction ? this.cloneAuction(auction) : null;
   }
 
@@ -379,10 +387,13 @@ export class AuctionService {
     if (this.store) {
       const auction = await this.store.get(this.readId(id, 'auctionId'));
       if (!auction) throw new NotFoundException('Auction was not found');
-      return this.cloneAuction(await this.settleStoredAuction(auction));
+      const settled = await this.settleStoredAuction(auction);
+      await this.ensureCanonicalWinnerOrder(settled.winnerOrder);
+      return this.cloneAuction(settled);
     }
     const auction = this.requireAuction(id);
     if (auction.status === 'active' && Date.now() >= Date.parse(auction.endsAt)) await this.closeInternal(auction);
+    await this.ensureCanonicalWinnerOrder(auction.winnerOrder);
     return this.cloneAuction(auction);
   }
 
@@ -391,7 +402,11 @@ export class AuctionService {
     const productId = this.readId(productIdInput, 'productId');
     if (this.store) {
       const matches = await this.store.listByProduct(productId);
-      return Promise.all(matches.map(async (auction) => this.cloneAuction(await this.settleStoredAuction(auction))));
+      return Promise.all(matches.map(async (auction) => {
+        const settled = await this.settleStoredAuction(auction);
+        await this.ensureCanonicalWinnerOrder(settled.winnerOrder);
+        return this.cloneAuction(settled);
+      }));
     }
     const matches: Auction[] = [];
     for (const auction of this.auctions.values()) {
@@ -399,6 +414,7 @@ export class AuctionService {
       if (auction.status === 'active' && Date.now() >= Date.parse(auction.endsAt)) {
         await this.closeInternal(auction);
       }
+      await this.ensureCanonicalWinnerOrder(auction.winnerOrder);
       matches.push(this.cloneAuction(auction));
     }
     return matches.sort((left, right) => right.startedAt.localeCompare(left.startedAt));
@@ -408,7 +424,9 @@ export class AuctionService {
     const bidderId = this.readId(bidderIdInput, 'bidderId');
     if (this.store) {
       for (const result of await this.store.closeExpired()) this.publishStoredClose(result);
-      return this.store.listWinnerOrdersForBuyer(bidderId);
+      const orders = await this.store.listWinnerOrdersForBuyer(bidderId);
+      await Promise.all(orders.map((order) => this.ensureCanonicalWinnerOrder(order)));
+      return orders;
     }
     const orders: AuctionWinnerOrder[] = [];
     for (const auction of this.auctions.values()) {
@@ -417,6 +435,7 @@ export class AuctionService {
       }
       if (auction.winnerOrder?.bidderId === bidderId) orders.push({ ...auction.winnerOrder });
     }
+    await Promise.all(orders.map((order) => this.ensureCanonicalWinnerOrder(order)));
     return orders.sort((left, right) => right.createdAt.localeCompare(left.createdAt));
   }
 
@@ -464,11 +483,32 @@ export class AuctionService {
     if (this.store) {
       const result = await this.store.close(this.readId(id, 'auctionId'));
       this.publishStoredClose(result);
+      await this.ensureCanonicalWinnerOrder(result.auction.winnerOrder);
       return this.cloneAuction(result.auction);
     }
     const auction = this.requireAuction(id);
     if (auction.status === 'active') await this.closeInternal(auction);
+    await this.ensureCanonicalWinnerOrder(auction.winnerOrder);
     return this.cloneAuction(auction);
+  }
+
+  async commitWinnerReservation(auctionIdInput: string, buyerIdInput: string): Promise<void> {
+    const auction = await this.requireWinnerAuction(auctionIdInput, buyerIdInput);
+    const committed = await this.inventory.commit(
+      auction.productId,
+      { kind: 'auction', id: auction.id },
+    );
+    if (!committed) throw new Error(`Auction inventory hold for ${auction.productId} could not be committed`);
+  }
+
+  async releaseWinnerReservation(auctionIdInput: string, buyerIdInput: string): Promise<void> {
+    const auction = await this.requireWinnerAuction(auctionIdInput, buyerIdInput);
+    const released = await this.inventory.release(
+      auction.productId,
+      auction.quantity,
+      { kind: 'auction', id: auction.id },
+    );
+    if (!released) throw new Error(`Auction inventory hold for ${auction.productId} could not be released`);
   }
 
   async inventorySnapshot(productId: string): Promise<AuctionInventorySnapshot | null> {
@@ -500,6 +540,7 @@ export class AuctionService {
     if (!this.store || auction.status !== 'active' || Date.now() < Date.parse(auction.endsAt)) return auction;
     const result = await this.store.close(auction.id);
     this.publishStoredClose(result);
+    await this.ensureCanonicalWinnerOrder(result.auction.winnerOrder);
     return result.auction;
   }
 
@@ -536,6 +577,7 @@ export class AuctionService {
       status: 'pending',
       createdAt: auction.closedAt,
     };
+    await this.ensureCanonicalWinnerOrder(auction.winnerOrder);
     // The winner order owns the reservation and can later hand it to checkout.
     this.emitAuctionUpdate(auction);
     this.syncInvalidations?.invalidate('orders.byBuyer', { buyerId: winner.bidderId });
@@ -581,6 +623,48 @@ export class AuctionService {
     const auction = this.auctions.get(this.readId(id, 'auctionId'));
     if (!auction) throw new NotFoundException('Auction was not found');
     return auction;
+  }
+
+  private async requireWinnerAuction(auctionIdInput: string, buyerIdInput: string): Promise<Auction> {
+    const buyerId = this.readId(buyerIdInput, 'buyerId');
+    const auction = await this.getAuction(this.readId(auctionIdInput, 'auctionId'));
+    if (!auction?.winnerOrder || auction.winnerOrder.bidderId !== buyerId) {
+      throw new NotFoundException('Auction order was not found for this buyer');
+    }
+    return auction;
+  }
+
+  private async ensureCanonicalWinnerOrder(winner: AuctionWinnerOrder | undefined): Promise<void> {
+    if (!winner || !this.orders) return;
+    const existing = await this.orders.findBySource('auction', winner.auctionId);
+    if (existing) {
+      if (existing.id !== winner.id || existing.buyerId !== winner.bidderId) {
+        throw new ConflictException('Auction winner is already associated with another canonical order');
+      }
+      return;
+    }
+    const order: CheckoutOrder = {
+      id: winner.id,
+      buyerId: winner.bidderId,
+      sourceKind: 'auction',
+      sourceId: winner.auctionId,
+      eventId: winner.eventId,
+      subtotalCents: winner.totalCents,
+      shippingCents: 0,
+      totalCents: winner.totalCents,
+      currency: 'USD',
+      status: 'pending',
+      paymentState: 'payment_required',
+      createdAt: winner.createdAt,
+      items: [{
+        productId: winner.productId,
+        title: winner.productId,
+        priceCents: winner.unitPriceCents,
+        quantity: winner.quantity,
+      }],
+      sourceSnapshot: { ...winner },
+    };
+    await this.orders.set(order);
   }
 
   private cloneAuction(auction: Auction): Auction {

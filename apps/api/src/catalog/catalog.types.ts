@@ -38,6 +38,8 @@ export interface CatalogVariant {
   condition: string | null;
   handlingDays: number | null;
   priceCents: number;
+  /** Authoritative total physical stock, including units currently reserved. */
+  qty: number;
   /** Quantity currently consumed by active holds and committed reservations. */
   reservedQty: number;
   availableQty: number;
@@ -77,5 +79,5 @@ export interface CatalogSource {
   productTypes(limit?: number): Promise<string[]>;
   variant(id: string): Promise<CatalogVariant | undefined>;
   /** Clean-clone write-through used by the shared inventory authority. */
-  restock?(id: string, quantity: number, priceCents?: number): Promise<CatalogVariant | undefined>;
+  saveInventory?(id: string, quantity: number, priceCents: number): Promise<CatalogVariant | undefined>;
 }

@@ -1,4 +1,4 @@
-import { BadRequestException } from '@nestjs/common';
+import { BadRequestException, ConflictException } from '@nestjs/common';
 import type { Pool } from 'pg';
 import type {
   AuctionInventory,
@@ -52,23 +52,29 @@ export class PgAuctionInventory implements AuctionInventory {
     return result.rows[0];
   }
 
-  async restock(productId: string, quantity: number, priceCents?: number): Promise<AuctionInventorySnapshot | undefined> {
+  async save(productId: string, quantity: number, priceCents: number): Promise<AuctionInventorySnapshot | undefined> {
     const id = productId.trim();
     if (!id || id.length > 120) throw new BadRequestException('productId is required and must be 120 characters or fewer');
-    if (!Number.isInteger(quantity) || quantity <= 0) throw new BadRequestException('quantity must be a positive integer');
-    if (priceCents !== undefined && (!Number.isInteger(priceCents) || priceCents < 0)) {
-      throw new BadRequestException('priceCents must be a non-negative integer');
-    }
+    if (!Number.isInteger(quantity) || quantity < 0) throw new BadRequestException('quantity must be a non-negative integer');
+    if (!Number.isInteger(priceCents) || priceCents < 0) throw new BadRequestException('priceCents must be a non-negative integer');
     const result = await this.pool.query<VariantRow>(
       `UPDATE storefront_product
-          SET qty = qty + $2,
-              price_cents = COALESCE($3, price_cents),
+          SET qty = $2,
+              price_cents = $3,
               updated_at = now()
-        WHERE id = $1
+        WHERE id = $1 AND reserved_qty <= $2
         RETURNING id AS "productId", qty, reserved_qty AS "reservedQty", "availableQty", price_cents AS "priceCents"`,
-      [id, quantity, priceCents ?? null],
+      [id, quantity, priceCents],
     );
-    return result.rows[0] ?? undefined;
+    if (result.rows[0]) return result.rows[0];
+    const current = await this.pool.query<{ reservedQty: number }>(
+      'SELECT reserved_qty AS "reservedQty" FROM storefront_product WHERE id = $1',
+      [id],
+    );
+    if (current.rows[0] && quantity < current.rows[0].reservedQty) {
+      throw new ConflictException(`Quantity cannot be lower than ${current.rows[0].reservedQty} reserved units for ${id}`);
+    }
+    return undefined;
   }
 
   async reserve(productId: string, quantity: number, source: InventoryHoldSource, expiresAt?: string): Promise<boolean> {

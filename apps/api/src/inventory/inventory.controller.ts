@@ -8,6 +8,7 @@ import {
   NotFoundException,
   Param,
   Post,
+  Put,
 } from '@nestjs/common';
 import {
   AUCTION_INVENTORY,
@@ -23,7 +24,7 @@ interface HoldBody {
   sourceId?: string;
 }
 
-interface RestockBody {
+interface SaveBody {
   quantity?: number;
   priceCents?: number;
 }
@@ -74,19 +75,19 @@ export class InventoryController {
     return { released, source, snapshot };
   }
 
-  @Post(':productId/restock')
-  async restock(@Param('productId') productId: string, @Body() body: RestockBody) {
+  @Put(':productId')
+  async save(@Param('productId') productId: string, @Body() body: SaveBody) {
     const quantity = body.quantity;
-    if (!Number.isInteger(quantity) || (quantity ?? 0) <= 0) {
-      throw new BadRequestException('quantity must be a positive integer');
+    if (!Number.isInteger(quantity) || (quantity ?? -1) < 0) {
+      throw new BadRequestException('quantity must be a non-negative integer');
     }
-    if (body.priceCents !== undefined && (!Number.isInteger(body.priceCents) || body.priceCents < 0)) {
+    if (!Number.isInteger(body.priceCents) || (body.priceCents ?? -1) < 0) {
       throw new BadRequestException('priceCents must be a non-negative integer');
     }
-    const snapshot = await this.inventory.restock(productId, quantity!, body.priceCents);
+    const snapshot = await this.inventory.save(productId, quantity!, body.priceCents!);
     if (!snapshot) throw new NotFoundException(`Inventory item ${productId} was not found`);
     this.publishInventoryChange(productId);
-    return { restocked: true, quantity, snapshot };
+    return { saved: true, quantity, priceCents: body.priceCents, snapshot };
   }
 
   private publishInventoryChange(productId: string): void {

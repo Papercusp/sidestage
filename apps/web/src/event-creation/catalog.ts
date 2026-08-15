@@ -15,6 +15,8 @@ export interface CatalogRow {
   condition: string;
   handlingDays: number | null;
   priceCents: number;
+  /** Live catalog rows always provide total qty; optional for legacy test/embed rows. */
+  qty?: number;
   /** Optional only for test/embed rows created outside the live catalog API. */
   reservedQty?: number;
   availableQty: number;
@@ -73,6 +75,11 @@ export function clampQuantity(value: number, availableQty: number): number {
   const max = Math.max(0, Math.floor(availableQty));
   if (max === 0) return 0;
   return Math.min(max, Math.max(1, Math.floor(Number.isFinite(value) ? value : 1)));
+}
+
+/** Total physical stock shown by the Inventory editor, including reservations. */
+export function inventoryQuantity(row: CatalogRow): number {
+  return row.qty ?? row.availableQty + (row.reservedQty ?? 0);
 }
 
 export function filterCatalog(

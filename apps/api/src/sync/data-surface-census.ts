@@ -63,11 +63,11 @@ const pg = (
 /** Every table created by db/schema.sql, with its intended Zero contract. */
 export const POSTGRES_SURFACES = {
   product_catalog: pg('product_catalog', ['public'], 'public projection', ['catalog.page', 'catalog.types'], [], 'P-017'),
-  storefront_product: pg('storefront_product', ['public', 'seller-owned'], 'seller owner; public availability projection', ['catalog.page', 'event.actions.items'], ['event.addItems', 'event.adjustStock', 'inventory.restock'], 'P-017/P-019'),
+  storefront_product: pg('storefront_product', ['public', 'seller-owned'], 'seller owner; public availability projection', ['catalog.page', 'event.actions.items'], ['event.addItems', 'event.adjustStock', 'inventory.save'], 'P-017/P-019'),
   product_option_axes: pg('product_option_axes', ['public'], 'public projection', ['catalog.page'], [], 'P-017'),
   product_option_values: pg('product_option_values', ['public'], 'public projection', ['catalog.page'], [], 'P-017'),
   storefront_product_option: pg('storefront_product_option', ['public'], 'public projection', ['catalog.page'], [], 'P-017'),
-  inventory_reservation: pg('inventory_reservation', ['buyer-owned', 'seller-owned', 'operational'], 'buyer/source owner plus seller inventory owner', ['catalog.page', 'cart.byId', 'event.auction.active'], ['cart.holdProduct', 'auction.start', 'auction.close', 'event.adjustStock', 'inventory.restock'], 'P-018/P-019'),
+  inventory_reservation: pg('inventory_reservation', ['buyer-owned', 'seller-owned', 'operational'], 'buyer/source owner plus seller inventory owner', ['catalog.page', 'cart.byId', 'event.auction.active'], ['cart.holdProduct', 'auction.start', 'auction.close', 'event.adjustStock', 'inventory.save'], 'P-018/P-019'),
   cart: pg('cart', ['buyer-owned'], 'selected buyer/cart owner', ['cart.byId'], ['cart.holdProduct'], 'P-018'),
   chat_message: pg('chat_message', ['public'], 'event room participant', ['event.chat.messages', 'event.chat.stats'], ['chat.sendMessage'], 'P-003/P-017'),
   chat_presence: pg('chat_presence', ['public', 'streaming'], 'event room participant', ['event.chat.presence', 'event.chat.stats'], ['chat.leavePresence', 'chat.touchPresence'], 'P-003/P-017/P-020'),
@@ -193,7 +193,7 @@ export const SYNC_MUTATOR_SURFACES: readonly NamedSurface[] = [
   mutator('event.executeAction', 'actions', ['seller-owned'], 'event seller owner', 'P-019'),
   mutator('event.setup', 'event-directory', ['seller-owned'], 'selected seller', 'P-019'),
   mutator('event.updateConfig', 'event_config', ['seller-owned'], 'event seller owner', 'P-019'),
-  mutator('inventory.restock', 'inventory', ['seller-owned'], 'selected seller', 'P-019'),
+  mutator('inventory.save', 'inventory', ['seller-owned'], 'selected seller', 'P-019'),
   mutator('judge.run', 'judge', ['operational'], 'operator-visible', 'P-020'),
   mutator('rehearsal.run', 'rehearsal', ['seller-owned', 'operational'], 'event seller owner', 'P-020'),
   mutator('rehearsal.runAll', 'rehearsal', ['seller-owned', 'operational'], 'event seller owner', 'P-020'),

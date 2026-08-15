@@ -3,6 +3,7 @@ import { SyncInvalidationService, type SyncInvalidation } from '../sync/sync-inv
 import { SyncQueryRegistry } from '../sync/sync-query.registry';
 import { AuctionSyncQueries } from './auction.module';
 import { AuctionService, InMemoryAuctionInventory } from './auction.service';
+import { InMemoryOrderStore } from '../checkout/checkout.service';
 
 describe('AuctionService', () => {
   afterEach(() => vi.useRealTimers());
@@ -77,6 +78,31 @@ describe('AuctionService', () => {
       status: 'closed',
       winnerOrder: expect.objectContaining({ bidderId: 'buyer-b' }),
     });
+  });
+
+  it('materializes one canonical auction order at close and commits the exact winner hold idempotently', async () => {
+    const inventory = new InMemoryAuctionInventory();
+    await inventory.seed('product-canonical', 3);
+    const orders = new InMemoryOrderStore();
+    const auctions = new AuctionService(inventory, undefined, undefined, orders);
+    const started = await auctions.startAuction({
+      eventId: 'event-canonical', eventItemId: 'item-canonical', productId: 'product-canonical',
+      quantity: 2, startingPriceCents: 1_000,
+    });
+    await auctions.placeBid(started.id, { bidderId: 'buyer-winner', amountCents: 1_400 });
+    const closed = await auctions.closeAuction(started.id);
+
+    await expect(orders.findBySource('auction', started.id)).resolves.toMatchObject({
+      id: closed.winnerOrder!.id,
+      buyerId: 'buyer-winner',
+      sourceKind: 'auction',
+      sourceId: started.id,
+      subtotalCents: 2_800,
+    });
+    await auctions.commitWinnerReservation(started.id, 'buyer-winner');
+    await auctions.commitWinnerReservation(started.id, 'buyer-winner');
+    await expect(inventory.get('product-canonical')).resolves.toMatchObject({ reservedQty: 2, availableQty: 1 });
+    await expect(auctions.commitWinnerReservation(started.id, 'buyer-other')).rejects.toThrow('not found for this buyer');
   });
 
   it('replays one guest idempotency key without duplicating the bid and rejects changed reuse', async () => {
