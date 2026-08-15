@@ -23,7 +23,7 @@
  *      are never recreated, so no live watch is ever dropped.
  *   3. `MIRROR_ROOT` (the directory Vite watches) is never removed.
  */
-import { cpSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { cpSync, existsSync, mkdirSync, readdirSync, readFileSync, rmdirSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { dirname, join, relative, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
@@ -101,7 +101,9 @@ export function mirrorInPlace(source, target) {
   for (const directory of listDirectoriesDeepestFirst(target)) {
     const absolute = join(target, directory);
     if (existsSync(join(source, directory))) continue;
-    if (readdirSync(absolute).length === 0) rmSync(absolute, { recursive: false, force: true });
+    // rmdirSync, not a recursive rmSync: it refuses a non-empty directory, so a
+    // pruning bug can never cascade into deleting live assets.
+    if (readdirSync(absolute).length === 0) rmdirSync(absolute);
   }
   return pruned;
 }
