@@ -295,6 +295,22 @@ export class ShippingService {
     });
   }
 
+  /** Buyer-facing rate lookup. Ownership is checked before cart cleanup or carrier access. */
+  async getRatesForBuyer(input: ShippingRateInput, buyerId: string): Promise<AggregatedRate[]> {
+    const cartId = optionalTrim(input?.cartId);
+    if (!cartId) throw new BadRequestException('cartId is required');
+    const address = normalizeShippingAddress(input.address);
+    const cart = await this.carts.findCartForBuyer(cartId, buyerId);
+    if (!cart || cart.items.length === 0) throw new BadRequestException('Cart is empty or not found');
+    return this.getRatesForItems({
+      sourceKind: 'cart',
+      sourceId: cart.id,
+      revision: cart.updatedAt,
+      items: cart.items,
+      address,
+    });
+  }
+
   async getRatesForItems(input: ShippingItemsRateInput): Promise<AggregatedRate[]> {
     if (!this.easyPost.isConfigured()) {
       this.logger.warn('EASYPOST_API_KEY is not set — returning empty rates');

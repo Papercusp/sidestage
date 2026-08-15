@@ -1,6 +1,6 @@
 import { BadRequestException } from '@nestjs/common';
 import { describe, expect, it, vi } from 'vitest';
-import { CartService, InMemoryCartStore } from '../cart/cart.service';
+import { CartService, emptyCart, InMemoryCartStore } from '../cart/cart.service';
 import type { CatalogSource, CatalogVariant } from '../catalog/catalog.types';
 import { EasyPostClient, type EasyPostRate, type EasyPostShipment } from './easypost.client';
 import { ShippingService, type ShippingRateInput } from './shipping.service';
@@ -63,6 +63,49 @@ async function cartWith(productId: string, quantity = 1): Promise<{ carts: CartS
 }
 
 describe('ShippingService', () => {
+  it('authorizes buyer-owned rate lookups before expired-cart cleanup or carrier access', async () => {
+    const stored = {
+      ...emptyCart('cart-avi', 'buyer-demo-avi'),
+      items: [{
+        productId: 'mug', title: 'Harbor Kettle', priceCents: 7_600, quantity: 1,
+        expiresAt: '2000-01-01T00:00:00.000Z',
+      }],
+      subtotalCents: 7_600,
+    };
+    const store = { get: vi.fn(async () => stored), set: vi.fn() };
+    const inventory = { release: vi.fn(async () => true) };
+    const createShipment = vi.fn();
+    const service = new ShippingService(
+      new CartService(store, inventory as never),
+      catalog([variant('mug')]),
+      carrier(createShipment),
+    );
+
+    await expect(service.getRatesForBuyer({ cartId: stored.id, address: ADDRESS }, 'buyer-demo-other'))
+      .rejects.toThrow('Cart was not found for this buyer');
+    expect(inventory.release).not.toHaveBeenCalled();
+    expect(store.set).not.toHaveBeenCalled();
+    expect(createShipment).not.toHaveBeenCalled();
+  });
+
+  it('quotes a cart for its server-bound buyer owner', async () => {
+    const carts = new CartService(new InMemoryCartStore());
+    const cart = await carts.addItem({
+      cartId: 'cart-avi',
+      buyerId: 'buyer-demo-avi',
+      productId: 'mug',
+      title: 'Harbor Kettle',
+      priceCents: 7_600,
+    });
+    const createShipment = vi.fn().mockResolvedValue(shipment('shipment-1', [
+      rate('rate-1', 'USPS', 'Priority', '12.50', 3),
+    ]));
+    const service = new ShippingService(carts, catalog([variant('mug')]), carrier(createShipment));
+
+    await expect(service.getRatesForBuyer({ cartId: cart.id, address: ADDRESS }, 'buyer-demo-avi'))
+      .resolves.toMatchObject([{ id: 'USPS:Priority', totalCents: 1_250 }]);
+  });
+
   it('degrades to empty rates without EasyPost configuration', async () => {
     const easyPost = carrier(vi.fn(), false);
     const source = catalog([]);
