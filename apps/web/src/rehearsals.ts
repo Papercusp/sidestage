@@ -1,4 +1,5 @@
 import { createResilientEventSource } from '@papercusp/sse';
+import { DEMO_PRINCIPAL_HEADER } from '@papercusp/sync';
 import { resolveApiBaseUrl } from './catalog';
 
 /**
@@ -171,6 +172,7 @@ export type OpenRealtimeProbeSource = (callbacks: RealtimeSourceCallbacks) => Re
 
 export interface RealtimeProbeOptions {
   apiBaseUrl?: string;
+  principal?: string;
   fetchImpl?: typeof fetch;
   now?: () => number;
   nonce?: () => string;
@@ -259,7 +261,10 @@ export function probeRealtimeRoundTrip(
         startedAt = now();
         void fetchImpl(`${apiBaseUrl}/rehearsals/client-realtime/${encodeURIComponent(eventId)}`, {
           method: 'POST',
-          headers: { 'content-type': 'application/json' },
+          headers: {
+            'content-type': 'application/json',
+            ...(options.principal ? { [DEMO_PRINCIPAL_HEADER]: options.principal } : {}),
+          },
           body: JSON.stringify({ nonce }),
         }).then(async (response) => {
           if (!response.ok) {
