@@ -121,7 +121,6 @@ describe('transcription transport', () => {
     } as unknown as Response);
 
     await expect(requestDeepgramToken('https://api.sidestage.test/', {
-      sellerAccessToken: 'seller-session-token',
       principal: 'demo-27',
       fetchImpl: fetchImpl as unknown as typeof fetch,
     }))
@@ -130,7 +129,6 @@ describe('transcription transport', () => {
       method: 'POST',
       headers: {
         Accept: 'application/json',
-        authorization: 'Bearer seller-session-token',
         'x-demo-principal': 'demo-27',
       },
     });
@@ -144,21 +142,21 @@ describe('transcription transport', () => {
     } as unknown as Response);
 
     await expect(requestDeepgramToken(undefined, {
-      sellerAccessToken: 'seller-session-token',
+      principal: 'seller-demo',
       fetchImpl: fetchImpl as unknown as typeof fetch,
     })).resolves.toBeNull();
   });
 
-  it('keeps seller authorization failures visible instead of treating them as a fallback signal', async () => {
+  it('keeps missing-principal failures visible instead of treating them as a fallback signal', async () => {
     const fetchImpl = vi.fn().mockResolvedValue({
       ok: false,
       status: 401,
-      json: vi.fn().mockResolvedValue({ message: 'A valid seller credential is required.' }),
+      json: vi.fn().mockResolvedValue({ message: 'x-demo-principal is required for seller-owned resources.' }),
     } as unknown as Response);
 
     await expect(requestDeepgramToken(undefined, {
       fetchImpl: fetchImpl as unknown as typeof fetch,
-    })).rejects.toThrow('A valid seller credential is required.');
+    })).rejects.toThrow('x-demo-principal is required for seller-owned resources.');
   });
 
   it('uses Web Speech when no Deepgram token is configured', async () => {

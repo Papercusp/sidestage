@@ -30,11 +30,9 @@ export class ChatController {
     const requestId = auctionHeader(headers, 'x-request-id')?.trim() || `req_${randomUUID()}`;
     try {
       this.access.assertPayloadSize(body, 2_048);
-      const authorization = auctionHeader(headers, 'authorization');
-      const seller = authorization ? this.access.requireSeller(
-        authorization,
-        auctionHeader(headers, DEMO_PRINCIPAL_HEADER),
-      ) : null;
+      const seller = body?.role === 'seller'
+        ? this.access.requireSellerPrincipal(auctionHeader(headers, DEMO_PRINCIPAL_HEADER))
+        : null;
       if (seller) await this.ownership.requireOwnedForSeller(eventId, seller.sellerId);
       const input: ChatMessageInput = seller
         ? { ...body, userId: seller.sellerId, displayName: body?.displayName ?? 'Host', role: 'seller' }
@@ -66,11 +64,9 @@ export class ChatController {
   @Post('chat/events/:eventId/presence')
   async joinPresence(@Param('eventId') eventId: string, @Body() body: PresenceInput, @Headers() headers: HeadersMap, @Ip() ip: string) {
     this.access.assertPayloadSize(body, 1_024);
-    const authorization = auctionHeader(headers, 'authorization');
-    const seller = authorization ? this.access.requireSeller(
-      authorization,
-      auctionHeader(headers, DEMO_PRINCIPAL_HEADER),
-    ) : null;
+    const seller = body?.role === 'seller'
+      ? this.access.requireSellerPrincipal(auctionHeader(headers, DEMO_PRINCIPAL_HEADER))
+      : null;
     if (seller) await this.ownership.requireOwnedForSeller(eventId, seller.sellerId);
     const input: PresenceInput = seller
       ? { ...body, userId: seller.sellerId, displayName: body?.displayName ?? 'Host', role: 'seller' }
@@ -111,8 +107,7 @@ export class ChatController {
     limit: number,
     eventId?: string,
   ) {
-    const seller = this.access.requireSeller(
-      auctionHeader(headers, 'authorization'),
+    const seller = this.access.requireSellerPrincipal(
       auctionHeader(headers, DEMO_PRINCIPAL_HEADER),
     );
     if (eventId) await this.ownership.requireOwnedForSeller(eventId, seller.sellerId);

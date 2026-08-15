@@ -108,10 +108,11 @@ describe('SideStage web sync contract', () => {
       'cart.removeItem',
       'shipping.rates',
       'checkout.createSession',
-      'checkout.confirmPayment',
     ]) {
       expect(checkout, `BuyerCheckout must route ${mutation} through useSyncMutate`).toContain(`'${mutation}'`);
     }
+    expect(checkout).not.toContain('checkout.confirmPayment');
+    expect(checkout).not.toContain('Square');
 
     expect(copilot).toContain("queryName: 'event.copilot.proposals'");
     for (const mutation of [
@@ -135,7 +136,7 @@ describe('SideStage web sync contract', () => {
     expect(chat).toContain('sellerPrivateRequestHeaders(principal');
     expect(seller).toContain("'chat.addTranscriptMoment'");
     expect(seller).toContain('useTranscriptMomentRecorder({');
-    expect(seller).toContain('sellerAccessToken: readSellerAuctionToken()');
+    expect(seller).not.toContain('readSellerAuctionToken');
     expect(seller).toContain('headers: sellerPrivateRequestHeaders(principal)');
     expect(seller).not.toContain('VITE_DEEPGRAM_TOKEN');
     expect(seller).not.toMatch(/\bfetch\s*\(/);

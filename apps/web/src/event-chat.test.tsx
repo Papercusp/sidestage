@@ -6,7 +6,6 @@ import { createRoot } from 'react-dom/client';
 import { SyncContext } from '@papercusp/sync';
 import { describe, expect, it, vi } from 'vitest';
 import { EventChat, resolveApiOrigin, syncEndpointFor } from './EventChat';
-import { rememberSellerAuctionToken, SELLER_AUCTION_TOKEN_KEY } from './events/api';
 
 function enterText(input: HTMLInputElement, value: string): void {
   Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set?.call(input, value);
@@ -115,7 +114,6 @@ describe('EventChat', () => {
       return { ok: true, status: 200, json: async () => json, text: async () => '' } as Response;
     });
     vi.stubGlobal('fetch', fetchMock);
-    rememberSellerAuctionToken('seller-session-token');
     (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
     const container = document.createElement('div');
     const root = createRoot(container);
@@ -166,13 +164,12 @@ describe('EventChat', () => {
         role: 'seller',
         text: 'The blue mug is still available.',
       });
-      expect(new Headers(messageCall?.init?.headers).get('authorization')).toBe('Bearer seller-session-token');
+      expect(new Headers(messageCall?.init?.headers).has('authorization')).toBe(false);
       expect(new Headers(messageCall?.init?.headers).get('x-demo-principal')).toBe('seller-demo');
       expect(container.textContent).toContain('The blue mug is still available.');
       expect(input!.value).toBe('');
     } finally {
       await act(async () => root.unmount());
-      sessionStorage.removeItem(SELLER_AUCTION_TOKEN_KEY);
       vi.unstubAllGlobals();
       delete (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT;
     }
@@ -303,7 +300,6 @@ describe('EventChat', () => {
       } as Response;
     });
     vi.stubGlobal('fetch', fetchMock);
-    rememberSellerAuctionToken('seller-session-token');
     (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
     const container = document.createElement('div');
     const root = createRoot(container);
@@ -336,7 +332,7 @@ describe('EventChat', () => {
       });
 
       const presence = calls.find((call) => call.init?.method === 'POST');
-      expect(new Headers(presence?.init?.headers).get('authorization')).toBe('Bearer seller-session-token');
+      expect(new Headers(presence?.init?.headers).has('authorization')).toBe(false);
       expect(new Headers(presence?.init?.headers).get('x-demo-principal')).toBe('demo-1');
 
       await act(async () => {
@@ -345,10 +341,9 @@ describe('EventChat', () => {
         await Promise.resolve();
       });
       const leave = calls.find((call) => call.init?.method === 'DELETE');
-      expect(new Headers(leave?.init?.headers).get('authorization')).toBe('Bearer seller-session-token');
+      expect(new Headers(leave?.init?.headers).has('authorization')).toBe(false);
       expect(new Headers(leave?.init?.headers).get('x-demo-principal')).toBe('demo-1');
     } finally {
-      sessionStorage.removeItem(SELLER_AUCTION_TOKEN_KEY);
       vi.unstubAllGlobals();
       delete (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT;
     }

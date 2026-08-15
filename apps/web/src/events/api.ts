@@ -130,15 +130,10 @@ export function rememberSellerAuctionToken(token: string): void {
   }
 }
 
-/** Pair the session-scoped seller credential with the app-wide demo principal. */
-export function sellerPrivateRequestHeaders(
-  principal?: string,
-  sellerAccessToken = readSellerAuctionToken(),
-): Record<string, string> {
-  const token = sellerAccessToken?.trim();
+/** Carry the app-wide demo principal across seller-private request fallbacks. */
+export function sellerPrivateRequestHeaders(principal?: string): Record<string, string> {
   const normalizedPrincipal = principal?.trim();
   return {
-    ...(token ? { authorization: `Bearer ${token}` } : {}),
     ...(normalizedPrincipal ? { [DEMO_PRINCIPAL_HEADER]: normalizedPrincipal } : {}),
   };
 }

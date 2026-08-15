@@ -18,8 +18,7 @@ export class TranscriptionController {
     @Ip() ip: string,
   ): Promise<DeepgramTemporaryToken> {
     this.sellerAccess.consumeRateLimit('deepgram-token-ip', ip || 'unknown', 30, 60_000);
-    const seller = this.sellerAccess.requireSeller(
-      auctionHeader(headers, 'authorization'),
+    const seller = this.sellerAccess.requireSellerPrincipal(
       auctionHeader(headers, DEMO_PRINCIPAL_HEADER),
     );
     this.sellerAccess.consumeRateLimit('deepgram-token-seller', seller.sellerId, 10, 60_000);

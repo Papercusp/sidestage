@@ -5,7 +5,7 @@ import { requestChatJson } from './chat-api';
 import { TabHeader } from './components/TabHeader';
 import { EventChat, resolveApiOrigin } from './EventChat';
 import { chatEventId, DEFAULT_EVENT_ID, DEFAULT_EVENT_TITLE, mediaBaseUrl } from './event-identity';
-import { readSellerAuctionToken, sellerPrivateRequestHeaders } from './events/api';
+import { sellerPrivateRequestHeaders } from './events/api';
 import { useCopyState, useStreamSession } from './hooks';
 import { studioViewHref, useUrlStudioView, type StudioView } from './app-routing';
 import { InventoryPanel } from './InventoryPanel';
@@ -128,12 +128,10 @@ export function useTranscriptMomentRecorder({
  *
  * `useLiveTranscript` treats this callback as session-construction input. An
  * inline function would rebuild the session after every state update, feeding
- * another render until React trips its maximum-depth guard. Read the seller
- * token at invocation time so a stable callback still uses the latest grant.
+ * another render until React trips its maximum-depth guard.
  */
 export function useSellerDeepgramTokenProvider(apiBaseUrl?: string, principal?: string) {
   return useCallback(() => requestDeepgramToken(apiBaseUrl, {
-    sellerAccessToken: readSellerAuctionToken(),
     principal,
   }), [apiBaseUrl, principal]);
 }

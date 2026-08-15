@@ -34,7 +34,6 @@ describe('ChatController', () => {
       text: 'Shipping takes two business days.',
       startMs: 12_000,
     }, {
-      authorization: 'Bearer sidestage-local-seller-token',
       'x-demo-principal': 'seller-demo',
     }, '127.0.0.1');
 
@@ -65,7 +64,6 @@ describe('ChatController', () => {
       productId: 'aurora-cup',
       productTitle: 'Aurora cup',
     }, {
-      authorization: 'Bearer sidestage-local-seller-token',
       'x-demo-principal': 'seller-demo',
     }, '127.0.0.1');
 
@@ -102,7 +100,6 @@ describe('ChatController', () => {
       'demo-event',
       input,
       {
-        authorization: 'Bearer sidestage-local-seller-token',
         'x-demo-principal': 'seller-demo',
       },
       '127.0.0.1',
@@ -125,7 +122,6 @@ describe('ChatController', () => {
       'demo-event',
       { userId: 'forged', displayName: 'Host', role: 'seller', text: 'Seller update' },
       {
-        authorization: 'Bearer sidestage-local-seller-token',
         'x-demo-principal': 'seller-other',
       },
       '127.0.0.1',
@@ -135,6 +131,18 @@ describe('ChatController', () => {
       { userId: 'buyer-one', displayName: 'Buyer', role: 'seller', text: 'Hello' },
       {},
       '127.0.0.1',
+    )).rejects.toThrow('x-demo-principal is required');
+    await expect(controller.sendMessage(
+      'demo-event',
+      { userId: 'buyer-one', displayName: 'Buyer', role: 'buyer', text: 'Hello' },
+      { authorization: 'Bearer forged-token' },
+      '127.0.0.1',
     )).resolves.toMatchObject({ userId: 'buyer-one', role: 'buyer' });
+    await expect(controller.sendMessage(
+      'demo-event',
+      { userId: 'forged', displayName: 'Host', role: 'seller', text: 'Seller update' },
+      { 'x-demo-principal': 'demo' },
+      '127.0.0.1',
+    )).resolves.toMatchObject({ userId: 'seller-demo', role: 'seller' });
   });
 });

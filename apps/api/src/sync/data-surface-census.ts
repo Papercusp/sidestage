@@ -184,7 +184,6 @@ export const SYNC_MUTATOR_SURFACES: readonly NamedSurface[] = [
   mutator('chat.leavePresence', 'chat-presence', ['public', 'streaming'], 'event room participant', 'P-017/P-020'),
   mutator('chat.sendMessage', 'chat', ['public'], 'event room participant', 'P-017'),
   mutator('chat.touchPresence', 'chat-presence', ['public', 'streaming'], 'event room participant', 'P-017/P-020'),
-  mutator('checkout.confirmPayment', 'payment', ['buyer-owned'], 'selected buyer/order owner', 'P-018/P-020'),
   mutator('checkout.createSession', 'checkout', ['buyer-owned'], 'selected buyer/cart owner', 'P-018/P-020'),
   mutator('copilot.approve', 'copilot', ['seller-owned'], 'event seller owner', 'P-019'),
   mutator('copilot.confirmAction', 'copilot', ['seller-owned'], 'event seller owner', 'P-019'),

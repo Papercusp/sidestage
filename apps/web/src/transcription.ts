@@ -212,9 +212,7 @@ interface DeepgramTokenGrant {
 }
 
 export interface DeepgramTokenRequestOptions {
-  /** Session-scoped seller credential for the SideStage API boundary. */
-  sellerAccessToken?: string;
-  /** Canonical demo principal paired with the seller credential. */
+  /** Canonical demo principal used by the SideStage seller boundary. */
   principal?: string;
   fetchImpl?: typeof fetch;
 }
@@ -225,13 +223,11 @@ export async function requestDeepgramToken(
   options: DeepgramTokenRequestOptions = {},
 ): Promise<string | null> {
   const apiOrigin = (apiBaseUrl || DEFAULT_API_ORIGIN).replace(/\/+$/, '');
-  const sellerAccessToken = options.sellerAccessToken?.trim();
   const principal = options.principal?.trim();
   const response = await (options.fetchImpl ?? globalThis.fetch)(`${apiOrigin}/transcription/deepgram-token`, {
     method: 'POST',
     headers: {
       Accept: 'application/json',
-      ...(sellerAccessToken ? { authorization: `Bearer ${sellerAccessToken}` } : {}),
       ...(principal ? { [DEMO_PRINCIPAL_HEADER]: principal } : {}),
     },
   });
