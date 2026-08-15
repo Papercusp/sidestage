@@ -88,7 +88,7 @@ describe('Universal Zero data-surface census', () => {
   it('classifies every process-local class Map that can hide an authority or cache', () => {
     const maps = captureAll(
       apiFiles,
-      /private\s+readonly\s+([A-Za-z0-9_]+)\s*=\s*new\s+Map/g,
+      /(?:private\s+)?readonly\s+#?([A-Za-z0-9_]+)\s*=\s*new\s+Map/g,
       (match, file) => `${repoPath(file)}#${match[1]}`,
     );
     const declared = PROCESS_LOCAL_SURFACES.map((surface) => `${surface.source}#${surface.name}`);

@@ -62,6 +62,7 @@ const pg = (
 
 /** Every table created by db/schema.sql, with its intended Zero contract. */
 export const POSTGRES_SURFACES = {
+  action_audit_entry: pg('action_audit_entry', ['seller-owned', 'operational'], 'event seller owner and immutable audit actor', [], [], 'P-019/P-020'),
   product_catalog: pg('product_catalog', ['public'], 'public projection', ['catalog.page', 'catalog.types', 'event.lineup.items'], [], 'P-017'),
   storefront_product: pg('storefront_product', ['public', 'seller-owned'], 'seller owner; public availability projection', ['catalog.page', 'event.actions.items', 'event.lineup.items'], ['event.addItems', 'event.adjustStock', 'inventory.save'], 'P-017/P-019'),
   product_option_axes: pg('product_option_axes', ['public'], 'public projection', ['catalog.page', 'event.lineup.items'], [], 'P-017'),
@@ -235,9 +236,10 @@ const local = (
 /** Class fields backed by process-local Maps. Method-local projection maps are not authorities. */
 export const PROCESS_LOCAL_SURFACES: readonly SourceSurface[] = [
   local('apps/api/src/actions/action-item.store.ts', 'items', 'actions', ['seller-owned'], 'development fallback authority', 'replicate', 'event_lineup_item', 'P-011/P-019'),
+  local('apps/api/src/actions/action-audit.store.ts', 'audits', 'action-audit', ['seller-owned', 'operational'], 'development fallback authority', 'replicate', 'action_audit_entry', 'P-011/P-019'),
+  local('apps/api/src/actions/action-audit.store.ts', 'requestIds', 'action-audit-request-index', ['seller-owned', 'operational'], 'derived idempotency index', 'runtime-only', 'action_audit_entry event/client-request unique index', 'P-011/P-019'),
   local('apps/api/src/actions/action.service.ts', 'policies', 'actions-policy', ['seller-owned'], 'temporary authority', 'replicate', 'seller_policy_revision', 'P-011/P-019'),
   local('apps/api/src/actions/action.service.ts', 'offers', 'offers', ['buyer-owned', 'seller-owned'], 'temporary authority', 'replicate', 'Postgres targeted offer table', 'P-011/P-018/P-019'),
-  local('apps/api/src/actions/action.service.ts', 'audits', 'action-audit', ['seller-owned', 'operational'], 'temporary authority', 'replicate', 'policy_audit_entry', 'P-011/P-019'),
   local('apps/api/src/actions/action.service.ts', 'idempotentExecutions', 'action-idempotency', ['seller-owned', 'operational'], 'in-flight dedupe', 'runtime-only', 'policy_idempotency plus bounded in-flight promise cache', 'P-011/P-019'),
   local('apps/api/src/auction/auction-access.service.ts', 'counters', 'auction-rate-limit', ['operational'], 'ephemeral rate-limit cache', 'runtime-only', 'bounded runtime rate limiter', 'P-020'),
   local('apps/api/src/auction/auction.service.ts', 'items', 'auction-inventory', ['seller-owned'], 'memory backend authority', 'replicate', 'storefront_product plus inventory_reservation', 'P-011/P-019'),
