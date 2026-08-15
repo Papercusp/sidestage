@@ -7,6 +7,33 @@ import { MESSAGE_IMPORTANCE_ORDER, triageMessages, type MessageImportance, type 
 
 export type EventChatRole = 'buyer' | 'seller';
 
+export type EventChatGroundingStatus = 'not-routed' | 'seller-queue' | 'answered' | 'skipped' | 'blocked';
+
+export interface EventChatGrounding {
+  status: EventChatGroundingStatus;
+  route?: {
+    version: 1;
+    destination: 'seller-review' | 'none';
+    category: 'availability' | 'commerce' | 'general' | 'policy' | 'price' | 'product' | 'shipping' | 'social';
+    signal: 'commerce-request' | 'not-a-question' | 'question-mark' | 'question-opener' | 'social-question';
+  };
+  sourceMessageId?: string;
+  proposalId?: string;
+  responseMessageId?: string;
+  assistant?: {
+    kind: 'copilot-assisted';
+    approvedBy: string;
+    edited: boolean;
+    citationSourceIds: string[];
+  };
+  citation?: {
+    transcriptId: string;
+    label: string;
+    quote: string;
+    startMs?: number;
+  };
+}
+
 export interface EventChatMessage {
   id: string;
   eventId: string;
@@ -15,16 +42,7 @@ export interface EventChatMessage {
   role: EventChatRole;
   text: string;
   createdAt: string;
-  grounding?: {
-    status: 'answered' | 'seller-queue';
-    sourceMessageId?: string;
-    citation?: {
-      transcriptId: string;
-      label: string;
-      quote: string;
-      startMs?: number;
-    };
-  };
+  grounding?: EventChatGrounding;
 }
 
 export interface EventChatPresence {
@@ -78,6 +96,84 @@ export function resolveApiOrigin(apiBaseUrl?: string): string {
 
 export function syncEndpointFor(apiBaseUrl?: string): string {
   return `${resolveApiOrigin(apiBaseUrl)}/sync`;
+}
+
+function messageAnchorId(messageId: string): string {
+  return `event-chat-message-${encodeURIComponent(messageId)}`;
+}
+
+function isResolvedQuestion(status: EventChatGroundingStatus | undefined): boolean {
+  return status === 'answered' || status === 'skipped';
+}
+
+function EventChatLifecycle({
+  message,
+  surface,
+}: {
+  message: EventChatMessage;
+  surface: NonNullable<EventChatProps['surface']>;
+}) {
+  const grounding = message.grounding;
+  if (!grounding || grounding.status === 'not-routed') return null;
+
+  const assistant = grounding.assistant?.kind === 'copilot-assisted' ? grounding.assistant : undefined;
+  const presentation = (() => {
+    switch (grounding.status) {
+      case 'seller-queue':
+        return { label: 'Queued for seller', accessibleLabel: 'Question queued for seller review' };
+      case 'answered':
+        return assistant
+          ? { label: 'Published answer', accessibleLabel: 'Published Copilot-assisted seller answer' }
+          : { label: 'Answered by seller', accessibleLabel: 'Question answered by the seller' };
+      case 'skipped':
+        return { label: 'Skipped by seller', accessibleLabel: 'Question reviewed and skipped by the seller' };
+      case 'blocked':
+        return { label: 'Seller follow-up needed', accessibleLabel: 'Copilot could not verify an answer; seller follow-up is needed' };
+    }
+  })();
+  const compact = surface === 'audience-overlay';
+  const sourceCount = assistant ? new Set(assistant.citationSourceIds.filter(Boolean)).size : 0;
+  const provenance = assistant
+    ? `Copilot-assisted · ${assistant.edited ? 'Edited' : 'Approved'} by seller${sourceCount > 0 ? ` · ${sourceCount} verified ${sourceCount === 1 ? 'source' : 'sources'}` : ''}`
+    : grounding.status === 'answered' && grounding.citation
+      ? `Grounded in ${grounding.citation.label}`
+      : null;
+  const linkedMessageId = assistant && grounding.sourceMessageId
+    ? grounding.sourceMessageId
+    : message.role === 'buyer' && grounding.status === 'answered'
+      ? grounding.responseMessageId
+      : undefined;
+  const linkedMessageLabel = assistant ? 'View question' : 'View answer';
+
+  return (
+    <div
+      className={`event-chat-lifecycle event-chat-lifecycle-${compact ? 'audience' : 'management'}`}
+      data-chat-state={grounding.status}
+      role="status"
+      aria-label={presentation.accessibleLabel}
+    >
+      <span className={compact
+        ? `event-chat-audience-state event-chat-audience-state-${grounding.status}`
+        : `event-chat-grounding event-chat-grounding-${grounding.status}`}
+      >
+        {presentation.label}
+      </span>
+      {provenance ? (
+        <span className={compact ? 'event-chat-audience-provenance' : 'event-chat-provenance'}>
+          {provenance}
+        </span>
+      ) : null}
+      {linkedMessageId ? (
+        <a
+          className={compact ? 'event-chat-audience-link' : 'event-chat-lifecycle-link'}
+          href={`#${messageAnchorId(linkedMessageId)}`}
+          aria-label={`${linkedMessageLabel}: ${message.text}`}
+        >
+          {linkedMessageLabel}
+        </a>
+      ) : null}
+    </div>
+  );
 }
 
 /** The one chat write seam shared by the room composer and seller copilot. */
@@ -209,7 +305,7 @@ function EventChatSurface({
       .filter(({ message, triage }) => (
         message.role === 'buyer'
         && triage.importance !== 'low'
-        && message.grounding?.status !== 'answered'
+        && !isResolvedQuestion(message.grounding?.status)
       ))
       .sort((left, right) => MESSAGE_IMPORTANCE_ORDER[left.triage.importance] - MESSAGE_IMPORTANCE_ORDER[right.triage.importance]),
     [triagedMessages],
@@ -266,6 +362,7 @@ function EventChatSurface({
           {triagedMessages.map(({ message, triage }) => (
             <article
               className={`event-chat-audience-message event-chat-audience-message-${triage.importance}`}
+              id={messageAnchorId(message.id)}
               key={message.id}
             >
               <div className={`event-chat-audience-avatar event-chat-audience-avatar-${message.role}`} aria-hidden="true">
@@ -281,12 +378,7 @@ function EventChatSurface({
                   ) : null}
                 </div>
                 <p>{message.text}</p>
-                {message.grounding?.status === 'answered' ? (
-                  <span className="event-chat-audience-state">Answered from transcript</span>
-                ) : null}
-                {message.grounding?.status === 'seller-queue' ? (
-                  <span className="event-chat-audience-state">Queued for seller</span>
-                ) : null}
+                <EventChatLifecycle message={message} surface="audience-overlay" />
               </div>
             </article>
           ))}
@@ -367,7 +459,11 @@ function EventChatSurface({
           </p>
         ) : null}
         {visibleMessages.map(({ message, triage }) => (
-          <article className={`event-chat-message event-chat-message-${triage.importance}`} key={message.id}>
+          <article
+            className={`event-chat-message event-chat-message-${triage.importance}`}
+            id={messageAnchorId(message.id)}
+            key={message.id}
+          >
             <div className={`event-chat-avatar event-chat-avatar-${message.role}`} aria-hidden="true">
               {message.displayName.slice(0, 1).toUpperCase()}
             </div>
@@ -383,14 +479,7 @@ function EventChatSurface({
                 ) : null}
               </div>
               <p>{message.text}</p>
-              {message.grounding?.status === 'answered' ? (
-                <span className="event-chat-grounding event-chat-grounding-answered">
-                  Answered from transcript{message.grounding.citation ? ` · ${message.grounding.citation.label}` : ''}
-                </span>
-              ) : null}
-              {message.grounding?.status === 'seller-queue' ? (
-                <span className="event-chat-grounding event-chat-grounding-queued">Queued for seller</span>
-              ) : null}
+              <EventChatLifecycle message={message} surface="management" />
             </div>
           </article>
         ))}

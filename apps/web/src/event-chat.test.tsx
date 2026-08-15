@@ -5,7 +5,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { createRoot } from 'react-dom/client';
 import { SyncContext } from '@papercusp/sync';
 import { describe, expect, it, vi } from 'vitest';
-import { EventChat, resolveApiOrigin, syncEndpointFor } from './EventChat';
+import { EventChat, resolveApiOrigin, syncEndpointFor, type EventChatMessage } from './EventChat';
 
 function enterText(input: HTMLInputElement, value: string): void {
   Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set?.call(input, value);
@@ -97,6 +97,113 @@ describe('EventChat', () => {
     expect(audience).not.toContain('Message the room');
     expect(audience).not.toContain('Seller view is read-only');
     expect(audience).not.toContain('Message triage');
+  });
+
+  it('renders every routed-question lifecycle and Copilot provenance without tagging ordinary seller messages', () => {
+    const createdAt = new Date().toISOString();
+    const messages: EventChatMessage[] = [
+      { id: 'queued', eventId: 'sunday-drop', userId: 'buyer-1', displayName: 'Maya', role: 'buyer', text: 'Is this available?', createdAt, grounding: { status: 'seller-queue' } },
+      { id: 'skipped', eventId: 'sunday-drop', userId: 'buyer-2', displayName: 'Jules', role: 'buyer', text: 'Can you repeat that?', createdAt, grounding: { status: 'skipped', proposalId: 'proposal-skipped' } },
+      { id: 'blocked', eventId: 'sunday-drop', userId: 'buyer-3', displayName: 'Sol', role: 'buyer', text: 'Does it have a warranty?', createdAt, grounding: { status: 'blocked', proposalId: 'proposal-blocked' } },
+      { id: 'answered-question', eventId: 'sunday-drop', userId: 'buyer-4', displayName: 'Ren', role: 'buyer', text: 'What is it made from?', createdAt, grounding: { status: 'answered', proposalId: 'proposal-answered', responseMessageId: 'answer' } },
+      {
+        id: 'answer', eventId: 'sunday-drop', userId: 'seller-1', displayName: 'Host', role: 'seller', text: 'It is solid oak.', createdAt,
+        grounding: {
+          status: 'answered', sourceMessageId: 'answered-question', proposalId: 'proposal-answered',
+          assistant: { kind: 'copilot-assisted', approvedBy: 'seller-1', edited: true, citationSourceIds: ['catalog-1', 'transcript-2'] },
+        },
+      },
+      { id: 'ordinary-seller', eventId: 'sunday-drop', userId: 'seller-1', displayName: 'Host', role: 'seller', text: 'Welcome to the room!', createdAt },
+    ];
+    const syncValue = {
+      transport: 'POLLING' as const,
+      principal: null,
+      useDataImpl: (options: { queryName: string }) => ({
+        data: options.queryName === 'event.chat.messages' ? messages : [],
+        loading: false, fetching: false, transport: 'POLLING' as const, invalidate: vi.fn(), error: null,
+      }),
+      prefetch: vi.fn(),
+      mutate: null,
+    };
+
+    const markup = renderToStaticMarkup(
+      <SyncContext.Provider value={syncValue as never}>
+        <EventChat eventId="sunday-drop" role="buyer" userId="buyer-1" displayName="Maya" />
+      </SyncContext.Provider>,
+    );
+
+    expect(markup).toContain('data-chat-state="seller-queue"');
+    expect(markup).toContain('aria-label="Question queued for seller review"');
+    expect(markup).toContain('data-chat-state="skipped"');
+    expect(markup).toContain('Skipped by seller');
+    expect(markup).toContain('data-chat-state="blocked"');
+    expect(markup).toContain('Seller follow-up needed');
+    expect(markup).toContain('href="#event-chat-message-answer"');
+    expect(markup).toContain('href="#event-chat-message-answered-question"');
+    expect(markup).toContain('Copilot-assisted · Edited by seller · 2 verified sources');
+    expect(markup).toContain('Welcome to the room!');
+    expect(markup.match(/Copilot-assisted/g)).toHaveLength(2);
+  });
+
+  it('reconciles a queued question to its linked approved answer on sync refresh without remounting', async () => {
+    const createdAt = new Date().toISOString();
+    let messages: EventChatMessage[] = [
+      { id: 'question', eventId: 'sunday-drop', userId: 'buyer-1', displayName: 'Maya', role: 'buyer', text: 'How large is it?', createdAt, grounding: { status: 'seller-queue' } },
+    ];
+    const touchPresence = vi.fn(async () => ({ userId: 'buyer-1', displayName: 'Maya', role: 'buyer', lastSeenAt: createdAt }));
+    const leavePresence = vi.fn(async () => ({ ok: true }));
+    const syncValue = {
+      transport: 'POLLING' as const,
+      principal: null,
+      useDataImpl: (options: { queryName: string }) => ({
+        data: options.queryName === 'event.chat.messages' ? messages : [],
+        loading: false, fetching: false, transport: 'POLLING' as const, invalidate: vi.fn(), error: null,
+      }),
+      prefetch: vi.fn(),
+      mutate: { chat: { touchPresence, leavePresence } },
+    };
+    const container = document.createElement('div');
+    const root = createRoot(container);
+    (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
+
+    try {
+      await act(async () => {
+        root.render(
+          <SyncContext.Provider value={syncValue as never}>
+            <EventChat eventId="sunday-drop" role="buyer" userId="buyer-1" displayName="Maya" />
+          </SyncContext.Provider>,
+        );
+        await Promise.resolve();
+      });
+      expect(container.querySelector('[data-chat-state="seller-queue"]')?.textContent).toContain('Queued for seller');
+
+      messages = [
+        { id: 'question', eventId: 'sunday-drop', userId: 'buyer-1', displayName: 'Maya', role: 'buyer', text: 'How large is it?', createdAt, grounding: { status: 'answered', proposalId: 'proposal-1', responseMessageId: 'answer' } },
+        {
+          id: 'answer', eventId: 'sunday-drop', userId: 'seller-1', displayName: 'Host', role: 'seller', text: 'It is twelve inches tall.', createdAt,
+          grounding: {
+            status: 'answered', sourceMessageId: 'question', proposalId: 'proposal-1',
+            assistant: { kind: 'copilot-assisted', approvedBy: 'seller-1', edited: false, citationSourceIds: ['catalog-1'] },
+          },
+        },
+      ];
+      await act(async () => {
+        root.render(
+          <SyncContext.Provider value={syncValue as never}>
+            <EventChat eventId="sunday-drop" role="buyer" userId="buyer-1" displayName="Maya" />
+          </SyncContext.Provider>,
+        );
+        await Promise.resolve();
+      });
+
+      expect(container.querySelector('[data-chat-state="seller-queue"]')).toBeNull();
+      expect(container.querySelector('#event-chat-message-question [data-chat-state="answered"]')?.textContent).toContain('View answer');
+      expect(container.querySelector('#event-chat-message-answer')?.textContent).toContain('Copilot-assisted · Approved by seller · 1 verified source');
+      expect(container.querySelector('#event-chat-message-answer a')?.getAttribute('href')).toBe('#event-chat-message-question');
+    } finally {
+      await act(async () => root.unmount());
+      delete (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT;
+    }
   });
 
   it('sends a seller reply through the shared mutation fallback and echoes it locally', async () => {
