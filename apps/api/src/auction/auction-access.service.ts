@@ -13,7 +13,6 @@ import { DEMO_PRINCIPAL_HEADER, rolePrincipal } from '../sync/sync-request-conte
 export const AUCTION_GUEST_COOKIE = 'ss_auction_guest';
 
 const DEV_SIGNING_SECRET = 'sidestage-local-auction-signing-secret-change-me';
-const DEV_SELLER_TOKEN = 'sidestage-local-seller-token';
 const GUEST_TTL_SEC = 30 * 24 * 60 * 60;
 
 interface SignedPrincipal {
@@ -78,7 +77,6 @@ export class AuctionAuditService {
 @Injectable()
 export class AuctionAccessService {
   private readonly signingSecret: string | undefined;
-  private readonly sellerToken: string | undefined;
   private readonly counters = new Map<string, { count: number; resetAt: number }>();
 
   constructor(
@@ -87,28 +85,6 @@ export class AuctionAccessService {
   ) {
     const production = env.NODE_ENV === 'production';
     this.signingSecret = env.SIDESTAGE_AUCTION_SIGNING_SECRET?.trim() || (production ? undefined : DEV_SIGNING_SECRET);
-    this.sellerToken = env.SIDESTAGE_AUCTION_SELLER_TOKEN?.trim() || (production ? undefined : DEV_SELLER_TOKEN);
-  }
-
-  requireSeller(
-    authorization: string | undefined,
-    principal: unknown,
-  ): { sellerId: string } {
-    const configured = this.sellerToken;
-    if (!configured) {
-      throw new ServiceUnavailableException({
-        code: 'AUCTION_SELLER_AUTH_NOT_CONFIGURED',
-        message: 'Seller auction authentication is not configured.',
-      });
-    }
-    const match = /^Bearer\s+(.+)$/i.exec(authorization?.trim() ?? '');
-    if (!match || !constantTimeEqual(match[1], configured)) {
-      throw new UnauthorizedException({
-        code: 'AUCTION_SELLER_AUTH_REQUIRED',
-        message: 'A valid seller auction credential is required.',
-      });
-    }
-    return this.requireSellerPrincipal(principal);
   }
 
   requireSellerPrincipal(principal: unknown): { sellerId: string } {

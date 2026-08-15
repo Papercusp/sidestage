@@ -7,13 +7,11 @@ import { AuctionAccessService, type AuctionAuditRecord } from './auction-access.
 import { AuctionController } from './auction.controller';
 import { AuctionModule } from './auction.module';
 
-const SELLER_TOKEN = 'seller-token-with-enough-entropy-for-tests';
 const SIGNING_SECRET = 'auction-signing-secret-with-at-least-thirty-two-bytes';
 
 function accessAt(now: () => number = Date.now): AuctionAccessService {
   return new AuctionAccessService({
     NODE_ENV: 'test',
-    SIDESTAGE_AUCTION_SELLER_TOKEN: SELLER_TOKEN,
     SIDESTAGE_AUCTION_SIGNING_SECRET: SIGNING_SECRET,
   } as NodeJS.ProcessEnv, now);
 }
@@ -40,23 +38,13 @@ describe('AuctionAccessService', () => {
     await moduleRef.close();
   });
 
-  it('fails closed in production and accepts only the configured seller bearer', () => {
-    const production = new AuctionAccessService({ NODE_ENV: 'production' } as NodeJS.ProcessEnv);
-    expect(statusOf(() => production.requireSeller(`Bearer ${SELLER_TOKEN}`, 'seller-alpha'))).toBe(503);
-
-    const access = accessAt();
-    expect(access.requireSeller(`Bearer ${SELLER_TOKEN}`, 'buyer-alpha')).toEqual({ sellerId: 'seller-alpha' });
-    expect(statusOf(() => access.requireSeller(`Bearer ${SELLER_TOKEN}`, undefined))).toBe(401);
-    expect(statusOf(() => access.requireSeller('Bearer forged-token', 'seller-alpha'))).toBe(401);
-    expect(statusOf(() => access.requireSeller(undefined, 'seller-alpha'))).toBe(401);
-  });
-
-  it('derives seller auction authority directly from the selected demo principal', () => {
-    const access = accessAt();
+  it('derives seller auction authority directly from the selected demo principal in production', () => {
+    const access = new AuctionAccessService({ NODE_ENV: 'production' } as NodeJS.ProcessEnv);
 
     expect(access.requireSellerPrincipal('buyer-alpha')).toEqual({ sellerId: 'seller-alpha' });
     expect(access.requireSellerPrincipal('seller-alpha')).toEqual({ sellerId: 'seller-alpha' });
     expect(statusOf(() => access.requireSellerPrincipal(undefined))).toBe(401);
+    expect((access as unknown as Record<string, unknown>).requireSeller).toBeUndefined();
   });
 
   it('mints, verifies, reuses, expires, and rejects tampered HttpOnly guest identity', () => {

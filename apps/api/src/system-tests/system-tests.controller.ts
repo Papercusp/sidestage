@@ -106,10 +106,7 @@ export class SystemTestsController {
   }
 
   private actor(headers: HeadersMap, ip: string, action: string): SystemTestActor {
-    const seller = this.access.requireSeller(
-      auctionHeader(headers, 'authorization'),
-      auctionHeader(headers, DEMO_PRINCIPAL_HEADER),
-    );
+    const seller = this.access.requireSellerPrincipal(auctionHeader(headers, DEMO_PRINCIPAL_HEADER));
     this.access.consumeRateLimit(`system-tests-${action}`, seller.sellerId || ip || 'unknown', 60, 60_000);
     return { id: seller.sellerId, role: 'operator' };
   }
