@@ -326,6 +326,12 @@ export function SellerTab({
         setEventIdentity(sellerEventIdentity(nextEventId, nextEventTitle));
       },
     },
+    inventory: {
+      eventId,
+      actorId: userId,
+      eventName: eventTitles.stageStatus,
+      apiBaseUrl: import.meta.env.VITE_API_URL,
+    },
     'run-of-show': {
       eventId,
       stageLog: runOfShowLog,
@@ -367,7 +373,7 @@ export function SellerTab({
         ))}
       </nav>
       {studioView === 'inventory' ? (
-        <InventoryPanel apiBaseUrl={import.meta.env.VITE_API_URL} />
+        <InventoryPanel apiBaseUrl={import.meta.env.VITE_API_URL} principal={principal} />
       ) : shouldUseMobileStudio(studioView, mobileStudio) ? (
         <SellerMobileStudio panels={panels} />
       ) : (

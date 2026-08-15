@@ -39,6 +39,7 @@ describe('Studio board selection', () => {
     expect(STUDIO_MOBILE_MODES).toEqual([
       { id: 'stage', label: 'Stage' },
       { id: 'lineup', label: 'Lineup' },
+      { id: 'inventory', label: 'Inventory' },
       { id: 'copilot', label: 'Copilot' },
     ]);
     expect(isMobileStudioViewport((query) => ({
@@ -52,6 +53,7 @@ describe('Studio board selection', () => {
     expect(nextStudioMobileMode('stage', 'ArrowLeft')).toBe('copilot');
     expect(nextStudioMobileMode('copilot', 'Home')).toBe('stage');
     expect(nextStudioMobileMode('stage', 'End')).toBe('copilot');
+    expect(nextStudioMobileMode('lineup', 'ArrowRight')).toBe('inventory');
     expect(nextStudioMobileMode('lineup', 'Enter')).toBeNull();
   });
 
@@ -119,6 +121,7 @@ describe('Studio board selection', () => {
       'stage-status',
       'copilot',
       'run-of-show',
+      'inventory',
     ]);
   });
 
