@@ -99,11 +99,15 @@ describe('BuyerOrdersService', () => {
     const queries = new SyncQueryRegistry();
     new BuyerOrdersSyncQueries(buyerOrders as never, queries).onModuleInit();
 
-    await expect(queries.resolve('orders.byBuyer', { buyerId: 'buyer-1' })).resolves.toEqual([
+    await expect(queries.resolve(
+      'orders.byBuyer',
+      { buyerId: 'buyer-forged' },
+      { principal: 'demo-1' },
+    )).resolves.toEqual([
       expect.objectContaining({ id: 'order-2', buyerId: 'buyer-1' }),
       expect.objectContaining({ id: 'order-1', buyerId: 'buyer-1' }),
     ]);
-    expect(buyerOrders.listForBuyer).toHaveBeenCalledWith('buyer-1');
+    expect(buyerOrders.listForBuyer).toHaveBeenCalledWith('buyer-demo-1');
   });
 
   it('routes a missing buyer identity through the service validation boundary', async () => {
@@ -113,7 +117,7 @@ describe('BuyerOrdersService', () => {
     const queries = new SyncQueryRegistry();
     new BuyerOrdersSyncQueries(buyerOrders as never, queries).onModuleInit();
 
-    await expect(queries.resolve('orders.byBuyer', {})).rejects.toThrow('buyerId is required');
+    await expect(queries.resolve('orders.byBuyer', {}, { principal: null })).rejects.toThrow('buyerId is required');
     expect(buyerOrders.listForBuyer).toHaveBeenCalledWith('');
   });
 

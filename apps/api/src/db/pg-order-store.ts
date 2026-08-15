@@ -3,7 +3,7 @@ import type {
   CheckoutOrder,
   OrderStore,
   PayableOrderSourceKind,
-} from '../checkout/checkout.service';
+} from '../checkout/order-store';
 
 /** Durable checkout orders; the status column is lifted out for queries. */
 export class PgOrderStore implements OrderStore {

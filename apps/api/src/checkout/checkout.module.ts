@@ -1,23 +1,18 @@
 import { Inject, Injectable, Module, type OnModuleInit } from '@nestjs/common';
-import type { Pool } from 'pg';
 import { CartModule } from '../cart/cart.module';
 import { ActionModule } from '../actions/action.module';
 import { AuctionModule } from '../auction/auction.module';
 import { ChatModule } from '../chat/chat.module';
-import { DatabaseModule, PG_POOL } from '../db/database.module';
 import { EventModule } from '../events/event.module';
-import { PgOrderStore } from '../db/pg-order-store';
 import { ShippingModule } from '../shipping/shipping.module';
 import { SyncModule } from '../sync/sync.module';
 import { SyncQueryRegistry } from '../sync/sync-query.registry';
+import { rolePrincipal } from '../sync/sync-request-context';
 import { BuyerOrdersService } from './buyer-orders.service';
 import { CheckoutController } from './checkout.controller';
-import {
-  CHECKOUT_PAYMENT_PROVIDER,
-  CheckoutService,
-  InMemoryOrderStore,
-  ORDER_STORE,
-} from './checkout.service';
+import { CheckoutSourceService } from './checkout-source.service';
+import { CHECKOUT_PAYMENT_PROVIDER, CheckoutService } from './checkout.service';
+import { OrderModule } from './order.module';
 import { StripePaymentProvider } from './stripe-payment.provider';
 
 @Injectable()
@@ -28,26 +23,22 @@ export class BuyerOrdersSyncQueries implements OnModuleInit {
   ) {}
 
   onModuleInit(): void {
-    this.queries.register('orders.byBuyer', (args) => {
-      const buyerId = typeof args.buyerId === 'string' ? args.buyerId : '';
+    this.queries.register('orders.byBuyer', (_args, context) => {
+      const buyerId = rolePrincipal(context.principal, 'buyer') ?? '';
       return this.buyerOrders.listForBuyer(buyerId);
     });
   }
 }
 
 @Module({
-  imports: [DatabaseModule, CartModule, ActionModule, AuctionModule, ChatModule, EventModule, ShippingModule, SyncModule],
+  imports: [CartModule, ActionModule, AuctionModule, ChatModule, EventModule, OrderModule, ShippingModule, SyncModule],
   controllers: [CheckoutController],
   providers: [
     CheckoutService,
+    CheckoutSourceService,
     BuyerOrdersService,
     BuyerOrdersSyncQueries,
     { provide: CHECKOUT_PAYMENT_PROVIDER, useFactory: () => new StripePaymentProvider() },
-    {
-      provide: ORDER_STORE,
-      inject: [PG_POOL],
-      useFactory: (pool: Pool | null) => (pool ? new PgOrderStore(pool) : new InMemoryOrderStore()),
-    },
   ],
 })
 export class CheckoutModule {}

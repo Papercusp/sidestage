@@ -1,28 +1,33 @@
 import { BadRequestException, Inject, Injectable, Logger, Optional } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
-import { CartService, type Cart } from '../cart/cart.service';
 import {
   normalizeShippingAddress,
   ShippingService,
-  type AggregatedRate,
-  type NormalizedShippingAddress,
   type ShippingAddressInput,
 } from '../shipping/shipping.service';
 import { SyncInvalidationService } from '../sync/sync-invalidation.service';
+import { CheckoutSourceService } from './checkout-source.service';
+import {
+  cloneCheckoutOrder,
+  ORDER_STORE,
+  type CheckoutOrder,
+  type OrderStore,
+  type PayableOrderSourceKind,
+} from './order-store';
+
+export { InMemoryOrderStore, ORDER_STORE } from './order-store';
+export type {
+  CheckoutOrder,
+  CheckoutOrderStatus,
+  OrderStore,
+  PayableOrderPaymentState,
+  PayableOrderSourceKind,
+} from './order-store';
 
 export const CHECKOUT_PAYMENT_PROVIDER = Symbol('CHECKOUT_PAYMENT_PROVIDER');
-export const ORDER_STORE = Symbol('ORDER_STORE');
 
 export type PaymentSessionStatus = 'ready' | 'needs-configuration';
 export type StripeMode = 'test' | 'live';
-export type PayableOrderSourceKind = 'cart' | 'auction' | 'offer';
-export type PayableOrderPaymentState =
-  | 'payment_required'
-  | 'payment_processing'
-  | 'paid'
-  | 'payment_failed'
-  | 'cancelled'
-  | 'expired';
 
 export interface PaymentSession {
   provider: 'stripe';
@@ -71,107 +76,16 @@ export interface PaymentProvider {
   ): Promise<StripePaymentEvent | null>;
 }
 
-export type CheckoutOrderStatus = 'pending' | 'paid' | 'failed';
-
-/**
- * Order persistence seam: PgOrderStore (db/pg-order-store) keeps orders across
- * restarts; the in-memory store below backs tests and DB-less clean clones.
- */
-export interface OrderStore {
-  get(id: string): Promise<CheckoutOrder | undefined>;
-  findBySource(sourceKind: PayableOrderSourceKind, sourceId: string): Promise<CheckoutOrder | undefined>;
-  findByPaymentIntent(paymentIntentId: string): Promise<CheckoutOrder | undefined>;
-  listByBuyer(buyerId: string): Promise<CheckoutOrder[]>;
-  set(order: CheckoutOrder): Promise<void>;
-}
-
-export interface CheckoutOrder {
-  id: string;
-  cartId?: string;
-  buyerId: string;
-  sourceKind: PayableOrderSourceKind;
-  sourceId: string;
-  eventId: string;
-  email?: string;
-  name?: string;
-  subtotalCents: number;
-  shippingCents: number;
-  totalCents: number;
-  currency: 'USD';
-  status: CheckoutOrderStatus;
-  paymentState: PayableOrderPaymentState;
-  stripePaymentIntentId?: string;
-  stripeEventId?: string;
-  stripeEventCreated?: number;
-  paymentError?: string;
-  createdAt: string;
-  items: Cart['items'];
-  cartUpdatedAt?: string;
-  shippingAddress?: NormalizedShippingAddress;
-  selectedShippingRate?: AggregatedRate;
-  sourceSnapshot?: Record<string, unknown>;
-}
-
 export interface CheckoutSessionInput {
-  cartId: string;
+  cartId?: string;
+  sourceKind?: PayableOrderSourceKind;
+  sourceId?: string;
   buyerId: string;
-  eventId: string;
+  eventId?: string;
   email?: string;
   name?: string;
   shippingAddress: ShippingAddressInput;
   shippingRateId: string;
-}
-
-@Injectable()
-export class InMemoryOrderStore implements OrderStore {
-  private readonly orders = new Map<string, CheckoutOrder>();
-
-  async get(id: string): Promise<CheckoutOrder | undefined> {
-    const order = this.orders.get(id);
-    return order ? cloneCheckoutOrder(order) : undefined;
-  }
-
-  async findBySource(sourceKind: PayableOrderSourceKind, sourceId: string): Promise<CheckoutOrder | undefined> {
-    const order = [...this.orders.values()]
-      .find((candidate) => candidate.sourceKind === sourceKind && candidate.sourceId === sourceId);
-    return order ? cloneCheckoutOrder(order) : undefined;
-  }
-
-  async findByPaymentIntent(paymentIntentId: string): Promise<CheckoutOrder | undefined> {
-    const order = [...this.orders.values()]
-      .find((candidate) => candidate.stripePaymentIntentId === paymentIntentId);
-    return order ? cloneCheckoutOrder(order) : undefined;
-  }
-
-  async listByBuyer(buyerId: string): Promise<CheckoutOrder[]> {
-    return [...this.orders.values()]
-      .filter((order) => order.buyerId === buyerId)
-      .sort((left, right) => right.createdAt.localeCompare(left.createdAt))
-      .map(cloneCheckoutOrder);
-  }
-
-  async set(order: CheckoutOrder): Promise<void> {
-    for (const existing of this.orders.values()) {
-      if (existing.id === order.id) continue;
-      if (existing.sourceKind === order.sourceKind && existing.sourceId === order.sourceId) {
-        throw new Error(`Payable order source ${order.sourceKind}:${order.sourceId} already belongs to ${existing.id}`);
-      }
-      if (order.stripePaymentIntentId && existing.stripePaymentIntentId === order.stripePaymentIntentId) {
-        throw new Error(`Stripe PaymentIntent ${order.stripePaymentIntentId} already belongs to ${existing.id}`);
-      }
-    }
-    this.orders.set(order.id, cloneCheckoutOrder(order));
-  }
-}
-
-function cloneCheckoutOrder(order: CheckoutOrder): CheckoutOrder {
-  return {
-    ...order,
-    items: order.items.map((item) => ({ ...item })),
-    shippingAddress: order.shippingAddress ? { ...order.shippingAddress } : undefined,
-    selectedShippingRate: order.selectedShippingRate ? { ...order.selectedShippingRate } : undefined,
-    sourceSnapshot: order.sourceSnapshot ? { ...order.sourceSnapshot } : undefined,
-  };
 }
 
 @Injectable()
@@ -182,7 +96,7 @@ export class CheckoutService {
   constructor(
     @Inject(CHECKOUT_PAYMENT_PROVIDER) private readonly provider: PaymentProvider,
     @Inject(ORDER_STORE) private readonly orders: OrderStore,
-    @Inject(CartService) private readonly carts: CartService,
+    @Inject(CheckoutSourceService) private readonly sources: CheckoutSourceService,
     @Inject(ShippingService) private readonly shipping: ShippingService,
     @Optional()
     @Inject(SyncInvalidationService)
@@ -193,55 +107,78 @@ export class CheckoutService {
     if (Object.prototype.hasOwnProperty.call(input ?? {}, 'shippingCents')) {
       throw new BadRequestException('shippingCents is server-authoritative; select shippingRateId instead');
     }
-    const cartId = this.readId(input?.cartId, 'cartId');
     const buyerId = this.readId(input?.buyerId, 'buyerId');
-    const eventId = this.readId(input?.eventId, 'eventId');
+    const sourceKind = input?.sourceKind ?? 'cart';
+    const sourceId = this.readId(input?.sourceId ?? input?.cartId, sourceKind === 'cart' ? 'cartId' : 'sourceId');
+    if (sourceKind === 'cart' && input?.cartId && input?.sourceId && input.cartId.trim() !== input.sourceId.trim()) {
+      throw new BadRequestException('cartId and sourceId must identify the same cart');
+    }
     const email = this.optionalText(input?.email);
     const name = this.optionalText(input?.name);
     const shippingAddress = normalizeShippingAddress({
       ...input?.shippingAddress,
       name: input?.shippingAddress?.name ?? name,
     });
-    const cartBeforeQuote = await this.requireCart(cartId);
-    const selectedShippingRate = await this.shipping.resolveRate(
-      { cartId, address: shippingAddress },
+    const sourceBeforeQuote = await this.sources.load({
+      sourceKind,
+      sourceId,
+      buyerId,
+      eventId: this.optionalText(input?.eventId),
+    });
+    const selectedShippingRate = await this.shipping.resolveRateForItems(
+      {
+        sourceKind: sourceBeforeQuote.sourceKind,
+        sourceId: sourceBeforeQuote.sourceId,
+        items: sourceBeforeQuote.items,
+        revision: sourceBeforeQuote.revision,
+        address: shippingAddress,
+      },
       this.readId(input?.shippingRateId, 'shippingRateId'),
     );
-    const cart = await this.requireCart(cartId);
-    if (!this.sameCartSnapshot(cartBeforeQuote, cart)) {
-      throw new BadRequestException('Cart changed while selecting shipping; refresh rates and try again');
+    const source = await this.sources.load({
+      sourceKind,
+      sourceId,
+      buyerId,
+      eventId: this.optionalText(input?.eventId),
+    });
+    if (!this.sources.sameSnapshot(sourceBeforeQuote, source)) {
+      throw new BadRequestException('Payable source changed while selecting shipping; refresh rates and try again');
     }
 
     const shippingCents = selectedShippingRate.totalCents;
-    const totalCents = cart.subtotalCents + shippingCents;
-    const existing = await this.orders.findBySource('cart', cart.id);
+    const totalCents = source.subtotalCents + shippingCents;
+    const existing = await this.orders.findBySource(source.sourceKind, source.sourceId);
     if (existing?.buyerId !== undefined && existing.buyerId !== buyerId) {
-      throw new BadRequestException('Cart is already associated with another buyer order');
+      throw new BadRequestException('Payable source is already associated with another buyer order');
     }
     if (existing?.status === 'paid') {
-      throw new BadRequestException('Cart already has a paid order');
+      throw new BadRequestException('Payable source already has a paid order');
     }
-    const orderId = existing?.id ?? `order_${randomUUID()}`;
+    if (source.orderId && existing && existing.id !== source.orderId) {
+      throw new BadRequestException('Payable source is associated with an unexpected canonical order');
+    }
+    const orderId = existing?.id ?? source.orderId ?? `order_${randomUUID()}`;
     const order: CheckoutOrder = {
       id: orderId,
-      cartId: cart.id,
+      cartId: source.sourceKind === 'cart' ? source.sourceId : undefined,
       buyerId,
-      sourceKind: 'cart',
-      sourceId: cart.id,
-      eventId,
+      sourceKind: source.sourceKind,
+      sourceId: source.sourceId,
+      eventId: source.eventId,
       email,
       name,
-      subtotalCents: cart.subtotalCents,
+      subtotalCents: source.subtotalCents,
       shippingCents,
       totalCents,
       currency: 'USD',
       status: 'pending',
       paymentState: 'payment_required',
       createdAt: existing?.createdAt ?? new Date().toISOString(),
-      items: cart.items.map((item) => ({ ...item })),
-      cartUpdatedAt: cart.updatedAt,
+      items: source.items.map((item) => ({ ...item })),
+      cartUpdatedAt: source.sourceKind === 'cart' ? source.revision : undefined,
       shippingAddress: { ...shippingAddress },
       selectedShippingRate: { ...selectedShippingRate },
+      sourceSnapshot: { ...source.snapshot },
     };
     const session = await this.provider.createSession({
       orderId: order.id,
@@ -279,7 +216,7 @@ export class CheckoutService {
       if (order!.stripeEventId === event.id) {
         return { received: true, handled: false, order: this.cloneOrder(order!) };
       }
-      if (order!.status === 'paid') {
+      if (order!.status === 'paid' || order!.paymentState === 'cancelled' || order!.paymentState === 'expired') {
         return { received: true, handled: false, order: this.cloneOrder(order!) };
       }
       if (
@@ -301,10 +238,7 @@ export class CheckoutService {
         order!.paymentState = 'payment_failed';
         order!.paymentError = event.errorMessage ?? 'Payment failed';
       } else {
-        if (order!.sourceKind === 'cart') {
-          if (!order!.cartId) throw new BadRequestException('Cart order is missing its cart reference');
-          await this.carts.commit(order!.cartId);
-        }
+        await this.sources.commit(order!);
         order!.status = 'paid';
         order!.paymentState = 'paid';
         order!.paymentError = undefined;
@@ -325,17 +259,21 @@ export class CheckoutService {
     return order ? this.cloneOrder(order) : null;
   }
 
-  private async requireCart(id: string): Promise<Cart> {
-    const cart = await this.carts.findCart(id);
-    if (!cart || cart.items.length === 0) throw new BadRequestException('Cart is empty or not found');
-    return cart;
-  }
-
-  private sameCartSnapshot(left: Cart, right: Cart): boolean {
-    return left.id === right.id
-      && left.updatedAt === right.updatedAt
-      && left.subtotalCents === right.subtotalCents
-      && JSON.stringify(left.items) === JSON.stringify(right.items);
+  async cancelOrder(id: string, buyerIdInput: string): Promise<CheckoutOrder> {
+    const buyerId = this.readId(buyerIdInput, 'buyerId');
+    return this.serializePaymentEvent(this.readId(id, 'orderId'), async () => {
+      const order = await this.orders.get(id);
+      if (!order || order.buyerId !== buyerId) throw new BadRequestException('Order was not found for this buyer');
+      if (order.status === 'paid') throw new BadRequestException('Paid orders cannot be cancelled');
+      if (order.paymentState === 'cancelled') return this.cloneOrder(order);
+      await this.sources.release(order);
+      order.status = 'failed';
+      order.paymentState = 'cancelled';
+      order.paymentError = undefined;
+      await this.orders.set(order);
+      this.invalidateOrderStatus(order);
+      return this.cloneOrder(order);
+    });
   }
 
   private assertWebhookMatchesOrder(order: CheckoutOrder, event: StripePaymentEvent): void {

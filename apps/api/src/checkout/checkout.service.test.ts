@@ -5,7 +5,7 @@ import {
   ShippingService,
   type AggregatedRate,
   type ShippingAddressInput,
-  type ShippingRateInput,
+  type ShippingItemsRateInput,
 } from '../shipping/shipping.service';
 import { SyncInvalidationService, type SyncInvalidation } from '../sync/sync-invalidation.service';
 import {
@@ -17,6 +17,7 @@ import {
   type PaymentSession,
   type StripePaymentEvent,
 } from './checkout.service';
+import { CheckoutSourceService } from './checkout-source.service';
 import { StripePaymentProvider, type StripeClient } from './stripe-payment.provider';
 
 function providerHarness() {
@@ -94,17 +95,21 @@ function input(cartId: string, overrides: Partial<CheckoutSessionInput> = {}): C
 }
 
 function shipping(
-  resolve: (quote: ShippingRateInput, rateId: string) => AggregatedRate | Promise<AggregatedRate>
+  resolve: (quote: ShippingItemsRateInput, rateId: string) => AggregatedRate | Promise<AggregatedRate>
     = () => RATE,
 ): ShippingService {
-  return { resolveRate: vi.fn(resolve) } as unknown as ShippingService;
+  return { resolveRateForItems: vi.fn(resolve) } as unknown as ShippingService;
+}
+
+function sources(carts: CartService): CheckoutSourceService {
+  return new CheckoutSourceService(carts, undefined as never, undefined as never);
 }
 
 describe('CheckoutService', () => {
   it('creates an idempotent pending order from cart snapshots', async () => {
     const carts = new CartService(new InMemoryCartStore());
     const cart = await carts.addItem({ cartId: 'cart-1', productId: 'p-1', title: 'Mug', priceCents: 1250, quantity: 2 });
-    const checkout = new CheckoutService(provider(), new InMemoryOrderStore(), carts, shipping());
+    const checkout = new CheckoutService(provider(), new InMemoryOrderStore(), sources(carts), shipping());
     const first = await checkout.createSession(input(cart.id));
     const retry = await checkout.createSession(input(cart.id));
     expect(first.order.totalCents).toBe(3000);
@@ -126,15 +131,84 @@ describe('CheckoutService', () => {
     expect(JSON.stringify(first.order)).not.toContain('_secret_');
   });
 
+  it('creates and pays a stable non-cart order through the shared source seam', async () => {
+    const payments = providerHarness();
+    const orders = new InMemoryOrderStore();
+    const source = {
+      sourceKind: 'auction' as const,
+      sourceId: 'auction-1',
+      orderId: 'order-winner-1',
+      buyerId: 'buyer-winner',
+      eventId: 'event-auction',
+      subtotalCents: 3_000,
+      items: [{ productId: 'plate', title: 'Plate', priceCents: 1_500, quantity: 2 }],
+      revision: 'winner-v1',
+      snapshot: { auctionId: 'auction-1', unitPriceCents: 1_500 },
+    };
+    const sourceService = {
+      load: vi.fn().mockResolvedValue(source),
+      sameSnapshot: vi.fn().mockReturnValue(true),
+      commit: vi.fn().mockResolvedValue(undefined),
+      release: vi.fn().mockResolvedValue(undefined),
+    } as unknown as CheckoutSourceService;
+    const checkout = new CheckoutService(payments.provider, orders, sourceService, shipping());
+
+    const created = await checkout.createSession({
+      sourceKind: 'auction',
+      sourceId: 'auction-1',
+      buyerId: 'buyer-winner',
+      shippingAddress: ADDRESS,
+      shippingRateId: RATE.id,
+    });
+    expect(created.order).toMatchObject({
+      id: 'order-winner-1',
+      sourceKind: 'auction',
+      sourceId: 'auction-1',
+      buyerId: 'buyer-winner',
+      eventId: 'event-auction',
+      subtotalCents: 3_000,
+      totalCents: 3_500,
+      cartId: undefined,
+    });
+    expect(payments.provider.createSession).toHaveBeenCalledWith(expect.objectContaining({
+      orderId: 'order-winner-1', sourceKind: 'auction', sourceId: 'auction-1', amountCents: 3_500,
+    }));
+
+    payments.deliver(stripeEvent(created.order));
+    await checkout.handleWebhook(Buffer.from('{}'), 'signed');
+    await checkout.handleWebhook(Buffer.from('{}'), 'signed');
+    expect(sourceService.commit).toHaveBeenCalledTimes(1);
+    await expect(orders.get(created.order.id)).resolves.toMatchObject({ paymentState: 'paid' });
+  });
+
+  it('releases a cancelled source exactly once and ignores later success delivery', async () => {
+    const carts = new CartService(new InMemoryCartStore());
+    const cart = await carts.addItem({ cartId: 'cart-cancel', productId: 'p-1', title: 'Mug', priceCents: 1_250 });
+    const sourceService = sources(carts);
+    const release = vi.spyOn(sourceService, 'release');
+    const payments = providerHarness();
+    const checkout = new CheckoutService(payments.provider, new InMemoryOrderStore(), sourceService, shipping());
+    const created = await checkout.createSession(input(cart.id));
+
+    await checkout.cancelOrder(created.order.id, created.order.buyerId);
+    await checkout.cancelOrder(created.order.id, created.order.buyerId);
+    payments.deliver(stripeEvent(created.order));
+    const late = await checkout.handleWebhook(Buffer.from('{}'), 'signed');
+
+    expect(release).toHaveBeenCalledTimes(1);
+    expect(late.handled).toBe(false);
+    expect(late.order?.paymentState).toBe('cancelled');
+  });
+
   it('rejects a second buyer trying to fork the same payable source', async () => {
     const carts = new CartService(new InMemoryCartStore());
     const cart = await carts.addItem({ cartId: 'cart-shared', productId: 'p-1', title: 'Mug', priceCents: 1250 });
     const orders = new InMemoryOrderStore();
-    const checkout = new CheckoutService(provider(), orders, carts, shipping());
+    const checkout = new CheckoutService(provider(), orders, sources(carts), shipping());
 
     const buyerOne = await checkout.createSession(input(cart.id));
     await expect(checkout.createSession(input(cart.id, { buyerId: 'buyer-2' })))
-      .rejects.toThrow('Cart is already associated with another buyer order');
+      .rejects.toThrow('Payable source is already associated with another buyer order');
     await expect(orders.listByBuyer('buyer-1')).resolves.toEqual([
       expect.objectContaining({ id: buyerOne.order.id, buyerId: 'buyer-1' }),
     ]);
@@ -145,7 +219,7 @@ describe('CheckoutService', () => {
     const carts = new CartService(new InMemoryCartStore());
     const cart = await carts.addItem({ cartId: 'cart-2', productId: 'p-2', title: 'Headphones', priceCents: 19999 });
     const payments = providerHarness();
-    const checkout = new CheckoutService(payments.provider, new InMemoryOrderStore(), carts, shipping());
+    const checkout = new CheckoutService(payments.provider, new InMemoryOrderStore(), sources(carts), shipping());
     const session = await checkout.createSession(input(cart.id, { buyerId: 'buyer-2', eventId: 'event-2' }));
     payments.deliver(stripeEvent(session.order));
     const confirmation = await checkout.handleWebhook(Buffer.from('{}'), 'signed');
@@ -161,7 +235,7 @@ describe('CheckoutService', () => {
     const published: SyncInvalidation[] = [];
     const subscription = invalidations.events().subscribe((event) => published.push(event));
     const payments = providerHarness();
-    const checkout = new CheckoutService(payments.provider, new InMemoryOrderStore(), carts, shipping(), invalidations);
+    const checkout = new CheckoutService(payments.provider, new InMemoryOrderStore(), sources(carts), shipping(), invalidations);
 
     const session = await checkout.createSession(input(cart.id, { buyerId: 'buyer-live', eventId: 'event-live' }));
     payments.deliver(stripeEvent(session.order));
@@ -189,7 +263,7 @@ describe('CheckoutService', () => {
       service: rateId === 'UPS:Air' ? 'Air' : 'Ground',
       totalCents: rateId === 'UPS:Air' ? 900 : 500,
     }));
-    const checkout = new CheckoutService(provider(), new InMemoryOrderStore(), carts, rates);
+    const checkout = new CheckoutService(provider(), new InMemoryOrderStore(), sources(carts), rates);
 
     const first = await checkout.createSession(input(cart.id));
     const second = await checkout.createSession(input(cart.id, {
@@ -210,11 +284,11 @@ describe('CheckoutService', () => {
     const carts = new CartService(new InMemoryCartStore());
     const cart = await carts.addItem({ cartId: 'cart-client-price', productId: 'p-1', title: 'Mug', priceCents: 1250 });
     const rates = shipping();
-    const checkout = new CheckoutService(provider(), new InMemoryOrderStore(), carts, rates);
+    const checkout = new CheckoutService(provider(), new InMemoryOrderStore(), sources(carts), rates);
 
     await expect(checkout.createSession({ ...input(cart.id), shippingCents: 1 } as never))
       .rejects.toThrow('shippingCents is server-authoritative');
-    expect(rates.resolveRate).not.toHaveBeenCalled();
+    expect(rates.resolveRateForItems).not.toHaveBeenCalled();
   });
 
   it('rejects a cart mutation that races shipping quote selection', async () => {
@@ -224,9 +298,9 @@ describe('CheckoutService', () => {
       await carts.setQuantity(cart.id, 'p-1', 2);
       return RATE;
     });
-    const checkout = new CheckoutService(provider(), new InMemoryOrderStore(), carts, rates);
+    const checkout = new CheckoutService(provider(), new InMemoryOrderStore(), sources(carts), rates);
 
-    await expect(checkout.createSession(input(cart.id))).rejects.toThrow('Cart changed while selecting shipping');
+    await expect(checkout.createSession(input(cart.id))).rejects.toThrow('Payable source changed while selecting shipping');
   });
 
   it('commits and invalidates exactly once for duplicate success deliveries', async () => {
@@ -237,7 +311,7 @@ describe('CheckoutService', () => {
     const published: SyncInvalidation[] = [];
     const subscription = invalidations.events().subscribe((event) => published.push(event));
     const payments = providerHarness();
-    const checkout = new CheckoutService(payments.provider, new InMemoryOrderStore(), carts, shipping(), invalidations);
+    const checkout = new CheckoutService(payments.provider, new InMemoryOrderStore(), sources(carts), shipping(), invalidations);
     const session = await checkout.createSession(input(cart.id));
     payments.deliver(stripeEvent(session.order));
 
@@ -254,7 +328,7 @@ describe('CheckoutService', () => {
     const carts = new CartService(new InMemoryCartStore());
     const cart = await carts.addItem({ cartId: 'cart-reordered', productId: 'p-1', title: 'Mug', priceCents: 1250 });
     const payments = providerHarness();
-    const checkout = new CheckoutService(payments.provider, new InMemoryOrderStore(), carts, shipping());
+    const checkout = new CheckoutService(payments.provider, new InMemoryOrderStore(), sources(carts), shipping());
     const session = await checkout.createSession(input(cart.id));
     payments.deliver(stripeEvent(session.order, {
       id: 'evt_failed', type: 'failed', amountReceivedCents: undefined, errorMessage: 'declined',
@@ -276,7 +350,7 @@ describe('CheckoutService', () => {
     const carts = new CartService(new InMemoryCartStore());
     const cart = await carts.addItem({ cartId: 'cart-mismatch', productId: 'p-1', title: 'Mug', priceCents: 1250 });
     const payments = providerHarness();
-    const checkout = new CheckoutService(payments.provider, new InMemoryOrderStore(), carts, shipping());
+    const checkout = new CheckoutService(payments.provider, new InMemoryOrderStore(), sources(carts), shipping());
     const session = await checkout.createSession(input(cart.id));
     payments.deliver(stripeEvent(session.order, { buyerId: 'another-buyer', amountCents: 1 }));
 

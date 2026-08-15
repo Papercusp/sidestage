@@ -6,8 +6,8 @@ describe('CheckoutController', () => {
     const buyerOrders = { listForBuyer: vi.fn().mockResolvedValue([{ id: 'order-1' }]) };
     const controller = new CheckoutController({} as never, buyerOrders as never);
 
-    await expect(controller.orders('buyer-1')).resolves.toEqual({ orders: [{ id: 'order-1' }] });
-    expect(buyerOrders.listForBuyer).toHaveBeenCalledWith('buyer-1');
+    await expect(controller.orders('demo-1')).resolves.toEqual({ orders: [{ id: 'order-1' }] });
+    expect(buyerOrders.listForBuyer).toHaveBeenCalledWith('buyer-demo-1');
   });
 
   it('passes buyer and event identity into checkout session creation', async () => {
@@ -19,8 +19,21 @@ describe('CheckoutController', () => {
       shippingRateId: 'UPS:Ground',
     };
 
-    await expect(controller.createSession(body)).resolves.toEqual({ order: { id: 'order-1' } });
-    expect(checkout.createSession).toHaveBeenCalledWith(body);
+    await expect(controller.createSession(body, 'demo-1')).resolves.toEqual({ order: { id: 'order-1' } });
+    expect(checkout.createSession).toHaveBeenCalledWith({ ...body, buyerId: 'buyer-demo-1' });
+  });
+
+  it('ignores client-authored buyer identity in favor of the request principal', async () => {
+    const checkout = { createSession: vi.fn().mockResolvedValue({ order: { id: 'order-1' } }) };
+    const controller = new CheckoutController(checkout as never, {} as never);
+    await controller.createSession({ cartId: 'cart-1', buyerId: 'buyer-forged' } as never, 'seller-avi');
+    expect(checkout.createSession).toHaveBeenCalledWith(expect.objectContaining({ buyerId: 'buyer-avi' }));
+  });
+
+  it('requires a buyer principal for buyer-owned reads and writes', async () => {
+    const controller = new CheckoutController({ createSession: vi.fn() } as never, { listForBuyer: vi.fn() } as never);
+    await expect(controller.orders()).rejects.toThrow('Buyer principal is required');
+    expect(() => controller.createSession({ cartId: 'cart-1' } as never)).toThrow('Buyer principal is required');
   });
 
   it('passes the untouched raw body and Stripe signature to webhook handling', async () => {

@@ -7,6 +7,7 @@ import {
   type PaymentSession,
   type StripePaymentEvent,
 } from '../checkout/checkout.service';
+import { CheckoutSourceService } from '../checkout/checkout-source.service';
 import { MAX_WEIGHT_OZ, packItems } from '../shipping/box-packer';
 import { ShippingService, type AggregatedRate } from '../shipping/shipping.service';
 import {
@@ -95,12 +96,13 @@ function scripted(): ScriptedCheckout {
   const carts = new CartService(new InMemoryCartStore());
   const provider = new RecordingPaymentProvider();
   const shipping = {
-    resolveRate: async (_input: unknown, rateId: string) => {
+    resolveRateForItems: async (_input: unknown, rateId: string) => {
       if (rateId !== REHEARSAL_RATE.id) throw new Error('Shipping rate is unavailable or expired');
       return { ...REHEARSAL_RATE };
     },
   } as unknown as ShippingService;
-  return { carts, provider, checkout: new CheckoutService(provider, new InMemoryOrderStore(), carts, shipping) };
+  const sources = new CheckoutSourceService(carts, undefined as never, undefined as never);
+  return { carts, provider, checkout: new CheckoutService(provider, new InMemoryOrderStore(), sources, shipping) };
 }
 
 const CUP_CENTS = 2_800;

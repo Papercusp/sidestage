@@ -471,7 +471,7 @@ BEGIN
   WHERE source_kind = p_source_kind
     AND source_id = p_source_id
     AND variant_id = p_variant_id
-    AND state IN ('held', 'committed');
+    AND state IN ('held', 'committed', 'released');
   GET DIAGNOSTICS v_updated = ROW_COUNT;
   RETURN v_updated > 0;
 END;
@@ -495,7 +495,7 @@ BEGIN
   WHERE source_kind = p_source_kind
     AND source_id = p_source_id
     AND variant_id = p_variant_id
-    AND state = 'held';
+    AND state IN ('held', 'committed');
   GET DIAGNOSTICS v_updated = ROW_COUNT;
   RETURN v_updated > 0;
 END;
