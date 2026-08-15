@@ -216,9 +216,6 @@ CREATE INDEX IF NOT EXISTS storefront_product_slug_trgm_idx
   ON storefront_product USING GIN (slug gin_trgm_ops);
 CREATE UNIQUE INDEX IF NOT EXISTS storefront_product_region_sku_ci_unique
   ON storefront_product (region, lower(sku));
-CREATE UNIQUE INDEX IF NOT EXISTS storefront_product_group_signature_unique
-  ON storefront_product (group_id, region, option_signature)
-  WHERE group_id IS NOT NULL;
 CREATE INDEX IF NOT EXISTS storefront_product_option_value_idx
   ON storefront_product_option (axis_id, value_id, variant_id);
 CREATE INDEX IF NOT EXISTS inventory_reservation_variant_state_idx
@@ -888,6 +885,16 @@ SET seller_id = 'demo-seller'
 WHERE seller_id IS NULL OR btrim(seller_id) = '';
 ALTER TABLE storefront_product ALTER COLUMN seller_id SET DEFAULT 'demo-seller';
 ALTER TABLE storefront_product ALTER COLUMN seller_id SET NOT NULL;
+
+-- A catalog signature identifies one variant PER seller. The pre-onboarding
+-- schema made this global, which prevented a seller-owned clone from retaining
+-- its source group/options without either stealing the source row or inventing
+-- a parallel catalog identity. Replace it in-place so schema.sql converges on
+-- the seller-qualified invariant for both clean and existing databases.
+DROP INDEX IF EXISTS storefront_product_group_signature_unique;
+CREATE UNIQUE INDEX IF NOT EXISTS storefront_product_seller_group_signature_unique
+  ON storefront_product (seller_id, group_id, region, option_signature)
+  WHERE group_id IS NOT NULL;
 
 ALTER TABLE inventory_reservation
   ADD COLUMN IF NOT EXISTS seller_id text NOT NULL DEFAULT 'demo-seller';

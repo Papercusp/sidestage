@@ -146,6 +146,7 @@ describe('ownership schema guard', () => {
         'column:storefront_product.seller_id',
         'column:inventory_reservation.seller_id',
         'column:scout_session.buyer_id',
+        'index:storefront_product_seller_group_signature_unique',
         'constraint:event_config_event_fk',
         'constraint:auction_state_event_owner_fk',
         'trigger:event_preserve_seller',
