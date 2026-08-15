@@ -201,6 +201,7 @@ export const SYNC_MUTATOR_SURFACES: readonly NamedSurface[] = [
   mutator('rehearsal.run', 'rehearsal', ['seller-owned', 'operational'], 'event seller owner', 'P-020'),
   mutator('rehearsal.runAll', 'rehearsal', ['seller-owned', 'operational'], 'event seller owner', 'P-020'),
   mutator('runOfShow.save', 'event_run_of_show', ['seller-owned'], 'event seller owner', 'P-019'),
+  mutator('shipping.meter', 'shipping', ['buyer-owned'], 'selected buyer/cart owner', 'P-018/P-020'),
   mutator('shipping.rates', 'shipping', ['buyer-owned'], 'selected buyer/cart owner', 'P-018/P-020'),
 ];
 
