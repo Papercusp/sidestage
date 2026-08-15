@@ -11,6 +11,7 @@ import {
   cloneCheckoutOrder,
   ORDER_STORE,
   type CheckoutOrder,
+  type EventCartCommitmentState,
   type OrderStore,
   type PayableOrderSourceKind,
 } from './order-store';
@@ -19,6 +20,7 @@ export { InMemoryOrderStore, ORDER_STORE } from './order-store';
 export type {
   CheckoutOrder,
   CheckoutOrderStatus,
+  EventCartCommitmentState,
   OrderStore,
   PayableOrderPaymentState,
   PayableOrderSourceKind,
@@ -123,6 +125,8 @@ export class CheckoutService {
     if (
       resumedOrder?.paymentState === 'cancelled'
       || resumedOrder?.paymentState === 'expired'
+      || resumedOrder?.sourceCommitment?.state === 'released'
+      || resumedOrder?.sourceCommitment?.state === 'committed'
     ) {
       throw new BadRequestException('Order is no longer payable');
     }
@@ -200,6 +204,13 @@ export class CheckoutService {
       createdAt: existing?.createdAt ?? new Date().toISOString(),
       items: source.items.map((item) => ({ ...item })),
       cartUpdatedAt: source.sourceKind === 'cart' ? source.revision : undefined,
+      sourceCommitment: source.commitmentKind === 'event-cart'
+        ? {
+            kind: 'event-cart',
+            state: 'active',
+            revision: source.revision,
+          }
+        : existing?.sourceCommitment,
       shippingAddress: { ...shippingAddress },
       selectedShippingRate: { ...selectedShippingRate },
       sourceSnapshot: { ...source.snapshot },
@@ -282,6 +293,7 @@ export class CheckoutService {
         order!.status === 'paid'
         || order!.paymentState === 'cancelled'
         || order!.paymentState === 'expired'
+        || order!.sourceCommitment?.state === 'released'
       ) {
         return { received: true, handled: false, order: this.cloneOrder(order!) };
       }
@@ -300,15 +312,21 @@ export class CheckoutService {
         order!.paymentState = 'payment_processing';
         order!.paymentError = undefined;
       } else if (event.type === 'failed') {
-        // A declined attempt is recoverable. Keep the exact cart/auction/offer
-        // reservation attached to this canonical order so the buyer can retry
-        // the same PaymentIntent after a reload. Cancellation and expiry are
-        // the transitions that release the source.
+        // Event-priced carts are terminal on a declined attempt: their lineup
+        // and physical commitments are released together and a late success is
+        // ignored. Legacy carts, auctions, and offers retain resumable failure.
+        if (this.eventCartCommitmentState(order!) === 'active') {
+          await this.sources.release(order!);
+          this.setEventCartCommitmentState(order!, 'released');
+        }
         order!.status = 'failed';
         order!.paymentState = 'payment_failed';
         order!.paymentError = event.errorMessage ?? 'Payment failed';
       } else {
         await this.sources.commit(order!);
+        if (this.eventCartCommitmentState(order!) === 'active') {
+          this.setEventCartCommitmentState(order!, 'committed');
+        }
         order!.status = 'paid';
         order!.paymentState = 'paid';
         order!.paymentError = undefined;
@@ -337,6 +355,9 @@ export class CheckoutService {
       if (order.status === 'paid') throw new BadRequestException('Paid orders cannot be cancelled');
       if (order.paymentState === 'cancelled') return this.cloneOrder(order);
       await this.sources.release(order);
+      if (this.eventCartCommitmentState(order) === 'active') {
+        this.setEventCartCommitmentState(order, 'released');
+      }
       order.status = 'failed';
       order.paymentState = 'cancelled';
       order.paymentError = undefined;
@@ -399,6 +420,16 @@ export class CheckoutService {
 
   private cloneOrder(order: CheckoutOrder): CheckoutOrder {
     return cloneCheckoutOrder(order);
+  }
+
+  private eventCartCommitmentState(order: CheckoutOrder): EventCartCommitmentState | undefined {
+    return order.sourceCommitment?.kind === 'event-cart'
+      ? order.sourceCommitment.state
+      : undefined;
+  }
+
+  private setEventCartCommitmentState(order: CheckoutOrder, state: EventCartCommitmentState): void {
+    if (order.sourceCommitment?.kind === 'event-cart') order.sourceCommitment.state = state;
   }
 
   private invalidateBuyerOrders(buyerId: string): void {

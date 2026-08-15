@@ -210,7 +210,10 @@ export class BuyerOrdersService {
 
   private checkoutCapability(order: CheckoutOrder): BuyerOrderCheckoutCapability | null {
     if (order.paymentState === 'payment_required') return { action: 'checkout', orderId: order.id };
-    if (order.paymentState === 'payment_failed') return { action: 'resume', orderId: order.id };
+    if (order.paymentState === 'payment_failed') {
+      if (order.sourceCommitment?.kind === 'event-cart' && order.sourceCommitment.state === 'released') return null;
+      return { action: 'resume', orderId: order.id };
+    }
     return null;
   }
 
