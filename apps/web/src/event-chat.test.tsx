@@ -8,6 +8,11 @@ import { describe, expect, it, vi } from 'vitest';
 import { EventChat, resolveApiOrigin, syncEndpointFor } from './EventChat';
 import { rememberSellerAuctionToken, SELLER_AUCTION_TOKEN_KEY } from './events/api';
 
+function enterText(input: HTMLInputElement, value: string): void {
+  Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set?.call(input, value);
+  input.dispatchEvent(new Event('input', { bubbles: true }));
+}
+
 describe('EventChat', () => {
   it('normalizes the API origin and derives the shared sync endpoint', () => {
     expect(resolveApiOrigin('https://sidestage.example///')).toBe('https://sidestage.example');
@@ -31,7 +36,7 @@ describe('EventChat', () => {
     expect(markup).toContain('Chat activity');
   });
 
-  it('renders the seller full-chat view without a buyer composer', () => {
+  it('renders a first-class seller composer alongside the triage queue', () => {
     const markup = renderToStaticMarkup(
       <EventChat
         eventId="sunday-drop"
@@ -42,8 +47,9 @@ describe('EventChat', () => {
       />,
     );
 
-    expect(markup).toContain('Seller view is read-only');
-    expect(markup).not.toContain('Message the room');
+    expect(markup).toContain('Reply to the room');
+    expect(markup).toContain('Reply to buyers…');
+    expect(markup).not.toContain('Seller view is read-only');
     expect(markup).toContain('Active participants');
     expect(markup).toContain('Message triage');
     expect(markup).toContain('Focused');
@@ -92,6 +98,139 @@ describe('EventChat', () => {
     expect(audience).not.toContain('Message the room');
     expect(audience).not.toContain('Seller view is read-only');
     expect(audience).not.toContain('Message triage');
+  });
+
+  it('sends a seller reply through the shared mutation fallback and echoes it locally', async () => {
+    const calls: Array<{ url: string; init?: RequestInit }> = [];
+    const createdAt = new Date().toISOString();
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      calls.push({ url, init });
+      const body = init?.body ? JSON.parse(String(init.body)) as Record<string, unknown> : {};
+      const json = url.endsWith('/messages')
+        ? { id: 'seller-reply-1', eventId: 'sunday-drop', ...body, createdAt }
+        : init?.method === 'DELETE'
+          ? { ok: true }
+          : { userId: 'seller-1', displayName: 'Host', role: 'seller', lastSeenAt: createdAt };
+      return { ok: true, status: 200, json: async () => json, text: async () => '' } as Response;
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    rememberSellerAuctionToken('seller-session-token');
+    (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
+    const container = document.createElement('div');
+    const root = createRoot(container);
+    const syncValue = {
+      transport: 'POLLING' as const,
+      principal: 'seller-demo',
+      useDataImpl: () => ({
+        data: [], loading: false, fetching: false, transport: 'POLLING' as const,
+        invalidate: vi.fn(), error: null,
+      }),
+      prefetch: vi.fn(),
+      mutate: null,
+    };
+
+    try {
+      await act(async () => {
+        root.render(
+          <SyncContext.Provider value={syncValue}>
+            <EventChat
+              eventId="sunday-drop"
+              role="seller"
+              userId="seller-1"
+              displayName="Host"
+              apiBaseUrl="https://sidestage.example"
+            />
+          </SyncContext.Provider>,
+        );
+        await Promise.resolve();
+      });
+
+      const input = container.querySelector<HTMLInputElement>('#event-chat-message-sunday-drop');
+      const form = container.querySelector<HTMLFormElement>('.event-chat-form');
+      expect(input).not.toBeNull();
+      expect(form).not.toBeNull();
+      await act(async () => {
+        enterText(input!, 'The blue mug is still available.');
+      });
+      await act(async () => {
+        form!.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+        await Promise.resolve();
+        await Promise.resolve();
+      });
+
+      const messageCall = calls.find((call) => call.url.endsWith('/messages'));
+      expect(JSON.parse(String(messageCall?.init?.body))).toEqual({
+        userId: 'seller-1',
+        displayName: 'Host',
+        role: 'seller',
+        text: 'The blue mug is still available.',
+      });
+      expect(new Headers(messageCall?.init?.headers).get('authorization')).toBe('Bearer seller-session-token');
+      expect(new Headers(messageCall?.init?.headers).get('x-demo-principal')).toBe('seller-demo');
+      expect(container.textContent).toContain('The blue mug is still available.');
+      expect(input!.value).toBe('');
+    } finally {
+      await act(async () => root.unmount());
+      sessionStorage.removeItem(SELLER_AUCTION_TOKEN_KEY);
+      vi.unstubAllGlobals();
+      delete (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT;
+    }
+  });
+
+  it('keeps a failed seller reply editable and announces the transport error', async () => {
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      if (url.endsWith('/messages')) {
+        return { ok: false, status: 503, json: async () => ({}), text: async () => 'Room unavailable' } as Response;
+      }
+      const json = init?.method === 'DELETE'
+        ? { ok: true }
+        : { userId: 'seller-1', displayName: 'Host', role: 'seller', lastSeenAt: new Date().toISOString() };
+      return { ok: true, status: 200, json: async () => json, text: async () => '' } as Response;
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
+    const container = document.createElement('div');
+    const root = createRoot(container);
+    const syncValue = {
+      transport: 'POLLING' as const,
+      principal: 'seller-demo',
+      useDataImpl: () => ({
+        data: [], loading: false, fetching: false, transport: 'POLLING' as const,
+        invalidate: vi.fn(), error: null,
+      }),
+      prefetch: vi.fn(),
+      mutate: null,
+    };
+
+    try {
+      await act(async () => {
+        root.render(
+          <SyncContext.Provider value={syncValue}>
+            <EventChat eventId="sunday-drop" role="seller" userId="seller-1" displayName="Host" />
+          </SyncContext.Provider>,
+        );
+        await Promise.resolve();
+      });
+      const input = container.querySelector<HTMLInputElement>('#event-chat-message-sunday-drop')!;
+      const form = container.querySelector<HTMLFormElement>('.event-chat-form')!;
+      await act(async () => {
+        enterText(input, 'Still here for questions.');
+      });
+      await act(async () => {
+        form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+        await Promise.resolve();
+        await Promise.resolve();
+      });
+
+      expect(input.value).toBe('Still here for questions.');
+      expect(container.querySelector('[role="alert"]')?.textContent).toContain('Chat request failed (503): Room unavailable');
+    } finally {
+      await act(async () => root.unmount());
+      vi.unstubAllGlobals();
+      delete (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT;
+    }
   });
 
   it('keeps presence heartbeat and leave behavior through the REST fallbacks', async () => {
