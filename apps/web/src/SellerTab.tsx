@@ -141,11 +141,13 @@ export function useSellerDeepgramTokenProvider(apiBaseUrl?: string, principal?: 
 export function SellerTab({
   selectedProduct,
   selectedProductId,
+  sellerProducts,
   transcriptProducts,
   onActiveProductChange,
 }: {
   selectedProduct: CatalogProduct | null;
   selectedProductId: string | null;
+  sellerProducts: readonly CatalogProduct[];
   transcriptProducts: readonly TranscriptProductOption[];
   onActiveProductChange: (productId: string | null) => void;
 }) {
@@ -296,6 +298,7 @@ export function SellerTab({
       eventId,
       stageLog: runOfShowLog,
       activeProduct: selectedProduct,
+      catalogProducts: sellerProducts,
       onActiveProductChange,
       apiBaseUrl: import.meta.env.VITE_API_URL,
     },

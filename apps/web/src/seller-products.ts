@@ -11,6 +11,7 @@ import type { TranscriptProductOption } from './use-live-transcript';
 export interface CatalogProduct {
   id: string;
   name: string;
+  imageUrl?: string;
   price: string;
   compareAt?: string;
   description: string;
@@ -28,6 +29,7 @@ export function variantToSellerProduct(variant: CatalogVariant, index: number): 
   return {
     id: variant.id,
     name: variant.title,
+    imageUrl: variant.imageUrl,
     price: `$${(variant.priceCents / 100).toFixed(2)}`,
     description: variant.description ?? [variant.brand, variant.color ?? variant.condition].filter(Boolean).join(' · '),
     badge: index === 0 ? 'Featured' : undefined,

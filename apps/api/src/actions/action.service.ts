@@ -12,6 +12,14 @@ import { PolicyActionGuard } from '../copilot/guardrail';
 import type { ActionExecutor, CopilotActionProposal, CopilotPolicy } from '../copilot/copilot.types';
 import { SyncInvalidationService } from '../sync/sync-invalidation.service';
 import { ORDER_STORE, type CheckoutOrder, type OrderStore } from '../checkout/order-store';
+import {
+  ACTION_ITEM_STORE,
+  InMemoryActionItemStore,
+  type ActionItemChange,
+  type ActionItemDraft,
+  type ActionItemStore,
+  type StoredActionEventItem,
+} from './action-item.store';
 import type {
   ActionAuditRecord,
   ActionEventItem,
@@ -48,10 +56,6 @@ function cloneAudit(audit: ActionAuditRecord): ActionAuditRecord {
   };
 }
 
-function itemKey(eventId: string, productId: string): string {
-  return `${eventId}:${productId}`;
-}
-
 function assertText(value: string | undefined, field: string): string {
   const normalized = value?.trim();
   if (!normalized) throw new BadRequestException(`${field} is required`);
@@ -79,7 +83,10 @@ function sameItem(left: ActionEventItem, right: ActionEventItem): boolean {
     && left.referencePriceCents === right.referencePriceCents
     && left.priceCents === right.priceCents
     && left.availableQty === right.availableQty
-    && left.quantity === right.quantity;
+    && left.quantity === right.quantity
+    && left.position === right.position
+    && left.stageState === right.stageState
+    && left.version === right.version;
 }
 
 function sameOffers(left: readonly TargetedOffer[], right: readonly TargetedOffer[]): boolean {
@@ -106,12 +113,12 @@ function sameOffers(left: readonly TargetedOffer[], right: readonly TargetedOffe
 @Injectable()
 export class GuardedActionService implements ActionExecutor {
   private readonly guard = new PolicyActionGuard();
-  private readonly items = new Map<string, ActionEventItem>();
   private readonly policies = new Map<string, CopilotPolicy>();
   private readonly offers = new Map<string, TargetedOffer>();
   private readonly audits = new Map<string, ActionAuditRecord>();
   private readonly auditOrder: string[] = [];
   private readonly idempotentExecutions = new Map<string, Promise<ActionExecutionResult>>();
+  private readonly itemStore: ActionItemStore;
 
   /**
    * WI-38673: when the config-backed resolver is wired (the production DI
@@ -124,26 +131,32 @@ export class GuardedActionService implements ActionExecutor {
     @Optional() @Inject(EVENT_POLICY_RESOLVER) private readonly policyResolver: EventPolicyResolver | null = null,
     @Optional() @Inject(SyncInvalidationService) private readonly syncInvalidations?: SyncInvalidationService,
     @Optional() @Inject(ORDER_STORE) private readonly orders?: OrderStore,
-  ) {}
+    @Optional() @Inject(ACTION_ITEM_STORE) itemStore?: ActionItemStore,
+  ) {
+    this.itemStore = itemStore ?? new InMemoryActionItemStore();
+  }
 
-  registerEvent(eventIdInput: string, input: RegisterActionEventInput): ActionEventItem[] {
+  async registerEvent(eventIdInput: string, input: RegisterActionEventInput): Promise<ActionEventItem[]> {
     const eventId = assertText(eventIdInput, 'eventId');
     if (!input || !Array.isArray(input.items)) throw new BadRequestException('items are required');
+    const current = await this.itemStore.list(eventId);
+    const byProduct = new Map(current.map((item) => [item.productId, item]));
+    const nextPosition = current.reduce((maximum, item) => Math.max(maximum, item.position), -1) + 1;
+    const normalized = input.items.map((item, index) => this.normalizeItem(
+      eventId,
+      item,
+      byProduct.get(item.productId),
+      byProduct.get(item.productId)?.position ?? nextPosition + index,
+    ));
+    const items = await this.itemStore.register(eventId, normalized);
     this.policies.set(eventId, { ...input.policy, priceFloorCentsByProduct: { ...input.policy.priceFloorCentsByProduct }, blockedActionKinds: [...input.policy.blockedActionKinds] });
-    for (const item of input.items) {
-      const normalized = this.normalizeItem(eventId, item);
-      this.items.set(itemKey(eventId, normalized.productId), normalized);
-    }
-    const items = this.listItems(eventId);
     this.invalidateEventItems(eventId);
     return items;
   }
 
-  listItems(eventIdInput: string): ActionEventItem[] {
+  async listItems(eventIdInput: string): Promise<ActionEventItem[]> {
     const eventId = assertText(eventIdInput, 'eventId');
-    return [...this.items.values()]
-      .filter((item) => item.eventId === eventId)
-      .map(cloneItem);
+    return this.itemStore.list(eventId);
   }
 
   getAudit(auditIdInput: string): ActionAuditRecord {
@@ -207,9 +220,12 @@ export class GuardedActionService implements ActionExecutor {
     if (offer.status !== 'pending' && offer.status !== 'accepted') {
       throw new ConflictException(`Offer cannot be cancelled from ${offer.status}`);
     }
-    const item = this.items.get(itemKey(offer.eventId, offer.productId));
+    const item = (await this.itemStore.list(offer.eventId)).find((candidate) => candidate.productId === offer.productId);
     if (!item) throw new NotFoundException('Offer was not found');
-    item.availableQty += offer.quantity;
+    await this.itemStore.write(offer.eventId, [{
+      expectedVersion: item.version,
+      item: { ...item, availableQty: item.availableQty + offer.quantity },
+    }]);
     offer.status = 'cancelled';
     this.invalidateEventItems(offer.eventId);
     this.invalidateBuyerOrders(offer.buyerId);
@@ -233,9 +249,16 @@ export class GuardedActionService implements ActionExecutor {
    * verified item prices; the registered policy is only the resolver-less
    * fallback.
    */
-  private async resolveEnforcementPolicy(eventId: string, registered: CopilotPolicy): Promise<CopilotPolicy> {
-    if (!this.policyResolver) return registered;
-    const items = this.listItems(eventId).map((item) => ({
+  private async resolveEnforcementPolicy(
+    eventId: string,
+    registered: CopilotPolicy | undefined,
+    actionItems: readonly ActionEventItem[],
+  ): Promise<CopilotPolicy> {
+    if (!this.policyResolver) {
+      if (!registered) throw new NotFoundException(`Event ${eventId} was not registered`);
+      return registered;
+    }
+    const items = actionItems.map((item) => ({
       productId: item.productId,
       priceCents: item.referencePriceCents ?? item.priceCents,
     }));
@@ -265,11 +288,11 @@ export class GuardedActionService implements ActionExecutor {
     const eventId = assertText(input?.eventId, 'eventId');
     const actorId = assertText(input?.actorId, 'actorId');
     const action = this.normalizeAction(input?.action);
-    const current = this.items.get(itemKey(eventId, action.productId));
+    const items = await this.itemStore.list(eventId);
+    const current = items.find((item) => item.productId === action.productId);
     if (!current) throw new NotFoundException(`Event item ${action.productId} was not found`);
     const registered = this.policies.get(eventId);
-    if (!registered) throw new NotFoundException(`Event ${eventId} was not registered`);
-    const policy = await this.resolveEnforcementPolicy(eventId, registered);
+    const policy = await this.resolveEnforcementPolicy(eventId, registered, items);
 
     const context = this.guardContext(eventId, policy, current);
     // P-014's shared guard treats quantity as a targeted-offer-only field. A
@@ -284,7 +307,8 @@ export class GuardedActionService implements ActionExecutor {
     }
 
     const before = this.snapshot(eventId, current);
-    const afterItem = cloneItem(current);
+    let afterItem: ActionItemDraft = { ...current, attributes: { ...current.attributes } };
+    const extraChanges: ActionItemChange[] = [];
     let offer: TargetedOffer | undefined;
     if (action.kind === 'targeted-offer') {
       const quantity = assertPositiveInteger(action.quantity ?? 0, 'quantity');
@@ -301,7 +325,6 @@ export class GuardedActionService implements ActionExecutor {
         status: 'pending',
         createdAt: new Date().toISOString(),
       };
-      this.offers.set(offer.id, offer);
     } else if (action.kind === 'markdown' || action.kind === 'price-adjust') {
       afterItem.priceCents = assertPositiveInteger(action.priceCents ?? 0, 'priceCents');
       if (action.kind === 'price-adjust' && action.quantity !== undefined) {
@@ -311,25 +334,37 @@ export class GuardedActionService implements ActionExecutor {
       }
     } else if (action.kind === 'push') {
       // One item on stage per event: pushing clears any previous stage flag.
-      for (const [key, item] of this.items) {
-        if (item.eventId === eventId && item.onStage && item.productId !== current.productId) {
-          this.items.set(key, { ...cloneItem(item), onStage: false });
+      for (const item of items) {
+        if (item.stageState === 'on-stage' && item.productId !== current.productId) {
+          extraChanges.push({
+            expectedVersion: item.version,
+            item: { ...item, stageState: 'queued', onStage: false },
+          });
         }
       }
+      afterItem.stageState = 'on-stage';
       afterItem.onStage = true;
     } else if (action.kind === 'swap') {
-      const targetKey = itemKey(eventId, action.swapToProductId ?? '');
-      const target = this.items.get(targetKey);
+      const target = items.find((item) => item.productId === action.swapToProductId);
       if (!target) throw new NotFoundException(`Swap target ${action.swapToProductId} is not a verified event item`);
+      afterItem.stageState = 'queued';
       afterItem.onStage = false;
-      this.items.set(targetKey, { ...cloneItem(target), onStage: true });
+      extraChanges.push({
+        expectedVersion: target.version,
+        item: { ...target, stageState: 'on-stage', onStage: true },
+      });
     } else if (action.kind === 'stock-adjust') {
       const quantity = assertNonNegativeInteger(action.quantity ?? 0, 'quantity');
       if (quantity > current.availableQty) throw new ConflictException(`Quantity cannot exceed ${current.availableQty} available units`);
       afterItem.quantity = quantity;
     }
 
-    this.items.set(itemKey(eventId, current.productId), afterItem);
+    const persisted = await this.itemStore.write(eventId, [
+      { expectedVersion: current.version, item: afterItem },
+      ...extraChanges,
+    ]);
+    afterItem = persisted.find((item) => item.productId === current.productId) ?? afterItem;
+    if (offer) this.offers.set(offer.id, offer);
     const after = this.snapshot(eventId, afterItem);
     const audit = this.recordAudit({ eventId, actorId, action, before, after, offer });
     this.invalidateEventItems(eventId);
@@ -346,7 +381,8 @@ export class GuardedActionService implements ActionExecutor {
     if (!original) throw new NotFoundException(`Audit ${auditId} was not found`);
     if (original.rolledBackAt) throw new ConflictException(`Audit ${auditId} was already rolled back`);
 
-    const current = this.items.get(itemKey(original.eventId, original.productId));
+    const current = (await this.itemStore.list(original.eventId))
+      .find((item) => item.productId === original.productId);
     if (!current || !sameItem(current, original.after.item)) {
       throw new ConflictException(`Audit ${auditId} is stale; a newer item write must be reconciled first`);
     }
@@ -356,12 +392,16 @@ export class GuardedActionService implements ActionExecutor {
     }
 
     const before = currentSnapshot;
-    const restored = cloneItem(original.before.item);
-    this.items.set(itemKey(original.eventId, restored.productId), restored);
+    const restored = this.asDraft(original.before.item, current);
+    const persisted = await this.itemStore.write(original.eventId, [{
+      expectedVersion: current.version,
+      item: restored,
+    }]);
     for (const offer of original.after.offers) {
       if (!original.before.offers.some((previous) => previous.id === offer.id)) this.offers.delete(offer.id);
     }
-    const after = this.snapshot(original.eventId, restored);
+    const restoredItem = persisted.find((item) => item.productId === restored.productId) ?? restored;
+    const after = this.snapshot(original.eventId, restoredItem);
     const rollbackAudit = this.recordAudit({
       eventId: original.eventId,
       actorId,
@@ -385,7 +425,7 @@ export class GuardedActionService implements ActionExecutor {
       auditId: rollbackAudit.id,
       rolledBackAuditId: original.id,
       status: 'executed',
-      state: cloneItem(restored),
+      state: cloneItem(restoredItem),
     };
   }
 
@@ -410,7 +450,8 @@ export class GuardedActionService implements ActionExecutor {
       }
       return;
     }
-    const item = this.items.get(itemKey(offer.eventId, offer.productId));
+    const item = (await this.itemStore.list(offer.eventId))
+      .find((candidate) => candidate.productId === offer.productId);
     if (!item) throw new NotFoundException('Offer was not found');
     const totalCents = offer.priceCents * offer.quantity;
     const order: CheckoutOrder = {
@@ -445,13 +486,17 @@ export class GuardedActionService implements ActionExecutor {
     this.syncInvalidations?.invalidate('event.pricingHistory', { eventId, productId });
   }
 
-  private normalizeItem(eventId: string, item: ActionEventItem): ActionEventItem {
+  private normalizeItem(
+    eventId: string,
+    item: ActionEventItem,
+    previous: StoredActionEventItem | undefined,
+    positionInput: number,
+  ): ActionItemDraft {
     if (!item || item.eventId !== eventId) throw new BadRequestException('Each item must belong to the registered event');
     const eventItemId = assertText(item.eventItemId, 'eventItemId');
     const productId = assertText(item.productId, 'productId');
     const title = assertText(item.title, 'title');
     const priceCents = assertPositiveInteger(item.priceCents, 'priceCents');
-    const previous = this.items.get(itemKey(eventId, productId));
     const referencePriceCents = assertPositiveInteger(
       previous?.referencePriceCents ?? item.referencePriceCents ?? priceCents,
       'referencePriceCents',
@@ -459,7 +504,41 @@ export class GuardedActionService implements ActionExecutor {
     const availableQty = assertNonNegativeInteger(item.availableQty, 'availableQty');
     const quantity = assertPositiveInteger(item.quantity, 'quantity');
     if (quantity > availableQty && availableQty > 0) throw new BadRequestException('quantity cannot exceed availableQty');
-    return { ...item, eventId, eventItemId, productId, title, referencePriceCents, priceCents, availableQty, quantity, onStage: item.onStage ?? false, attributes: { ...item.attributes } };
+    const position = assertNonNegativeInteger(item.position ?? positionInput, 'position');
+    const stageState = item.stageState
+      ?? (item.onStage === true ? 'on-stage' : item.onStage === false ? 'queued' : previous?.stageState ?? 'queued');
+    if (!['queued', 'on-stage', 'completed'].includes(stageState)) {
+      throw new BadRequestException('stageState must be queued, on-stage, or completed');
+    }
+    return {
+      ...item,
+      eventId,
+      eventItemId: previous?.eventItemId ?? eventItemId,
+      productId,
+      title,
+      referencePriceCents,
+      priceCents,
+      availableQty,
+      quantity,
+      position,
+      stageState,
+      onStage: stageState === 'on-stage',
+      attributes: { ...item.attributes },
+    };
+  }
+
+  private asDraft(item: ActionEventItem, current: StoredActionEventItem): ActionItemDraft {
+    return {
+      ...item,
+      eventId: current.eventId,
+      eventItemId: current.eventItemId,
+      productId: current.productId,
+      referencePriceCents: item.referencePriceCents ?? current.referencePriceCents,
+      position: item.position ?? current.position,
+      stageState: item.stageState ?? (item.onStage ? 'on-stage' : 'queued'),
+      onStage: item.stageState === 'on-stage' || item.onStage === true,
+      attributes: { ...item.attributes },
+    };
   }
 
   private normalizeAction(action: GuardedActionProposal): GuardedActionProposal {

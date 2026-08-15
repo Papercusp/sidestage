@@ -39,14 +39,6 @@
   color: var(--text);
 }
 
-.buyer-room-actions {
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  flex-wrap: wrap;
-  gap: 0.55rem;
-}
-
 .buyer-account-control {
   max-width: 15rem;
 }
@@ -185,12 +177,6 @@
 @media (max-width: 900px) {
   .buyer-room-header {
     flex-direction: column;
-  }
-
-  .buyer-room-actions {
-    width: 100%;
-    min-width: 0;
-    justify-content: flex-start;
   }
 
   .buyer-stage-grid {

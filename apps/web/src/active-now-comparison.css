@@ -1,0 +1,509 @@
+.active-now-page {
+  min-height: 100vh;
+  padding: clamp(1.25rem, 3vw, 3rem);
+  color: var(--text);
+  background:
+    radial-gradient(circle at 12% 0%, color-mix(in srgb, var(--brand-yellow) 13%, transparent), transparent 31rem),
+    radial-gradient(circle at 92% 8%, color-mix(in srgb, var(--brand-red) 8%, transparent), transparent 28rem),
+    var(--bg);
+}
+
+.active-now-page-header {
+  width: min(100%, 92rem);
+  margin: 0 auto clamp(1.75rem, 4vw, 3.5rem);
+}
+
+.active-now-page-nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding-bottom: clamp(1.5rem, 4vw, 3.25rem);
+  color: var(--muted);
+  font-size: .76rem;
+  font-weight: 700;
+  letter-spacing: .045em;
+  text-transform: uppercase;
+}
+
+.active-now-page-nav a {
+  color: var(--red-text);
+  text-decoration: none;
+}
+
+.active-now-page-nav a:hover {
+  text-decoration: underline;
+  text-underline-offset: .25rem;
+}
+
+.active-now-page-eyebrow {
+  margin: 0 0 .8rem;
+  color: var(--red-text);
+  font-size: .72rem;
+  font-weight: 850;
+  letter-spacing: .16em;
+  text-transform: uppercase;
+}
+
+.active-now-page-header h1 {
+  max-width: 58rem;
+  margin: 0;
+  font-size: clamp(3rem, 7vw, 6.4rem);
+  line-height: .93;
+  letter-spacing: -.075em;
+}
+
+.active-now-page-intro {
+  max-width: 52rem;
+  margin: 1.35rem 0 0;
+  color: var(--muted);
+  font-size: clamp(.96rem, 1.4vw, 1.12rem);
+  line-height: 1.65;
+}
+
+.active-now-page-intro strong {
+  color: var(--text);
+}
+
+.active-now-state-key {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .55rem;
+  margin-top: 1.4rem;
+}
+
+.active-now-state-key > span {
+  display: inline-flex;
+  align-items: center;
+  gap: .42rem;
+  min-height: 2rem;
+  padding: .35rem .62rem;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  color: var(--muted);
+  background: color-mix(in srgb, var(--surface) 88%, transparent);
+  font-size: .68rem;
+  font-weight: 760;
+}
+
+.active-now-key-check {
+  display: grid;
+  width: 1rem;
+  height: 1rem;
+  place-items: center;
+  border-radius: 50%;
+  color: var(--on-brand-red);
+  background: var(--brand-red);
+  font-size: .63rem;
+  font-style: normal;
+}
+
+.active-now-key-scheduled {
+  width: .55rem;
+  height: .18rem;
+  border-radius: 999px;
+  background: var(--brand-yellow);
+}
+
+.active-now-options {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: clamp(.9rem, 1.8vw, 1.5rem);
+  width: min(100%, 92rem);
+  margin: 0 auto;
+}
+
+.active-now-option-card {
+  position: relative;
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 1.15rem;
+  padding: clamp(.9rem, 1.8vw, 1.25rem);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-card);
+  background: color-mix(in srgb, var(--surface) 94%, transparent);
+  box-shadow: var(--shadow-card);
+}
+
+.active-now-option-card.is-recommended {
+  border-color: color-mix(in srgb, var(--brand-red) 42%, var(--border));
+  box-shadow: var(--shadow-card), 0 0 0 3px color-mix(in srgb, var(--brand-red) 7%, transparent);
+}
+
+.active-now-option-header {
+  min-height: 9.25rem;
+  padding: .25rem .15rem 0;
+}
+
+.active-now-option-kicker {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: .75rem;
+  color: var(--muted);
+  font-size: .66rem;
+  font-weight: 820;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+}
+
+.active-now-option-kicker strong {
+  padding: .28rem .48rem;
+  border-radius: 999px;
+  color: var(--on-brand-red);
+  background: var(--brand-red);
+  font-size: .58rem;
+  letter-spacing: .08em;
+}
+
+.active-now-option-header h2 {
+  margin: .68rem 0 .48rem;
+  font-size: clamp(1.35rem, 2vw, 1.8rem);
+  letter-spacing: -.04em;
+}
+
+.active-now-option-header p {
+  margin: 0;
+  color: var(--muted);
+  font-size: .78rem;
+  line-height: 1.55;
+}
+
+.active-now-guide {
+  overflow: hidden;
+  min-height: 28.5rem;
+  border: 1px solid var(--border);
+  border-radius: .9rem;
+  background: var(--surface);
+  box-shadow: 0 1rem 2.5rem rgb(var(--shadow-hue) / 12%);
+}
+
+.active-now-guide-header {
+  padding: 1rem 1rem .85rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.active-now-guide-header p {
+  margin: 0;
+  color: var(--red-text);
+  font-size: .62rem;
+  font-weight: 820;
+  letter-spacing: .13em;
+  text-transform: uppercase;
+}
+
+.active-now-guide-header h3 {
+  margin: .16rem 0 0;
+  font-size: 1.03rem;
+  letter-spacing: -.025em;
+}
+
+.active-now-guide-body {
+  display: grid;
+  gap: 1.1rem;
+  padding: .8rem .72rem 1rem;
+}
+
+.active-now-group-label {
+  display: flex;
+  align-items: center;
+  gap: .42rem;
+  margin: 0 .42rem .48rem;
+  font-size: .64rem;
+  font-weight: 820;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+}
+
+.active-now-group-label.is-live {
+  color: var(--red-text);
+}
+
+.active-now-group-label.is-scheduled {
+  color: var(--yellow-text);
+}
+
+.active-now-group-label > span:last-child {
+  margin-left: auto;
+  padding: .06rem .36rem;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  color: var(--muted);
+  background: var(--bg);
+  font-size: .58rem;
+  letter-spacing: 0;
+}
+
+.active-now-live-dot {
+  display: inline-block;
+  width: .44rem;
+  height: .44rem;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  background: var(--brand-red);
+  box-shadow: 0 0 0 .2rem color-mix(in srgb, var(--brand-red) 12%, transparent);
+  animation: active-now-pulse 1.8s ease-in-out infinite;
+}
+
+.active-now-event-list {
+  display: grid;
+  gap: .36rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.active-now-event-row {
+  position: relative;
+  display: grid;
+  grid-template-columns: 3rem minmax(0, 1fr) auto;
+  align-items: center;
+  gap: .66rem;
+  min-height: 4.35rem;
+  padding: .52rem;
+  border: 1px solid transparent;
+  border-radius: .72rem;
+  color: inherit;
+  background: transparent;
+  text-decoration: none;
+  transition: border-color .15s ease, background .15s ease, box-shadow .15s ease, transform .15s ease;
+}
+
+.active-now-event-row:hover {
+  border-color: var(--border);
+  background: var(--bg);
+  transform: translateY(-1px);
+}
+
+.active-now-event-row:focus-visible {
+  outline: 2px solid var(--brand-red);
+  outline-offset: 2px;
+}
+
+.active-now-thumb {
+  position: relative;
+  display: grid;
+  width: 3rem;
+  height: 3rem;
+  place-items: center;
+  overflow: hidden;
+  border-radius: .56rem;
+  color: var(--red-text);
+  background:
+    radial-gradient(circle at 70% 25%, color-mix(in srgb, var(--brand-yellow) 55%, transparent), transparent 44%),
+    linear-gradient(145deg, var(--thumb-grad-a), var(--thumb-grad-b));
+  font-size: 1.25rem;
+  font-weight: 880;
+}
+
+.active-now-thumb-mark {
+  opacity: .78;
+}
+
+.active-now-thumb-flag {
+  position: absolute;
+  right: .18rem;
+  bottom: .18rem;
+  left: .18rem;
+  overflow: hidden;
+  padding: .14rem .18rem;
+  border-radius: .24rem;
+  color: var(--on-brand-red);
+  background: var(--brand-red);
+  font-size: .48rem;
+  font-weight: 900;
+  letter-spacing: .08em;
+  line-height: 1;
+  text-align: center;
+  text-overflow: ellipsis;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.active-now-event-copy {
+  display: grid;
+  min-width: 0;
+  gap: .08rem;
+}
+
+.active-now-event-status {
+  min-height: .95rem;
+}
+
+.active-now-event-title,
+.active-now-event-seller,
+.active-now-event-meta {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.active-now-event-title {
+  color: var(--text);
+  font-size: .82rem;
+  font-weight: 760;
+  letter-spacing: -.015em;
+}
+
+.active-now-event-seller {
+  color: var(--muted);
+  font-size: .68rem;
+}
+
+.active-now-event-meta {
+  color: var(--red-text);
+  font-size: .66rem;
+  font-weight: 730;
+}
+
+.active-now-event-meta.is-scheduled {
+  color: var(--yellow-text);
+}
+
+.active-now-live-badge,
+.active-now-live-text {
+  display: inline-flex;
+  align-items: center;
+  gap: .32rem;
+  color: var(--red-text);
+  font-size: .52rem;
+  font-weight: 900;
+  letter-spacing: .075em;
+  line-height: 1;
+  text-transform: uppercase;
+}
+
+.active-now-live-badge {
+  min-height: 1.05rem;
+  padding: .2rem .34rem;
+  border-radius: 999px;
+}
+
+.active-now-live-badge .active-now-live-dot,
+.active-now-live-text .active-now-live-dot {
+  width: .34rem;
+  height: .34rem;
+  box-shadow: none;
+}
+
+.active-now-current {
+  display: grid;
+  width: 1.35rem;
+  height: 1.35rem;
+  place-items: center;
+  border: 1px solid color-mix(in srgb, var(--brand-red) 35%, transparent);
+  border-radius: 50%;
+  color: var(--red-text);
+  background: var(--surface);
+  font-size: .68rem;
+  font-weight: 900;
+}
+
+.active-now-sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+/* Option A: the row silhouette remains canonical; emphasis is concentrated on
+   one edge and one compact label. */
+.active-now-event-row.variant-signal-rail {
+  border-color: color-mix(in srgb, var(--brand-red) 27%, var(--border));
+  background: color-mix(in srgb, var(--brand-red) 6%, var(--surface));
+  box-shadow: inset .24rem 0 0 var(--brand-red);
+}
+
+.variant-signal-rail .active-now-live-badge {
+  color: var(--on-brand-red);
+  background: var(--brand-red);
+}
+
+.variant-signal-rail .active-now-live-dot {
+  background: currentColor;
+}
+
+/* Option B: a stronger room-wide wash reads more like a featured promotion. */
+.active-now-event-row.variant-spotlight-wash {
+  border-color: color-mix(in srgb, var(--brand-red) 48%, var(--border));
+  background:
+    radial-gradient(circle at 92% 6%, color-mix(in srgb, var(--brand-yellow) 19%, transparent), transparent 45%),
+    color-mix(in srgb, var(--brand-red) 12%, var(--surface));
+  box-shadow: 0 .7rem 1.8rem color-mix(in srgb, var(--brand-red) 15%, transparent);
+}
+
+.variant-spotlight-wash .active-now-live-badge {
+  border: 1px solid color-mix(in srgb, var(--brand-red) 35%, transparent);
+  background: color-mix(in srgb, var(--surface) 64%, transparent);
+}
+
+/* Option C: the flag carries the strongest state signal; the row tint stays
+   deliberately quiet for schedules with many simultaneous rooms. */
+.active-now-event-row.variant-thumbnail-flag {
+  border-color: color-mix(in srgb, var(--brand-red) 17%, var(--border));
+  background: color-mix(in srgb, var(--brand-red) 3%, var(--surface));
+}
+
+.variant-thumbnail-flag .active-now-event-status {
+  min-height: .8rem;
+}
+
+.variant-thumbnail-flag .active-now-live-text {
+  color: var(--red-text);
+}
+
+.active-now-option-notes {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: .5rem;
+  margin: auto 0 0;
+}
+
+.active-now-option-notes div {
+  padding: .68rem .72rem;
+  border: 1px solid var(--border);
+  border-radius: .65rem;
+  background: var(--surface-soft);
+}
+
+.active-now-option-notes dt {
+  color: var(--muted);
+  font-size: .56rem;
+  font-weight: 800;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+
+.active-now-option-notes dd {
+  margin: .26rem 0 0;
+  color: var(--text);
+  font-size: .72rem;
+  font-weight: 740;
+}
+
+@keyframes active-now-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: .36; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .active-now-live-dot { animation: none; }
+  .active-now-event-row { transition: none; }
+}
+
+@media (max-width: 70rem) {
+  .active-now-options { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .active-now-option-card:last-child { grid-column: 1 / -1; width: min(100%, 32rem); justify-self: center; }
+}
+
+@media (max-width: 44rem) {
+  .active-now-page { padding: 1rem; }
+  .active-now-page-nav { align-items: flex-start; flex-direction: column; }
+  .active-now-options { grid-template-columns: 1fr; }
+  .active-now-option-card:last-child { grid-column: auto; width: auto; }
+  .active-now-option-header { min-height: 0; }
+}

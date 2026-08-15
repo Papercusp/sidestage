@@ -207,6 +207,7 @@ export function App() {
               <SellerTab
                 selectedProduct={selectedProduct}
                 selectedProductId={selectedProductId}
+                sellerProducts={sellerProducts}
                 transcriptProducts={transcriptProducts}
                 onActiveProductChange={setSelectedProductId}
               />

@@ -90,7 +90,7 @@ export class SideStageGroundingRetriever implements GroundingRetriever {
   ) {}
 
   async retrieve(request: RetrievalRequest): Promise<GroundingContext> {
-    const actionItems = this.actions.listItems(request.eventId);
+    const actionItems = await this.actions.listItems(request.eventId);
     const [variants, page, policy, transcript] = await Promise.all([
       Promise.all(actionItems.map((item) => this.catalog.variant(item.productId))),
       this.catalog.search({ q: request.query, availability: 'in-stock', pageSize: request.limit }),

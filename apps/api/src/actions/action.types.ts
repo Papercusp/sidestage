@@ -8,6 +8,7 @@ import type {
 
 export type GuardedActionKind = CopilotActionKind;
 export type ActionAuditKind = GuardedActionKind | 'rollback';
+export type ActionItemStageState = 'queued' | 'on-stage' | 'completed';
 
 /** The mutable event-facing state owned by the guarded action service. */
 export interface ActionEventItem extends EventItemContext {
@@ -25,6 +26,14 @@ export interface ActionEventItem extends EventItemContext {
    * the registration boundary; normalizeItem always stores a boolean.
    */
   onStage?: boolean;
+  /** Stable seller-authored order within this event's lineup. */
+  position?: number;
+  /** Durable lifecycle state; `onStage` remains the compatibility projection. */
+  stageState?: ActionItemStageState;
+  /** Optimistic-concurrency version supplied by the lineup authority. */
+  version?: number;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 export interface TargetedOffer {

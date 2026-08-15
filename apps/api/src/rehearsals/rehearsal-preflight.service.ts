@@ -21,7 +21,7 @@ export class RehearsalPreflightService {
     // Probe on every read. A non-null pool only proves Postgres answered when
     // the API booted, which may have been hours before this preflight.
     const durability = await probeDurability(this.pool);
-    const items = this.actions.listItems(eventId)
+    const items = (await this.actions.listItems(eventId))
       .map((item) => ({
         productId: item.productId,
         priceCents: item.referencePriceCents ?? item.priceCents,

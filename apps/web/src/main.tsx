@@ -1,6 +1,7 @@
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { SyncProvider } from '@papercusp/sync';
+import { ActiveNowComparison, isActiveNowComparisonPath } from './ActiveNowComparison';
 import { App } from './App';
 import { resolveApiBaseUrl } from './catalog';
 import { useDemoIdentity } from './buyer-identity';
@@ -36,6 +37,8 @@ function SideStageSyncRoot() {
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    <SideStageSyncRoot />
+    {isActiveNowComparisonPath(window.location.pathname)
+      ? <ActiveNowComparison />
+      : <SideStageSyncRoot />}
   </StrictMode>,
 );

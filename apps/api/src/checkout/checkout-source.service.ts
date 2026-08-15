@@ -111,7 +111,7 @@ export class CheckoutSourceService {
 
   private async loadOffer(sourceId: string, buyerId: string): Promise<CheckoutSource> {
     const offer = await this.actions.acceptOffer(sourceId, buyerId);
-    const item = this.actions.listItems(offer.eventId)
+    const item = (await this.actions.listItems(offer.eventId))
       .find((candidate) => candidate.productId === offer.productId);
     const snapshot = { ...offer };
     return {

@@ -405,6 +405,7 @@ export async function startSellerAuction(
   apiBaseUrl?: string,
   sellerAccessToken = readSellerAuctionToken(),
   principal?: string,
+  durationSec?: number,
 ): Promise<SellerAuction> {
   return requestJson<SellerAuction>(eventUrl('/auctions/start', apiBaseUrl), {
     method: 'POST',
@@ -415,6 +416,7 @@ export async function startSellerAuction(
       productId: item.productId,
       quantity,
       startingPriceCents,
+      ...(durationSec === undefined ? {} : { durationSec }),
       availableQty: item.availableQty,
     }),
   });

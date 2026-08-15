@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useState, type ReactNode } from 'react';
-import { useSyncPrincipal, useSyncQuery } from '@papercusp/sync';
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
+import { useSyncMutate, useSyncPrincipal, useSyncQuery } from '@papercusp/sync';
 import {
   buildRunOfShowView,
   formatClock,
@@ -8,7 +8,12 @@ import {
   type RunOfShowView,
   type StageLog,
 } from '../run-of-show';
-import { fetchSellerEvent } from '../events/api';
+import {
+  readSellerAuctionToken,
+  startSellerAuction,
+  type SellerAuction,
+  type SellerEventItem,
+} from '../events/api';
 import type { CatalogProduct } from '../seller-products';
 import { PricingHistoryPanel } from './PricingHistoryPanel';
 import '../run-of-show.css';
@@ -28,9 +33,118 @@ export interface RunOfShowPanelProps {
   stageLog: StageLog;
   /** The product currently on stage, including the live card's commerce detail. */
   activeProduct: CatalogProduct | null;
+  /** The existing app-level catalog projection, used for next-item imagery. */
+  catalogProducts?: readonly CatalogProduct[];
   /** One-tap advisory staging: the seller chose to follow the plan. */
   onActiveProductChange: (productId: string | null) => void;
   apiBaseUrl?: string;
+}
+
+export interface NextAuctionLauncherProps {
+  item: SellerEventItem;
+  product?: CatalogProduct | null;
+  startingPrice: string;
+  durationSec: number;
+  busy?: boolean;
+  disabledReason?: string | null;
+  feedback?: { tone: 'success' | 'error'; text: string } | null;
+  onStartingPriceChange: (value: string) => void;
+  onDurationChange: (durationSec: number) => void;
+  onStart: () => void;
+}
+
+function money(cents: number): string {
+  return new Intl.NumberFormat(undefined, { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(cents / 100);
+}
+
+function moneyInputToCents(value: string): number | null {
+  const amount = Number(value);
+  if (!Number.isFinite(amount) || amount <= 0) return null;
+  const cents = Math.round(amount * 100);
+  return Number.isSafeInteger(cents) && cents > 0 ? cents : null;
+}
+
+/** The approved inline action card; it never stages the product implicitly. */
+export function NextAuctionLauncher({
+  item,
+  product,
+  startingPrice,
+  durationSec,
+  busy = false,
+  disabledReason,
+  feedback,
+  onStartingPriceChange,
+  onDurationChange,
+  onStart,
+}: NextAuctionLauncherProps) {
+  const available = Math.max(0, item.quantity);
+  const buttonDisabled = busy || Boolean(disabledReason) || moneyInputToCents(startingPrice) === null;
+  const readyText = disabledReason ?? 'Review before launch';
+
+  return (
+    <div className="run-of-show-auction" aria-label={`Auction setup for ${item.title}`}>
+      <div className="run-of-show-auction-product">
+        <div className="run-of-show-auction-media" aria-hidden="true">
+          {product?.imageUrl ? <img src={product.imageUrl} alt="" /> : <span>{product?.glyph ?? item.title.charAt(0)}</span>}
+        </div>
+        <div className="run-of-show-auction-copy">
+          <strong>{item.title}</strong>
+          <p><b>{available} available</b><span>Retail {money(item.priceCents)}</span></p>
+        </div>
+      </div>
+
+      <div className="run-of-show-auction-controls">
+        <label>
+          <span>Opening bid</span>
+          <span className="run-of-show-auction-money">
+            <span aria-hidden="true">$</span>
+            <input
+              aria-label={`Opening bid for ${item.title}`}
+              type="number"
+              min={0.01}
+              step={0.01}
+              inputMode="decimal"
+              value={startingPrice}
+              onChange={(event) => onStartingPriceChange(event.target.value)}
+            />
+          </span>
+        </label>
+        <label>
+          <span>Duration</span>
+          <select
+            aria-label={`Auction duration for ${item.title}`}
+            value={durationSec}
+            onChange={(event) => onDurationChange(Number(event.target.value))}
+          >
+            <option value={30}>30 sec</option>
+            <option value={60}>60 sec</option>
+            <option value={90}>90 sec</option>
+            <option value={120}>2 min</option>
+            <option value={300}>5 min</option>
+          </select>
+        </label>
+        <button
+          className="button primary run-of-show-auction-start"
+          type="button"
+          disabled={buttonDisabled}
+          title={disabledReason ?? undefined}
+          onClick={onStart}
+        >
+          {busy ? 'Starting…' : 'Start auction'}
+        </button>
+      </div>
+
+      <div className={`run-of-show-auction-review${disabledReason ? ' is-blocked' : ''}`}>
+        <span aria-hidden="true">✓</span>
+        <span>{readyText}</span>
+      </div>
+      {feedback ? (
+        <p className={`run-of-show-auction-feedback is-${feedback.tone}`} role={feedback.tone === 'error' ? 'alert' : 'status'}>
+          {feedback.text}
+        </p>
+      ) : null}
+    </div>
+  );
 }
 
 /** Presentational body, exported for markup tests (no fetch, no timers). */
@@ -41,6 +155,7 @@ export function RunOfShowPanelView({
   onStageNext,
   activeProduct = null,
   pricingHistory = null,
+  nextAuctionLauncher = null,
 }: {
   view: RunOfShowView;
   loaded: boolean;
@@ -48,6 +163,7 @@ export function RunOfShowPanelView({
   onStageNext: (productId: string) => void;
   activeProduct?: CatalogProduct | null;
   pricingHistory?: ReactNode;
+  nextAuctionLauncher?: ReactNode;
 }) {
   const {
     slots,
@@ -151,7 +267,8 @@ export function RunOfShowPanelView({
                           {slot.plannedDurationSec !== null ? formatClock(slot.plannedDurationSec) : '—'}
                         </span>
                       </div>
-                      <button className="button secondary" type="button" onClick={() => onStageNext(slot.productId)}>
+                      {nextAuctionLauncher}
+                      <button className="button secondary run-of-show-take-live" type="button" onClick={() => onStageNext(slot.productId)}>
                         Take live
                       </button>
                     </div>
@@ -180,6 +297,7 @@ export function RunOfShowPanel({
   eventId,
   stageLog: log,
   activeProduct,
+  catalogProducts = [],
   onActiveProductChange,
   apiBaseUrl,
 }: RunOfShowPanelProps) {
@@ -190,27 +308,30 @@ export function RunOfShowPanel({
    * the planner board appears here live with no refetch code of our own.
    */
   const planQuery = useSyncQuery<RunOfShowPlan>({ queryName: 'event.runOfShow', args: { eventId } });
+  const itemsQuery = useSyncQuery<SellerEventItem>({ queryName: 'event.actions.items', args: { eventId } });
+  const auctionQuery = useSyncQuery<SellerAuction>({
+    queryName: 'event.auction.active',
+    args: { eventId },
+    staleTime: 0,
+  });
   const entries = useMemo(() => planQuery.data?.[0]?.entries ?? [], [planQuery.data]);
-
-  const [titles, setTitles] = useState<Record<string, string>>({});
+  const lineupItems = useMemo(() => itemsQuery.data ?? [], [itemsQuery.data]);
+  const titles = useMemo(
+    () => Object.fromEntries(lineupItems.map((item) => [item.productId, item.title])),
+    [lineupItems],
+  );
   const [nowMs, setNowMs] = useState(() => Date.now());
+  const [startingPrice, setStartingPrice] = useState('');
+  const [durationSec, setDurationSec] = useState(90);
+  const [auctionBusy, setAuctionBusy] = useState(false);
+  const [auctionFeedback, setAuctionFeedback] = useState<NextAuctionLauncherProps['feedback']>(null);
 
-  /** Lineup titles: one read through the budgeted events/api transport. */
-  useEffect(() => {
-    let cancelled = false;
-    fetchSellerEvent(eventId, apiBaseUrl, principal)
-      .then((event) => {
-        if (cancelled) return;
-        setTitles(Object.fromEntries(event.items.map((item) => [item.productId, item.title])));
-      })
-      .catch(() => undefined);
-    return () => {
-      cancelled = true;
-    };
-  }, [eventId, apiBaseUrl, principal]);
-
-  const loaded = !planQuery.loading;
-  const error = planQuery.error ? 'The show plan could not be loaded.' : null;
+  const loaded = !planQuery.loading && !itemsQuery.loading;
+  const error = planQuery.error
+    ? 'The show plan could not be loaded.'
+    : itemsQuery.error
+      ? 'The live event lineup could not be loaded.'
+      : null;
 
   /** A soft 1s clock, only while something is on stage. */
   useEffect(() => {
@@ -220,9 +341,88 @@ export function RunOfShowPanel({
   }, [log.activeProductId]);
 
   const view = useMemo(
-    () => buildRunOfShowView({ entries, titles, log, nowMs }),
-    [entries, titles, log, nowMs],
+    () => buildRunOfShowView({
+      entries,
+      titles,
+      log,
+      nowMs,
+      lineupProductIds: lineupItems.map((item) => item.productId),
+    }),
+    [entries, titles, log, nowMs, lineupItems],
   );
+
+  const nextItem = useMemo(
+    () => lineupItems.find((item) => item.productId === view.nextUp?.productId) ?? null,
+    [lineupItems, view.nextUp?.productId],
+  );
+  const nextProduct = useMemo(
+    () => catalogProducts.find((product) => product.id === nextItem?.productId) ?? null,
+    [catalogProducts, nextItem?.productId],
+  );
+  const sellerAuctionToken = readSellerAuctionToken();
+  const currentAuction = auctionQuery.data?.[0] ?? null;
+
+  useEffect(() => {
+    setStartingPrice(nextItem ? (nextItem.priceCents / 100).toFixed(2) : '');
+    setDurationSec(90);
+    setAuctionFeedback(null);
+  }, [nextItem?.priceCents, nextItem?.productId]);
+
+  type StartNextAuction = {
+    item: SellerEventItem;
+    startingPriceCents: number;
+    durationSec: number;
+  };
+  const startAuctionFallback = useCallback(
+    ({ item, startingPriceCents, durationSec: selectedDuration }: StartNextAuction) => startSellerAuction(
+      eventId,
+      item,
+      1,
+      startingPriceCents,
+      apiBaseUrl,
+      sellerAuctionToken,
+      principal,
+      selectedDuration,
+    ),
+    [apiBaseUrl, eventId, principal, sellerAuctionToken],
+  );
+  const mutateStartAuction = useSyncMutate<StartNextAuction, SellerAuction>('auction.start', startAuctionFallback);
+
+  const auctionDisabledReason = !nextItem
+    ? null
+    : itemsQuery.loading || auctionQuery.loading
+      ? 'Checking live auction readiness'
+      : itemsQuery.error || auctionQuery.error
+        ? 'Live auction readiness is unavailable'
+        : nextItem.quantity < 1
+          ? 'No reserved event inventory is available'
+          : !sellerAuctionToken
+            ? 'Unlock auction writes in Event Manager'
+            : currentAuction?.status === 'active'
+              ? 'Close the current auction before starting another'
+              : moneyInputToCents(startingPrice) === null
+                ? 'Enter a valid opening bid'
+                : null;
+
+  const startNextAuction = async () => {
+    if (!nextItem || auctionDisabledReason || auctionBusy) return;
+    const startingPriceCents = moneyInputToCents(startingPrice);
+    if (startingPriceCents === null) return;
+    setAuctionBusy(true);
+    setAuctionFeedback(null);
+    try {
+      await mutateStartAuction({ item: nextItem, startingPriceCents, durationSec });
+      auctionQuery.invalidate();
+      setAuctionFeedback({ tone: 'success', text: `${nextItem.title} auction started for ${durationSec} seconds.` });
+    } catch (caught) {
+      setAuctionFeedback({
+        tone: 'error',
+        text: caught instanceof Error ? caught.message : 'The auction could not be started.',
+      });
+    } finally {
+      setAuctionBusy(false);
+    }
+  };
 
   return (
     <RunOfShowPanelView
@@ -232,6 +432,20 @@ export function RunOfShowPanel({
       onStageNext={(productId) => onActiveProductChange(productId)}
       activeProduct={activeProduct}
       pricingHistory={activeProduct ? <PricingHistoryPanel eventId={eventId} productId={activeProduct.id} /> : null}
+      nextAuctionLauncher={nextItem ? (
+        <NextAuctionLauncher
+          item={nextItem}
+          product={nextProduct}
+          startingPrice={startingPrice}
+          durationSec={durationSec}
+          busy={auctionBusy}
+          disabledReason={auctionDisabledReason}
+          feedback={auctionFeedback}
+          onStartingPriceChange={setStartingPrice}
+          onDurationChange={setDurationSec}
+          onStart={() => void startNextAuction()}
+        />
+      ) : null}
     />
   );
 }

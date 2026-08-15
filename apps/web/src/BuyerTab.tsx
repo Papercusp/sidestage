@@ -3,7 +3,6 @@ import { useSyncQuery } from '@papercusp/sync';
 
 import {
   availableBuyerProducts,
-  buildBuyerShareUrl,
   formatBuyerPrice,
   type BuyerProduct,
   type BuyerStats,
@@ -17,7 +16,7 @@ import {
 } from './catalog';
 import { EventChat } from './EventChat';
 import { DEFAULT_EVENT_ID, DEFAULT_EVENT_TITLE } from './event-identity';
-import { streamLabel, useCopyState, useStreamSession } from './hooks';
+import { streamLabel, useStreamSession } from './hooks';
 import { AuctionPanel } from './AuctionPanel';
 import { BuyerProductRail } from './BuyerProductRail';
 import { connectViewer, createEventRoom, type ViewerSession } from './streaming';
@@ -144,7 +143,6 @@ export function BuyerTab({
   // title advance atomically when a seller republishes event config.
   const thumbnailUrl = thumbnailUrlProp ?? activeGuideEvent?.thumbnailUrl;
   const room = useMemo(() => createEventRoom(eventId, origin), [eventId, origin]);
-  const shareUrl = useMemo(() => buildBuyerShareUrl(eventId, origin), [eventId, origin]);
   const [holdNotice, setHoldNotice] = useState<string | null>(null);
   const [holdOverrides, setHoldOverrides] = useState<Record<string, number>>({});
   const [showAllProducts, setShowAllProducts] = useState(false);
@@ -161,7 +159,6 @@ export function BuyerTab({
   } = stream;
   const selectedRoomRef = useRef(room);
   selectedRoomRef.current = room;
-  const { copyState, copy } = useCopyState();
   // D-013: this is deliberately an auth-free demo identity. Every buyer-side
   // action consumes the same persisted id, and the Orders tab imports the same
   // hook rather than inventing a second notion of "current user".
@@ -202,8 +199,6 @@ export function BuyerTab({
   }, [connectStream, stopStream]);
 
   const disconnectStream = stopStream;
-
-  const copyShareUrl = () => void copy(shareUrl);
 
   /** A real reservation (P-103): the hold hits inventory and decrements availableQty. */
   const reserveProduct = async (product: BuyerProduct) => {
@@ -262,11 +257,6 @@ export function BuyerTab({
               <span>Hosted live on SideStage</span>
             </div>
           </div>
-        </div>
-        <div className="buyer-room-actions">
-          <button className="button secondary" type="button" onClick={copyShareUrl}>
-            {copyState === 'copied' ? 'Link copied' : copyState === 'failed' ? 'Copy failed' : 'Share room'}
-          </button>
         </div>
       </header>
 

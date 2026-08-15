@@ -18,7 +18,7 @@ export class ActionController {
     @Headers(DEMO_PRINCIPAL_HEADER) principalHeader?: string,
   ) {
     await this.ownership.requireOwned(eventId, principalHeader);
-    return { items: this.actions.registerEvent(eventId, body) };
+    return { items: await this.actions.registerEvent(eventId, body) };
   }
 
   @Get('events/:eventId/items')
@@ -27,7 +27,7 @@ export class ActionController {
     @Headers(DEMO_PRINCIPAL_HEADER) principalHeader?: string,
   ) {
     await this.ownership.requireOwned(eventId, principalHeader);
-    return { items: this.actions.listItems(eventId) };
+    return { items: await this.actions.listItems(eventId) };
   }
 
   @Get('events/:eventId/audit')
