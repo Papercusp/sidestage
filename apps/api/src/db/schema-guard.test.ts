@@ -143,6 +143,9 @@ describe('ownership schema guard', () => {
   it('makes catalog signatures unique per seller rather than globally', () => {
     expect(SCHEMA_SQL).toContain('DROP INDEX IF EXISTS storefront_product_group_signature_unique');
     expect(SCHEMA_SQL).toMatch(
+      /PARTITION BY\s+COALESCE\(to_jsonb\(candidate\)->>'seller_id', 'demo-seller'\),\s+candidate\.group_id,\s+candidate\.region,\s+candidate\.option_signature/,
+    );
+    expect(SCHEMA_SQL).toMatch(
       /CREATE UNIQUE INDEX IF NOT EXISTS storefront_product_seller_group_signature_unique\s+ON storefront_product \(seller_id, group_id, region, option_signature\)/,
     );
     expect(SCHEMA_SQL).not.toMatch(

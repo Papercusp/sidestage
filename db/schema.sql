@@ -111,18 +111,26 @@ ALTER TABLE storefront_product ADD COLUMN IF NOT EXISTS variant_images jsonb NOT
 -- A pre-variations Restart import can have several condition/handling rows
 -- under one group while all of them still carry the temporary `base` default.
 -- Give only the duplicate legacy rows a deterministic compatibility signature
--- before the uniqueness index is created below. P-002's later import mapping
--- can replace these with the normalized condition/handling axes.
+-- before the uniqueness index is created below. Read seller_id through the row
+-- JSON so this block works both before that column is introduced on a legacy
+-- database and after seller-owned clones exist. A later schema reapply must not
+-- classify the same catalog signature owned by two sellers as a duplicate.
+-- P-002's later import mapping can replace true same-seller duplicates with the
+-- normalized condition/handling axes.
 WITH duplicate_signatures AS (
   SELECT id
   FROM (
-    SELECT id,
+    SELECT candidate.id,
       row_number() OVER (
-        PARTITION BY group_id, region, option_signature
-        ORDER BY id
+        PARTITION BY
+          COALESCE(to_jsonb(candidate)->>'seller_id', 'demo-seller'),
+          candidate.group_id,
+          candidate.region,
+          candidate.option_signature
+        ORDER BY candidate.id
       ) AS duplicate_number
-    FROM storefront_product
-    WHERE group_id IS NOT NULL
+    FROM storefront_product AS candidate
+    WHERE candidate.group_id IS NOT NULL
   ) AS ranked
   WHERE duplicate_number > 1
 )
