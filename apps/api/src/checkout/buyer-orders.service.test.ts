@@ -24,6 +24,7 @@ const checkoutOrder: CheckoutOrder = {
   stripePaymentIntentId: 'pi_checkout_1',
   createdAt: '2026-08-14T01:00:00.000Z',
   items: [{ productId: 'cup', title: 'Aurora cup', priceCents: 1250, quantity: 2, imageUrl: '/cup.png' }],
+  sourceSnapshot: { cartId: 'cart-1', items: [{ productId: 'cup', quantity: 2 }] },
 };
 
 const canonicalAuctionOrder: CheckoutOrder = {
@@ -147,11 +148,15 @@ describe('BuyerOrdersService', () => {
     expect(result.map((order) => order.source)).toEqual(['offer', 'auction', 'checkout']);
     expect(result[0]).toMatchObject({
       id: 'offer-1',
+      sourceId: 'offer-1',
       buyerId: 'buyer-1',
       eventTitle: 'Ceramics after dark',
       sellerName: 'Kiln & Coast',
+      paymentState: 'payment_required',
+      checkoutCapability: null,
       totalCents: 1800,
       items: [{ productId: 'bowl', title: 'Aurora bowl', quantity: 2 }],
+      sourceSnapshot: { id: 'offer-1', status: 'accepted' },
       videoSnapshots: [{
         productId: 'bowl',
         thumbnailUrl: '/event.png',
@@ -160,6 +165,13 @@ describe('BuyerOrdersService', () => {
       }],
     });
     expect(result[2]?.videoSnapshots).toHaveLength(2);
+    expect(result[2]).toMatchObject({
+      sourceId: 'cart-1',
+      paymentState: 'paid',
+      checkoutCapability: null,
+      sourceSnapshot: { cartId: 'cart-1' },
+    });
+    expect(result[2]?.sourceSnapshot).not.toBe(checkoutOrder.sourceSnapshot);
     expect(result[2]?.videoSnapshots[1]).toMatchObject({
       productId: 'cup',
       productTitle: 'Aurora cup',
@@ -170,9 +182,10 @@ describe('BuyerOrdersService', () => {
   });
 
   it('prefers the canonical payable order over the legacy auction aggregate copy', async () => {
+    const legacyAuctionOrder = { ...auctionOrder, id: 'legacy-auction-order-1' };
     const service = new BuyerOrdersService(
       { listByBuyer: vi.fn().mockResolvedValue([canonicalAuctionOrder]) } as unknown as OrderStore,
-      { listWinnerOrdersForBuyer: vi.fn().mockResolvedValue([auctionOrder]) } as never,
+      { listWinnerOrdersForBuyer: vi.fn().mockResolvedValue([legacyAuctionOrder]) } as never,
       { listOffersForBuyer: vi.fn().mockReturnValue([]) } as never,
       { getReplayChapters: vi.fn().mockResolvedValue(chapters) } as never,
       { listForGuide: vi.fn().mockResolvedValue([event]) } as never,
@@ -183,9 +196,51 @@ describe('BuyerOrdersService', () => {
     expect(result[0]).toMatchObject({
       id: 'auction-order-1',
       source: 'auction',
+      sourceId: 'auction-1',
       status: 'pending',
+      paymentState: 'payment_required',
+      checkoutCapability: { action: 'checkout', orderId: 'auction-order-1' },
+      sourceSnapshot: { auctionId: 'auction-1', unitPriceCents: 1900 },
       items: [{ productId: 'plate', unitPriceCents: 1900 }],
     });
+    expect(result[0]?.sourceSnapshot).not.toBe(canonicalAuctionOrder.sourceSnapshot);
+  });
+
+  it('exposes only payable and resumable canonical orders as checkout capabilities', async () => {
+    const failed = {
+      ...checkoutOrder,
+      id: 'checkout-failed',
+      sourceId: 'cart-failed',
+      status: 'failed' as const,
+      paymentState: 'payment_failed' as const,
+      createdAt: '2026-08-14T04:00:00.000Z',
+    };
+    const processing = {
+      ...checkoutOrder,
+      id: 'checkout-processing',
+      sourceId: 'cart-processing',
+      status: 'pending' as const,
+      paymentState: 'payment_processing' as const,
+      createdAt: '2026-08-14T05:00:00.000Z',
+    };
+    const service = new BuyerOrdersService(
+      { listByBuyer: vi.fn().mockResolvedValue([failed, processing]) } as unknown as OrderStore,
+      { listWinnerOrdersForBuyer: vi.fn().mockResolvedValue([]) } as never,
+      { listOffersForBuyer: vi.fn().mockReturnValue([]) } as never,
+      { getReplayChapters: vi.fn().mockResolvedValue([]) } as never,
+      { listForGuide: vi.fn().mockResolvedValue([event]) } as never,
+    );
+
+    const result = await service.listForBuyer('buyer-1');
+    expect(result.map(({ id, paymentState, checkoutCapability }) => ({ id, paymentState, checkoutCapability })))
+      .toEqual([
+        { id: 'checkout-processing', paymentState: 'payment_processing', checkoutCapability: null },
+        {
+          id: 'checkout-failed',
+          paymentState: 'payment_failed',
+          checkoutCapability: { action: 'resume', orderId: 'checkout-failed' },
+        },
+      ]);
   });
 
   it('rejects an empty buyer identity before reading any order source', async () => {

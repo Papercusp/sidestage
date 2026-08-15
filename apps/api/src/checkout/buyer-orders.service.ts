@@ -4,10 +4,20 @@ import type { TargetedOffer } from '../actions/action.types';
 import { AuctionService, type AuctionWinnerOrder } from '../auction/auction.service';
 import { ChatService, type ReplayChapter } from '../chat/chat.service';
 import { EventService, type EventSummary } from '../events/event.service';
-import { ORDER_STORE, type CheckoutOrder, type OrderStore } from './checkout.service';
+import {
+  ORDER_STORE,
+  type CheckoutOrder,
+  type OrderStore,
+  type PayableOrderPaymentState,
+} from './checkout.service';
 
 export type BuyerOrderSource = 'checkout' | 'auction' | 'offer';
 export type BuyerOrderStatus = CheckoutOrder['status'] | TargetedOffer['status'];
+
+export interface BuyerOrderCheckoutCapability {
+  action: 'checkout' | 'resume';
+  orderId: string;
+}
 
 export interface BuyerOrderItem {
   productId: string;
@@ -35,17 +45,21 @@ export interface BuyerOrderVideoSnapshot {
 export interface BuyerOrder {
   id: string;
   source: BuyerOrderSource;
+  sourceId: string;
   buyerId: string;
   eventId: string;
   eventTitle: string;
   sellerName?: string;
   status: BuyerOrderStatus;
+  paymentState: PayableOrderPaymentState | null;
+  checkoutCapability: BuyerOrderCheckoutCapability | null;
   createdAt: string;
   subtotalCents: number;
   shippingCents: number;
   totalCents: number;
   currency: 'USD';
   items: BuyerOrderItem[];
+  sourceSnapshot: Readonly<Record<string, unknown>>;
   videoSnapshots: BuyerOrderVideoSnapshot[];
 }
 
@@ -83,7 +97,7 @@ export class BuyerOrdersService {
     ];
     const canonical = new Map<string, BuyerOrder>();
     for (const order of normalized) {
-      const key = `${order.source}:${order.id}`;
+      const key = `${order.source}:${order.sourceId}`;
       if (!canonical.has(key)) canonical.set(key, order);
     }
     return [...canonical.values()].sort((left, right) => right.createdAt.localeCompare(left.createdAt)).slice(0, 200);
@@ -99,8 +113,12 @@ export class BuyerOrdersService {
     }));
     return this.build({
       id: order.id, source: order.sourceKind === 'cart' ? 'checkout' : order.sourceKind,
+      sourceId: order.sourceId,
       buyerId: order.buyerId, eventId: order.eventId,
-      status: order.status, createdAt: order.createdAt, subtotalCents: order.subtotalCents,
+      status: order.status, paymentState: order.paymentState,
+      checkoutCapability: this.checkoutCapability(order),
+      sourceSnapshot: this.sourceSnapshot(order),
+      createdAt: order.createdAt, subtotalCents: order.subtotalCents,
       shippingCents: order.shippingCents, totalCents: order.totalCents, items, event, chapters,
     });
   }
@@ -114,8 +132,11 @@ export class BuyerOrdersService {
       unitPriceCents: order.unitPriceCents,
     }];
     return this.build({
-      id: order.id, source: 'auction', buyerId: order.bidderId, eventId: order.eventId,
-      status: order.status, createdAt: order.createdAt, subtotalCents: order.totalCents,
+      id: order.id, source: 'auction', sourceId: order.auctionId,
+      buyerId: order.bidderId, eventId: order.eventId,
+      status: order.status, paymentState: 'payment_required', checkoutCapability: null,
+      sourceSnapshot: this.cloneSnapshot(order as unknown as Record<string, unknown>),
+      createdAt: order.createdAt, subtotalCents: order.totalCents,
       shippingCents: 0, totalCents: order.totalCents, items, event, chapters,
     });
   }
@@ -130,8 +151,11 @@ export class BuyerOrdersService {
       unitPriceCents: offer.priceCents,
     }];
     return this.build({
-      id: offer.id, source: 'offer', buyerId: offer.buyerId, eventId: offer.eventId,
-      status: offer.status, createdAt: offer.createdAt ?? new Date(0).toISOString(),
+      id: offer.id, source: 'offer', sourceId: offer.id,
+      buyerId: offer.buyerId, eventId: offer.eventId,
+      status: offer.status, paymentState: this.offerPaymentState(offer), checkoutCapability: null,
+      sourceSnapshot: this.cloneSnapshot(offer as unknown as Record<string, unknown>),
+      createdAt: offer.createdAt ?? new Date(0).toISOString(),
       subtotalCents: totalCents, shippingCents: 0, totalCents, items, event, chapters,
     });
   }
@@ -182,6 +206,32 @@ export class BuyerOrdersService {
 
   private chaptersFor(chapters: ReplayChapter[], productId: string): ReplayChapter[] {
     return chapters.filter((chapter) => chapter.productId === productId);
+  }
+
+  private checkoutCapability(order: CheckoutOrder): BuyerOrderCheckoutCapability | null {
+    if (order.paymentState === 'payment_required') return { action: 'checkout', orderId: order.id };
+    if (order.paymentState === 'payment_failed') return { action: 'resume', orderId: order.id };
+    return null;
+  }
+
+  private offerPaymentState(offer: TargetedOffer): PayableOrderPaymentState | null {
+    if (offer.status === 'accepted') return 'payment_required';
+    if (offer.status === 'expired') return 'expired';
+    if (offer.status === 'cancelled') return 'cancelled';
+    return null;
+  }
+
+  private sourceSnapshot(order: CheckoutOrder): Readonly<Record<string, unknown>> {
+    if (order.sourceSnapshot) return this.cloneSnapshot(order.sourceSnapshot);
+    return {
+      sourceKind: order.sourceKind,
+      sourceId: order.sourceId,
+      items: order.items.map((item) => ({ ...item })),
+    };
+  }
+
+  private cloneSnapshot(snapshot: Record<string, unknown>): Readonly<Record<string, unknown>> {
+    return structuredClone(snapshot);
   }
 
   private readBuyerId(value: string): string {
