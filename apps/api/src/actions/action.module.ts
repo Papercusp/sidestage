@@ -2,6 +2,7 @@ import { Inject, Injectable, Module, type OnModuleInit } from '@nestjs/common';
 import { EventConfigModule } from '../config/event-config.module';
 import { EventModule } from '../events/event.module';
 import { EventOwnershipGuard } from '../events/event-ownership.guard';
+import { OrderModule } from '../checkout/order.module';
 import { SyncModule } from '../sync/sync.module';
 import { SyncQueryRegistry } from '../sync/sync-query.registry';
 import { ActionController } from './action.controller';
@@ -25,7 +26,7 @@ export class ActionSyncQueries implements OnModuleInit {
 }
 
 @Module({
-  imports: [EventConfigModule, EventModule, SyncModule],
+  imports: [EventConfigModule, EventModule, OrderModule, SyncModule],
   controllers: [ActionController],
   providers: [GuardedActionService, ActionSyncQueries],
   exports: [GuardedActionService],

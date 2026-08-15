@@ -1,6 +1,6 @@
 import { BadRequestException, Inject, Injectable, Logger } from '@nestjs/common';
 import { createHash } from 'node:crypto';
-import { CartService, type Cart } from '../cart/cart.service';
+import { CartService, type CartItem } from '../cart/cart.service';
 import {
   CATALOG_SOURCE,
   type CatalogDimensions,
@@ -32,6 +32,14 @@ export interface ShippingAddressInput {
 
 export interface ShippingRateInput {
   cartId: string;
+  address: ShippingAddressInput;
+}
+
+export interface ShippingItemsRateInput {
+  sourceKind: 'cart' | 'auction' | 'offer';
+  sourceId: string;
+  revision: string;
+  items: readonly CartItem[];
   address: ShippingAddressInput;
 }
 
@@ -151,12 +159,18 @@ function toEasyPostAddress(address: NormalizedShippingAddress): EasyPostAddress 
   };
 }
 
-function quoteCacheKey(cart: Cart, address: NormalizedShippingAddress): string {
-  const items = [...cart.items]
+function quoteCacheKey(source: ShippingItemsRateInput, address: NormalizedShippingAddress): string {
+  const items = [...source.items]
     .map(({ productId, quantity, priceCents }) => ({ productId, quantity, priceCents }))
     .sort((left, right) => left.productId.localeCompare(right.productId));
   return createHash('sha256')
-    .update(JSON.stringify({ cartId: cart.id, cartUpdatedAt: cart.updatedAt, items, address }))
+    .update(JSON.stringify({
+      sourceKind: source.sourceKind,
+      sourceId: source.sourceId,
+      revision: source.revision,
+      items,
+      address,
+    }))
     .digest('hex');
 }
 
@@ -272,13 +286,34 @@ export class ShippingService {
     const address = normalizeShippingAddress(input.address);
     const cart = await this.carts.findCart(cartId);
     if (!cart || cart.items.length === 0) throw new BadRequestException('Cart is empty or not found');
+    return this.getRatesForItems({
+      sourceKind: 'cart',
+      sourceId: cart.id,
+      revision: cart.updatedAt,
+      items: cart.items,
+      address,
+    });
+  }
 
-    const key = quoteCacheKey(cart, address);
+  async getRatesForItems(input: ShippingItemsRateInput): Promise<AggregatedRate[]> {
+    if (!this.easyPost.isConfigured()) {
+      this.logger.warn('EASYPOST_API_KEY is not set — returning empty rates');
+      return [];
+    }
+
+    const sourceId = optionalTrim(input?.sourceId);
+    if (!sourceId) throw new BadRequestException('sourceId is required');
+    if (!Array.isArray(input?.items) || input.items.length === 0) {
+      throw new BadRequestException('Payable source has no shippable items');
+    }
+    const address = normalizeShippingAddress(input.address);
+
+    const key = quoteCacheKey(input, address);
     const cached = this.rateCache.get(key);
     if (cached && cached.expiresAt > Date.now()) return cached.rates.map((rate) => ({ ...rate }));
 
-    const variants = await Promise.all(cart.items.map((item) => this.catalog.variant(item.productId)));
-    const packerItems = cart.items.map((item, index) => packerItemFor(variants[index], item.quantity));
+    const variants = await Promise.all(input.items.map((item) => this.catalog.variant(item.productId)));
+    const packerItems = input.items.map((item, index) => packerItemFor(variants[index], item.quantity));
     const parcels = packItems(packerItems);
     const toAddress = toEasyPostAddress(address);
 
@@ -287,7 +322,7 @@ export class ShippingService {
       shipments = await Promise.all(parcels.map((parcel, index) => this.easyPost.createShipment(
         toAddress,
         { length: parcel.length, width: parcel.width, height: parcel.height, weight: parcel.weightOz },
-        `cart-${cart.id}-parcel-${index}`,
+        `${input.sourceKind}-${sourceId}-parcel-${index}`,
       )));
     } catch (error) {
       this.logger.error(`EasyPost rate request failed: ${(error as Error)?.message ?? error}`);
@@ -304,6 +339,14 @@ export class ShippingService {
     const selectedId = optionalTrim(rateId);
     if (!selectedId) throw new BadRequestException('shippingRateId is required');
     const rate = (await this.getRates(input)).find((candidate) => candidate.id === selectedId);
+    if (!rate) throw new BadRequestException('Shipping rate is unavailable or expired');
+    return rate;
+  }
+
+  async resolveRateForItems(input: ShippingItemsRateInput, rateId: string): Promise<AggregatedRate> {
+    const selectedId = optionalTrim(rateId);
+    if (!selectedId) throw new BadRequestException('shippingRateId is required');
+    const rate = (await this.getRatesForItems(input)).find((candidate) => candidate.id === selectedId);
     if (!rate) throw new BadRequestException('Shipping rate is unavailable or expired');
     return rate;
   }

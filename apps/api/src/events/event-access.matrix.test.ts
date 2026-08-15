@@ -106,7 +106,7 @@ const EVENT_ACCESS: {
     'event.chat.messages': 'public-viewer',
     'event.chat.presence': 'public-viewer',
     'event.chat.stats': 'public-viewer',
-    'event.chat.transcript': 'seller-owned',
+    'event.chat.transcript': 'public-viewer',
     'event.config': 'seller-owned',
     'event.copilot.proposals': 'seller-owned',
     'event.pricingHistory': 'public-viewer',
