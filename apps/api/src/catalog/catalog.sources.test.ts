@@ -112,7 +112,7 @@ describe('PgCatalogSource', () => {
     expect(page.rows[0]?.title).toBe('Harbor Kettle');
     const [countSql] = poolQuery.mock.calls[1] as [string, unknown[]];
     const [rowsSql] = poolQuery.mock.calls[2] as [string, unknown[]];
-    const expectedTokens = ['are', 'there', 'any', 'kettles', 'for', 'sale'];
+    const expectedTokens = ['kettles', 'sale'];
     expect(countSql).toContain(
       "c.search_tsv @@ to_tsquery('english', array_to_string($2::text[], ':* | ') || ':*')",
     );
@@ -121,6 +121,58 @@ describe('PgCatalogSource', () => {
     );
     expect(observedParams[1]).toEqual([EVENT_DEMO_COLLECTION, expectedTokens, 10_001]);
     expect(observedParams[2]).toEqual([EVENT_DEMO_COLLECTION, expectedTokens, 6, 0]);
+  });
+
+  it('keeps only product terms from the exact Scout in-stock request', async () => {
+    const observedParams: unknown[][] = [];
+    const responses = [
+      { rows: [] },
+      { rows: [{ n: '1' }] },
+      { rows: [{
+        id: 'hp-tape-drive-v1',
+        groupId: 'hp-tape-drive',
+        title: 'HP StoreEver Tape Drive',
+        brand: 'HP',
+        productType: 'DATA_STORAGE',
+        sku: 'HP-TAPE-1',
+        color: null,
+        size: null,
+        condition: 'NEW',
+        handlingDays: 1,
+        priceCents: 39_900,
+        reservedQty: 0,
+        availableQty: 2,
+        imageUrl: null,
+        description: 'External LTO tape backup drive',
+        weight: null,
+        dimensions: null,
+      }] },
+    ];
+    let responseIndex = 0;
+    const poolQuery = vi.fn(async (_query: string, params: unknown[]) => {
+      observedParams.push([...params]);
+      return responses[responseIndex++];
+    });
+    const source = new PgCatalogSource({ query: poolQuery } as unknown as Pool);
+
+    const page = await source.search({
+      q: 'Find an in-stock HP tape drive.',
+      availability: 'in-stock',
+      pageSize: 6,
+    });
+
+    expect(page.rows[0]?.title).toBe('HP StoreEver Tape Drive');
+    expect(observedParams[1]).toEqual([
+      EVENT_DEMO_COLLECTION,
+      ['hp', 'tape', 'drive'],
+      10_001,
+    ]);
+    expect(observedParams[2]).toEqual([
+      EVENT_DEMO_COLLECTION,
+      ['hp', 'tape', 'drive'],
+      6,
+      0,
+    ]);
   });
 
   it('returns no products and issues no unfiltered read for punctuation-only search text', async () => {

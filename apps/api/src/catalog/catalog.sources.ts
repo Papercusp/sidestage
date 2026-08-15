@@ -1,6 +1,6 @@
 import { ConflictException, Injectable, Logger } from '@nestjs/common';
 import type { Pool } from 'pg';
-import { memoryTokens } from '../scout/scout-memory';
+import { memoryRelevanceTokens } from '../scout/scout-memory';
 import { DEMO_CATALOG_FIXTURE } from './catalog.fixture';
 import type {
   CatalogPage,
@@ -35,6 +35,23 @@ function loadTypesense(logger: Logger): Promise<TypesenseModule | null> {
 }
 /** Counting 1.1M matching rows on every keystroke is waste; report a floor. */
 const TOTAL_CAP = 10_000;
+
+/**
+ * Words already represented by typed catalog filters must not participate in
+ * lexical ranking. In particular, `in-stock` tokenizes to `in`, `stock`; the
+ * former is conversational filler and the latter is redundant once the query
+ * carries `availability: 'in-stock'`. Leaving either in an OR-prefix tsquery
+ * lets a generic description outrank the buyer's brand/model terms.
+ */
+function catalogSearchTokens(
+  query: string,
+  availability: Required<CatalogQuery>['availability'],
+): string[] {
+  const tokens = memoryRelevanceTokens(query);
+  return availability === 'in-stock'
+    ? tokens.filter((token) => token !== 'stock')
+    : tokens;
+}
 
 export function normalizeQuery(query: CatalogQuery): Required<CatalogQuery> {
   const pageSize = Math.min(MAX_PAGE_SIZE, Math.max(1, Math.floor(query.pageSize ?? DEFAULT_PAGE_SIZE)));
@@ -218,7 +235,7 @@ export class PgCatalogSource implements CatalogSource {
     // SQL path: the GIN-indexed tsvector. An OR with a slug ILIKE defeats both
     // indexes and full-scans 1.1M rows, so the slug match is a FALLBACK query
     // (own gin_trgm index) used only when the text search finds nothing.
-    const tokens = memoryTokens(q);
+    const tokens = catalogSearchTokens(q, availability);
     if (q && tokens.length === 0) {
       return { rows: [], page, pageSize, total: 0, totalIsFloor: false };
     }
@@ -226,8 +243,9 @@ export class PgCatalogSource implements CatalogSource {
     // brands/product codes are preserved. The QUERY uses English stemming to
     // discard conversational stopwords, then prefix-matches the simple
     // lexemes so plural "kettles" (`kettl:*`) still matches title "Kettle".
-    // Tokens come from the same injection-safe tokenizer Scout memory uses;
-    // raw user text can never become tsquery syntax.
+    // Tokens come from Scout memory's injection-safe relevance seam, so
+    // conversational filler and typed availability words cannot dilute the
+    // product terms and raw user text can never become tsquery syntax.
     const tsQuery = `to_tsquery('english', array_to_string($Q::text[], ':* | ') || ':*')`;
     const primary = await this.runSearch(query, q ? {
       predicate: `c.search_tsv @@ ${tsQuery}`,
@@ -243,8 +261,8 @@ export class PgCatalogSource implements CatalogSource {
 
   async searchOwned(query: CatalogQuery, sellerId: string): Promise<CatalogPage> {
     await this.pool.query('SELECT expire_inventory_reservations()', []);
-    const { q } = normalizeQuery(query);
-    const tokens = memoryTokens(q);
+    const { q, availability } = normalizeQuery(query);
+    const tokens = catalogSearchTokens(q, availability);
     if (q && tokens.length === 0) {
       return { rows: [], page: normalizeQuery(query).page, pageSize: normalizeQuery(query).pageSize, total: 0, totalIsFloor: false };
     }
