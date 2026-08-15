@@ -1,8 +1,9 @@
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import {
   buildSideStageScoutBody,
   createSideStageScoutTransport,
   ensureScoutBuyerCookie,
+  scoutBuyerContinuityId,
   scoutProductToBuyerProduct,
   type ScoutCookieDocument,
 } from './scout-transport';
@@ -35,9 +36,9 @@ describe('SideStage Scout transport', () => {
     };
     const cookieDocument: ScoutCookieDocument = { cookie: '' };
     const transport = createSideStageScoutTransport({
+      buyerId: 'buyer-browser-1',
       fetchImpl,
       cookieDocument,
-      randomId: () => 'scout-browser-1',
     });
 
     for await (const _event of transport.streamTurn({
@@ -57,15 +58,25 @@ describe('SideStage Scout transport', () => {
         eventId: 'event-1',
       },
     }]);
-    expect(cookieDocument.cookie).toContain('ss_buyer_id=scout-browser-1');
+    expect(cookieDocument.cookie).toContain('ss_buyer_id=buyer-browser-1');
   });
 
-  it('keeps an existing valid continuity cookie and rejects malformed product cards', () => {
+  it('replaces another buyer cookie and rejects malformed product cards', () => {
     const cookieDocument = { cookie: 'other=x; ss_buyer_id=scout-existing' };
-    const randomId = vi.fn(() => 'scout-new');
-    expect(ensureScoutBuyerCookie(cookieDocument, randomId)).toBe('scout-existing');
-    expect(randomId).not.toHaveBeenCalled();
+    expect(ensureScoutBuyerCookie('buyer-new', cookieDocument)).toBe('buyer-new');
+    expect(cookieDocument.cookie).toContain('ss_buyer_id=buyer-new');
     expect(scoutProductToBuyerProduct({ nope: true })).toBeNull();
+  });
+
+  it('projects unsafe demo ids deterministically and clears continuity for the explicit guest fallback', () => {
+    const projected = scoutBuyerContinuityId('buyer-Ávi with spaces');
+    expect(projected).toMatch(/^buyer-[a-f0-9]{32}$/);
+    expect(scoutBuyerContinuityId('buyer-Ávi with spaces')).toBe(projected);
+    expect(scoutBuyerContinuityId('buyer-plain')).toBe('buyer-plain');
+
+    const cookieDocument = { cookie: `ss_buyer_id=${projected}` };
+    expect(ensureScoutBuyerCookie(null, cookieDocument)).toBeNull();
+    expect(cookieDocument.cookie).toContain('Max-Age=0');
   });
 
   it('maps the server ProductCard onto the existing buyer rail shape', () => {

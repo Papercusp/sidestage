@@ -27,28 +27,53 @@ function readCookie(cookieHeader: string, name: string): string | null {
   return null;
 }
 
-function generatedScoutBuyerId(): string {
-  const uuid = globalThis.crypto?.randomUUID?.();
-  return uuid ? `scout-${uuid}` : `scout-${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
+/**
+ * Preserve ordinary buyer ids verbatim and deterministically project the rare
+ * D-013 id containing unicode/whitespace into the resolver's bounded keyspace.
+ * There is deliberately no random fallback: Scout continuity is a function of
+ * the selected demo buyer, never a second browser identity.
+ */
+export function scoutBuyerContinuityId(selectedBuyerId: string): string {
+  const normalized = selectedBuyerId.trim();
+  if (!normalized) throw new Error('Scout continuity requires a selected buyer');
+  if (SCOUT_BUYER_ID.test(normalized)) return normalized;
+
+  // Four independent 32-bit FNV-style lanes keep the synchronous browser seam
+  // dependency-free while making collisions vanishingly unlikely for demo ids.
+  const lanes = [0x811c9dc5, 0x9e3779b9, 0x85ebca6b, 0xc2b2ae35];
+  for (let i = 0; i < normalized.length; i += 1) {
+    const code = normalized.charCodeAt(i);
+    for (let lane = 0; lane < lanes.length; lane += 1) {
+      lanes[lane] = Math.imul(lanes[lane] ^ (code + lane * 0x9e37), 0x01000193) >>> 0;
+    }
+  }
+  return `buyer-${lanes.map((value) => value.toString(16).padStart(8, '0')).join('')}`;
 }
 
 /**
- * Establish the deliberately unsigned continuity cookie from D-009/D-010.
- * This is an opaque browser id, not the app's impersonatable demo identity.
+ * Synchronize the deliberately unsigned continuity cookie with the selected
+ * demo buyer. A null buyer is the explicit anonymous fallback and clears any
+ * previous selected-buyer cookie instead of silently inheriting it.
  */
 export function ensureScoutBuyerCookie(
+  selectedBuyerId: string | null,
   cookieDocument: ScoutCookieDocument | null = typeof document === 'undefined' ? null : document,
-  randomId: () => string = generatedScoutBuyerId,
 ): string | null {
   if (!cookieDocument) return null;
-  const existing = readCookie(cookieDocument.cookie, SCOUT_BUYER_COOKIE);
-  if (existing && SCOUT_BUYER_ID.test(existing)) return existing;
+  if (!selectedBuyerId) {
+    if (readCookie(cookieDocument.cookie, SCOUT_BUYER_COOKIE) !== null) {
+      cookieDocument.cookie = `${SCOUT_BUYER_COOKIE}=; Path=/; SameSite=Lax; Max-Age=0`;
+    }
+    return null;
+  }
 
-  const generated = randomId();
-  if (!SCOUT_BUYER_ID.test(generated)) throw new Error('Scout continuity id must be URL-safe and at most 128 characters');
+  const selected = scoutBuyerContinuityId(selectedBuyerId);
+  const existing = readCookie(cookieDocument.cookie, SCOUT_BUYER_COOKIE);
+  if (existing === selected) return selected;
+
   const secure = typeof location !== 'undefined' && location.protocol === 'https:' ? '; Secure' : '';
-  cookieDocument.cookie = `${SCOUT_BUYER_COOKIE}=${encodeURIComponent(generated)}; Path=/; SameSite=Lax; Max-Age=${SCOUT_COOKIE_MAX_AGE_SEC}${secure}`;
-  return generated;
+  cookieDocument.cookie = `${SCOUT_BUYER_COOKIE}=${encodeURIComponent(selected)}; Path=/; SameSite=Lax; Max-Age=${SCOUT_COOKIE_MAX_AGE_SEC}${secure}`;
+  return selected;
 }
 
 export interface SideStageScoutPageContext {
@@ -75,20 +100,19 @@ export const buildSideStageScoutBody: NonNullable<HttpChatTransportOptions['buil
 };
 
 export interface CreateSideStageScoutTransportOptions {
+  buyerId?: string | null;
   fetchImpl?: typeof fetch;
   cookieDocument?: ScoutCookieDocument | null;
-  randomId?: () => string;
 }
 
 export function createSideStageScoutTransport(
   options: CreateSideStageScoutTransportOptions = {},
 ): ChatTransport {
-  ensureScoutBuyerCookie(
-    options.cookieDocument === undefined
-      ? (typeof document === 'undefined' ? null : document)
-      : options.cookieDocument,
-    options.randomId,
-  );
+  const cookieDocument = options.cookieDocument === undefined
+    ? (typeof document === 'undefined' ? null : document)
+    : options.cookieDocument;
+  const activateBuyer = () => ensureScoutBuyerCookie(options.buyerId ?? null, cookieDocument);
+  activateBuyer();
   const transport = createHttpChatTransport({
     chatUrl: '/api/scout/chat/stream',
     transcriptUrl: (sessionId) => `/api/scout/session/${encodeURIComponent(sessionId)}`,
@@ -96,7 +120,17 @@ export function createSideStageScoutTransport(
     ...(options.fetchImpl ? { fetchImpl: options.fetchImpl } : {}),
   });
   return {
-    ...transport,
+    async *streamTurn(turn, streamOptions) {
+      activateBuyer();
+      yield* transport.streamTurn(turn, streamOptions);
+    },
+    transcriptFetcher(sessionId) {
+      const fetcher = transport.transcriptFetcher(sessionId);
+      return async (context) => {
+        activateBuyer();
+        return fetcher(context);
+      };
+    },
     answerCard: async () => {
       throw new Error('SideStage Scout does not support interactive cards');
     },

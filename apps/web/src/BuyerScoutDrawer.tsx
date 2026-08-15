@@ -3,18 +3,45 @@ import {
   ScoutChat,
   ScoutChatDrawer,
   createChatConversationCache,
+  type ChatConversationCache,
+  type ChatTransport,
   type ScoutChatStrings,
 } from '@papercusp/scout-chat';
 import type { BuyerProduct } from './buyer';
+import { useBuyerIdentity } from './buyer-identity';
 import { BuyerProductRail } from './BuyerProductRail';
 import {
   createSideStageScoutTransport,
+  scoutBuyerContinuityId,
   scoutProductToBuyerProduct,
   type SideStageScoutPageContext,
 } from './scout-transport';
 
-const transport = createSideStageScoutTransport();
-const conversation = createChatConversationCache();
+const transportsByBuyer = new Map<string, ChatTransport>();
+const conversationsByBuyer = new Map<string, ChatConversationCache>();
+
+export function buyerScoutResources(buyerId: string): {
+  transport: ChatTransport;
+  conversation: ChatConversationCache;
+  sessionStorageKey: string;
+} {
+  const key = scoutBuyerContinuityId(buyerId);
+  let transport = transportsByBuyer.get(key);
+  if (!transport) {
+    transport = createSideStageScoutTransport({ buyerId });
+    transportsByBuyer.set(key, transport);
+  }
+  let conversation = conversationsByBuyer.get(key);
+  if (!conversation) {
+    conversation = createChatConversationCache();
+    conversationsByBuyer.set(key, conversation);
+  }
+  return {
+    transport,
+    conversation,
+    sessionStorageKey: `sidestage-scout-session-id:${key}`,
+  };
+}
 
 export const SIDE_STAGE_SCOUT_STRINGS: ScoutChatStrings = {
   kicker: 'Ask Scout',
@@ -62,6 +89,8 @@ export function BuyerScoutDrawer({
   onHoldProduct,
   onOpenHeldItems,
 }: BuyerScoutDrawerProps) {
+  const { buyerId } = useBuyerIdentity();
+  const { transport, conversation, sessionStorageKey } = buyerScoutResources(buyerId);
   const pageContext: SideStageScoutPageContext = { eventId, ...(cartId ? { cartId } : {}) };
   const renderProducts = (products: unknown[]) => {
     const mapped = products
@@ -96,6 +125,7 @@ export function BuyerScoutDrawer({
     >
       {({ close, otherOpen }) => (
         <ScoutChat
+          key={buyerId}
           transport={transport}
           cache={conversation}
           variant="drawer"
@@ -103,7 +133,7 @@ export function BuyerScoutDrawer({
           companionOpen={otherOpen}
           getPageContext={() => pageContext}
           toolStatus={TOOL_STATUS}
-          sessionStorageKey="sidestage-scout-session-id"
+          sessionStorageKey={sessionStorageKey}
           strings={SIDE_STAGE_SCOUT_STRINGS}
           icon={<span aria-hidden="true">✦</span>}
           headerBadges={(
