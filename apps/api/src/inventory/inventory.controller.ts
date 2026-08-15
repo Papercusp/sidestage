@@ -64,6 +64,38 @@ export class InventoryController {
     return item;
   }
 
+  @Post(':sourceProductId/onboard')
+  async onboard(
+    @Param('sourceProductId') sourceProductId: string,
+    @Body() body: SaveBody,
+    @Headers(DEMO_PRINCIPAL_HEADER) principal: string | undefined,
+  ) {
+    const quantity = body.quantity;
+    if (!Number.isInteger(quantity) || (quantity ?? -1) < 0) {
+      throw new BadRequestException('quantity must be a non-negative integer');
+    }
+    if (!Number.isInteger(body.priceCents) || (body.priceCents ?? -1) < 0) {
+      throw new BadRequestException('priceCents must be a non-negative integer');
+    }
+    const sellerId = this.ownership.sellerId(principal);
+    const snapshot = await this.inventory.onboardOwned(
+      sourceProductId,
+      quantity!,
+      body.priceCents!,
+      sellerId,
+    );
+    if (!snapshot) throw new NotFoundException(`Catalog variant ${sourceProductId} was not found`);
+    this.publishInventoryChange(snapshot.productId, principal);
+    return {
+      onboarded: true,
+      sourceProductId,
+      productId: snapshot.productId,
+      quantity,
+      priceCents: body.priceCents,
+      snapshot,
+    };
+  }
+
   @Post(':productId/hold')
   async hold(
     @Param('productId') productId: string,
