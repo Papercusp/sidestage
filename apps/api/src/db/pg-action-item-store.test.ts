@@ -79,8 +79,8 @@ describe.runIf(process.env.SIDESTAGE_PG_INTEGRATION === '1')('PgActionItemStore 
     try {
       await pool.query(
         `INSERT INTO storefront_product
-           (id, slug, sku, price_cents, qty, reserved_qty)
-         VALUES ($1, $1, $1, 1500, 5, 0)`,
+           (id, slug, sku, price_cents, qty, reserved_qty, seller_id)
+         VALUES ($1, $1, $1, 1500, 5, 0, 'seller-demo')`,
         [productId],
       );
       await pool.query(

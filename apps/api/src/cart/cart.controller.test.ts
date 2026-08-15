@@ -1,6 +1,6 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { CartController } from './cart.controller';
-import { CartService, InMemoryCartStore } from './cart.service';
+import { CartService, emptyCart, InMemoryCartStore } from './cart.service';
 
 describe('CartController buyer principal boundary', () => {
   it('allows the selected buyer to read and mutate their server-bound cart', async () => {
@@ -52,5 +52,24 @@ describe('CartController buyer principal boundary', () => {
       title: 'Harbor Kettle',
       priceCents: 7_600,
     }, undefined)).toThrow('Buyer principal is required');
+  });
+
+  it('checks ownership before an expired-cart read can release inventory or persist cleanup', async () => {
+    const stored = {
+      ...emptyCart('cart-avi', 'buyer-demo-avi'),
+      items: [{
+        productId: 'mug', title: 'Harbor Kettle', priceCents: 7_600, quantity: 1,
+        expiresAt: '2000-01-01T00:00:00.000Z',
+      }],
+      subtotalCents: 7_600,
+    };
+    const store = { get: vi.fn(async () => stored), set: vi.fn() };
+    const inventory = { release: vi.fn(async () => true) };
+    const controller = new CartController(new CartService(store, inventory as never));
+
+    await expect(controller.getCart('cart-avi', 'demo-other'))
+      .rejects.toThrow('Cart was not found for this buyer');
+    expect(inventory.release).not.toHaveBeenCalled();
+    expect(store.set).not.toHaveBeenCalled();
   });
 });
