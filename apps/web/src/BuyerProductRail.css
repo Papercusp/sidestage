@@ -1,3 +1,8 @@
+.sc-products > .buyer-product-rail {
+  min-width: 0;
+  grid-column: 1 / -1;
+}
+
 .buyer-product-rail {
   position: relative;
   display: grid;

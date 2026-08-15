@@ -9,7 +9,7 @@ export function rendersBuyerRailDirectly(source: string): boolean {
 }
 
 export function productRendererSpansEveryResultColumn(styles: string): boolean {
-  const rule = styles.match(/\.sc-products\s*>\s*\*\s*\{([^}]*)\}/)?.[1] ?? '';
+  const rule = styles.match(/\.sc-products\s*>\s*\.buyer-product-rail\s*\{([^}]*)\}/)?.[1] ?? '';
   return /grid-column\s*:\s*1\s*\/\s*-1\s*;/.test(rule)
     && /min-width\s*:\s*0\s*;/.test(rule);
 }
@@ -33,7 +33,7 @@ describe('BuyerScoutDrawer contract', () => {
 
   it('gives the existing BuyerProductRail the full Scout result width at every grid breakpoint', () => {
     const drawer = read('./BuyerScoutDrawer.tsx');
-    const styles = read('../../../libs/scout-chat/src/styles.css');
+    const styles = read('./BuyerProductRail.css');
 
     expect(rendersBuyerRailDirectly(drawer)).toBe(true);
     expect(productRendererSpansEveryResultColumn(styles)).toBe(true);
