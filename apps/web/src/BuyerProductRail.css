@@ -217,7 +217,7 @@
 
 @media (max-width: 560px) {
   .buyer-product-rail {
-    grid-auto-columns: minmax(14.5rem, 82vw);
+    grid-auto-columns: minmax(11rem, 88%);
     margin-right: -0.75rem;
     padding-right: 0.75rem;
     scroll-snap-type: inline mandatory;
