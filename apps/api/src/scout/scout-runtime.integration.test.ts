@@ -67,7 +67,7 @@ describe('ScoutService shared runtime integration', () => {
       sessionId: 'runtime-session',
       cartId: 'cart-1',
       maxProducts: 3,
-    })) {
+    }, { buyerId: 'buyer-runtime' })) {
       events.push(event);
     }
 
@@ -88,7 +88,7 @@ describe('ScoutService shared runtime integration', () => {
       call.choice === 'required' && call.tools.join(',') === SCOUT_TOOL_SEARCH_CATALOG
     ))).toBe(true);
 
-    const transcript = await sessions.get('runtime-session');
+    const transcript = await sessions.get('buyer-runtime', 'runtime-session');
     expect(transcript?.messages.map((message) => message.role)).toEqual(['user', 'assistant']);
     expect(transcript?.messages.at(-1)?.content).toBe('Vertex-backed answer');
   });
