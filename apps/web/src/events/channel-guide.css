@@ -198,6 +198,14 @@
   font-weight: 600;
 }
 
+.channel-guide-row-meta time {
+  color: inherit;
+}
+
+.channel-guide-start-exact {
+  font-weight: 500;
+}
+
 .channel-guide-meta-live      { color: var(--red-text); }
 .channel-guide-meta-scheduled { color: var(--yellow-text); }
 .channel-guide-meta-ended     { color: var(--muted); }
