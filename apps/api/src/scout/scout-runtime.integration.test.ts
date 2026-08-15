@@ -36,7 +36,14 @@ class RecordingRuntimeModel implements ScoutModelAdapter {
         }],
       };
     }
-    return { content: '', toolCalls: [] };
+    return {
+      content: '',
+      toolCalls: [{
+        id: `sticky-call-${this.calls.length}`,
+        name: SCOUT_TOOL_SEARCH_CATALOG,
+        args: { query: 'wireless headphones', limit: 3 },
+      }],
+    };
   }
 
   async *stream(): AsyncGenerator<ScoutModelStreamEvent> {
@@ -87,6 +94,7 @@ describe('ScoutService shared runtime integration', () => {
     expect(model.calls.some((call) => (
       call.choice === 'required' && call.tools.join(',') === SCOUT_TOOL_SEARCH_CATALOG
     ))).toBe(true);
+    expect(model.calls.some((call) => call.choice === 'auto')).toBe(false);
 
     const transcript = await sessions.get('buyer-runtime', 'runtime-session');
     expect(transcript?.messages.map((message) => message.role)).toEqual(['user', 'assistant']);

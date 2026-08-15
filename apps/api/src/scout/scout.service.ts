@@ -1,4 +1,4 @@
-import { Inject, Injectable, Optional } from '@nestjs/common';
+import { Inject, Injectable, Logger, Optional } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
 import {
   runScoutTurn,
@@ -197,7 +197,8 @@ class LegacyReplyModelAdapter implements ScoutModelAdapter {
 /**
  * Makes the application invariants explicit at the runtime seam. A cart named
  * by the client is read first, then the canonical catalog is searched before
- * any answer. Vertex still chooses every later tool round itself.
+ * any answer. Once that bounded sequence is complete, the runner moves to its
+ * existing tool-free final stream instead of letting a model loop on searches.
  */
 class RequiredToolSequenceModel implements ScoutModelAdapter {
   readonly model: string;
@@ -213,7 +214,7 @@ class RequiredToolSequenceModel implements ScoutModelAdapter {
     const missing = this.requiredTools.find((name) => !request.messages.some(
       (message) => message.role === 'tool' && message.toolName === name,
     ));
-    if (!missing) return this.delegate.complete(request);
+    if (!missing) return { content: '', toolCalls: [] };
 
     const tool = request.tools.find((candidate) => candidate.name === missing);
     if (!tool) throw new Error(`Required Scout tool is unavailable: ${missing}`);
@@ -235,6 +236,8 @@ class RequiredToolSequenceModel implements ScoutModelAdapter {
 
 @Injectable()
 export class ScoutService {
+  private readonly log = new Logger(ScoutService.name);
+
   constructor(
     @Inject(SCOUT_CATALOG) private readonly catalog: ScoutCatalog,
     @Inject(SCOUT_REPLY_MODEL) private readonly fallbackModel: ScoutReplyModel,
@@ -338,6 +341,12 @@ export class ScoutService {
           if (runtimeMessage.role === 'assistant' && !runtimeMessage.toolCalls?.length) {
             context.reply = runtimeMessage.content.trim() || FALLBACK_REPLY;
           }
+        },
+        onError: (error) => {
+          const detail = error instanceof Error
+            ? `${error.name}: ${error.message}`
+            : String(error);
+          this.log.error(`Scout ${mode} turn ${sessionId} failed: ${detail}`);
         },
       },
     })) {
