@@ -822,6 +822,52 @@ CREATE INDEX IF NOT EXISTS event_lineup_item_event_position_idx
 CREATE UNIQUE INDEX IF NOT EXISTS event_lineup_item_one_on_stage
   ON event_lineup_item (event_id) WHERE stage_state = 'on-stage';
 
+-- Immutable guarded-action evidence. Request ids make retried commands
+-- restart-safe, while one rollback row plus rolled_back_at makes rollback
+-- replay visible and rejectable across API processes.
+CREATE TABLE IF NOT EXISTS action_audit_entry (
+  id text PRIMARY KEY,
+  event_id text NOT NULL,
+  actor_id text NOT NULL,
+  kind text NOT NULL,
+  product_id text NOT NULL,
+  buyer_id text,
+  reason text NOT NULL,
+  before_state jsonb NOT NULL,
+  after_state jsonb NOT NULL,
+  client_request_id text,
+  rollback_of text,
+  rolled_back_at timestamptz,
+  created_at timestamptz NOT NULL,
+  CONSTRAINT action_audit_event_fk FOREIGN KEY (event_id)
+    REFERENCES event (event_id) ON UPDATE CASCADE ON DELETE RESTRICT,
+  CONSTRAINT action_audit_rollback_fk FOREIGN KEY (rollback_of)
+    REFERENCES action_audit_entry (id) ON UPDATE CASCADE ON DELETE RESTRICT,
+  CONSTRAINT action_audit_kind_known CHECK (kind IN (
+    'markdown', 'targeted-offer', 'push', 'swap', 'price-adjust', 'stock-adjust', 'rollback'
+  )),
+  CONSTRAINT action_audit_actor_nonempty CHECK (btrim(actor_id) <> ''),
+  CONSTRAINT action_audit_product_nonempty CHECK (btrim(product_id) <> ''),
+  CONSTRAINT action_audit_reason_nonempty CHECK (btrim(reason) <> ''),
+  CONSTRAINT action_audit_request_nonempty
+    CHECK (client_request_id IS NULL OR btrim(client_request_id) <> ''),
+  CONSTRAINT action_audit_snapshot_objects
+    CHECK (jsonb_typeof(before_state) = 'object' AND jsonb_typeof(after_state) = 'object'),
+  CONSTRAINT action_audit_rollback_shape
+    CHECK ((kind = 'rollback') = (rollback_of IS NOT NULL)),
+  CONSTRAINT action_audit_rollback_time
+    CHECK (rolled_back_at IS NULL OR rolled_back_at >= created_at)
+);
+
+CREATE INDEX IF NOT EXISTS action_audit_event_created_idx
+  ON action_audit_entry (event_id, created_at, id);
+CREATE UNIQUE INDEX IF NOT EXISTS action_audit_request_unique
+  ON action_audit_entry (event_id, client_request_id)
+  WHERE client_request_id IS NOT NULL;
+CREATE UNIQUE INDEX IF NOT EXISTS action_audit_rollback_unique
+  ON action_audit_entry (rollback_of)
+  WHERE rollback_of IS NOT NULL;
+
 -- ── Demo-principal ownership boundary (demo-user-isolation P-002) ──────────
 -- Event-anchored rows deliberately do NOT duplicate seller_id: event is the
 -- owner oracle, and the foreign keys below make every dependent event id

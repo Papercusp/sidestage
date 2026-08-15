@@ -4,6 +4,7 @@ import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 import {
+  REQUIRED_ACTION_AUDIT_STRUCTURES,
   REQUIRED_CHAT_STRUCTURES,
   REQUIRED_LINEUP_STRUCTURES,
   REQUIRED_OWNERSHIP_STRUCTURES,
@@ -12,12 +13,14 @@ import {
   SCHEMA_APPLY_REMEDY,
   type SchemaQueryable,
   assertSchemaCurrent,
+  findMissingActionAuditStructures,
   findMissingChatStructures,
   findMissingLineupStructures,
   findMissingOwnershipStructures,
   findMissingOrderStructures,
   findMissingTables,
   formatOwnershipDriftMessage,
+  formatActionAuditDriftMessage,
   formatChatDriftMessage,
   formatLineupDriftMessage,
   formatOrderDriftMessage,
@@ -41,6 +44,7 @@ function poolWithTables(
     ...REQUIRED_ORDER_STRUCTURES,
     ...REQUIRED_CHAT_STRUCTURES,
     ...REQUIRED_LINEUP_STRUCTURES,
+    ...REQUIRED_ACTION_AUDIT_STRUCTURES,
   ],
 ): SchemaQueryable {
   return {
@@ -262,6 +266,40 @@ describe('durable-lineup schema guard', () => {
 
   it('names the idempotent schema apply remedy', () => {
     expect(formatLineupDriftMessage(['constraint:event_lineup_item_product_fk']))
+      .toContain(SCHEMA_APPLY_REMEDY);
+  });
+});
+
+describe('durable action-audit schema guard', () => {
+  it('tracks event ownership, ordered reads, request replay, and one rollback', () => {
+    expect(REQUIRED_ACTION_AUDIT_STRUCTURES).toEqual(expect.arrayContaining([
+      'constraint:action_audit_event_fk',
+      'constraint:action_audit_kind_known',
+      'constraint:action_audit_rollback_fk',
+      'index:action_audit_event_created_idx',
+      'index:action_audit_request_unique',
+      'index:action_audit_rollback_unique',
+    ]));
+  });
+
+  it('reports a partially-applied durable action-audit schema', async () => {
+    const present = [
+      ...REQUIRED_OWNERSHIP_STRUCTURES,
+      ...REQUIRED_ORDER_STRUCTURES,
+      ...REQUIRED_CHAT_STRUCTURES,
+      ...REQUIRED_LINEUP_STRUCTURES,
+      ...REQUIRED_ACTION_AUDIT_STRUCTURES,
+    ].filter((marker) => marker !== 'index:action_audit_request_unique');
+    await expect(findMissingActionAuditStructures(poolWithTables(REQUIRED_TABLES, present))).resolves.toEqual([
+      'index:action_audit_request_unique',
+    ]);
+    await expect(assertSchemaCurrent(poolWithTables(REQUIRED_TABLES, present))).rejects.toThrow(
+      /index:action_audit_request_unique/,
+    );
+  });
+
+  it('names the idempotent schema apply remedy', () => {
+    expect(formatActionAuditDriftMessage(['index:action_audit_rollback_unique']))
       .toContain(SCHEMA_APPLY_REMEDY);
   });
 });

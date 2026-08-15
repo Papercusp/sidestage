@@ -47,6 +47,7 @@ export interface SchemaQueryable {
  * file dependency.
  */
 export const REQUIRED_TABLES: readonly string[] = [
+  'action_audit_entry',
   'auction_state',
   'cart',
   'chat_message',
@@ -150,6 +151,16 @@ export const REQUIRED_LINEUP_STRUCTURES: readonly string[] = [
   'index:event_lineup_item_one_on_stage',
 ];
 
+/** Durable guarded-action evidence and replay-protection structures. */
+export const REQUIRED_ACTION_AUDIT_STRUCTURES: readonly string[] = [
+  'constraint:action_audit_event_fk',
+  'constraint:action_audit_kind_known',
+  'constraint:action_audit_rollback_fk',
+  'index:action_audit_event_created_idx',
+  'index:action_audit_request_unique',
+  'index:action_audit_rollback_unique',
+];
+
 /** The remedy, in one place — it appears in the thrown message and the README. */
 export const SCHEMA_APPLY_REMEDY = 'npm run db:apply';
 
@@ -234,6 +245,14 @@ export function findMissingLineupStructures(
   return findMissingSchemaStructures(pool, required);
 }
 
+/** Required durable action-audit markers absent from the public schema. */
+export function findMissingActionAuditStructures(
+  pool: SchemaQueryable,
+  required: readonly string[] = REQUIRED_ACTION_AUDIT_STRUCTURES,
+): Promise<string[]> {
+  return findMissingSchemaStructures(pool, required);
+}
+
 /**
  * The operator-facing drift message. Names every missing table (not just a
  * count) and the exact command that fixes it, because the failure is silent by
@@ -305,6 +324,18 @@ export function formatLineupDriftMessage(missing: readonly string[]): string {
   ].join('\n');
 }
 
+export function formatActionAuditDriftMessage(missing: readonly string[]): string {
+  return [
+    `schema drift — ${missing.length} durable action-audit structure(s) missing from the database:`,
+    ...missing.map((marker) => `    ${marker}`),
+    '',
+    'The action_audit_entry table exists, but immutable evidence, request replay',
+    'protection, or single-rollback enforcement is only partially applied.',
+    '',
+    `  remedy: ${SCHEMA_APPLY_REMEDY}`,
+  ].join('\n');
+}
+
 /**
  * Throws when the connected database is missing tables the code queries.
  *
@@ -334,5 +365,9 @@ export async function assertSchemaCurrent(
   const missingLineup = await findMissingLineupStructures(pool);
   if (missingLineup.length > 0) {
     throw new Error(formatLineupDriftMessage(missingLineup));
+  }
+  const missingActionAudit = await findMissingActionAuditStructures(pool);
+  if (missingActionAudit.length > 0) {
+    throw new Error(formatActionAuditDriftMessage(missingActionAudit));
   }
 }
