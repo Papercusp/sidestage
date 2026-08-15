@@ -112,24 +112,6 @@ export class EventApiError extends Error {
   }
 }
 
-export const SELLER_AUCTION_TOKEN_KEY = 'sidestage.auction.seller-token.v1';
-
-export function readSellerAuctionToken(): string | undefined {
-  try {
-    return typeof sessionStorage === 'undefined' ? undefined : sessionStorage.getItem(SELLER_AUCTION_TOKEN_KEY)?.trim() || undefined;
-  } catch {
-    return undefined;
-  }
-}
-
-export function rememberSellerAuctionToken(token: string): void {
-  try {
-    sessionStorage.setItem(SELLER_AUCTION_TOKEN_KEY, token.trim());
-  } catch {
-    // Session-only access can still be used for this render when storage is unavailable.
-  }
-}
-
 /** Carry the app-wide demo principal across seller-private request fallbacks. */
 export function sellerPrivateRequestHeaders(principal?: string): Record<string, string> {
   const normalizedPrincipal = principal?.trim();
