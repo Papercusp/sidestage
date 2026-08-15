@@ -58,6 +58,39 @@ describe('buyer checkout API adapter', () => {
     expect(cartStorage.setItem).toHaveBeenCalledWith(key, 'cart-existing');
   });
 
+  it('creates a stable cart identity and threads event context plus a request identity into a Watch hold', async () => {
+    const cartStorage = storage();
+    const fetchMock = vi.fn(async (_url: string, init: RequestInit) => {
+      const body = JSON.parse(String(init.body)) as Record<string, string>;
+      return response({
+        id: body.cartId,
+        currency: 'USD',
+        subtotalCents: 1_500,
+        updatedAt: '2026-08-14T06:00:00Z',
+        items: [{
+          productId: 'mug', eventId: 'event-1', eventItemId: 'event-1:mug',
+          title: 'Event mug', priceCents: 1_500, quantity: 1,
+        }],
+      });
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const held = await addHeldProductToCart('buyer-event', {
+      id: 'mug', eventId: 'event-1', eventItemId: 'event-1:mug',
+      title: 'Event mug', subtitle: 'Live', priceCents: 1_500, availableQty: 2,
+    }, 'https://api.example.test', cartStorage);
+
+    const body = JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body)) as Record<string, string>;
+    expect(body).toMatchObject({
+      cartId: held.id,
+      productId: 'mug',
+      eventId: 'event-1',
+      eventItemId: 'event-1:mug',
+    });
+    expect(body.idempotencyKey).toMatch(/^cart-hold:/);
+    expect(cartStorage.setItem).toHaveBeenCalledWith(buyerCartStorageKey('buyer-event'), held.id);
+  });
+
   it('requests live rates with cart id plus the normalized address contract', async () => {
     const rates = [{
       id: 'UPS:Ground', carrier: 'UPS', service: 'Ground', totalCents: 1099,
