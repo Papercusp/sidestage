@@ -39,13 +39,13 @@ export class InMemoryActionAuditStore implements ActionAuditStore {
   }
 
   async record(audit: ActionAuditRecord): Promise<ActionAuditRecord> {
+    if (this.#audits.has(audit.id)) throw new ConflictException(`Audit ${audit.id} already exists`);
     if (audit.clientRequestId) {
       const key = this.requestKey(audit.eventId, audit.clientRequestId);
       const existingId = this.#requestIds.get(key);
       if (existingId) return cloneActionAudit(this.#audits.get(existingId)!);
       this.#requestIds.set(key, audit.id);
     }
-    if (this.#audits.has(audit.id)) throw new ConflictException(`Audit ${audit.id} already exists`);
     this.#audits.set(audit.id, cloneActionAudit(audit));
     return cloneActionAudit(audit);
   }

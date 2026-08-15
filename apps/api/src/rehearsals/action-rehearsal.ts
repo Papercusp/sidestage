@@ -241,7 +241,7 @@ export async function runActionRehearsal(options: { now?: () => number } = {}): 
         actorId: 'rehearsal-seller',
         action: { kind: 'markdown', productId: REHEARSAL_PRODUCT, priceCents: 2_400, reason: 'Flash markdown' },
       });
-      const audits = actions.listAudit(eventId);
+      const audits = await actions.listAudit(eventId);
       const [audit] = audits;
       const correct = audits.length === 1
         && audit.before.item.priceCents === LIST_PRICE_CENTS
@@ -277,7 +277,8 @@ export async function runActionRehearsal(options: { now?: () => number } = {}): 
       const priceAfterApply = await priceOf(actions, eventId);
       await actions.rollback(applied.auditId, 'rehearsal-seller', 'Changed my mind');
       const priceAfterRollback = await priceOf(actions, eventId);
-      const rollbackRecorded = actions.listAudit(eventId).some((entry) => entry.rollbackOf === applied.auditId);
+      const rollbackRecorded = (await actions.listAudit(eventId))
+        .some((entry) => entry.rollbackOf === applied.auditId);
       const restored = priceAfterRollback === LIST_PRICE_CENTS && rollbackRecorded;
       return {
         passed: restored,

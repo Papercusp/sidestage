@@ -83,20 +83,27 @@ export class PgActionAuditStore implements ActionAuditStore {
   }
 
   async record(audit: ActionAuditRecord): Promise<ActionAuditRecord> {
-    return this.transaction(async (client) => {
-      const inserted = await this.insert(client, audit, true);
-      if (inserted) return inserted;
-      const existing = audit.clientRequestId
-        ? await client.query<ActionAuditRow>(
-          `SELECT ${SELECT_COLUMNS}
-             FROM action_audit_entry
-            WHERE event_id = $1 AND client_request_id = $2`,
-          [audit.eventId, audit.clientRequestId],
-        )
-        : null;
-      if (existing?.rows[0]) return mapRow(existing.rows[0]);
-      throw new ConflictException(`Audit ${audit.id} already exists`);
-    });
+    try {
+      return await this.transaction(async (client) => {
+        const inserted = await this.insert(client, audit, true);
+        if (inserted) return inserted;
+        const existing = audit.clientRequestId
+          ? await client.query<ActionAuditRow>(
+            `SELECT ${SELECT_COLUMNS}
+               FROM action_audit_entry
+              WHERE event_id = $1 AND client_request_id = $2`,
+            [audit.eventId, audit.clientRequestId],
+          )
+          : null;
+        if (existing?.rows[0]) return mapRow(existing.rows[0]);
+        throw new ConflictException(`Audit ${audit.id} already exists`);
+      });
+    } catch (error) {
+      if (error && typeof error === 'object' && 'code' in error && error.code === '23505') {
+        throw new ConflictException(`Audit ${audit.id} already exists`);
+      }
+      throw error;
+    }
   }
 
   async recordRollback(originalAuditId: string, audit: ActionAuditRecord): Promise<ActionAuditRecord> {
