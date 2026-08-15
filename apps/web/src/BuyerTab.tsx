@@ -231,8 +231,16 @@ export function BuyerTab({
   }), [heldProductIdSet, holdOverrides, products]);
   const visibleProducts = availableBuyerProducts(productsWithLiveQuantity);
   const currentProduct = visibleProducts[0] ?? productsWithLiveQuantity[0] ?? null;
-  const upcomingProducts = currentProduct
-    ? productsWithLiveQuantity.filter((product) => product.id !== currentProduct.id)
+  const currentProductPosition = currentProduct
+    ? productsWithLiveQuantity.findIndex((product) => product.id === currentProduct.id) + 1
+    : 0;
+  const totalProductCount = productsWithLiveQuantity.length;
+  const productSequenceById = useMemo(
+    () => Object.fromEntries(productsWithLiveQuantity.map((product, index) => [product.id, index + 1])),
+    [productsWithLiveQuantity],
+  );
+  const upcomingProducts = currentProductPosition > 0
+    ? productsWithLiveQuantity.slice(currentProductPosition)
     : productsWithLiveQuantity;
   const displayedProducts = showAllProducts
     ? productsWithLiveQuantity
@@ -375,13 +383,59 @@ export function BuyerTab({
             apiBaseUrl={import.meta.env.VITE_API_URL}
           />
 
-          <div className="buyer-products-heading">
-            <div>
-              <p className="eyebrow">Coming up</p>
-              <h3>Next in the drop</h3>
+          <section className="buyer-drop-runway" aria-labelledby="buyer-drop-runway-title">
+            <header className="buyer-products-heading">
+              <div>
+                <p className="eyebrow">Coming up</p>
+                <h3 id="buyer-drop-runway-title">The drop runway</h3>
+              </div>
+              <span className="muted">
+                {currentProductPosition > 0
+                  ? `Item ${currentProductPosition} of ${totalProductCount} live now`
+                  : 'The lineup is waiting to be published'}
+              </span>
+            </header>
+
+            {totalProductCount > 0 ? (
+              <div className="buyer-drop-progress">
+                <div className="buyer-drop-progress-copy">
+                  <span>Drop progress</span>
+                  <strong>{currentProductPosition} / {totalProductCount}</strong>
+                </div>
+                <div
+                  className="buyer-drop-progress-track"
+                  role="progressbar"
+                  aria-label="Drop progress"
+                  aria-valuemin={0}
+                  aria-valuemax={totalProductCount}
+                  aria-valuenow={currentProductPosition}
+                  aria-valuetext={`Item ${currentProductPosition} of ${totalProductCount} is live`}
+                >
+                  <span style={{ width: `${(currentProductPosition / totalProductCount) * 100}%` }} />
+                </div>
+              </div>
+            ) : null}
+
+            {holdNotice && heldProductIds.length > 0 ? <p className="buyer-hold-notice" role="status">{holdNotice}</p> : null}
+            <div id="buyer-event-products" className="buyer-products-shell" aria-label="Event products">
+              <BuyerProductRail
+                products={displayedProducts}
+                heldProductIds={heldProductIds}
+                sequenceByProductId={productSequenceById}
+                currentSequenceNumber={currentProductPosition}
+                totalProducts={totalProductCount}
+                ariaLabel={showAllProducts ? 'Products in sale order' : 'Upcoming products in sale order'}
+                onHold={reserveProduct}
+              />
             </div>
-            <div className="buyer-products-heading-actions">
-              <span className="muted">{visibleProducts.length} available</span>
+
+            <footer className="buyer-runway-footer">
+              <p>
+                <strong>{visibleProducts.length}</strong> available
+                {upcomingProducts.length > BUYER_PRODUCT_PREVIEW_LIMIT && !showAllProducts
+                  ? ` · +${upcomingProducts.length - BUYER_PRODUCT_PREVIEW_LIMIT} more upcoming`
+                  : ' · sale order locked'}
+              </p>
               {upcomingProducts.length > BUYER_PRODUCT_PREVIEW_LIMIT ? (
                 <button
                   className="button secondary buyer-products-toggle"
@@ -395,16 +449,8 @@ export function BuyerTab({
                     : `View all ${productsWithLiveQuantity.length} items`}
                 </button>
               ) : null}
-            </div>
-          </div>
-          {holdNotice && heldProductIds.length > 0 ? <p className="buyer-hold-notice" role="status">{holdNotice}</p> : null}
-          <div id="buyer-event-products" className="buyer-products-shell" aria-label="Event products">
-            <BuyerProductRail
-              products={displayedProducts}
-              heldProductIds={heldProductIds}
-              onHold={reserveProduct}
-            />
-          </div>
+            </footer>
+          </section>
         </div>
       </div>
 
