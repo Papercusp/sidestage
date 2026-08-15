@@ -364,17 +364,23 @@ export class PgCatalogSource implements CatalogSource {
 @Injectable()
 export class FixtureCatalogSource implements CatalogSource {
   private readonly fixture: CatalogVariant[];
+  private readonly owners = new Map<string, string>();
 
   constructor(fixture: readonly CatalogVariant[] = DEMO_CATALOG_FIXTURE) {
     // The exported fixture is immutable shared test/demo data. Each source gets
     // its own rows so a Studio intake mutation cannot leak between app boots.
     this.fixture = fixture.map((variant) => ({ ...variant }));
+    for (const variant of this.fixture) this.owners.set(variant.id, 'demo-seller');
   }
 
   async search(query: CatalogQuery): Promise<CatalogPage> {
+    return this.searchRows(this.fixture, query);
+  }
+
+  private searchRows(rows: readonly CatalogVariant[], query: CatalogQuery): CatalogPage {
     const { q, productTypes, availability, page, pageSize } = normalizeQuery(query);
     const needle = q.toLowerCase();
-    const matches = this.fixture.filter((variant) => {
+    const matches = rows.filter((variant) => {
       if (productTypes.length > 0 && !productTypes.includes(variant.productType)) return false;
       if (availability === 'in-stock' && variant.availableQty < 1) return false;
       if (!needle) return true;
@@ -392,11 +398,10 @@ export class FixtureCatalogSource implements CatalogSource {
   }
 
   async searchOwned(query: CatalogQuery, sellerId: string): Promise<CatalogPage> {
-    if (sellerId !== 'demo-seller') {
-      const { page, pageSize } = normalizeQuery(query);
-      return { rows: [], page, pageSize, total: 0, totalIsFloor: false };
-    }
-    return this.search(query);
+    return this.searchRows(
+      this.fixture.filter((variant) => this.owners.get(variant.id) === sellerId),
+      query,
+    );
   }
 
   async productTypes(): Promise<string[]> {
@@ -422,6 +427,37 @@ export class FixtureCatalogSource implements CatalogSource {
     };
     this.fixture[index] = next;
     return { ...next };
+  }
+
+  async onboardInventory(
+    sourceId: string,
+    targetId: string,
+    sellerId: string,
+    quantity: number,
+    priceCents: number,
+  ): Promise<CatalogVariant | undefined> {
+    const source = this.fixture.find((variant) => variant.id === sourceId);
+    if (!source) return undefined;
+    const existingIndex = this.fixture.findIndex((variant) => variant.id === targetId);
+    if (existingIndex >= 0 && this.owners.get(targetId) !== sellerId) return undefined;
+    const existing = existingIndex >= 0 ? this.fixture[existingIndex] : undefined;
+    const reservedQty = existing?.reservedQty ?? 0;
+    if (quantity < reservedQty) {
+      throw new ConflictException(`Quantity cannot be lower than ${reservedQty} reserved units for ${targetId}`);
+    }
+    const clone: CatalogVariant = {
+      ...source,
+      id: targetId,
+      sku: `${source.sku}-${targetId.slice(-8).toUpperCase()}`,
+      qty: quantity,
+      reservedQty,
+      availableQty: Math.max(0, quantity - reservedQty),
+      priceCents,
+    };
+    if (existingIndex >= 0) this.fixture[existingIndex] = clone;
+    else this.fixture.push(clone);
+    this.owners.set(targetId, sellerId);
+    return { ...clone };
   }
 }
 
