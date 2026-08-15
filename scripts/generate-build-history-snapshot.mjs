@@ -1,43 +1,44 @@
 import { spawnSync } from 'node:child_process';
-import { existsSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
-const papercuspRepoRoot = process.env.PAPERCUSP_REPO_ROOT?.trim();
-
-if (!papercuspRepoRoot) {
-  throw new Error(
-    'PAPERCUSP_REPO_ROOT is required to generate SideStage History with the shared Papercusp CLI.',
-  );
-}
-
-const cli = join(papercuspRepoRoot, 'libs/papercusp/packages/cli/bin/papercusp');
-if (!existsSync(cli)) {
-  throw new Error(`Shared Papercusp project-history CLI not found at ${cli}`);
-}
 
 const output = join(repoRoot, 'apps/api/src/build-history/build-history.snapshot.ts');
-const args = [
-  'project-history',
-  'generate',
-  '--workspace', process.env.PAPERCUSP_WORKSPACE ?? 'papercusp-workspace',
-  '--harness', 'sidestage',
-  '--prefix=',
-  '--project-id', 'sidestage',
-  '--project-name', 'SideStage',
-  '--repo', repoRoot,
-  '--output', output,
-  '--format', 'typescript',
-  '--export-name', 'BUILD_HISTORY_SNAPSHOT',
-  ...process.argv.slice(2),
-];
 
-const result = spawnSync(cli, args, {
-  cwd: repoRoot,
-  env: process.env,
-  stdio: 'inherit',
-});
+export function projectHistoryCommand(env = process.env) {
+  return env.PAPERCUSP_CLI?.trim() || 'papercusp';
+}
 
-if (result.error) throw result.error;
-if (result.status !== 0) process.exitCode = result.status ?? 1;
+export function projectHistoryArgs(argv = [], env = process.env) {
+  return [
+    'project-history',
+    'generate',
+    '--workspace', env.PAPERCUSP_WORKSPACE ?? 'papercusp-workspace',
+    '--harness', 'sidestage',
+    '--prefix=',
+    '--project-id', 'sidestage',
+    '--project-name', 'SideStage',
+    '--repo', repoRoot,
+    '--output', output,
+    '--format', 'typescript',
+    '--export-name', 'BUILD_HISTORY_SNAPSHOT',
+    ...argv,
+  ];
+}
+
+export function generateBuildHistorySnapshot(argv = process.argv.slice(2), env = process.env) {
+  const result = spawnSync(projectHistoryCommand(env), projectHistoryArgs(argv, env), {
+    cwd: repoRoot,
+    env,
+    stdio: 'inherit',
+  });
+
+  if (result.error) throw result.error;
+  if (result.status !== 0) process.exitCode = result.status ?? 1;
+  return result.status;
+}
+
+if (import.meta.url === pathToFileURL(process.argv[1] ?? '').href) {
+  generateBuildHistorySnapshot();
+}
