@@ -140,6 +140,16 @@ describe('findMissingTables', () => {
 });
 
 describe('ownership schema guard', () => {
+  it('makes catalog signatures unique per seller rather than globally', () => {
+    expect(SCHEMA_SQL).toContain('DROP INDEX IF EXISTS storefront_product_group_signature_unique');
+    expect(SCHEMA_SQL).toMatch(
+      /CREATE UNIQUE INDEX IF NOT EXISTS storefront_product_seller_group_signature_unique\s+ON storefront_product \(seller_id, group_id, region, option_signature\)/,
+    );
+    expect(SCHEMA_SQL).not.toMatch(
+      /CREATE UNIQUE INDEX IF NOT EXISTS storefront_product_group_signature_unique\s+ON storefront_product \(group_id, region, option_signature\)/,
+    );
+  });
+
   it('tracks the columns, foreign keys, and immutable-owner triggers introduced by P-002', () => {
     expect(REQUIRED_OWNERSHIP_STRUCTURES).toEqual(
       expect.arrayContaining([
