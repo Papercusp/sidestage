@@ -3,7 +3,7 @@ import type { Pool } from 'pg';
 import { ChatService } from '../chat/chat.service';
 import { ChatModule } from '../chat/chat.module';
 import { EventModule } from '../events/event.module';
-import { EVENT_STORE, type EventStore } from '../events/event.service';
+import { EventVisibilityGuard } from '../events/event-visibility.guard';
 import { ActionModule } from '../actions/action.module';
 import { GuardedActionService } from '../actions/action.service';
 import { AuctionModule } from '../auction/auction.module';
@@ -46,28 +46,6 @@ export interface PricingHistory {
  * sold/raised from PAID checkout orders in Postgres. With no database (memory
  * mode) sold/raised are honestly zero rather than invented.
  */
-/**
- * EI-20444567654586364: /stats and /pricing-history are deliberately
- * unauthenticated — the buyer surface renders "raised" publicly — so this
- * visibility gate IS the access control: an event that is not buyer-visible
- * (draft/unpublished, or never published at all) must be as unreachable here
- * as it is in the Channel Guide. Same fail-closed rule as listBuyerVisible,
- * and "missing" vs "unpublished" are deliberately indistinguishable (both
- * 404), so this endpoint cannot be used to enumerate unlisted events or read
- * their revenue by guessing ids.
- */
-@Injectable()
-export class EventVisibilityGuard {
-  constructor(@Inject(EVENT_STORE) private readonly events: EventStore) {}
-
-  async assertBuyerVisible(eventId: string): Promise<void> {
-    const visible = await this.events.listBuyerVisible();
-    if (!visible.some((record) => record.eventId === eventId)) {
-      throw new NotFoundException(`Unknown event: ${eventId}`);
-    }
-  }
-}
-
 @Injectable()
 export class EventStatsService {
   constructor(
@@ -236,6 +214,8 @@ export class StatsSyncQueries implements OnModuleInit {
 @Module({
   imports: [ActionModule, AuctionModule, ChatModule, DatabaseModule, EventModule, SyncModule],
   controllers: [StatsController],
-  providers: [EventStatsService, EventVisibilityGuard, PricingHistoryService, StatsSyncQueries],
+  providers: [EventStatsService, PricingHistoryService, StatsSyncQueries],
 })
 export class StatsModule {}
+
+export { EventVisibilityGuard } from '../events/event-visibility.guard';
