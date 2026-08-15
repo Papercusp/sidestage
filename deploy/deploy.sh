@@ -101,6 +101,11 @@ say() { echo "==> $*"; }
 # never silent.
 HEALTH_LEG=none
 HEALTH_BODY=""
+health_body_reports_sha() {
+  local compact="${1//[[:space:]]/}"
+  [[ "$compact" == *"\"sha\":\"$2\""* ]]
+}
+
 health_probe() {
   local target_sha="$1" body
   HEALTH_LEG=none
@@ -108,12 +113,12 @@ health_probe() {
   if body="$(curl -sf --max-time 6 "$HEALTH_URL" 2>/dev/null)"; then
     HEALTH_LEG=public
     HEALTH_BODY="$body"
-    return 0
+    health_body_reports_sha "$body" "$target_sha" && return 0
   fi
   if body="$("${SSH[@]}" "cd $PROD_DIR && SIDESTAGE_SHA=$target_sha $COMPOSE exec -T api node -e 'fetch(\"http://127.0.0.1:3100/healthz\").then(r=>{if(!r.ok)process.exit(1);return r.text()}).then(t=>process.stdout.write(t)).catch(()=>process.exit(1))'" 2>/dev/null)"; then
     HEALTH_LEG=container
     HEALTH_BODY="$body"
-    return 0
+    health_body_reports_sha "$body" "$target_sha" && return 0
   fi
   return 1
 }
@@ -263,9 +268,8 @@ if ! $sha_ok; then
   echo "       expected: $SHA" >&2
   echo "       /healthz (leg: $HEALTH_LEG) returned: ${served:-<no response>}" >&2
   echo "       $DEPLOYED_SHA_FILE was left at ${PREV_SHA:0:7} -- it still names the" >&2
-  echo "       last sha prod was PROVEN to serve. Investigate before rolling back:" >&2
-  echo "         curl -s $HEALTH_URL" >&2
-  exit 5
+  echo "       last sha prod was PROVEN to serve." >&2
+  auto_rollback_failed_release "sha verification" 5
 fi
 say "OK: /healthz (leg: $HEALTH_LEG) reports ${SHA:0:7}"
 
