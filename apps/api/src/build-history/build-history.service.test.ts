@@ -12,7 +12,7 @@ describe('BuildHistoryService', () => {
     const popupPlan = history.find(({ slug }) => slug === 'sidestage-history-plan-popup-2026-08-14');
     const acceptancePlan = history.find(({ slug }) => slug === 'acceptance-sidestage-demo-product-imagery-2026-08-14');
 
-    expect(history.length).toBeGreaterThan(0);
+    expect(history.length).toBeGreaterThanOrEqual(56);
     expect(acceptancePlan).toBeDefined();
     expect(popupPlan).toMatchObject({
       title: 'SideStage History tab and full Vditor plan popup',
@@ -30,7 +30,7 @@ describe('BuildHistoryService', () => {
     expect(popupPlan?.items).toEqual(expect.arrayContaining([
       expect.objectContaining({ id: 'P-002', storedStatus: 'done', effectiveStatus: 'done' }),
       expect.objectContaining({ id: 'P-003', storedStatus: 'done', effectiveStatus: 'done', blockedBy: ['P-001', 'P-002'] }),
-      expect.objectContaining({ id: 'P-004', storedStatus: 'todo', effectiveStatus: 'todo', blockedBy: ['P-003'] }),
+      expect.objectContaining({ id: 'P-004', storedStatus: 'done', effectiveStatus: 'done', blockedBy: ['P-003'] }),
     ]));
     expect(popupPlan?.decisions).toEqual(expect.arrayContaining([
       expect.objectContaining({ id: 'D-002', title: 'History popup is read-only and production-safe', itemRefs: ['P-002', 'P-003'] }),

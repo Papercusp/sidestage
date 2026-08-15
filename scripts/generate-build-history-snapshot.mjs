@@ -1,8 +1,8 @@
 import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { dirname, join, resolve } from 'node:path';
+import { basename, dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
@@ -167,21 +167,28 @@ try {
     compact: true,
     limit: 500,
     order: 'updated',
-  })).filter((plan) => (
-    typeof plan.slug === 'string'
-    && (planPrefix === null || plan.slug.startsWith(planPrefix))
-  ));
+  }));
+  const listedBySlug = new Map(listed.flatMap((plan) => (
+    typeof plan.slug === 'string' ? [[plan.slug, plan]] : []
+  )));
   runPtool('plans:export', { harness, toDir: exportDirectory });
 
-  const plans = listed.map((listedPlan) => {
-    const markdown = readFileSync(join(exportDirectory, `${listedPlan.slug}.md`), 'utf8');
+  const exportedSlugs = readdirSync(exportDirectory, { withFileTypes: true })
+    .filter((entry) => entry.isFile() && entry.name.endsWith('.md'))
+    .map((entry) => basename(entry.name, '.md'))
+    .filter((slug) => planPrefix === null || slug.startsWith(planPrefix))
+    .sort((left, right) => left.localeCompare(right));
+
+  const plans = exportedSlugs.map((slug) => {
+    const listedPlan = listedBySlug.get(slug);
+    const markdown = readFileSync(join(exportDirectory, `${slug}.md`), 'utf8');
     const frontmatter = frontmatterFrom(markdown);
     const contentHash = createHash('sha256').update(markdown).digest('hex');
     const plan = {
-      slug: listedPlan.slug,
-      title: listedPlan.title ?? frontmatter.title ?? listedPlan.slug,
-      status: listedPlan.status ?? frontmatter.status ?? 'unknown',
-      updatedAt: listedPlan.updated ?? frontmatter.updated ?? null,
+      slug,
+      title: listedPlan?.title ?? frontmatter.title ?? slug,
+      status: listedPlan?.status ?? frontmatter.status ?? 'unknown',
+      updatedAt: listedPlan?.updated ?? frontmatter.updated ?? null,
       contentHash,
       markdown,
       frontmatter,
