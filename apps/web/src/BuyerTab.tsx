@@ -196,9 +196,10 @@ export function BuyerTab({
     ), [mediaBaseUrl, room, setStreamState, startStream, videoRef]);
 
   useEffect(() => {
+    if (activeGuideEvent?.status !== 'live') return stopStream;
     void connectStream();
     return stopStream;
-  }, [connectStream, stopStream]);
+  }, [activeGuideEvent?.status, connectStream, stopStream]);
 
   const disconnectStream = stopStream;
 
