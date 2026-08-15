@@ -29,7 +29,7 @@ export default defineConfig({
           root: repositoryRoot,
           sequence: { groupOrder: 0 },
           environment: 'node',
-          include: ['deploy/**/*.test.mjs'],
+          include: ['deploy/**/*.test.mjs', 'scripts/**/*.test.mjs'],
           exclude: sourceExclude,
         },
       },
