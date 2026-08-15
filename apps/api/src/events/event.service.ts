@@ -409,7 +409,13 @@ export class EventService {
   ): Promise<boolean> {
     const sellerId = seller.sellerId.trim();
     const sellerName = seller.sellerName.trim();
-    if (!sellerId || !sellerName || isSyntheticSellerIdentity({ sellerId, sellerName })) {
+    // The legacy catalog is owned by `demo-seller`, so a fresh generated demo
+    // persona legitimately creates its private event row under that owner.
+    // `listForGuide()` remains the public boundary and filters every
+    // `demo-seller` row. Only the retired placeholder display identity is
+    // refused here; conflating "never public" with "must not exist" made the
+    // clean-clone create flow fail before it could register its first item.
+    if (!sellerId || !sellerName || sellerName.toLowerCase() === 'sidestage seller') {
       return false;
     }
     return this.store.publish({

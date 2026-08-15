@@ -279,6 +279,24 @@ describe('seller-created events reach the guide (EI-20426845001666103 / P-014)',
     await expect(service.listForGuide()).resolves.toEqual([]);
   });
 
+  it('keeps a generated demo seller event private instead of rejecting the create', async () => {
+    const service = new EventService(new InMemoryEventStore([]), new ChatService());
+
+    await expect(service.publishFromConfig(
+      { eventId: 'generated-demo-event', name: 'Generated demo event' },
+      { sellerId: 'demo-seller', sellerName: 'seller-1dd66ef5' },
+    )).resolves.toBe(true);
+
+    await expect(service.listForSeller('demo-seller')).resolves.toEqual([
+      expect.objectContaining({
+        eventId: 'generated-demo-event',
+        sellerId: 'demo-seller',
+        sellerName: 'seller-1dd66ef5',
+      }),
+    ]);
+    await expect(service.listForGuide()).resolves.toEqual([]);
+  });
+
   it('publishFromConfig makes a brand-new event buyer-visible with its thumbnail', async () => {
     const service = new EventService(new InMemoryEventStore([]), new ChatService());
 
