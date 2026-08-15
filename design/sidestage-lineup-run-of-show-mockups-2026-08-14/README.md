@@ -23,6 +23,14 @@ Changing the order, timing, notes, or plan membership in one concept updates the
 
 P-002 deliberately does not select a winner. P-004 owns cross-viewport browser QA, the comparison, and the recommendation.
 
+## Validated UI IR
+
+P-003 expresses each direction in Papercusp UI IR v0.1. The specs use only registry-confirmed React/Tailwind components and pass both `design-phase.validate_spec` and `design-phase.lint_spec` with zero errors or warnings (`maxDepth: 6`).
+
+- `01-inline-flow.ui-ir.json` — repeated Lineup rows keep commerce context, timing, notes, movement, and plan membership together.
+- `02-focus-inspector.ui-ir.json` — a compact sortable rail drives one responsive focused editor.
+- `03-manage-plan.ui-ir.json` — one destination exposes explicit Manage and Plan modes over the same ordered products.
+
 ## Reused SideStage system
 
 - Palette, surfaces, controls, badges, and header chrome reuse `../sidestage-page-redesign-2026-08-14/mockups/shared.css`, which mirrors the shipped Ticket theme tokens.
@@ -43,5 +51,8 @@ P-002 deliberately does not select a winner. P-004 owns cross-viewport browser Q
 - `index.html` — comparison shell and semantic landmarks for all three concepts.
 - `styles.css` — SideStage-native responsive presentation.
 - `app.js` — shared content model, synchronized rendering, drag-and-drop, keyboard tabs, and local preview actions.
+- `01-inline-flow.ui-ir.json` — validated UI IR for the inline planning direction.
+- `02-focus-inspector.ui-ir.json` — validated UI IR for the focused-editor direction.
+- `03-manage-plan.ui-ir.json` — validated UI IR for the explicit task-mode direction.
 
 Serve this directory through any local static server; no build step or external dependency is required.
