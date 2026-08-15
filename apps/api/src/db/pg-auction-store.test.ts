@@ -35,7 +35,7 @@ function transactionalPool(handler: QueryHandler) {
 describe('PgAuctionStore transactional aggregate authority', () => {
   it('reserves inventory and inserts the aggregate in one transaction', async () => {
     const harness = transactionalPool((sql) => {
-      if (sql.includes('SELECT id FROM storefront_product')) return { rows: [{ id: 'product-1' }] };
+      if (sql.includes('FROM storefront_product AS product')) return { rows: [{ id: 'product-1' }] };
       if (sql.includes('UPDATE event_lineup_item')) return { rows: [{ id: 'item-1' }] };
       return { rows: [] };
     });
@@ -48,15 +48,29 @@ describe('PgAuctionStore transactional aggregate authority', () => {
     expect(statements).toEqual([
       'BEGIN',
       'SELECT expire_inventory_reservations()',
-      'SELECT id FROM storefront_product WHERE id = $1 FOR UPDATE',
+      'SELECT product.id FROM storefront_product AS product JOIN event AS owner ON owner.event_id = $2 AND owner.seller_id = product.seller_id WHERE product.id = $1 FOR UPDATE OF product',
       expect.stringContaining('UPDATE event_lineup_item'),
       'SELECT reserve_inventory($1, $2, $3, $4, $5)',
       expect.stringContaining('INSERT INTO auction_state'),
       'COMMIT',
     ]);
+    expect(harness.query.mock.calls[2]?.[1]).toEqual(['product-1', 'event-1']);
     expect(harness.query.mock.calls[4]?.[1]).toEqual(['product-1', 'auction', 'auction-1', 2, null]);
     expect(statements.at(-2)).toContain('(SELECT seller_id FROM event WHERE event_id = $2)');
     expect(harness.release).toHaveBeenCalledOnce();
+  });
+
+  it('refuses to start an auction against another seller\'s product', async () => {
+    const harness = transactionalPool(() => ({ rows: [] }));
+    const store = new PgAuctionStore(harness.pool);
+
+    await expect(store.start(activeAuction())).rejects.toThrow('Inventory item product-1 was not found');
+
+    const statements = harness.query.mock.calls.map(([sql]) => sql.replace(/\s+/g, ' ').trim());
+    expect(statements[2]).toContain('owner.seller_id = product.seller_id');
+    expect(harness.query.mock.calls[2]?.[1]).toEqual(['product-1', 'event-1']);
+    expect(statements.some((sql) => sql.includes('UPDATE event_lineup_item'))).toBe(false);
+    expect(statements.at(-1)).toBe('ROLLBACK');
   });
 
   it('recovers the current aggregate from Postgres after a service restart', async () => {
@@ -281,9 +295,9 @@ describe.runIf(process.env.SIDESTAGE_PG_INTEGRATION === '1')('PgAuctionStore aga
         [auction.eventId, sellerId],
       );
       await pool.query(
-        `INSERT INTO storefront_product (id, slug, region, sku, price_cents, active, qty, reserved_qty)
-         VALUES ($1, $1, 'US', $2, 1000, true, 3, 0)`,
-        [productId, `AUCTION-TEST-${suffix}`],
+        `INSERT INTO storefront_product (id, slug, region, sku, price_cents, active, qty, reserved_qty, seller_id)
+         VALUES ($1, $1, 'US', $2, 1000, true, 3, 0, $3)`,
+        [productId, `AUCTION-TEST-${suffix}`, sellerId],
       );
       await pool.query(
         `INSERT INTO event_lineup_item
