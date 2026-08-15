@@ -120,6 +120,42 @@ export interface CopilotProposalCardProps {
   onConfirmAction: () => void;
 }
 
+interface CopilotQueueItemProps {
+  proposal: CopilotProposal;
+  selected: boolean;
+  onSelect: () => void;
+}
+
+function CopilotQueueItem({ proposal, selected, onSelect }: CopilotQueueItemProps) {
+  const verifiedSourceCount = citedSources(proposal).length;
+  return (
+    <button
+      className={`copilot-queue-item copilot-queue-item-${proposal.status}`}
+      type="button"
+      aria-label={`Review ${proposal.question.buyerName}: ${proposal.question.text}`}
+      aria-pressed={selected}
+      data-copilot-queue-item={proposal.id}
+      onClick={onSelect}
+    >
+      <span className="copilot-queue-item-copy">
+        <strong>{proposal.question.buyerName}</strong>
+        <span>{proposal.question.text}</span>
+      </span>
+      <span className="copilot-queue-item-meta">
+        <span>{verifiedSourceCount} verified source{verifiedSourceCount === 1 ? '' : 's'}</span>
+        <span
+          className="copilot-review-status"
+          role={proposal.status === 'skipped' ? 'status' : undefined}
+          aria-live={proposal.status === 'skipped' ? 'polite' : undefined}
+          aria-atomic={proposal.status === 'skipped' ? true : undefined}
+        >
+          {proposal.status}
+        </span>
+      </span>
+    </button>
+  );
+}
+
 export function CopilotProposalCard({
   proposal,
   draft,
@@ -223,6 +259,7 @@ export function CopilotPanel({
   });
   const [message, setMessage] = useState('');
   const [drafts, setDrafts] = useState<Record<string, string>>({});
+  const [selectedProposalId, setSelectedProposalId] = useState<string>();
   const [busyId, setBusyId] = useState<string>();
   const [error, setError] = useState<string>();
 
@@ -279,48 +316,70 @@ export function CopilotPanel({
   }
 
   const rows = proposals.data ?? [];
+  const selectedProposal = rows.find((proposal) => proposal.id === selectedProposalId) ?? rows[0];
   return (
     <section className="copilot-panel" aria-label="Seller copilot">
-      <div className="copilot-panel-heading">
-        <div>
-          <p className="eyebrow">Grounded seller copilot</p>
-          <h2>Review before it reaches the room.</h2>
+      <div className="copilot-panel-toolbar">
+        <div className="copilot-panel-heading">
+          <div>
+            <p className="eyebrow">Grounded seller copilot</p>
+            <h2>Review queue</h2>
+          </div>
+          <span className="live-badge" role="status" aria-live="polite" aria-atomic="true">
+            {rows.filter((proposal) => proposal.status === 'pending').length} PENDING
+          </span>
         </div>
-        <span className="live-badge" role="status" aria-live="polite" aria-atomic="true">
-          {rows.filter((proposal) => proposal.status === 'pending').length} PENDING
-        </span>
-      </div>
 
-      <form className="copilot-form" onSubmit={(event) => void submit(event)}>
-        <label htmlFor="copilot-message">Research a buyer question</label>
-        <div className="copilot-input-row">
-          <input id="copilot-message" value={message} onChange={(event) => setMessage(event.target.value)} placeholder="Ask using live event facts" />
-          <button className="button primary" type="submit" disabled={Boolean(busyId) || !message.trim()}>{busyId === 'create' ? 'Grounding…' : 'Prepare'}</button>
-        </div>
-      </form>
+        <form className="copilot-form" onSubmit={(event) => void submit(event)}>
+          <label htmlFor="copilot-message">Research a buyer question</label>
+          <div className="copilot-input-row">
+            <input id="copilot-message" value={message} onChange={(event) => setMessage(event.target.value)} placeholder="Ask using live event facts" />
+            <button className="button primary" type="submit" disabled={Boolean(busyId) || !message.trim()}>{busyId === 'create' ? 'Grounding…' : 'Prepare'}</button>
+          </div>
+        </form>
+      </div>
 
       {error ? <p className="copilot-error" role="alert">{error}</p> : null}
       {proposals.error ? <p className="copilot-error" role="alert">Unable to load proposals. <button type="button" onClick={proposals.invalidate}>Try again</button></p> : null}
       {proposals.loading && rows.length === 0 ? <p className="copilot-empty" role="status">Loading grounded proposals…</p> : null}
       {!proposals.loading && rows.length === 0 ? <p className="copilot-empty">Buyer questions will appear here for seller review.</p> : null}
 
-      <div className="copilot-proposal-list" aria-label="Copilot proposal queue">
-        {rows.map((proposal) => {
-          const draft = drafts[proposal.id] ?? proposal.reply;
-          return (
+      {selectedProposal ? (
+        <div className="copilot-workspace">
+          <aside className="copilot-queue" aria-label="Copilot proposal queue">
+            <div className="copilot-queue-heading">
+              <strong>Queue</strong>
+              <span>{rows.length} proposal{rows.length === 1 ? '' : 's'}</span>
+            </div>
+            <div className="copilot-queue-list">
+              {rows.map((proposal) => (
+                <CopilotQueueItem
+                  key={proposal.id}
+                  proposal={proposal}
+                  selected={proposal.id === selectedProposal.id}
+                  onSelect={() => setSelectedProposalId(proposal.id)}
+                />
+              ))}
+            </div>
+          </aside>
+
+          <div className="copilot-inspector" aria-label={`Reviewing proposal from ${selectedProposal.question.buyerName}`}>
             <CopilotProposalCard
-              key={proposal.id}
-              proposal={proposal}
-              draft={draft}
-              busy={busyId === proposal.id}
-              onDraftChange={(value) => setDrafts((current) => ({ ...current, [proposal.id]: value }))}
-              onApprove={() => void run(proposal.id, () => approve({ proposalId: proposal.id, actorId, reply: draft }))}
-              onSkip={() => void run(proposal.id, () => skip({ proposalId: proposal.id, actorId }))}
-              onConfirmAction={() => void run(proposal.id, () => confirmAction({ proposalId: proposal.id, actorId }))}
+              proposal={selectedProposal}
+              draft={drafts[selectedProposal.id] ?? selectedProposal.reply}
+              busy={busyId === selectedProposal.id}
+              onDraftChange={(value) => setDrafts((current) => ({ ...current, [selectedProposal.id]: value }))}
+              onApprove={() => void run(selectedProposal.id, () => approve({
+                proposalId: selectedProposal.id,
+                actorId,
+                reply: drafts[selectedProposal.id] ?? selectedProposal.reply,
+              }))}
+              onSkip={() => void run(selectedProposal.id, () => skip({ proposalId: selectedProposal.id, actorId }))}
+              onConfirmAction={() => void run(selectedProposal.id, () => confirmAction({ proposalId: selectedProposal.id, actorId }))}
             />
-          );
-        })}
-      </div>
+          </div>
+        </div>
+      ) : null}
     </section>
   );
 }

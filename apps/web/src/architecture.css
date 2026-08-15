@@ -29,7 +29,7 @@
 .architecture-node--green { --node-color: var(--success); }
 .architecture-node--yellow { --node-color: var(--brand-yellow); }
 .architecture-node--red { --node-color: var(--brand-red); }
-.architecture-node--violet { --node-color: var(--brand-purple, #7357d8); }
+.architecture-node--violet { --node-color: var(--violet); }
 .architecture-arrow { display: grid; justify-items: center; gap: .15rem; min-width: 4.4rem; color: var(--muted); text-align: center; }
 .architecture-arrow span { max-width: 6rem; font-size: .52rem; font-weight: 720; line-height: 1.3; }
 .architecture-arrow b { color: var(--red-text); font-size: 1.25rem; font-weight: 500; }
