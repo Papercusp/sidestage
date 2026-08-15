@@ -43,29 +43,34 @@ function shellFunction(source, name) {
   return source.slice(start, end + 3);
 }
 
-function runHealthProbe(source, mode, target = '547c47e4dac6b10e8c9c164b1e73275744b34712') {
+function runHealthProbe(
+  source,
+  { publicSha, containerSha },
+  target = '547c47e4dac6b10e8c9c164b1e73275744b34712',
+) {
+  const bodyCheck = shellFunction(source, 'health_body_reports_sha');
   const probe = shellFunction(source, 'health_probe');
   return execFileSync('bash', ['-c', `
     set -euo pipefail
-    PROBE_MODE=${mode}
     HEALTH_URL=https://sidestage.example/healthz
     PROD_DIR=/opt/SideStage
     COMPOSE='docker compose -f docker-compose.prod.yml'
     TARGET=${target}
     curl() {
-      if [[ "$PROBE_MODE" == public ]]; then
-        printf '{"sha":"%s"}' "$TARGET"
-      else
-        return 22
-      fi
+      [[ -n "${publicSha ?? ''}" ]] || return 22
+      printf '{"sha":"%s"}' '${publicSha ?? ''}'
     }
-    ssh_stub() { printf '{"sha":"%s"}' "$TARGET"; }
+    ssh_stub() {
+      [[ -n "${containerSha ?? ''}" ]] || return 22
+      printf '{"sha":"%s"}' '${containerSha ?? ''}'
+    }
     SSH=(ssh_stub)
     HEALTH_LEG=none
     HEALTH_BODY=''
+    ${bodyCheck}
     ${probe}
-    health_probe "$TARGET"
-    printf '%s\n%s\n' "$HEALTH_LEG" "$HEALTH_BODY"
+    if health_probe "$TARGET"; then result=ok; else result=failed; fi
+    printf '%s\n%s\n%s\n' "$result" "$HEALTH_LEG" "$HEALTH_BODY"
   `], { encoding: 'utf8' });
 }
 
@@ -74,14 +79,35 @@ describe.each([
   ['rollback.sh', rollbackSource],
 ])('%s preserves the health-probe result in the caller shell', (_name, source) => {
   it('reports the public leg and body', () => {
-    expect(runHealthProbe(source, 'public')).toBe(
-      'public\n{"sha":"547c47e4dac6b10e8c9c164b1e73275744b34712"}\n',
+    expect(runHealthProbe(source, {
+      publicSha: '547c47e4dac6b10e8c9c164b1e73275744b34712',
+    })).toBe(
+      'ok\npublic\n{"sha":"547c47e4dac6b10e8c9c164b1e73275744b34712"}\n',
     );
   });
 
   it('reports the container fallback and body', () => {
-    expect(runHealthProbe(source, 'container')).toBe(
-      'container\n{"sha":"547c47e4dac6b10e8c9c164b1e73275744b34712"}\n',
+    expect(runHealthProbe(source, {
+      containerSha: '547c47e4dac6b10e8c9c164b1e73275744b34712',
+    })).toBe(
+      'ok\ncontainer\n{"sha":"547c47e4dac6b10e8c9c164b1e73275744b34712"}\n',
+    );
+  });
+
+  it('rejects a public 200 from the wrong release and uses the target container', () => {
+    expect(runHealthProbe(source, {
+      publicSha: 'eae0aa0b5eafc0a12e7efe527744fb8d42c4d293',
+      containerSha: '547c47e4dac6b10e8c9c164b1e73275744b34712',
+    })).toBe(
+      'ok\ncontainer\n{"sha":"547c47e4dac6b10e8c9c164b1e73275744b34712"}\n',
+    );
+  });
+
+  it('rejects an HTTP 200 body that does not report the target sha', () => {
+    expect(runHealthProbe(source, {
+      publicSha: 'eae0aa0b5eafc0a12e7efe527744fb8d42c4d293',
+    })).toBe(
+      'failed\npublic\n{"sha":"eae0aa0b5eafc0a12e7efe527744fb8d42c4d293"}\n',
     );
   });
 
@@ -194,7 +220,22 @@ describe('rollback.sh trusts the running process over the recorded sha', () => {
   });
 
   it('prefers observed reality over the recorded claim', () => {
-    expect(rollbackSource).toMatch(/CURRENT="\$\{RUNNING:-\$RECORDED\}"/);
+    expect(rollbackSource).toMatch(/\$\{RUNNING:-\$\{CONTAINER_SHA:-\$RECORDED\}\}/);
+  });
+
+  it('uses the selected container image when a failed API cannot report its sha', () => {
+    const select = shellFunction(rollbackSource, 'select_current_sha');
+    const selected = execFileSync('bash', ['-c', `
+      set -euo pipefail
+      RUNNING=''
+      CONTAINER_SHA=68874fae50c66990bc498ff9f2bed6b8ab679e77
+      RECORDED=eae0aa0b5eafc0a12e7efe527744fb8d42c4d293
+      ${select}
+      select_current_sha
+    `], { encoding: 'utf8' });
+
+    expect(selected).toBe('68874fae50c66990bc498ff9f2bed6b8ab679e77');
+    expect(rollbackSource).toMatch(/docker inspect --format '\{\{\.Config\.Image\}\}'/);
   });
 
   it('warns when the record and reality disagree instead of silently choosing', () => {
@@ -373,7 +414,9 @@ describe('deploy.sh proves what it shipped before recording it', () => {
 
   it('fails the deploy on a mismatch instead of warning and exiting 0', () => {
     const verify = shaVerificationBlock();
-    expect(verify, 'a mismatch must be fatal, not advisory').toMatch(/exit 5/);
+    expect(verify, 'a mismatch must invoke the guarded rollback path').toMatch(
+      /auto_rollback_failed_release "sha verification" 5/,
+    );
     expect(verify, 'a branch that pre-excuses its own failure cannot detect one').not.toMatch(
       /Expected on the first deploy/,
     );
