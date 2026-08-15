@@ -78,11 +78,6 @@
 }
 
 @container (max-width: 32rem) {
-  .buyer-stage-grid .buyer-player-card > .buyer-player {
-    min-height: 30rem;
-    aspect-ratio: auto;
-  }
-
   .buyer-player-card > .buyer-player-overlay {
     top: .5rem;
     right: .5rem;
@@ -102,10 +97,6 @@
 }
 
 @container (max-width: 18rem) {
-  .buyer-stage-grid .buyer-player-card > .buyer-player {
-    min-height: 34rem;
-  }
-
   .seller-stream-preview > .stream-video {
     min-height: 31rem;
   }

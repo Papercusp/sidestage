@@ -46,6 +46,22 @@ describe('VideoEngagementOverlay', () => {
     expect(markup).toContain('The live transcript is temporarily unavailable.');
   });
 
+  it('renders a transcript-only surface without empty chat controls', () => {
+    const markup = renderToStaticMarkup(
+      <VideoEngagementOverlay
+        transcript={remoteTranscriptPresentation([{
+          id: 'moment-2',
+          text: 'This jacket is the current item.',
+          startMs: 24_000,
+        }])}
+      />,
+    );
+
+    expect(markup).toContain('This jacket is the current item.');
+    expect(markup).not.toContain('video-engagement-chat-panel');
+    expect(markup).not.toContain('video-engagement-chat-toggle');
+  });
+
   it('scrolls an explicit chat target to its latest row', () => {
     const messages = { scrollHeight: 640, scrollTop: 0 };
     const root = {

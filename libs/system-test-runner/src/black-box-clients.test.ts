@@ -291,6 +291,12 @@ describe('persisted and subscriber-visible state probes', () => {
       query: 'DELETE FROM orders',
       accepts: () => true,
     })).rejects.toThrow(/SELECT or WITH/);
+    await expect(client.assert({
+      artifactId: 'postgres-write-cte',
+      caseId: 'evidence.order-persisted',
+      query: 'WITH removed AS (DELETE FROM orders RETURNING *) SELECT * FROM removed',
+      accepts: () => true,
+    })).rejects.toThrow(/SELECT or WITH/);
   });
 
   it('captures read-only Redis, Typesense, and MediaMTX assertions with typed evidence', async () => {
@@ -313,7 +319,7 @@ describe('persisted and subscriber-visible state probes', () => {
       accepts: () => true,
     })).rejects.toThrow(/not read-only/);
 
-    const typesenseFetch = vi.fn(async () => new Response(JSON.stringify({
+    const typesenseFetch = vi.fn(async (_url: string | URL | Request, _init?: RequestInit) => new Response(JSON.stringify({
       found: 1,
       hits: [{ document: { id: 'product-1' } }],
     }), { status: 200, headers: { 'content-type': 'application/json' } }));
@@ -420,5 +426,37 @@ describe('PlaywrightBrowserEvidenceCollector', () => {
       authentication: { host: 'production.example.test' },
       evidence,
     })).toThrow(/transport header/);
+  });
+
+  it('captures failure evidence before rethrowing a Playwright action error', async () => {
+    const { evidence, sink } = collector();
+    const listeners = new Map<string, Set<(value: unknown) => void>>();
+    const page: PlaywrightPageLike = {
+      url: () => 'https://acceptance.example.test/watch',
+      locator: (selector) => ({ selector }),
+      screenshot: vi.fn(async () => new Uint8Array([137, 80, 78, 71])),
+      on: (event, listener) => {
+        const values = listeners.get(event) ?? new Set();
+        values.add(listener);
+        listeners.set(event, values);
+      },
+      off: (event, listener) => listeners.get(event)?.delete(listener),
+    };
+    const browser = new PlaywrightBrowserEvidenceCollector(evidence);
+
+    await expect(browser.run({
+      artifactPrefix: 'browser-failure',
+      caseId: 'protocol.bid-stream',
+      page,
+      action: async () => { throw new Error('Bearer failed.action.secret'); },
+    })).rejects.toThrow('failed.action.secret');
+
+    expect(sink.writes.map((entry) => entry.artifactId)).toEqual([
+      'browser-failure.screenshot',
+      'browser-failure.browser-log',
+      'browser-failure.browser-metric',
+    ]);
+    expect(sink.text('browser-failure.browser-log')).not.toContain('failed.action.secret');
+    expect(sink.text('browser-failure.browser-log')).toContain('[REDACTED]');
   });
 });

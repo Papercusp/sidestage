@@ -365,6 +365,7 @@ export class AuthenticatedSseClient {
         throw new SystemTestProtocolError('SSE stream ended before the expected events arrived', { retryable: true });
       } catch (error) {
         lastError = error;
+        if (error instanceof SystemTestProtocolError && !error.retryable) throw error;
         if (attempt >= this.#maxAttempts || input.signal?.aborted) break;
         await this.#retryDelay(attempt, input.signal);
       }
@@ -464,6 +465,7 @@ export class AuthenticatedWebSocketClient {
         } catch {
           // Preserve the exchange failure when best-effort cleanup also fails.
         }
+        if (error instanceof SystemTestProtocolError && !error.retryable) throw error;
         if (attempt >= this.#maxAttempts || input.signal?.aborted) throw error;
         await this.#retryDelay(attempt, input.signal);
       }
@@ -501,6 +503,7 @@ export async function eventually<T>(
       if (accepts(lastValue)) return { value: lastValue, attempts: attempt };
     } catch (error) {
       lastError = error;
+      if (error instanceof SystemTestProtocolError && !error.retryable) throw error;
     }
     if (attempt < attempts) await wait(attempt, options.signal);
   }
@@ -723,7 +726,16 @@ export class PlaywrightBrowserEvidenceCollector {
     const now = input.now ?? (() => Date.now());
     const started = now();
     try {
-      const value = await input.action(input.page);
+      let value: T | undefined;
+      let actionError: unknown;
+      let actionFailed = false;
+      try {
+        value = await input.action(input.page);
+      } catch (error) {
+        actionFailed = true;
+        actionError = error;
+        log.push(`actionerror: ${eventText(error)}`);
+      }
       const durationMs = Math.max(0, now() - started);
       const mask = [
         input.page.locator('input[type="password"]'),
@@ -762,7 +774,8 @@ export class PlaywrightBrowserEvidenceCollector {
           value: await input.trace.stopAndSanitise(),
         }));
       }
-      return { value, evidence: artifacts };
+      if (actionFailed) throw actionError;
+      return { value: value as T, evidence: artifacts };
     } finally {
       input.page.off('console', consoleListener);
       input.page.off('pageerror', errorListener);
@@ -898,19 +911,22 @@ async function consumeSse(
       const next = await reader.read();
       if (next.done) break;
       buffer += decoder.decode(next.value, { stream: true });
-      if (Buffer.byteLength(buffer) > maxEventBytes) {
-        throw new SystemTestProtocolError(`SSE event exceeded ${maxEventBytes} bytes`);
-      }
       while (/\r?\n\r?\n/.test(buffer)) {
         const match = /\r?\n\r?\n/.exec(buffer);
         if (!match) break;
         const block = buffer.slice(0, match.index);
         buffer = buffer.slice(match.index + match[0].length);
+        if (Buffer.byteLength(block) > maxEventBytes) {
+          throw new SystemTestProtocolError(`SSE event exceeded ${maxEventBytes} bytes`);
+        }
         const event = parseSseBlock(block);
         if (event && onEvent(event)) {
           await reader.cancel();
           return;
         }
+      }
+      if (Buffer.byteLength(buffer) > maxEventBytes) {
+        throw new SystemTestProtocolError(`SSE event exceeded ${maxEventBytes} bytes`);
       }
     }
   } finally {
@@ -961,7 +977,8 @@ function throwIfAborted(signal?: AbortSignal): void {
 
 function assertReadOnlySql(query: string): void {
   const trimmed = query.trim();
-  if (!/^(?:select|with)\b/i.test(trimmed) || /;\s*\S/.test(trimmed)) {
+  const writes = /\b(?:insert|update|delete|merge|alter|drop|create|truncate|grant|revoke|copy|call|do)\b/i;
+  if (!/^(?:select|with)\b/i.test(trimmed) || /;\s*\S/.test(trimmed) || writes.test(trimmed)) {
     throw new SystemTestBlackBoxError('PostgreSQL evidence queries must be one SELECT or WITH statement');
   }
 }
