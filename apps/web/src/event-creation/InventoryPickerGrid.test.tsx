@@ -107,7 +107,8 @@ describe("InventoryPickerGrid", () => {
     expect(markup).toContain(">Qty<");
     expect(markup).toContain("Reserved");
     expect(markup).toContain('aria-label="4 reserved"');
-    expect(markup).toContain("0 available now");
+    expect(markup).toContain('class="quantity-stock">0</span>');
+    expect(markup).not.toContain("available now");
     expect(markup).toContain('value="16"');
     expect(markup).toContain('value="0"');
     expect(markup).toContain('min="4"');

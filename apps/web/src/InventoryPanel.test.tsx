@@ -17,7 +17,8 @@ describe('InventoryPanel', () => {
     expect(markup).toContain('min="3"');
     expect(markup).toContain('Reserved');
     expect(markup).toContain('aria-label="3 reserved"');
-    expect(markup).toContain('0 available now');
+    expect(markup).toContain('class="quantity-stock">0</span>');
+    expect(markup).not.toContain('available now');
     expect(markup).not.toContain('Add qty');
     expect(markup).not.toContain('Event name');
   });

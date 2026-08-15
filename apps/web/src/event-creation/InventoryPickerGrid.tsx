@@ -139,7 +139,7 @@ export function InventoryPickerGrid({
                 }
                 onClick={(event) => event.stopPropagation()}
               />
-              <span className="quantity-stock">{purpose === "inventory" ? `${row.availableQty} available now` : `/${row.availableQty}`}</span>
+              <span className="quantity-stock">{purpose === "inventory" ? row.availableQty : `/${row.availableQty}`}</span>
             </label>
           );
         },
