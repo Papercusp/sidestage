@@ -9,6 +9,8 @@ export const AUCTION_INVENTORY = Symbol('AUCTION_INVENTORY');
 export const AUCTION_STORE = Symbol('AUCTION_STORE');
 
 export type AuctionStatus = 'active' | 'closed';
+export type AuctionAllocationState = 'held' | 'committed' | 'released';
+export type AuctionCloseReason = 'settled' | 'seller-cancelled';
 
 export interface AuctionInventorySnapshot {
   productId: string;
@@ -199,6 +201,9 @@ export interface Auction {
   startingPriceCents: number;
   currentPriceCents: number;
   status: AuctionStatus;
+  /** Event-lineup allocation lifecycle; legacy rows are inferred on read. */
+  allocationState?: AuctionAllocationState;
+  closeReason?: AuctionCloseReason;
   startedAt: string;
   endsAt: string;
   closedAt?: string;
@@ -230,6 +235,9 @@ export interface AuctionStore {
   listWinnerOrdersForBuyer(bidderId: string): Promise<AuctionWinnerOrder[]>;
   placeBid(id: string, bid: AuctionBid): Promise<AuctionBidResult>;
   close(id: string): Promise<AuctionCloseResult>;
+  cancel(id: string): Promise<AuctionCloseResult>;
+  commitWinner(id: string, buyerId: string): Promise<AuctionCloseResult>;
+  releaseWinner(id: string, buyerId: string): Promise<AuctionCloseResult>;
   closeExpired(): Promise<AuctionCloseResult[]>;
 }
 
@@ -265,6 +273,8 @@ export const MAX_AUCTION_QUANTITY = 10_000;
 @Injectable()
 export class AuctionService {
   private readonly auctions = new Map<string, Auction>();
+  /** Explicit clean-clone fallback; Postgres mutates event_lineup_item transactionally. */
+  private readonly eventAvailability = new Map<string, number>();
   /**
    * The event's CURRENT auction — active, or the most recently closed one.
    *
@@ -325,6 +335,7 @@ export class AuctionService {
       startingPriceCents,
       currentPriceCents: startingPriceCents,
       status: 'active',
+      allocationState: 'held',
       startedAt: new Date(now).toISOString(),
       endsAt: new Date(now + durationSec * 1000).toISOString(),
       bids: [],
@@ -342,11 +353,14 @@ export class AuctionService {
     // Event-item setup normally seeds this snapshot before the auction call.
     // Accepting it here keeps a clean clone runnable while still reserving only
     // against the inventory-owned quantity, never against a caller's quantity.
-    if (!(await this.inventory.get(productId))) {
+    let inventorySnapshot = await this.inventory.get(productId);
+    if (!inventorySnapshot) {
       if (input.availableQty === undefined) throw new NotFoundException(`Inventory item ${productId} was not found`);
-      await this.inventory.seed(productId, this.readNonNegativeInt(input.availableQty, 'availableQty'));
+      inventorySnapshot = await this.inventory.seed(productId, this.readNonNegativeInt(input.availableQty, 'availableQty'));
     }
+    this.reserveEventAllocation(auction, input.availableQty ?? inventorySnapshot.availableQty);
     if (!(await this.inventory.reserve(productId, quantity, { kind: 'auction', id: auctionId }))) {
+      this.releaseEventAllocation(auction);
       throw new ConflictException(`Insufficient available quantity for ${productId}`);
     }
     this.auctions.set(auction.id, auction);
@@ -492,23 +506,61 @@ export class AuctionService {
     return this.cloneAuction(auction);
   }
 
+  async cancelAuction(id: string): Promise<Auction> {
+    if (this.store) {
+      const result = await this.store.cancel(this.readId(id, 'auctionId'));
+      this.publishStoredClose(result);
+      return this.cloneAuction(result.auction);
+    }
+    const auction = this.requireAuction(id);
+    if (auction.status === 'closed') {
+      if (auction.closeReason !== 'seller-cancelled') throw new ConflictException('Settled auctions cannot be cancelled');
+      return this.cloneAuction(auction);
+    }
+    auction.status = 'closed';
+    auction.closedAt = new Date().toISOString();
+    auction.closeReason = 'seller-cancelled';
+    await this.inventory.release(auction.productId, auction.quantity, { kind: 'auction', id: auction.id });
+    this.releaseEventAllocation(auction);
+    this.emitAuctionUpdate(auction, true);
+    return this.cloneAuction(auction);
+  }
+
   async commitWinnerReservation(auctionIdInput: string, buyerIdInput: string): Promise<void> {
     const auction = await this.requireWinnerAuction(auctionIdInput, buyerIdInput);
+    if (this.store) {
+      const result = await this.store.commitWinner(auction.id, buyerIdInput);
+      if (result.changed) this.emitAuctionUpdate(result.auction, result.inventoryChanged);
+      return;
+    }
+    if (auction.allocationState === 'committed') return;
+    if (auction.allocationState === 'released') throw new ConflictException('Auction allocation was already released');
     const committed = await this.inventory.commit(
       auction.productId,
       { kind: 'auction', id: auction.id },
     );
     if (!committed) throw new Error(`Auction inventory hold for ${auction.productId} could not be committed`);
+    auction.allocationState = 'committed';
+    this.emitAuctionUpdate(auction, true);
   }
 
   async releaseWinnerReservation(auctionIdInput: string, buyerIdInput: string): Promise<void> {
     const auction = await this.requireWinnerAuction(auctionIdInput, buyerIdInput);
+    if (this.store) {
+      const result = await this.store.releaseWinner(auction.id, buyerIdInput);
+      if (result.changed) this.emitAuctionUpdate(result.auction, result.inventoryChanged);
+      return;
+    }
+    if (auction.allocationState === 'released') return;
+    if (auction.allocationState === 'committed') throw new ConflictException('Paid auction allocation cannot be released');
     const released = await this.inventory.release(
       auction.productId,
       auction.quantity,
       { kind: 'auction', id: auction.id },
     );
     if (!released) throw new Error(`Auction inventory hold for ${auction.productId} could not be released`);
+    this.releaseEventAllocation(auction);
+    this.emitAuctionUpdate(auction, true);
   }
 
   async inventorySnapshot(productId: string): Promise<AuctionInventorySnapshot | null> {
@@ -555,12 +607,14 @@ export class AuctionService {
     if (auction.status !== 'active') return;
     auction.status = 'closed';
     auction.closedAt = new Date().toISOString();
+    auction.closeReason = 'settled';
     // The event's current-auction entry deliberately survives the close — see
     // currentByEvent. Deleting it here is what hid the SOLD state (WI-38736).
     const winner = auction.bids[0];
     if (!winner) {
       // No winner means the start-time hold is no longer needed.
       await this.inventory.release(auction.productId, auction.quantity, { kind: 'auction', id: auction.id });
+      this.releaseEventAllocation(auction);
       this.emitAuctionUpdate(auction, true);
       return;
     }
@@ -591,6 +645,7 @@ export class AuctionService {
       productId: auction.productId,
     });
     if (inventoryChanged) {
+      this.syncInvalidations?.invalidate('event.lineup.items', { eventId: auction.eventId });
       this.syncInvalidations?.invalidate('catalog.page');
       this.syncInvalidations?.invalidate('inventory.snapshot', { productId: auction.productId });
     }
@@ -673,6 +728,28 @@ export class AuctionService {
       bids: auction.bids.map((bid) => ({ ...bid })),
       winnerOrder: auction.winnerOrder ? { ...auction.winnerOrder } : undefined,
     };
+  }
+
+  private eventAllocationKey(auction: Pick<Auction, 'eventId' | 'eventItemId' | 'productId'>): string {
+    return `${auction.eventId}\u0000${auction.eventItemId}\u0000${auction.productId}`;
+  }
+
+  private reserveEventAllocation(auction: Auction, initialAvailableQty: number): void {
+    const key = this.eventAllocationKey(auction);
+    const available = this.eventAvailability.get(key) ?? this.readNonNegativeInt(initialAvailableQty, 'availableQty');
+    if (available < auction.quantity) {
+      throw new ConflictException(`Insufficient event allocation for ${auction.eventItemId}`);
+    }
+    this.eventAvailability.set(key, available - auction.quantity);
+    auction.allocationState = 'held';
+  }
+
+  private releaseEventAllocation(auction: Auction): void {
+    if (auction.allocationState === 'released') return;
+    if (auction.allocationState === 'committed') throw new ConflictException('Paid auction allocation cannot be released');
+    const key = this.eventAllocationKey(auction);
+    this.eventAvailability.set(key, (this.eventAvailability.get(key) ?? 0) + auction.quantity);
+    auction.allocationState = 'released';
   }
 
   private readId(value: string, field: string): string {
