@@ -324,7 +324,7 @@ describe('CheckoutService', () => {
     expect(published.filter(({ name }) => name === 'event.stats')).toHaveLength(1);
   });
 
-  it('releases a failed source exactly once and ignores later payment events', async () => {
+  it('keeps a failed source reserved and resumes the same order and PaymentIntent', async () => {
     const carts = new CartService(new InMemoryCartStore());
     const cart = await carts.addItem({ cartId: 'cart-reordered', productId: 'p-1', title: 'Mug', priceCents: 1250 });
     const sourceService = sources(carts);
@@ -338,25 +338,28 @@ describe('CheckoutService', () => {
     }));
     await checkout.handleWebhook(Buffer.from('{}'), 'signed');
     expect((await checkout.getOrder(session.order.id))?.paymentState).toBe('payment_failed');
-    expect(release).toHaveBeenCalledTimes(1);
-    await expect(checkout.createSession({
+    expect(release).not.toHaveBeenCalled();
+    const resumed = await checkout.createSession({
       orderId: session.order.id,
       buyerId: session.order.buyerId,
       shippingAddress: ADDRESS,
       shippingRateId: RATE.id,
-    })).rejects.toThrow('Order is no longer payable');
+    });
+    expect(resumed.order.id).toBe(session.order.id);
+    expect(resumed.order.paymentState).toBe('payment_required');
+    expect(resumed.session.paymentIntentId).toBe(session.session.paymentIntentId);
 
     payments.deliver(stripeEvent(session.order, { id: 'evt_succeeded', created: 1_786_751_001 }));
-    const lateSuccess = await checkout.handleWebhook(Buffer.from('{}'), 'signed');
+    const success = await checkout.handleWebhook(Buffer.from('{}'), 'signed');
     payments.deliver(stripeEvent(session.order, {
       id: 'evt_late_failed', created: 1_786_751_002, type: 'failed', amountReceivedCents: undefined,
     }));
     const late = await checkout.handleWebhook(Buffer.from('{}'), 'signed');
-    expect(lateSuccess.handled).toBe(false);
+    expect(success.handled).toBe(true);
     expect(late.handled).toBe(false);
-    expect(late.order?.paymentState).toBe('payment_failed');
-    expect(release).toHaveBeenCalledTimes(1);
-    expect(commit).not.toHaveBeenCalled();
+    expect(late.order?.paymentState).toBe('paid');
+    expect(release).not.toHaveBeenCalled();
+    expect(commit).toHaveBeenCalledTimes(1);
   });
 
   it('rejects signed events whose SideStage identity or amount disagrees', async () => {

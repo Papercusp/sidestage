@@ -121,8 +121,7 @@ export class CheckoutService {
       throw new BadRequestException('Order payment is already processing');
     }
     if (
-      resumedOrder?.paymentState === 'payment_failed'
-      || resumedOrder?.paymentState === 'cancelled'
+      resumedOrder?.paymentState === 'cancelled'
       || resumedOrder?.paymentState === 'expired'
     ) {
       throw new BadRequestException('Order is no longer payable');
@@ -239,7 +238,6 @@ export class CheckoutService {
     const order = await this.getOrderForBuyer(idInput, buyerIdInput);
     if (
       order.status === 'paid'
-      || order.paymentState === 'payment_failed'
       || order.paymentState === 'cancelled'
       || order.paymentState === 'expired'
     ) {
@@ -282,7 +280,6 @@ export class CheckoutService {
       }
       if (
         order!.status === 'paid'
-        || order!.paymentState === 'payment_failed'
         || order!.paymentState === 'cancelled'
         || order!.paymentState === 'expired'
       ) {
@@ -303,13 +300,10 @@ export class CheckoutService {
         order!.paymentState = 'payment_processing';
         order!.paymentError = undefined;
       } else if (event.type === 'failed') {
-        // A failed payment is terminal for this order. Release its source
-        // before persisting the failure so a crash can only cause an
-        // idempotent release retry, never a durable failed order with a live
-        // cart/auction allocation. A later success for the same PaymentIntent
-        // is ignored by the terminal-state guard above because its source no
-        // longer owns inventory.
-        await this.sources.release(order!);
+        // A declined attempt is recoverable. Keep the exact cart/auction/offer
+        // reservation attached to this canonical order so the buyer can retry
+        // the same PaymentIntent after a reload. Cancellation and expiry are
+        // the transitions that release the source.
         order!.status = 'failed';
         order!.paymentState = 'payment_failed';
         order!.paymentError = event.errorMessage ?? 'Payment failed';

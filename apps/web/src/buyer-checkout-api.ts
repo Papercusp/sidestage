@@ -1,5 +1,6 @@
 import type { BuyerProduct } from './buyer';
 import { resolveApiBaseUrl } from './catalog';
+import { DEMO_PRINCIPAL_HEADER } from '@papercusp/sync';
 
 export interface BuyerCartItem {
   productId: string;
@@ -40,11 +41,12 @@ export interface BuyerShippingRate {
 }
 
 export interface BuyerPaymentSession {
-  provider: 'square';
-  mode: 'sandbox';
+  provider: 'stripe';
+  mode: 'test' | 'live' | null;
   status: 'ready' | 'needs-configuration';
-  appId: string | null;
-  locationId: string | null;
+  publishableKey: string | null;
+  clientSecret: string | null;
+  paymentIntentId: string | null;
   orderId: string;
   amountCents: number;
   currency: 'USD';
@@ -52,8 +54,10 @@ export interface BuyerPaymentSession {
 
 export interface BuyerCheckoutOrder {
   id: string;
-  cartId: string;
+  cartId?: string;
   buyerId: string;
+  sourceKind: 'cart' | 'auction' | 'offer';
+  sourceId: string;
   eventId: string;
   email?: string;
   subtotalCents: number;
@@ -61,11 +65,13 @@ export interface BuyerCheckoutOrder {
   totalCents: number;
   currency: 'USD';
   status: 'pending' | 'paid' | 'failed';
+  paymentState: 'payment_required' | 'payment_processing' | 'paid' | 'payment_failed' | 'cancelled' | 'expired';
+  paymentError?: string;
+  stripePaymentIntentId?: string;
   createdAt: string;
   items: BuyerCartItem[];
   shippingAddress?: BuyerShippingAddress;
   selectedShippingRate?: BuyerShippingRate;
-  paymentSession: BuyerPaymentSession;
 }
 
 export interface BuyerCheckoutSessionResponse {
@@ -73,20 +79,12 @@ export interface BuyerCheckoutSessionResponse {
   session: BuyerPaymentSession;
 }
 
-export interface BuyerPaymentResult {
-  order: BuyerCheckoutOrder;
-  payment: {
-    status: 'paid' | 'failed' | 'needs-configuration';
-    transactionId?: string;
-    errorMessage?: string;
-  };
-}
-
 export interface BuyerCheckoutSessionInput {
-  cartId: string;
-  buyerId: string;
-  eventId: string;
+  orderId?: string;
+  cartId?: string;
+  eventId?: string;
   email: string;
+  name?: string;
   shippingAddress: BuyerShippingAddress;
   shippingRateId: string;
 }
@@ -122,8 +120,15 @@ interface ApiErrorPayload {
   error?: string;
 }
 
-async function requestJson<T>(path: string, init: RequestInit = {}, apiBaseUrl?: string): Promise<T> {
-  const response = await fetch(`${resolveApiBaseUrl(apiBaseUrl)}${path}`, init);
+async function requestJson<T>(
+  path: string,
+  init: RequestInit = {},
+  apiBaseUrl?: string,
+  principal?: string,
+): Promise<T> {
+  const headers = new Headers(init.headers);
+  if (principal?.trim()) headers.set(DEMO_PRINCIPAL_HEADER, principal.trim());
+  const response = await fetch(`${resolveApiBaseUrl(apiBaseUrl)}${path}`, { ...init, headers });
   const payload = await response.json().catch(() => ({})) as T & ApiErrorPayload;
   if (!response.ok) {
     const message = Array.isArray(payload.message) ? payload.message.join(', ') : payload.message;
@@ -186,22 +191,43 @@ export function removeBuyerCartItem(cartId: string, productId: string, apiBaseUr
 export function fetchBuyerShippingRates(
   cartId: string,
   address: BuyerShippingAddress,
+  buyerId: string,
   apiBaseUrl?: string,
 ): Promise<BuyerShippingRate[]> {
-  return requestJson<BuyerShippingRate[]>('/shipping/rates', jsonPost({ cartId, address }), apiBaseUrl);
+  return requestJson<BuyerShippingRate[]>('/shipping/rates', jsonPost({ cartId, address }), apiBaseUrl, buyerId);
+}
+
+export function fetchBuyerOrder(
+  orderId: string,
+  buyerId: string,
+  apiBaseUrl?: string,
+): Promise<BuyerCheckoutOrder> {
+  return requestJson<BuyerCheckoutOrder>(
+    `/checkout/orders/${encodeURIComponent(orderId)}`,
+    {},
+    apiBaseUrl,
+    buyerId,
+  );
+}
+
+export function fetchBuyerOrderShippingRates(
+  orderId: string,
+  address: BuyerShippingAddress,
+  buyerId: string,
+  apiBaseUrl?: string,
+): Promise<BuyerShippingRate[]> {
+  return requestJson<BuyerShippingRate[]>(
+    `/checkout/orders/${encodeURIComponent(orderId)}/shipping-rates`,
+    jsonPost({ address }),
+    apiBaseUrl,
+    buyerId,
+  );
 }
 
 export function createBuyerCheckoutSession(
   input: BuyerCheckoutSessionInput,
+  buyerId: string,
   apiBaseUrl?: string,
 ): Promise<BuyerCheckoutSessionResponse> {
-  return requestJson<BuyerCheckoutSessionResponse>('/checkout/sessions', jsonPost(input), apiBaseUrl);
-}
-
-export function confirmBuyerSquarePayment(
-  orderId: string,
-  sourceId: string,
-  apiBaseUrl?: string,
-): Promise<BuyerPaymentResult> {
-  return requestJson<BuyerPaymentResult>('/checkout/confirm', jsonPost({ orderId, sourceId }), apiBaseUrl);
+  return requestJson<BuyerCheckoutSessionResponse>('/checkout/sessions', jsonPost(input), apiBaseUrl, buyerId);
 }
