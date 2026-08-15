@@ -1068,6 +1068,9 @@ DROP TRIGGER IF EXISTS scout_session_preserve_buyer ON scout_session;
 CREATE TRIGGER scout_session_preserve_buyer
 BEFORE UPDATE OF buyer_id ON scout_session
 FOR EACH ROW EXECUTE FUNCTION sidestage_preserve_owner('buyer_id');
+-- P-006 has made both Scout session writers explicit. Keep unowned future
+-- writers from silently falling into the legacy migration owner.
+ALTER TABLE scout_session ALTER COLUMN buyer_id DROP DEFAULT;
 
 -- ── Durable real-system test runs (Tests-tab acceptance P-003 / D-007) ──────
 --
