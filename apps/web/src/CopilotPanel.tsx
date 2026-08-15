@@ -1,5 +1,5 @@
 import { type FormEvent, useCallback, useState } from 'react';
-import { useSyncMutate, useSyncQuery } from '@papercusp/sync';
+import { DEMO_PRINCIPAL_HEADER, useSyncMutate, useSyncPrincipal, useSyncQuery } from '@papercusp/sync';
 import { browserEventId } from './event-identity';
 import { resolveApiOrigin } from './EventChat';
 
@@ -64,10 +64,13 @@ export interface CopilotPanelProps {
   actorId?: string;
 }
 
-async function mutateProposal<T>(apiOrigin: string, path: string, body: object): Promise<T> {
+async function mutateProposal<T>(apiOrigin: string, path: string, body: object, principal?: string): Promise<T> {
   const response = await fetch(`${apiOrigin}${path}`, {
     method: 'POST',
-    headers: { 'content-type': 'application/json' },
+    headers: {
+      'content-type': 'application/json',
+      ...(principal ? { [DEMO_PRINCIPAL_HEADER]: principal } : {}),
+    },
     body: JSON.stringify(body),
   });
   const payload = await response.json() as T & { message?: string };
@@ -213,6 +216,7 @@ export function CopilotPanel({
   actorId = 'seller-copilot-review',
 }: CopilotPanelProps) {
   const apiOrigin = resolveApiOrigin(apiBaseUrl);
+  const principal = useSyncPrincipal() ?? actorId;
   const proposals = useSyncQuery<CopilotProposal>({
     queryName: 'event.copilot.proposals',
     args: { eventId },
@@ -226,22 +230,26 @@ export function CopilotPanel({
     apiOrigin,
     `/copilot/events/${encodeURIComponent(input.eventId)}/turns`,
     { message: input.message, buyerId: input.actorId, buyerName: 'Seller research' },
-  ), [apiOrigin]);
+    principal,
+  ), [apiOrigin, principal]);
   const approveFallback = useCallback((input: ProposalMutation) => mutateProposal<CopilotProposal>(
     apiOrigin,
     `/copilot/proposals/${encodeURIComponent(input.proposalId)}/approve`,
     { actorId: input.actorId, reply: input.reply },
-  ), [apiOrigin]);
+    principal,
+  ), [apiOrigin, principal]);
   const skipFallback = useCallback((input: ProposalMutation) => mutateProposal<CopilotProposal>(
     apiOrigin,
     `/copilot/proposals/${encodeURIComponent(input.proposalId)}/skip`,
     { actorId: input.actorId },
-  ), [apiOrigin]);
+    principal,
+  ), [apiOrigin, principal]);
   const actionFallback = useCallback((input: ProposalMutation) => mutateProposal<CopilotProposal>(
     apiOrigin,
     `/copilot/proposals/${encodeURIComponent(input.proposalId)}/confirm-action`,
     { actorId: input.actorId },
-  ), [apiOrigin]);
+    principal,
+  ), [apiOrigin, principal]);
   const createTurn = useSyncMutate<CreateTurnMutation, CopilotProposal>('copilot.createTurn', createFallback);
   const approve = useSyncMutate<ProposalMutation, CopilotProposal>('copilot.approve', approveFallback);
   const skip = useSyncMutate<ProposalMutation, CopilotProposal>('copilot.skip', skipFallback);
