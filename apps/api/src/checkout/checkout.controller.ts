@@ -1,4 +1,4 @@
-import { Inject, Body, Controller, Get, Post, Query } from '@nestjs/common';
+import { BadRequestException, Inject, Body, Controller, Get, Post, Query, Req } from '@nestjs/common';
 import { BuyerOrdersService } from './buyer-orders.service';
 import { CheckoutService, type CheckoutSessionInput } from './checkout.service';
 
@@ -19,8 +19,14 @@ export class CheckoutController {
     return this.checkout.createSession(body);
   }
 
-  @Post('confirm')
-  confirm(@Body() body: { orderId: string; sourceId: string }) {
-    return this.checkout.confirmPayment(body);
+  @Post('webhook')
+  webhook(@Req() request: {
+    rawBody?: Buffer;
+    headers: Record<string, string | string[] | undefined>;
+  }) {
+    if (!Buffer.isBuffer(request.rawBody)) {
+      throw new BadRequestException('Stripe webhook requires the raw request body');
+    }
+    return this.checkout.handleWebhook(request.rawBody, request.headers['stripe-signature']);
   }
 }

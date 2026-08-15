@@ -8,17 +8,6 @@ import { BuyerOrdersService } from './buyer-orders.service';
 import { BuyerOrdersSyncQueries } from './checkout.module';
 import type { CheckoutOrder, OrderStore } from './checkout.service';
 
-const paymentSession = {
-  provider: 'square',
-  mode: 'sandbox',
-  status: 'ready',
-  appId: 'app',
-  locationId: 'location',
-  orderId: 'checkout-1',
-  amountCents: 2500,
-  currency: 'USD',
-} as const;
-
 const checkoutOrder: CheckoutOrder = {
   id: 'checkout-1',
   cartId: 'cart-1',
@@ -32,9 +21,9 @@ const checkoutOrder: CheckoutOrder = {
   currency: 'USD',
   status: 'paid',
   paymentState: 'paid',
+  stripePaymentIntentId: 'pi_checkout_1',
   createdAt: '2026-08-14T01:00:00.000Z',
   items: [{ productId: 'cup', title: 'Aurora cup', priceCents: 1250, quantity: 2, imageUrl: '/cup.png' }],
-  paymentSession,
 };
 
 const canonicalAuctionOrder: CheckoutOrder = {

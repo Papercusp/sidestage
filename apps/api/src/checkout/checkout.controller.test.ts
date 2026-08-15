@@ -22,4 +22,21 @@ describe('CheckoutController', () => {
     await expect(controller.createSession(body)).resolves.toEqual({ order: { id: 'order-1' } });
     expect(checkout.createSession).toHaveBeenCalledWith(body);
   });
+
+  it('passes the untouched raw body and Stripe signature to webhook handling', async () => {
+    const checkout = { handleWebhook: vi.fn().mockResolvedValue({ received: true, handled: true }) };
+    const controller = new CheckoutController(checkout as never, {} as never);
+    const rawBody = Buffer.from('{"id":"evt_1"}');
+
+    await expect(controller.webhook({
+      rawBody,
+      headers: { 'stripe-signature': 't=1,v1=signed' },
+    })).resolves.toEqual({ received: true, handled: true });
+    expect(checkout.handleWebhook).toHaveBeenCalledWith(rawBody, 't=1,v1=signed');
+  });
+
+  it('refuses a webhook request when Nest did not preserve its raw body', async () => {
+    const controller = new CheckoutController({ handleWebhook: vi.fn() } as never, {} as never);
+    expect(() => controller.webhook({ headers: {} })).toThrow('raw request body');
+  });
 });

@@ -17,8 +17,8 @@ import {
   CheckoutService,
   InMemoryOrderStore,
   ORDER_STORE,
-  SquareSandboxProvider,
 } from './checkout.service';
+import { StripePaymentProvider } from './stripe-payment.provider';
 
 @Injectable()
 export class BuyerOrdersSyncQueries implements OnModuleInit {
@@ -42,7 +42,7 @@ export class BuyerOrdersSyncQueries implements OnModuleInit {
     CheckoutService,
     BuyerOrdersService,
     BuyerOrdersSyncQueries,
-    { provide: CHECKOUT_PAYMENT_PROVIDER, useFactory: () => new SquareSandboxProvider() },
+    { provide: CHECKOUT_PAYMENT_PROVIDER, useFactory: () => new StripePaymentProvider() },
     {
       provide: ORDER_STORE,
       inject: [PG_POOL],

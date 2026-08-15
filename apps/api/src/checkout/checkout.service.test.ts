@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { createHmac } from 'node:crypto';
+import Stripe from 'stripe';
 import { CartService, InMemoryCartStore } from '../cart/cart.service';
 import {
   ShippingService,
@@ -11,16 +11,56 @@ import { SyncInvalidationService, type SyncInvalidation } from '../sync/sync-inv
 import {
   CheckoutService,
   InMemoryOrderStore,
-  SquareSandboxProvider,
-  verifySquareWebhookSignature,
+  type CheckoutOrder,
   type CheckoutSessionInput,
   type PaymentProvider,
+  type PaymentSession,
+  type StripePaymentEvent,
 } from './checkout.service';
+import { StripePaymentProvider, type StripeClient } from './stripe-payment.provider';
 
-const provider = (result: 'paid' | 'failed' = 'paid'): PaymentProvider => ({
-  createSession: async (input) => ({ provider: 'square', mode: 'sandbox', status: 'ready', appId: 'app', locationId: 'loc', currency: input.currency, amountCents: input.amountCents, orderId: input.orderId }),
-  confirmPayment: async () => ({ status: result, transactionId: result === 'paid' ? 'txn-1' : undefined }),
-});
+function providerHarness() {
+  let nextEvent: StripePaymentEvent | null = null;
+  const paymentIntentId = (orderId: string) => `pi_${orderId}`;
+  const provider: PaymentProvider = {
+    createSession: vi.fn(async (input): Promise<PaymentSession> => ({
+      provider: 'stripe',
+      mode: 'test',
+      status: 'ready',
+      publishableKey: 'pk_test_public',
+      clientSecret: `${paymentIntentId(input.orderId)}_secret_private`,
+      paymentIntentId: input.paymentIntentId ?? paymentIntentId(input.orderId),
+      currency: input.currency,
+      amountCents: input.amountCents,
+      orderId: input.orderId,
+    })),
+    parseWebhook: vi.fn(async () => nextEvent),
+  };
+  return { provider, deliver: (event: StripePaymentEvent) => { nextEvent = event; } };
+}
+
+const provider = (): PaymentProvider => providerHarness().provider;
+
+function stripeEvent(
+  order: CheckoutOrder,
+  overrides: Partial<StripePaymentEvent> = {},
+): StripePaymentEvent {
+  return {
+    id: 'evt_checkout_1',
+    created: 1_786_751_000,
+    type: 'succeeded',
+    mode: 'test',
+    paymentIntentId: order.stripePaymentIntentId!,
+    orderId: order.id,
+    buyerId: order.buyerId,
+    sourceKind: order.sourceKind,
+    sourceId: order.sourceId,
+    amountCents: order.totalCents,
+    amountReceivedCents: order.totalCents,
+    currency: order.currency,
+    ...overrides,
+  };
+}
 
 const ADDRESS: ShippingAddressInput = {
   name: '  Avi Buyer  ',
@@ -81,6 +121,9 @@ describe('CheckoutService', () => {
     });
     expect(retry.order.id).toBe(first.order.id);
     expect(retry.session.orderId).toBe(first.order.id);
+    expect(first.order.stripePaymentIntentId).toBe(first.session.paymentIntentId);
+    expect(JSON.stringify(first.order)).not.toContain('clientSecret');
+    expect(JSON.stringify(first.order)).not.toContain('_secret_');
   });
 
   it('rejects a second buyer trying to fork the same payable source', async () => {
@@ -98,15 +141,17 @@ describe('CheckoutService', () => {
     await expect(orders.listByBuyer('buyer-2')).resolves.toEqual([]);
   });
 
-  it('moves an order to paid only after the provider confirms it', async () => {
+  it('moves an order to paid only after a verified Stripe success webhook', async () => {
     const carts = new CartService(new InMemoryCartStore());
     const cart = await carts.addItem({ cartId: 'cart-2', productId: 'p-2', title: 'Headphones', priceCents: 19999 });
-    const checkout = new CheckoutService(provider(), new InMemoryOrderStore(), carts, shipping());
+    const payments = providerHarness();
+    const checkout = new CheckoutService(payments.provider, new InMemoryOrderStore(), carts, shipping());
     const session = await checkout.createSession(input(cart.id, { buyerId: 'buyer-2', eventId: 'event-2' }));
-    const confirmation = await checkout.confirmPayment({ orderId: session.order.id, sourceId: 'cnon:card-nonce-ok' });
-    expect(confirmation.payment.status).toBe('paid');
-    expect(confirmation.order.status).toBe('paid');
-    expect(confirmation.order.paymentState).toBe('paid');
+    payments.deliver(stripeEvent(session.order));
+    const confirmation = await checkout.handleWebhook(Buffer.from('{}'), 'signed');
+    expect(confirmation.handled).toBe(true);
+    expect(confirmation.order?.status).toBe('paid');
+    expect(confirmation.order?.paymentState).toBe('paid');
   });
 
   it('invalidates buyer orders, event stats, and product history after payment status changes', async () => {
@@ -115,10 +160,12 @@ describe('CheckoutService', () => {
     const invalidations = new SyncInvalidationService();
     const published: SyncInvalidation[] = [];
     const subscription = invalidations.events().subscribe((event) => published.push(event));
-    const checkout = new CheckoutService(provider(), new InMemoryOrderStore(), carts, shipping(), invalidations);
+    const payments = providerHarness();
+    const checkout = new CheckoutService(payments.provider, new InMemoryOrderStore(), carts, shipping(), invalidations);
 
     const session = await checkout.createSession(input(cart.id, { buyerId: 'buyer-live', eventId: 'event-live' }));
-    await checkout.confirmPayment({ orderId: session.order.id, sourceId: 'cnon:card-nonce-ok' });
+    payments.deliver(stripeEvent(session.order));
+    await checkout.handleWebhook(Buffer.from('{}'), 'signed');
     subscription.unsubscribe();
 
     expect(published.filter(({ name }) => name === 'orders.byBuyer').map(({ args }) => args)).toEqual([
@@ -181,60 +228,149 @@ describe('CheckoutService', () => {
 
     await expect(checkout.createSession(input(cart.id))).rejects.toThrow('Cart changed while selecting shipping');
   });
+
+  it('commits and invalidates exactly once for duplicate success deliveries', async () => {
+    const carts = new CartService(new InMemoryCartStore());
+    const cart = await carts.addItem({ cartId: 'cart-duplicate', productId: 'p-1', title: 'Mug', priceCents: 1250 });
+    const commit = vi.spyOn(carts, 'commit');
+    const invalidations = new SyncInvalidationService();
+    const published: SyncInvalidation[] = [];
+    const subscription = invalidations.events().subscribe((event) => published.push(event));
+    const payments = providerHarness();
+    const checkout = new CheckoutService(payments.provider, new InMemoryOrderStore(), carts, shipping(), invalidations);
+    const session = await checkout.createSession(input(cart.id));
+    payments.deliver(stripeEvent(session.order));
+
+    await checkout.handleWebhook(Buffer.from('{}'), 'signed');
+    const duplicate = await checkout.handleWebhook(Buffer.from('{}'), 'signed');
+    subscription.unsubscribe();
+
+    expect(duplicate.handled).toBe(false);
+    expect(commit).toHaveBeenCalledTimes(1);
+    expect(published.filter(({ name }) => name === 'event.stats')).toHaveLength(1);
+  });
+
+  it('allows success after failure but ignores failure delivered after paid', async () => {
+    const carts = new CartService(new InMemoryCartStore());
+    const cart = await carts.addItem({ cartId: 'cart-reordered', productId: 'p-1', title: 'Mug', priceCents: 1250 });
+    const payments = providerHarness();
+    const checkout = new CheckoutService(payments.provider, new InMemoryOrderStore(), carts, shipping());
+    const session = await checkout.createSession(input(cart.id));
+    payments.deliver(stripeEvent(session.order, {
+      id: 'evt_failed', type: 'failed', amountReceivedCents: undefined, errorMessage: 'declined',
+    }));
+    await checkout.handleWebhook(Buffer.from('{}'), 'signed');
+    expect((await checkout.getOrder(session.order.id))?.paymentState).toBe('payment_failed');
+
+    payments.deliver(stripeEvent(session.order, { id: 'evt_succeeded', created: 1_786_751_001 }));
+    await checkout.handleWebhook(Buffer.from('{}'), 'signed');
+    payments.deliver(stripeEvent(session.order, {
+      id: 'evt_late_failed', created: 1_786_751_002, type: 'failed', amountReceivedCents: undefined,
+    }));
+    const late = await checkout.handleWebhook(Buffer.from('{}'), 'signed');
+    expect(late.handled).toBe(false);
+    expect(late.order?.status).toBe('paid');
+  });
+
+  it('rejects signed events whose SideStage identity or amount disagrees', async () => {
+    const carts = new CartService(new InMemoryCartStore());
+    const cart = await carts.addItem({ cartId: 'cart-mismatch', productId: 'p-1', title: 'Mug', priceCents: 1250 });
+    const payments = providerHarness();
+    const checkout = new CheckoutService(payments.provider, new InMemoryOrderStore(), carts, shipping());
+    const session = await checkout.createSession(input(cart.id));
+    payments.deliver(stripeEvent(session.order, { buyerId: 'another-buyer', amountCents: 1 }));
+
+    await expect(checkout.handleWebhook(Buffer.from('{}'), 'signed'))
+      .rejects.toThrow('buyerId, amount');
+    expect((await checkout.getOrder(session.order.id))?.status).toBe('pending');
+  });
 });
 
-describe('SquareSandboxProvider', () => {
-  it('does not call Square when credentials are absent', async () => {
-    let calls = 0;
-    const square = new SquareSandboxProvider({ appId: 'app', locationId: 'loc' }, async () => {
-      calls += 1;
-      throw new Error('should not call');
+describe('StripePaymentProvider', () => {
+  const sessionInput = {
+    orderId: 'order_123',
+    amountCents: 5_814,
+    currency: 'USD' as const,
+    buyerId: 'buyer-1',
+    sourceKind: 'cart' as const,
+    sourceId: 'cart-1',
+    email: 'buyer@example.test',
+  };
+
+  it('creates one server-authored PaymentIntent with an order-derived idempotency key', async () => {
+    const create = vi.fn(async (params: Stripe.PaymentIntentCreateParams) => ({
+      id: 'pi_123',
+      client_secret: 'pi_123_secret_private',
+      amount: params.amount,
+      currency: params.currency,
+      metadata: params.metadata,
+    }) as Stripe.PaymentIntent);
+    const client = {
+      paymentIntents: { create, update: vi.fn() },
+      webhooks: { constructEvent: vi.fn() },
+    } as unknown as StripeClient;
+    const stripe = new StripePaymentProvider({
+      secretKey: 'sk_test_secret', publishableKey: 'pk_test_public', webhookSecret: 'whsec_test',
+    }, client);
+
+    const session = await stripe.createSession(sessionInput);
+    expect(session).toMatchObject({
+      provider: 'stripe', mode: 'test', status: 'ready', paymentIntentId: 'pi_123',
+      clientSecret: 'pi_123_secret_private', publishableKey: 'pk_test_public',
     });
-    const result = await square.confirmPayment({ orderId: 'order-1', sourceId: 'source', amountCents: 100, currency: 'USD' });
-    expect(result.status).toBe('needs-configuration');
-    expect(calls).toBe(0);
-  });
-
-  it('sends stable Square-compliant request ids for generated order ids', async () => {
-    const requests: Array<Record<string, unknown>> = [];
-    const square = new SquareSandboxProvider(
-      { accessToken: 'sandbox-token', appId: 'app', locationId: 'loc' },
-      async (_url, init) => {
-        requests.push(JSON.parse(String(init?.body)) as Record<string, unknown>);
-        return new Response(JSON.stringify({ payment: { id: 'payment-1', status: 'COMPLETED' } }), {
-          status: 200,
-          headers: { 'content-type': 'application/json' },
-        });
-      },
+    expect(create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        amount: 5_814,
+        currency: 'usd',
+        metadata: { orderId: 'order_123', buyerId: 'buyer-1', sourceKind: 'cart', sourceId: 'cart-1' },
+      }),
+      { idempotencyKey: 'sidestage:payment-intent:order_123' },
     );
-    const input = {
-      orderId: 'order_0a31da4c-ba24-4b5d-97c8-68ed1efcc97a',
-      sourceId: 'cnon:card-nonce-ok',
-      amountCents: 5_814,
-      currency: 'USD' as const,
-    };
-
-    await expect(square.confirmPayment(input)).resolves.toEqual({ status: 'paid', transactionId: 'payment-1' });
-    await square.confirmPayment(input);
-
-    const keys = requests.map(({ idempotency_key }) => String(idempotency_key));
-    const references = requests.map(({ reference_id }) => String(reference_id));
-    expect(keys).toHaveLength(2);
-    expect(keys[0]).toBe(keys[1]);
-    expect(keys[0]).toMatch(/^sidestage:[a-f0-9]{32}$/);
-    expect(keys[0]).toHaveLength(42);
-    expect(references).toHaveLength(2);
-    expect(references[0]).toBe(references[1]);
-    expect(references[0]).toMatch(/^sidestage:[a-f0-9]{30}$/);
-    expect(references[0]).toHaveLength(40);
   });
 
-  it("verifies Square's URL-plus-body HMAC contract", () => {
-    const body = '{"type":"payment.completed"}';
-    const url = 'https://example.test/checkout/webhook';
-    const key = 'secret';
-    const signature = createHmac('sha256', key).update(url + body).digest('base64');
-    expect(verifySquareWebhookSignature(body, signature, url, key)).toBe(true);
-    expect(verifySquareWebhookSignature(body, signature, url + '/wrong', key)).toBe(false);
+  it('boots without keys and reports configuration without touching Stripe', async () => {
+    const create = vi.fn();
+    const client = {
+      paymentIntents: { create, update: vi.fn() }, webhooks: { constructEvent: vi.fn() },
+    } as unknown as StripeClient;
+    const stripe = new StripePaymentProvider({ secretKey: '', publishableKey: '' }, client);
+    await expect(stripe.createSession(sessionInput)).resolves.toMatchObject({
+      status: 'needs-configuration', clientSecret: null, paymentIntentId: null,
+    });
+    expect(create).not.toHaveBeenCalled();
+  });
+
+  it('verifies Stripe signatures against the exact raw body and normalizes success', async () => {
+    const webhookSecret = 'whsec_test_secret';
+    const sdk = new Stripe('sk_test_secret');
+    const payload = JSON.stringify({
+      id: 'evt_signed',
+      object: 'event',
+      api_version: null,
+      created: 1_786_751_000,
+      livemode: false,
+      pending_webhooks: 1,
+      request: null,
+      type: 'payment_intent.succeeded',
+      data: {
+        object: {
+          id: 'pi_signed', object: 'payment_intent', amount: 5_814, amount_received: 5_814,
+          currency: 'usd', metadata: {
+            orderId: 'order_123', buyerId: 'buyer-1', sourceKind: 'cart', sourceId: 'cart-1',
+          }, latest_charge: 'ch_123', last_payment_error: null,
+        },
+      },
+    });
+    const signature = sdk.webhooks.generateTestHeaderString({ payload, secret: webhookSecret });
+    const stripe = new StripePaymentProvider({
+      secretKey: 'sk_test_secret', publishableKey: 'pk_test_public', webhookSecret,
+    }, sdk as unknown as StripeClient);
+
+    await expect(stripe.parseWebhook(Buffer.from(payload), signature)).resolves.toMatchObject({
+      id: 'evt_signed', type: 'succeeded', paymentIntentId: 'pi_signed', amountCents: 5_814,
+      amountReceivedCents: 5_814, currency: 'USD', orderId: 'order_123', buyerId: 'buyer-1',
+    });
+    await expect(stripe.parseWebhook(Buffer.from(`${payload} `), signature))
+      .rejects.toThrow('Stripe webhook verification failed');
   });
 });

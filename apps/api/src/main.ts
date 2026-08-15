@@ -10,7 +10,7 @@ async function bootstrap() {
   // AppModule reaches config-backed packages during module evaluation. Import it
   // only after loading the repo env so those packages observe the intended values.
   const AppModule = await loadAppModule();
-  const app = await NestFactory.create(AppModule);
+  const app = await NestFactory.create(AppModule, { rawBody: true });
   app.enableCors({ origin: true, credentials: true });
   // Production routes the API behind one hostname under /api (API_PREFIX=api);
   // local dev keeps bare paths on :3100. healthz stays unprefixed for probes.

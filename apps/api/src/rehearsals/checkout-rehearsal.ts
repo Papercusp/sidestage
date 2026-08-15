@@ -2,10 +2,10 @@ import { CartService, InMemoryCartStore } from '../cart/cart.service';
 import {
   CheckoutService,
   InMemoryOrderStore,
+  type CheckoutOrder,
   type PaymentProvider,
-  type PaymentResult,
-  type PaymentResultStatus,
   type PaymentSession,
+  type StripePaymentEvent,
 } from '../checkout/checkout.service';
 import { MAX_WEIGHT_OZ, packItems } from '../shipping/box-packer';
 import { ShippingService, type AggregatedRate } from '../shipping/shipping.service';
@@ -29,37 +29,59 @@ import type { RehearsalCaseResult, RehearsalReport } from './rehearsal.types';
  * The payment PROVIDER is the one seam that is deliberately stood in for — a
  * launch rehearsal must never post to a real payment API. That substitution is
  * reported as a caveat on the report so a green run is never mistaken for
- * proof that Square itself is healthy.
+ * proof that Stripe itself is healthy.
  */
 
-const PAYMENT_CAVEAT = 'Payments used a local stand-in provider, not the Square sandbox — this proves SideStage\'s own totals and idempotency, not that the payment provider is reachable.';
+const PAYMENT_CAVEAT = 'Payments used a local stand-in provider, not Stripe — this proves SideStage\'s own totals, webhook transitions, and idempotency, not that Stripe is reachable.';
 
 /** Records exactly what checkout asked the provider to charge. */
 class RecordingPaymentProvider implements PaymentProvider {
   readonly sessionCharges: number[] = [];
-  readonly confirmCharges: number[] = [];
+  readonly webhookCharges: number[] = [];
+  private nextEvent: StripePaymentEvent | null = null;
 
-  constructor(private readonly outcome: PaymentResultStatus = 'paid') {}
-
-  async createSession(input: { orderId: string; amountCents: number; currency: 'USD' }): Promise<PaymentSession> {
+  async createSession(input: Parameters<PaymentProvider['createSession']>[0]): Promise<PaymentSession> {
     this.sessionCharges.push(input.amountCents);
     return {
-      provider: 'square',
-      mode: 'sandbox',
+      provider: 'stripe',
+      mode: 'test',
       status: 'ready',
-      appId: 'rehearsal-app',
-      locationId: 'rehearsal-location',
+      publishableKey: 'pk_test_rehearsal',
+      clientSecret: `pi_${input.orderId}_secret_rehearsal`,
+      paymentIntentId: input.paymentIntentId ?? `pi_${input.orderId}`,
       orderId: input.orderId,
       amountCents: input.amountCents,
       currency: input.currency,
     };
   }
 
-  async confirmPayment(input: { orderId: string; sourceId: string; amountCents: number; currency: 'USD' }): Promise<PaymentResult> {
-    this.confirmCharges.push(input.amountCents);
-    return this.outcome === 'paid'
-      ? { status: 'paid', transactionId: `rehearsal_txn_${this.confirmCharges.length}` }
-      : { status: this.outcome, errorMessage: 'Rehearsal declined this card on purpose.' };
+  async parseWebhook(): Promise<StripePaymentEvent | null> {
+    return this.nextEvent;
+  }
+
+  async deliver(
+    checkout: CheckoutService,
+    order: CheckoutOrder,
+    type: StripePaymentEvent['type'],
+    id = `evt_rehearsal_${this.webhookCharges.length + 1}`,
+  ) {
+    this.webhookCharges.push(order.totalCents);
+    this.nextEvent = {
+      id,
+      created: 1_786_751_000 + this.webhookCharges.length,
+      type,
+      mode: 'test',
+      paymentIntentId: order.stripePaymentIntentId!,
+      orderId: order.id,
+      buyerId: order.buyerId,
+      sourceKind: order.sourceKind,
+      sourceId: order.sourceId,
+      amountCents: order.totalCents,
+      amountReceivedCents: type === 'succeeded' ? order.totalCents : undefined,
+      currency: order.currency,
+      errorMessage: type === 'failed' ? 'Rehearsal declined this payment on purpose.' : undefined,
+    };
+    return checkout.handleWebhook(Buffer.from('{}'), 'rehearsal-signature');
   }
 }
 
@@ -69,9 +91,9 @@ interface ScriptedCheckout {
   provider: RecordingPaymentProvider;
 }
 
-function scripted(outcome: PaymentResultStatus = 'paid'): ScriptedCheckout {
+function scripted(): ScriptedCheckout {
   const carts = new CartService(new InMemoryCartStore());
-  const provider = new RecordingPaymentProvider(outcome);
+  const provider = new RecordingPaymentProvider();
   const shipping = {
     resolveRate: async (_input: unknown, rateId: string) => {
       if (rateId !== REHEARSAL_RATE.id) throw new Error('Shipping rate is unavailable or expired');
@@ -142,8 +164,7 @@ export async function runCheckoutRehearsal(options: { now?: () => number } = {})
       const context = scripted();
       const cartId = await scriptedCart(context.carts);
       const { order } = await context.checkout.createSession({ cartId, ...REHEARSAL_ORDER_CONTEXT, ...REHEARSAL_SHIPPING_CONTEXT });
-      await context.checkout.confirmPayment({ orderId: order.id, sourceId: 'rehearsal-card' });
-      const charged = context.provider.confirmCharges[0];
+      const charged = context.provider.sessionCharges[0];
       const matches = charged === order.totalCents;
       return {
         passed: matches,
@@ -178,22 +199,22 @@ export async function runCheckoutRehearsal(options: { now?: () => number } = {})
   cases.push(await runCase(
     {
       caseId: 'no-double-charge',
-      title: 'Pressing pay twice does not charge twice',
-      expectation: 'Confirming an already-paid order must return the existing sale without sending a second charge to the provider.',
+      title: 'A duplicate success webhook does not commit twice',
+      expectation: 'Redelivering an already-applied Stripe success must return the existing sale without repeating SideStage payment side effects.',
     },
     async () => {
       const context = scripted();
       const cartId = await scriptedCart(context.carts);
       const { order } = await context.checkout.createSession({ cartId, ...REHEARSAL_ORDER_CONTEXT, ...REHEARSAL_SHIPPING_CONTEXT });
-      await context.checkout.confirmPayment({ orderId: order.id, sourceId: 'rehearsal-card' });
-      const repeat = await context.checkout.confirmPayment({ orderId: order.id, sourceId: 'rehearsal-card' });
-      const chargedOnce = context.provider.confirmCharges.length === 1;
+      await context.provider.deliver(context.checkout, order, 'succeeded', 'evt_rehearsal_success');
+      const repeat = await context.provider.deliver(context.checkout, order, 'succeeded', 'evt_rehearsal_success');
+      const chargedOnce = context.provider.sessionCharges.length === 1;
       return {
-        passed: chargedOnce && repeat.order.status === 'paid',
+        passed: chargedOnce && repeat.order?.status === 'paid' && repeat.handled === false,
         observed: chargedOnce
-          ? 'The second confirm returned the existing sale; the provider was charged once.'
-          : `The provider was charged ${context.provider.confirmCharges.length} times.`,
-        evidence: { chargesSent: context.provider.confirmCharges.length, finalStatus: repeat.order.status },
+          ? 'The duplicate webhook returned the existing sale; one PaymentIntent session was created.'
+          : `The provider was asked to create ${context.provider.sessionCharges.length} sessions.`,
+        evidence: { chargesSent: context.provider.sessionCharges.length, finalStatus: repeat.order?.status ?? 'missing' },
       };
     },
   ));
@@ -205,15 +226,18 @@ export async function runCheckoutRehearsal(options: { now?: () => number } = {})
       expectation: 'When the provider declines, the order must end up marked failed — never pending-looking-paid, and never shipped.',
     },
     async () => {
-      const context = scripted('failed');
+      const context = scripted();
       const cartId = await scriptedCart(context.carts);
       const { order } = await context.checkout.createSession({ cartId, ...REHEARSAL_ORDER_CONTEXT, ...REHEARSAL_SHIPPING_CONTEXT });
-      const result = await context.checkout.confirmPayment({ orderId: order.id, sourceId: 'rehearsal-card' });
-      const correct = result.order.status === 'failed' && result.payment.status === 'failed';
+      const result = await context.provider.deliver(context.checkout, order, 'failed');
+      const correct = result.order?.status === 'failed' && result.order.paymentState === 'payment_failed';
       return {
         passed: correct,
-        observed: `The declined payment left the order marked "${result.order.status}".`,
-        evidence: { orderStatus: result.order.status, paymentStatus: result.payment.status },
+        observed: `The declined payment left the order marked "${result.order?.status ?? 'missing'}".`,
+        evidence: {
+          orderStatus: result.order?.status ?? 'missing',
+          paymentStatus: result.order?.paymentState ?? 'missing',
+        },
       };
     },
   ));

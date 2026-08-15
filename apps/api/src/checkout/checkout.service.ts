@@ -1,5 +1,5 @@
-import { BadRequestException, Inject, Injectable, Optional } from '@nestjs/common';
-import { createHash, createHmac, randomUUID, timingSafeEqual } from 'node:crypto';
+import { BadRequestException, Inject, Injectable, Logger, Optional } from '@nestjs/common';
+import { randomUUID } from 'node:crypto';
 import { CartService, type Cart } from '../cart/cart.service';
 import {
   normalizeShippingAddress,
@@ -14,7 +14,7 @@ export const CHECKOUT_PAYMENT_PROVIDER = Symbol('CHECKOUT_PAYMENT_PROVIDER');
 export const ORDER_STORE = Symbol('ORDER_STORE');
 
 export type PaymentSessionStatus = 'ready' | 'needs-configuration';
-export type PaymentResultStatus = 'paid' | 'failed' | 'needs-configuration';
+export type StripeMode = 'test' | 'live';
 export type PayableOrderSourceKind = 'cart' | 'auction' | 'offer';
 export type PayableOrderPaymentState =
   | 'payment_required'
@@ -25,25 +25,50 @@ export type PayableOrderPaymentState =
   | 'expired';
 
 export interface PaymentSession {
-  provider: 'square';
-  mode: 'sandbox';
+  provider: 'stripe';
+  mode: StripeMode | null;
   status: PaymentSessionStatus;
-  appId: string | null;
-  locationId: string | null;
+  publishableKey: string | null;
+  clientSecret: string | null;
+  paymentIntentId: string | null;
   orderId: string;
   amountCents: number;
   currency: 'USD';
 }
 
-export interface PaymentResult {
-  status: PaymentResultStatus;
-  transactionId?: string;
+export type StripePaymentEventType = 'processing' | 'succeeded' | 'failed';
+
+export interface StripePaymentEvent {
+  id: string;
+  created: number;
+  type: StripePaymentEventType;
+  mode: StripeMode;
+  paymentIntentId: string;
+  orderId: string;
+  buyerId: string;
+  sourceKind: string;
+  sourceId: string;
+  amountCents: number;
+  amountReceivedCents?: number;
+  currency: string;
   errorMessage?: string;
 }
 
 export interface PaymentProvider {
-  createSession(input: { orderId: string; amountCents: number; currency: 'USD' }): Promise<PaymentSession>;
-  confirmPayment(input: { orderId: string; sourceId: string; amountCents: number; currency: 'USD' }): Promise<PaymentResult>;
+  createSession(input: {
+    orderId: string;
+    amountCents: number;
+    currency: 'USD';
+    buyerId: string;
+    sourceKind: PayableOrderSourceKind;
+    sourceId: string;
+    email?: string;
+    paymentIntentId?: string;
+  }): Promise<PaymentSession>;
+  parseWebhook(
+    rawBody: Buffer,
+    signature: string | string[] | undefined,
+  ): Promise<StripePaymentEvent | null>;
 }
 
 export type CheckoutOrderStatus = 'pending' | 'paid' | 'failed';
@@ -76,12 +101,14 @@ export interface CheckoutOrder {
   status: CheckoutOrderStatus;
   paymentState: PayableOrderPaymentState;
   stripePaymentIntentId?: string;
+  stripeEventId?: string;
+  stripeEventCreated?: number;
+  paymentError?: string;
   createdAt: string;
   items: Cart['items'];
   cartUpdatedAt?: string;
   shippingAddress?: NormalizedShippingAddress;
   selectedShippingRate?: AggregatedRate;
-  paymentSession?: PaymentSession;
   sourceSnapshot?: Record<string, unknown>;
 }
 
@@ -93,94 +120,6 @@ export interface CheckoutSessionInput {
   name?: string;
   shippingAddress: ShippingAddressInput;
   shippingRateId: string;
-}
-
-export interface SquareSandboxConfig {
-  accessToken?: string;
-  appId?: string;
-  locationId?: string;
-  apiBaseUrl?: string;
-}
-
-const SQUARE_IDEMPOTENCY_PREFIX = 'sidestage:';
-const SQUARE_IDEMPOTENCY_HASH_LENGTH = 32;
-const SQUARE_REFERENCE_MAX_LENGTH = 40;
-const SQUARE_REFERENCE_HASH_LENGTH = SQUARE_REFERENCE_MAX_LENGTH - SQUARE_IDEMPOTENCY_PREFIX.length;
-
-function squareIdempotencyKey(orderId: string): string {
-  const digest = createHash('sha256').update(orderId).digest('hex').slice(0, SQUARE_IDEMPOTENCY_HASH_LENGTH);
-  return `${SQUARE_IDEMPOTENCY_PREFIX}${digest}`;
-}
-
-function squareReferenceId(orderId: string): string {
-  if (orderId.length <= SQUARE_REFERENCE_MAX_LENGTH) return orderId;
-  const digest = createHash('sha256').update(orderId).digest('hex').slice(0, SQUARE_REFERENCE_HASH_LENGTH);
-  return `${SQUARE_IDEMPOTENCY_PREFIX}${digest}`;
-}
-
-/** Native-fetch Square adapter: no SDK credential or package is required for a clean clone. */
-export class SquareSandboxProvider implements PaymentProvider {
-  private readonly config: SquareSandboxConfig;
-  private readonly fetchImpl: typeof fetch;
-
-  constructor(config: SquareSandboxConfig = {}, fetchImpl: typeof fetch = fetch) {
-    this.config = config;
-    this.fetchImpl = fetchImpl;
-  }
-
-  async createSession(input: { orderId: string; amountCents: number; currency: 'USD' }): Promise<PaymentSession> {
-    const appId = this.config.appId ?? process.env.SQUARE_APP_ID ?? null;
-    const locationId = this.config.locationId ?? process.env.SQUARE_LOCATION_ID ?? null;
-    return {
-      provider: 'square',
-      mode: 'sandbox',
-      status: appId && locationId ? 'ready' : 'needs-configuration',
-      appId,
-      locationId,
-      orderId: input.orderId,
-      amountCents: input.amountCents,
-      currency: input.currency,
-    };
-  }
-
-  async confirmPayment(input: { orderId: string; sourceId: string; amountCents: number; currency: 'USD' }): Promise<PaymentResult> {
-    if (!input.sourceId.trim()) return { status: 'failed', errorMessage: 'sourceId is required' };
-    const accessToken = this.config.accessToken ?? process.env.SQUARE_ACCESS_TOKEN;
-    const locationId = this.config.locationId ?? process.env.SQUARE_LOCATION_ID;
-    if (!accessToken || !locationId) return { status: 'needs-configuration', errorMessage: 'Square sandbox credentials are not configured' };
-
-    const baseUrl = this.config.apiBaseUrl ?? 'https://connect.squareupsandbox.com';
-    const response = await this.fetchImpl(`${baseUrl}/v2/payments`, {
-      method: 'POST',
-      headers: {
-        authorization: `Bearer ${accessToken}`,
-        'content-type': 'application/json',
-        'square-version': '2025-10-16',
-      },
-      body: JSON.stringify({
-        source_id: input.sourceId,
-        idempotency_key: squareIdempotencyKey(input.orderId),
-        amount_money: { amount: input.amountCents, currency: input.currency },
-        location_id: locationId,
-        reference_id: squareReferenceId(input.orderId),
-      }),
-    });
-    const payload = (await response.json()) as { payment?: { id?: string; status?: string }; errors?: Array<{ detail?: string }> };
-    if (!response.ok) {
-      return { status: 'failed', errorMessage: payload.errors?.[0]?.detail ?? `Square returned HTTP ${response.status}` };
-    }
-    if (payload.payment?.status !== 'COMPLETED') {
-      return { status: 'failed', transactionId: payload.payment?.id, errorMessage: `Square payment status: ${payload.payment?.status ?? 'unknown'}` };
-    }
-    return { status: 'paid', transactionId: payload.payment.id };
-  }
-}
-
-export function verifySquareWebhookSignature(rawBody: string, signature: string, notificationUrl: string, signatureKey: string): boolean {
-  const expected = createHmac('sha256', signatureKey).update(notificationUrl + rawBody).digest('base64');
-  const actual = Buffer.from(signature);
-  const expectedBytes = Buffer.from(expected);
-  return actual.length === expectedBytes.length && timingSafeEqual(actual, expectedBytes);
 }
 
 @Injectable()
@@ -231,13 +170,15 @@ function cloneCheckoutOrder(order: CheckoutOrder): CheckoutOrder {
     items: order.items.map((item) => ({ ...item })),
     shippingAddress: order.shippingAddress ? { ...order.shippingAddress } : undefined,
     selectedShippingRate: order.selectedShippingRate ? { ...order.selectedShippingRate } : undefined,
-    paymentSession: order.paymentSession ? { ...order.paymentSession } : undefined,
     sourceSnapshot: order.sourceSnapshot ? { ...order.sourceSnapshot } : undefined,
   };
 }
 
 @Injectable()
 export class CheckoutService {
+  private readonly logger = new Logger(CheckoutService.name);
+  private readonly paymentEventTails = new Map<string, Promise<void>>();
+
   constructor(
     @Inject(CHECKOUT_PAYMENT_PROVIDER) private readonly provider: PaymentProvider,
     @Inject(ORDER_STORE) private readonly orders: OrderStore,
@@ -280,13 +221,7 @@ export class CheckoutService {
     if (existing?.status === 'paid') {
       throw new BadRequestException('Cart already has a paid order');
     }
-    if (existing?.paymentSession && this.sameCheckout(existing, cart, eventId, email, name, shippingAddress, selectedShippingRate)) {
-      const order = this.cloneOrder(existing);
-      return { order, session: { ...existing.paymentSession } };
-    }
-
     const orderId = existing?.id ?? `order_${randomUUID()}`;
-    const session = await this.provider.createSession({ orderId, amountCents: totalCents, currency: 'USD' });
     const order: CheckoutOrder = {
       id: orderId,
       cartId: cart.id,
@@ -307,36 +242,82 @@ export class CheckoutService {
       cartUpdatedAt: cart.updatedAt,
       shippingAddress: { ...shippingAddress },
       selectedShippingRate: { ...selectedShippingRate },
-      paymentSession: session,
     };
+    const session = await this.provider.createSession({
+      orderId: order.id,
+      amountCents: order.totalCents,
+      currency: order.currency,
+      buyerId: order.buyerId,
+      sourceKind: order.sourceKind,
+      sourceId: order.sourceId,
+      email: order.email,
+      paymentIntentId: existing?.stripePaymentIntentId,
+    });
+    order.stripePaymentIntentId = session.paymentIntentId ?? existing?.stripePaymentIntentId;
     await this.orders.set(order);
     this.invalidateBuyerOrders(buyerId);
     return { order: this.cloneOrder(order), session: { ...session } };
   }
 
-  async confirmPayment(input: { orderId: string; sourceId: string }): Promise<{ order: CheckoutOrder; payment: PaymentResult }> {
-    const order = await this.orders.get(input.orderId);
-    if (!order) throw new Error('Order not found');
-    if (order.status === 'paid') return { order: this.cloneOrder(order), payment: { status: 'paid' } };
-    if (!order.cartId) throw new BadRequestException('This order is not backed by a cart checkout');
-    const cart = await this.requireCart(order.cartId);
-    if (cart.updatedAt !== order.cartUpdatedAt || JSON.stringify(cart.items) !== JSON.stringify(order.items)) {
-      throw new BadRequestException('Held items changed or expired before payment; review your held items and try again');
+  async handleWebhook(
+    rawBody: Buffer,
+    signature: string | string[] | undefined,
+  ): Promise<{ received: true; handled: boolean; order?: CheckoutOrder }> {
+    const event = await this.provider.parseWebhook(rawBody, signature);
+    if (!event) return { received: true, handled: false };
+
+    const matched = await this.orders.findByPaymentIntent(event.paymentIntentId);
+    if (!matched) {
+      this.rejectWebhook(event, ['paymentIntentId']);
     }
-    const previousStatus = order.status;
-    const payment = await this.provider.confirmPayment({ orderId: order.id, sourceId: input.sourceId, amountCents: order.totalCents, currency: order.currency });
-    if (payment.status === 'paid') {
-      await this.carts.commit(order.cartId);
-      order.status = 'paid';
-      order.paymentState = 'paid';
-    }
-    if (payment.status === 'failed') {
-      order.status = 'failed';
-      order.paymentState = 'payment_failed';
-    }
-    await this.orders.set(order);
-    if (order.status !== previousStatus) this.invalidateOrderStatus(order);
-    return { order: this.cloneOrder(order), payment };
+
+    return this.serializePaymentEvent(matched!.id, async () => {
+      const order = await this.orders.get(matched!.id);
+      if (!order) this.rejectWebhook(event, ['order']);
+      this.assertWebhookMatchesOrder(order!, event);
+
+      if (order!.stripeEventId === event.id) {
+        return { received: true, handled: false, order: this.cloneOrder(order!) };
+      }
+      if (order!.status === 'paid') {
+        return { received: true, handled: false, order: this.cloneOrder(order!) };
+      }
+      if (
+        event.type !== 'succeeded'
+        && order!.stripeEventCreated !== undefined
+        && event.created < order!.stripeEventCreated
+      ) {
+        return { received: true, handled: false, order: this.cloneOrder(order!) };
+      }
+
+      const previousStatus = order!.status;
+      const previousPaymentState = order!.paymentState;
+      if (event.type === 'processing') {
+        order!.status = 'pending';
+        order!.paymentState = 'payment_processing';
+        order!.paymentError = undefined;
+      } else if (event.type === 'failed') {
+        order!.status = 'failed';
+        order!.paymentState = 'payment_failed';
+        order!.paymentError = event.errorMessage ?? 'Payment failed';
+      } else {
+        if (order!.sourceKind === 'cart') {
+          if (!order!.cartId) throw new BadRequestException('Cart order is missing its cart reference');
+          await this.carts.commit(order!.cartId);
+        }
+        order!.status = 'paid';
+        order!.paymentState = 'paid';
+        order!.paymentError = undefined;
+      }
+      order!.stripeEventId = event.id;
+      order!.stripeEventCreated = event.created;
+      await this.orders.set(order!);
+
+      if (order!.status !== previousStatus || order!.paymentState !== previousPaymentState) {
+        this.invalidateOrderStatus(order!);
+      }
+      return { received: true, handled: true, order: this.cloneOrder(order!) };
+    });
   }
 
   async getOrder(id: string): Promise<CheckoutOrder | null> {
@@ -357,23 +338,42 @@ export class CheckoutService {
       && JSON.stringify(left.items) === JSON.stringify(right.items);
   }
 
-  private sameCheckout(
-    order: CheckoutOrder,
-    cart: Cart,
-    eventId: string,
-    email: string | undefined,
-    name: string | undefined,
-    shippingAddress: NormalizedShippingAddress,
-    selectedShippingRate: AggregatedRate,
-  ): boolean {
-    return order.eventId === eventId
-      && order.email === email
-      && order.name === name
-      && order.cartUpdatedAt === cart.updatedAt
-      && order.subtotalCents === cart.subtotalCents
-      && JSON.stringify(order.items) === JSON.stringify(cart.items)
-      && JSON.stringify(order.shippingAddress) === JSON.stringify(shippingAddress)
-      && JSON.stringify(order.selectedShippingRate) === JSON.stringify(selectedShippingRate);
+  private assertWebhookMatchesOrder(order: CheckoutOrder, event: StripePaymentEvent): void {
+    const mismatches: string[] = [];
+    if (order.stripePaymentIntentId !== event.paymentIntentId) mismatches.push('paymentIntentId');
+    if (order.id !== event.orderId) mismatches.push('orderId');
+    if (order.buyerId !== event.buyerId) mismatches.push('buyerId');
+    if (order.sourceKind !== event.sourceKind) mismatches.push('sourceKind');
+    if (order.sourceId !== event.sourceId) mismatches.push('sourceId');
+    if (order.totalCents !== event.amountCents) mismatches.push('amount');
+    if (event.type === 'succeeded' && event.amountReceivedCents !== undefined && order.totalCents !== event.amountReceivedCents) {
+      mismatches.push('amountReceived');
+    }
+    if (order.currency !== event.currency.toUpperCase()) mismatches.push('currency');
+    if (mismatches.length > 0) this.rejectWebhook(event, mismatches);
+  }
+
+  private rejectWebhook(event: StripePaymentEvent, mismatches: string[]): never {
+    this.logger.warn(
+      `Rejected Stripe event ${event.id} for PaymentIntent ${event.paymentIntentId}: ${mismatches.join(', ')}`,
+    );
+    throw new BadRequestException(`Stripe event does not match SideStage order: ${mismatches.join(', ')}`);
+  }
+
+  private async serializePaymentEvent<T>(orderId: string, action: () => Promise<T>): Promise<T> {
+    const previous = this.paymentEventTails.get(orderId) ?? Promise.resolve();
+    let release!: () => void;
+    const current = previous.then(() => new Promise<void>((resolve) => {
+      release = resolve;
+    }));
+    this.paymentEventTails.set(orderId, current);
+    await previous;
+    try {
+      return await action();
+    } finally {
+      release();
+      if (this.paymentEventTails.get(orderId) === current) this.paymentEventTails.delete(orderId);
+    }
   }
 
   private optionalText(value: unknown): string | undefined {

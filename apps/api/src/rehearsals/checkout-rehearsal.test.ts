@@ -42,7 +42,7 @@ describe('checkout rehearsal', () => {
   });
 
   it('discloses that the payment provider was stood in for', async () => {
-    // A green checkout rehearsal must not be readable as "Square is healthy".
+    // A green checkout rehearsal must not be readable as "Stripe is healthy".
     const report = await runCheckoutRehearsal();
     expect(report.caveats).toHaveLength(1);
     expect(report.caveats?.[0]).toContain('stand-in');
