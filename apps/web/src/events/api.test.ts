@@ -159,14 +159,14 @@ describe('seller event API orchestration', () => {
     expect(new Headers(executeCall?.[1]?.headers).get(DEMO_PRINCIPAL_HEADER)).toBe('demo-27');
   });
 
-  it('keeps seller-entered quantity in auction and targeted-offer requests', async () => {
+  it('keeps seller-entered quantity and duration in auction and targeted-offer requests', async () => {
     vi.stubGlobal('fetch', vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
       const url = String(input);
       const body = JSON.parse(String(init?.body)) as Record<string, unknown>;
       if (url.endsWith('/auctions/start')) {
         expect(body).toMatchObject({
           eventId: 'drop', eventItemId: 'drop:mug', productId: 'mug',
-          quantity: 3, startingPriceCents: 1_100, availableQty: 5,
+          quantity: 3, startingPriceCents: 1_100, durationSec: 90, availableQty: 5,
         });
         return json({ id: 'auction-1', ...body, currentPriceCents: 1_100, status: 'active', startedAt: 'now', endsAt: 'later' });
       }
@@ -183,7 +183,7 @@ describe('seller event API orchestration', () => {
       throw new Error(`Unexpected URL ${url}`);
     }));
 
-    const auction = await startSellerAuction('drop', ITEM, 3, 1_100);
+    const auction = await startSellerAuction('drop', ITEM, 3, 1_100, undefined, 'seller-secret', 'demo-27', 90);
     const offer = await executeSellerAction('drop', 'seller-offer-27', {
       kind: 'targeted-offer', productId: 'mug', buyerId: 'buyer-7', quantity: 2,
       priceCents: 1_200, reason: 'Quantity-aware offer',
