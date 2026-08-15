@@ -84,4 +84,16 @@ export interface CatalogSource {
   variant(id: string): Promise<CatalogVariant | undefined>;
   /** Clean-clone write-through used by the shared inventory authority. */
   saveInventory?(id: string, quantity: number, priceCents: number): Promise<CatalogVariant | undefined>;
+  /**
+   * Clean-clone mirror of the durable seller-onboarding write. Production
+   * performs the clone in PgAuctionInventory; the fixture source implements
+   * this so inventory.page observes the same seller-owned listing in memory.
+   */
+  onboardInventory?(
+    sourceId: string,
+    targetId: string,
+    sellerId: string,
+    quantity: number,
+    priceCents: number,
+  ): Promise<CatalogVariant | undefined>;
 }
