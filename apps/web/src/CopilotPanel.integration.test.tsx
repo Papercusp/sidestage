@@ -42,6 +42,7 @@ afterEach(async () => {
   if (root) await act(async () => root?.unmount());
   root = null;
   container.remove();
+  vi.unstubAllGlobals();
   delete (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT;
 });
 
@@ -171,5 +172,41 @@ describe('CopilotPanel sync integration', () => {
     expect(runtime.confirmAction).toHaveBeenCalledTimes(1);
     expect(runtime.confirmAction).toHaveBeenCalledWith({ proposalId: 'proposal-1', actorId: 'seller-7' });
     expect(runtime.invalidate).toHaveBeenCalledTimes(1);
+  });
+
+  it('sends the canonical principal on the proposal REST fallback', async () => {
+    const fetchMock = vi.fn(async (_input: RequestInfo | URL, _init?: RequestInit) => ({
+      ok: true,
+      status: 200,
+      json: async () => ({ ...baseProposal, status: 'approved' as const }),
+    }) as Response);
+    vi.stubGlobal('fetch', fetchMock);
+    const value = {
+      transport: 'POLLING' as const,
+      principal: 'demo-7',
+      useDataImpl: <T,>() => ({
+        data: [baseProposal] as unknown as T[], loading: false, fetching: false,
+        transport: 'POLLING' as const, invalidate: vi.fn(), error: null,
+      }),
+      prefetch: vi.fn(),
+      mutate: null,
+    };
+
+    await act(async () => {
+      root?.render(
+        <SyncContext.Provider value={value}>
+          <CopilotPanel eventId="event-live" actorId="seller-7" apiBaseUrl="https://api.sidestage.test" />
+        </SyncContext.Provider>,
+      );
+    });
+    await act(async () => {
+      button('Approve reply').click();
+      await Promise.resolve();
+    });
+
+    expect(fetchMock).toHaveBeenCalledOnce();
+    const [url, init] = fetchMock.mock.calls[0]!;
+    expect(url).toBe('https://api.sidestage.test/copilot/proposals/proposal-1/approve');
+    expect(new Headers(init?.headers).get('x-demo-principal')).toBe('demo-7');
   });
 });
