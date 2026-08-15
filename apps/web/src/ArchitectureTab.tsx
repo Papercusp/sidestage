@@ -84,13 +84,17 @@ export function ArchitectureTab() {
         </dl>
       </header>
 
-      <nav className="architecture-jump-nav" aria-label="Architecture sections">
-        <a href="#system-map">System map</a>
-        <a href="#runtime-flows">Runtime flows</a>
-        <a href="#application-layers">Application layers</a>
-        <a href="#data-safety">Data &amp; safety</a>
-        <a href="#operations">Operations</a>
-      </nav>
+      <div className="architecture-layout">
+        <nav className="architecture-jump-nav" aria-label="Architecture sections">
+          <span className="architecture-jump-nav-label" aria-hidden="true">On this page</span>
+          <a href="#system-map">System map</a>
+          <a href="#runtime-flows">Runtime flows</a>
+          <a href="#application-layers">Application layers</a>
+          <a href="#data-safety">Data &amp; safety</a>
+          <a href="#operations">Operations</a>
+        </nav>
+
+        <div className="architecture-content">
 
       <section className="architecture-section" id="system-map" aria-labelledby="system-map-title">
         <div className="architecture-section-heading">
@@ -253,10 +257,12 @@ export function ArchitectureTab() {
         </div>
       </section>
 
-      <footer className="architecture-page-footer">
-        <strong>Architectural rule of thumb</strong>
-        <p>Realtime transport may be optimistic; commerce, ownership, policy and automation outcomes are always server-authoritative and durably auditable.</p>
-      </footer>
+          <footer className="architecture-page-footer">
+            <strong>Architectural rule of thumb</strong>
+            <p>Realtime transport may be optimistic; commerce, ownership, policy and automation outcomes are always server-authoritative and durably auditable.</p>
+          </footer>
+        </div>
+      </div>
     </article>
   );
 }

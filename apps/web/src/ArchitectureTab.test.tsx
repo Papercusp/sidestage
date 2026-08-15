@@ -26,10 +26,17 @@ describe('ArchitectureTab', () => {
     expect(markup).toContain('The browser proposes. The server decides.');
     expect(markup).toContain('Buyer-visible effect');
     expect(markup).toContain('aria-label="Architecture sections"');
+    expect(markup).toContain('class="architecture-layout"');
+    expect(markup).toContain('class="architecture-content"');
+    expect(markup).toContain('On this page');
   });
 
-  it('keeps diagrams responsive without hiding architecture content', () => {
+  it('uses a sticky section sidebar and keeps the page responsive without hiding content', () => {
+    expect(css).toMatch(/\.architecture-layout\s*\{[^}]*grid-template-columns:\s*minmax\(9\.5rem, 12rem\) minmax\(0, 1fr\)/);
+    expect(css).toMatch(/\.architecture-jump-nav\s*\{[^}]*position:\s*sticky[^}]*display:\s*grid/);
+    expect(css).not.toMatch(/\.architecture-jump-nav\s*\{[^}]*display:\s*flex/);
     expect(css).toMatch(/@media \(max-width: 1100px\)[\s\S]*?\.architecture-context-diagram\s*\{[^}]*grid-template-columns:\s*1fr/);
+    expect(css).toMatch(/@media \(max-width: 720px\)[\s\S]*?\.architecture-layout\s*\{[^}]*grid-template-columns:\s*1fr/);
     expect(css).toMatch(/@media \(max-width: 720px\)[\s\S]*?\.architecture-layer > div[^}]*grid-template-columns:\s*1fr/);
     expect(css).not.toMatch(/@media[^}]+display:\s*none/);
   });
