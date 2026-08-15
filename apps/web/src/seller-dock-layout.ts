@@ -16,6 +16,7 @@ export type SellerPanelId =
   | 'copilot'
   | 'event-chat'
   | 'event-manager'
+  | 'inventory'
   | 'run-of-show';
 
 /** The complete seller panel inventory (D-004). */
@@ -25,6 +26,7 @@ export const SELLER_PANEL_IDS: readonly SellerPanelId[] = [
   'copilot',
   'event-chat',
   'event-manager',
+  'inventory',
   'run-of-show',
 ];
 
@@ -35,6 +37,7 @@ export const SELLER_PANEL_TITLES: Readonly<Record<SellerPanelId, string>> = {
   copilot: 'Copilot',
   'event-chat': 'Event chat',
   'event-manager': 'Event manager',
+  inventory: 'Inventory',
   'run-of-show': 'Run of show',
 };
 
@@ -43,6 +46,7 @@ export const SELLER_ACTIVE_PANEL_IDS = [
   'stage-status',
   'copilot',
   'run-of-show',
+  'inventory',
 ] as const satisfies readonly SellerPanelId[];
 
 /** Panels on the independently persisted Event Manager board. */
@@ -104,7 +108,7 @@ export function sellerActiveEventDockDefaultLayout(): LayoutDoc {
           id: 'seller-active-rail',
           direction: 'col',
           size: 380,
-          children: [solo('run-of-show', 1000)],
+          children: [strip(['run-of-show', 'inventory'], 1000, 'run-of-show')],
         },
       ],
     },

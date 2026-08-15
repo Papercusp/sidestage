@@ -6,6 +6,7 @@ import type { SellerPanelId } from './seller-dock-layout';
 import type { OnDeckPanel } from './seller/OnDeckPanel';
 import type { RunOfShowPanel } from './seller/RunOfShowPanel';
 import type { StageStatusPanel } from './seller/StageStatusPanel';
+import type { ActiveEventInventoryPanel } from './ActiveEventInventoryPanel';
 
 /**
  * The props bundle every docked seller panel reads from context (P-009).
@@ -44,6 +45,7 @@ export type SellerDockPanelContextValue = {
   copilot: ComponentProps<typeof CopilotPanel>;
   'event-chat': ComponentProps<typeof EventChat>;
   'event-manager': ComponentProps<typeof EventManager>;
+  inventory: ComponentProps<typeof ActiveEventInventoryPanel>;
   'run-of-show': ComponentProps<typeof RunOfShowPanel>;
 };
 

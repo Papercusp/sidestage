@@ -47,6 +47,7 @@ describe('Studio dock board seeds', () => {
       'stage-status',
       'copilot',
       'run-of-show',
+      'inventory',
     ]);
     expect(new Set(placed)).toEqual(new Set(SELLER_ACTIVE_PANEL_IDS));
     expect(placed).not.toContain('event-chat');
@@ -91,6 +92,16 @@ describe('Studio dock board seeds', () => {
     expect((primary.size ?? 0) / width).toBeCloseTo(0.62, 10);
     expect((rail.size ?? 0) / width).toBeCloseTo(0.38, 10);
     expect((primary.children?.[0].size ?? 0) / 1000).toBeCloseTo(0.65, 10);
+  });
+
+  it('places Inventory beside Run of Show in one utility tab strip without changing the default live tab', () => {
+    const root = sellerActiveEventDockDefaultLayout().root as AnyNode;
+    const rail = child(root, 'seller-active-rail');
+    const utility = rail.children?.[0];
+
+    expect(utility?.kind).toBe('tabs');
+    expect(utility?.panels?.map((panel) => panel.id)).toEqual(['run-of-show', 'inventory']);
+    expect(utility?.activePanelId).toBe('run-of-show');
   });
 
   it('hands out fresh, JSON-safe layout documents', () => {

@@ -1,10 +1,11 @@
-import type { ReactNode } from 'react';
+import { useCallback, type ReactNode } from 'react';
 import {
   createPanelRegistry,
   type PanelComponent,
   type PanelRegistry,
 } from '@papercusp/dock-workbench';
 import { CopilotPanel } from './CopilotPanel';
+import { ActiveEventInventoryPanel } from './ActiveEventInventoryPanel';
 import { EventChat } from './EventChat';
 import EventManager from './events/EventManager';
 import { SELLER_PANEL_IDS, SELLER_PANEL_TITLES, type SellerPanelId } from './seller-dock-layout';
@@ -98,6 +99,21 @@ const EventManagerDockPanel: PanelComponent = function EventManagerDockPanel() {
   );
 };
 
+const InventoryDockPanel: PanelComponent = function InventoryDockPanel({ api }) {
+  const panels = useSellerDockPanels();
+  const setLowStockTitle = useCallback((count: number) => {
+    api.setTitle(count > 0 ? `Inventory · ${count} low` : 'Inventory');
+  }, [api]);
+  return (
+    <PanelBody>
+      <ActiveEventInventoryPanel
+        {...panels.inventory}
+        onLowStockCountChange={setLowStockTitle}
+      />
+    </PanelBody>
+  );
+};
+
 const RunOfShowDockPanel: PanelComponent = function RunOfShowDockPanel() {
   const panels = useSellerDockPanels();
   return (
@@ -122,6 +138,7 @@ export const SELLER_PANEL_COMPONENTS: Record<SellerPanelId, PanelComponent> = {
   copilot: CopilotDockPanel,
   'event-chat': EventChatDockPanel,
   'event-manager': EventManagerDockPanel,
+  inventory: InventoryDockPanel,
   'run-of-show': RunOfShowDockPanel,
 };
 
