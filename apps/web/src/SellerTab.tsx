@@ -4,7 +4,7 @@ import { useDemoIdentity } from './buyer-identity';
 import { requestChatJson } from './chat-api';
 import { TabHeader } from './components/TabHeader';
 import { EventChat, resolveApiOrigin } from './EventChat';
-import { chatEventId, DEFAULT_EVENT_ID, DEFAULT_EVENT_TITLE, mediaBaseUrl } from './event-identity';
+import { browserEventId, chatEventId, DEFAULT_EVENT_TITLE, mediaBaseUrl } from './event-identity';
 import { sellerPrivateRequestHeaders } from './events/api';
 import { useCopyState, useStreamSession } from './hooks';
 import { studioViewHref, useUrlStudioView, type StudioView } from './app-routing';
@@ -69,6 +69,11 @@ export function sellerEventIdentity(eventId: string, eventTitle?: string): Selle
     eventId,
     eventTitle: eventTitle?.trim() || DEFAULT_EVENT_TITLE,
   };
+}
+
+/** Restore the selected event after a reload, remount, or desktop/mobile host swap. */
+export function initialSellerEventIdentity(): SellerEventIdentity {
+  return sellerEventIdentity(browserEventId(), DEFAULT_EVENT_TITLE);
 }
 
 export interface TranscriptMomentMutationInput {
@@ -149,9 +154,7 @@ export function SellerTab({
   transcriptProducts: readonly TranscriptProductOption[];
   onActiveProductChange: (productId: string | null) => void;
 }) {
-  const [{ eventId, eventTitle }, setEventIdentity] = useState(() => (
-    sellerEventIdentity(DEFAULT_EVENT_ID, DEFAULT_EVENT_TITLE)
-  ));
+  const [{ eventId, eventTitle }, setEventIdentity] = useState(initialSellerEventIdentity);
   const [room, setRoom] = useState<EventRoom | null>(null);
   const [runOfShowLog, setRunOfShowLog] = useState(emptyStageLog);
   const stream = useStreamSession<PublisherSession>();
