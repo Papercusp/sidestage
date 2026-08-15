@@ -45,6 +45,10 @@ describe('API runtime workspace packages', () => {
       apiPackage.scripts?.pretypecheck,
       'typecheck must build the same internal runtime dependencies as the test lifecycle',
     ).toBe(apiPackage.scripts?.pretest);
+    expect(
+      apiPackage.scripts?.prebuild,
+      'a clean workspace build must compile internal runtime dependencies before the API',
+    ).toBe(apiPackage.scripts?.pretest);
 
     for (const dependency of internalDependencies) {
       expect(
