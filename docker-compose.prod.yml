@@ -159,6 +159,11 @@ services:
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
       OPENAI_BASE_URL: ${OPENAI_BASE_URL:-}
       SIDESTAGE_COPILOT_MODEL: ${SIDESTAGE_COPILOT_MODEL:-}
+      # Optional Vertex Scout configuration. A blank project keeps the tested
+      # deterministic adapter; location/model blanks use the factory defaults.
+      GOOGLE_CLOUD_PROJECT: ${GOOGLE_CLOUD_PROJECT:-}
+      GOOGLE_CLOUD_LOCATION: ${GOOGLE_CLOUD_LOCATION:-}
+      SCOUT_VERTEX_MODEL: ${SCOUT_VERTEX_MODEL:-}
     depends_on:
       postgres:
         condition: service_healthy

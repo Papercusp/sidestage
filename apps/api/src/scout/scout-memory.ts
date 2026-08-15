@@ -32,6 +32,19 @@ export function memoryTokens(text: string): string[] {
   return text.toLowerCase().match(/[a-z0-9]+/g) ?? [];
 }
 
+const MEMORY_FILLER_TOKENS = new Set([
+  'a', 'an', 'any', 'about', 'are', 'buy', 'do', 'find', 'for', 'get', 'have',
+  'i', 'im', 'in', 'is', 'it', 'looking', 'me', 'my', 'need', 'of', 'please',
+  'show', 'some', 'something', 'the', 'there', 'to', 'want', 'with', 'you',
+]);
+
+/** Tokens that carry enough subject meaning to justify recalling another turn. */
+export function memoryRelevanceTokens(text: string): string[] {
+  return memoryTokens(text).filter((token) => token.length > 1 && !MEMORY_FILLER_TOKENS.has(token));
+}
+
+export const MIN_MEMORY_RELEVANCE = 0.5;
+
 /**
  * How well `text` answers `query`, as the fraction of DISTINCT query tokens it
  * contains (0..1).
@@ -42,9 +55,9 @@ export function memoryTokens(text: string): string[] {
  * by recency at the call site, so the newest of two equally-good memories wins.
  */
 export function memoryScore(text: string, query: string): number {
-  const wanted = new Set(memoryTokens(query));
+  const wanted = new Set(memoryRelevanceTokens(query));
   if (wanted.size === 0) return 0;
-  const have = new Set(memoryTokens(text));
+  const have = new Set(memoryRelevanceTokens(text));
   let hits = 0;
   for (const token of wanted) if (have.has(token)) hits += 1;
   return hits / wanted.size;

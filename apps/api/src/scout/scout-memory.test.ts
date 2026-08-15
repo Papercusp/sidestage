@@ -3,6 +3,7 @@ import {
   DisabledScoutMemoryStore,
   InMemoryScoutMemoryStore,
   memoryScopes,
+  memoryRelevanceTokens,
   memoryScore,
   memoryTokens,
   STORE_SCOPE,
@@ -53,6 +54,17 @@ describe('memoryScore', () => {
   it('scores an empty query at zero rather than dividing by nothing', () => {
     expect(memoryScore('anything', '')).toBe(0);
     expect(memoryScore('anything', '!!!')).toBe(0);
+  });
+
+  it('does not treat conversational filler as evidence that two turns are related', () => {
+    expect(memoryScore('find me kettles', 'find me computers')).toBe(0);
+    expect(memoryScore('show me wireless headphones', 'find wireless headphones')).toBe(1);
+  });
+});
+
+describe('memoryRelevanceTokens', () => {
+  it('drops filler while preserving the product subject', () => {
+    expect(memoryRelevanceTokens('Please find me some computers')).toEqual(['computers']);
   });
 });
 

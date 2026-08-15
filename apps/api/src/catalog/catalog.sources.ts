@@ -38,9 +38,14 @@ const TOTAL_CAP = 10_000;
 
 export function normalizeQuery(query: CatalogQuery): Required<CatalogQuery> {
   const pageSize = Math.min(MAX_PAGE_SIZE, Math.max(1, Math.floor(query.pageSize ?? DEFAULT_PAGE_SIZE)));
+  const productTypes = [...new Set([
+    query.productType,
+    ...(query.productTypes ?? []),
+  ].map((value) => value?.trim()).filter((value): value is string => Boolean(value)))];
   return {
     q: (query.q ?? '').trim(),
-    productType: (query.productType ?? '').trim(),
+    productType: productTypes.length === 1 ? productTypes[0] : '',
+    productTypes,
     availability: query.availability === 'in-stock' ? 'in-stock' : 'all',
     page: Math.max(1, Math.floor(query.page ?? 1)),
     pageSize,
@@ -163,7 +168,7 @@ export class PgCatalogSource implements CatalogSource {
     // holds before projecting reservedQty/availableQty so an abandoned cart
     // cannot remain visibly reserved just because that buyer stopped polling.
     await this.pool.query('SELECT expire_inventory_reservations()', []);
-    const { q, productType, availability, page, pageSize } = normalizeQuery(query);
+    const { q, productTypes, availability, page, pageSize } = normalizeQuery(query);
     // The SAME search the Restart wholesale grid uses (@papercusp/typesense):
     // typo-tolerant, one hit per product group, true corpus match count — with
     // graceful SQL degradation when Typesense is unavailable (spec parity,
@@ -173,7 +178,7 @@ export class PgCatalogSource implements CatalogSource {
       try {
         const { hits, found } = await typesense.typesenseService.search({
           q,
-          category: productType || undefined,
+          categories: productTypes.length > 0 ? productTypes : undefined,
           inStockOnly: availability === 'in-stock',
           limit: pageSize,
           page,
@@ -257,7 +262,7 @@ export class PgCatalogSource implements CatalogSource {
   }
 
   private async runSearch(query: CatalogQuery, search: SqlSearchQuery | null, sellerId?: string): Promise<CatalogPage> {
-    const { q, productType, availability, page, pageSize } = normalizeQuery(query);
+    const { q, productTypes, availability, page, pageSize } = normalizeQuery(query);
     const where: string[] = ['v.active'];
     const params: unknown[] = [];
     const collectionWhere = collectionPredicate(this.collection, params);
@@ -274,9 +279,9 @@ export class PgCatalogSource implements CatalogSource {
       where.push(search.predicate.replaceAll('$Q', qParam));
       rankSql = search.rank?.replaceAll('$Q', qParam);
     }
-    if (productType) {
-      params.push(productType);
-      where.push(`c.product_type = $${params.length}`);
+    if (productTypes.length > 0) {
+      params.push(productTypes);
+      where.push(`c.product_type = ANY($${params.length}::text[])`);
     }
     if (availability === 'in-stock') {
       where.push('v."availableQty" > 0');
@@ -349,10 +354,10 @@ export class FixtureCatalogSource implements CatalogSource {
   }
 
   async search(query: CatalogQuery): Promise<CatalogPage> {
-    const { q, productType, availability, page, pageSize } = normalizeQuery(query);
+    const { q, productTypes, availability, page, pageSize } = normalizeQuery(query);
     const needle = q.toLowerCase();
     const matches = this.fixture.filter((variant) => {
-      if (productType && variant.productType !== productType) return false;
+      if (productTypes.length > 0 && !productTypes.includes(variant.productType)) return false;
       if (availability === 'in-stock' && variant.availableQty < 1) return false;
       if (!needle) return true;
       return [variant.title, variant.brand, variant.sku, variant.productType, variant.color ?? '', variant.description ?? '']

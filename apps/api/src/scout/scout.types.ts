@@ -25,8 +25,62 @@ export interface ScoutChatResponse {
   latencyMs: number;
 }
 
+/** Friendly product intent presented to the model; values map to catalog enums. */
+export const SCOUT_CATEGORIES = [
+  'Computers',
+  'Laptops',
+  'Desktops',
+  'Monitors',
+  'Keyboards',
+  'Mice',
+  'Printers',
+  'Tablets',
+  'Laptop bags & cases',
+  'Chargers & power adapters',
+  'Docking stations',
+  'Cables',
+  'Memory & RAM',
+  'Storage & drives',
+  'Graphics cards',
+  'Networking',
+  'Speakers',
+  'Headphones',
+] as const;
+
+export type ScoutCategory = typeof SCOUT_CATEGORIES[number];
+
+export const SCOUT_CATEGORY_PRODUCT_TYPES: Record<ScoutCategory, readonly string[]> = {
+  Computers: ['NOTEBOOK_COMPUTER', 'PERSONAL_COMPUTER'],
+  Laptops: ['NOTEBOOK_COMPUTER'],
+  Desktops: ['PERSONAL_COMPUTER'],
+  Monitors: ['MONITOR'],
+  Keyboards: ['KEYBOARDS'],
+  Mice: ['INPUT_MOUSE'],
+  Printers: ['PRINTER'],
+  Tablets: ['TABLET_COMPUTER'],
+  'Laptop bags & cases': ['PORTABLE_ELECTRONIC_DEVICE_COVER', 'HANDBAG', 'CARRYING_CASE_OR_BAG', 'CARRIER_BAG_CASE', 'BACKPACK'],
+  'Chargers & power adapters': ['CHARGING_ADAPTER', 'POWER_CORD', 'ELECTRONIC_ADAPTER'],
+  'Docking stations': ['ELECTRONIC_DEVICE_DOCKING_STATION', 'MULTIPORT_HUB'],
+  Cables: ['ELECTRONIC_CABLE', 'CABLE_OR_ADAPTER', 'CABLE_ASSEMBLY'],
+  'Memory & RAM': ['INTERNAL_MEMORY', 'RAM_MEMORY', 'FLASH_MEMORY'],
+  'Storage & drives': ['COMPUTER_DRIVE_OR_STORAGE', 'FLASH_DRIVE', 'HARD_DRIVE_ENCLOSURE', 'BLANK_STORAGE_MEDIA'],
+  'Graphics cards': ['VIDEO_CARD'],
+  Networking: ['NETWORKING_ROUTER', 'NETWORK_SWITCH', 'NETWORKING_DEVICE', 'NETWORK_INTERFACE_CONTROLLER_ADAPTER'],
+  Speakers: ['SPEAKERS'],
+  // AUDIO preserves the clean-clone fixture while HEADPHONES is the imported
+  // Restart catalog's canonical type.
+  Headphones: ['HEADPHONES', 'AUDIO'],
+};
+
+export function parseScoutCategory(value: unknown): ScoutCategory | undefined {
+  if (typeof value !== 'string') return undefined;
+  return (SCOUT_CATEGORIES as readonly string[]).includes(value)
+    ? value as ScoutCategory
+    : undefined;
+}
+
 export interface ScoutCatalog {
-  search(query: string, limit: number): Promise<ProductCard[]>;
+  search(query: string, limit: number, productTypes?: readonly string[]): Promise<ProductCard[]>;
 }
 
 export interface ScoutReplyRequest {

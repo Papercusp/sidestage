@@ -55,6 +55,8 @@ export type CatalogAvailability = 'all' | 'in-stock';
 export interface CatalogQuery {
   q?: string;
   productType?: string;
+  /** Match any of these canonical product types. Used by typed Scout intent. */
+  productTypes?: readonly string[];
   availability?: CatalogAvailability;
   page?: number;
   pageSize?: number;

@@ -33,7 +33,7 @@ describe('PgCatalogSource', () => {
     expect(typesenseSearch).toHaveBeenCalledTimes(1);
     expect(typesenseSearch).toHaveBeenCalledWith({
       q: 'a versatile gift for a remote worker who travels and loves music',
-      category: undefined,
+      categories: undefined,
       inStockOnly: true,
       limit: 6,
       page: 1,
@@ -45,6 +45,30 @@ describe('PgCatalogSource', () => {
     expect(query).toContain('v.group_id IS NULL AND v.id = ANY($1)');
     expect(query).not.toContain('COALESCE(v.group_id, v.id) = ANY($1)');
     expect(params).toEqual([['group-1']]);
+  });
+
+  it('passes typed multi-category intent to Typesense as an OR filter', async () => {
+    typesenseSearch.mockResolvedValue({
+      hits: [{ id: 'notebook-1', groupId: 'notebook-group' }],
+      found: 1,
+    });
+    const poolQuery = vi.fn()
+      .mockResolvedValueOnce({ rows: [] })
+      .mockResolvedValueOnce({ rows: [] });
+    const source = new PgCatalogSource({ query: poolQuery } as unknown as Pool, '');
+
+    await source.search({
+      q: 'Dell',
+      productTypes: ['NOTEBOOK_COMPUTER', 'PERSONAL_COMPUTER'],
+      availability: 'in-stock',
+      pageSize: 6,
+    });
+
+    expect(typesenseSearch).toHaveBeenCalledWith(expect.objectContaining({
+      q: 'Dell',
+      categories: ['NOTEBOOK_COMPUTER', 'PERSONAL_COMPUTER'],
+      inStockOnly: true,
+    }));
   });
 
   it('finds plural product terms inside a natural-language question', async () => {
@@ -216,6 +240,25 @@ describe('PgCatalogSource', () => {
 });
 
 describe('FixtureCatalogSource', () => {
+  it('matches any requested product type while excluding lexical accessory matches', async () => {
+    const base = {
+      groupId: null, brand: 'Restart', sku: 'SKU', condition: 'NEW', handlingDays: 1,
+      priceCents: 100_00, qty: 2, reservedQty: 0, availableQty: 2,
+    };
+    const source = new FixtureCatalogSource([
+      { ...base, id: 'laptop', title: 'Latitude laptop', productType: 'NOTEBOOK_COMPUTER' },
+      { ...base, id: 'desktop', title: 'OptiPlex desktop', productType: 'PERSONAL_COMPUTER' },
+      { ...base, id: 'bag', title: 'Computer carrying bag', productType: 'CARRYING_CASE_OR_BAG' },
+    ]);
+
+    const page = await source.search({
+      productTypes: ['NOTEBOOK_COMPUTER', 'PERSONAL_COMPUTER'],
+      pageSize: 10,
+    });
+
+    expect(page.rows.map((row) => row.id)).toEqual(['laptop', 'desktop']);
+  });
+
   it('mirrors absolute inventory saves into subsequent reads without mutating the shared fixture', async () => {
     const fixture = [{
       id: 'mug', groupId: 'cups', title: 'Mug', brand: 'Kiln', productType: 'HOME', sku: 'MUG',

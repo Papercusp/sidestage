@@ -28,8 +28,13 @@ export function variantToProductCard(variant: CatalogVariant): ProductCard {
  */
 export function scoutCatalogFrom(source: CatalogSource): ScoutCatalog {
   return {
-    async search(query: string, limit: number): Promise<ProductCard[]> {
-      const page = await source.search({ q: query, availability: 'in-stock', pageSize: limit });
+    async search(query: string, limit: number, productTypes?: readonly string[]): Promise<ProductCard[]> {
+      const page = await source.search({
+        q: query,
+        productTypes,
+        availability: 'in-stock',
+        pageSize: limit,
+      });
       return page.rows.map(variantToProductCard);
     },
   };

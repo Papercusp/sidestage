@@ -12,8 +12,15 @@ import {
   type ScoutTool,
 } from '@papercusp/scout-runtime';
 import { CartService, type Cart } from '../cart/cart.service';
-import { memoryScopes } from './scout-memory';
 import {
+  memoryScopes,
+  memoryScore,
+  memoryTokens,
+  MIN_MEMORY_RELEVANCE,
+} from './scout-memory';
+import {
+  SCOUT_CATEGORIES,
+  SCOUT_CATEGORY_PRODUCT_TYPES,
   SCOUT_CATALOG,
   SCOUT_MEMORY_STORE,
   SCOUT_REPLY_MODEL,
@@ -23,6 +30,7 @@ import {
   SCOUT_TOOL_SEARCH_CATALOG,
   type ProductCard,
   type ScoutCatalog,
+  type ScoutCategory,
   type ScoutChatRequest,
   type ScoutChatResponse,
   type ScoutIdentity,
@@ -32,6 +40,7 @@ import {
   type ScoutSessionStore,
   type ScoutStreamEvent,
   type ScoutStreamRequest,
+  parseScoutCategory,
 } from './scout.types';
 
 /** A turn with no resolved buyer — the guest default. */
@@ -57,6 +66,48 @@ export class DeterministicScoutReplyModel implements ScoutReplyModel {
 function recallCallback(memories: readonly ScoutMemory[] | undefined): string {
   const best = memories?.[0]?.text?.trim();
   return best ? ` Last time you asked about “${best}”.` : '';
+}
+
+const CATEGORY_PATTERNS: ReadonlyArray<readonly [ScoutCategory, RegExp]> = [
+  ['Laptop bags & cases', /\b(?:laptop|computer).*(?:bag|case|sleeve)|(?:bag|case|sleeve).*(?:laptop|computer)\b/i],
+  ['Chargers & power adapters', /\b(?:charger|power adapter|power cord)\b/i],
+  ['Docking stations', /\b(?:dock|docking station|multiport hub)\b/i],
+  ['Cables', /\b(?:cable|cord)\b/i],
+  ['Memory & RAM', /\b(?:memory|ram)\b/i],
+  ['Storage & drives', /\b(?:storage|hard drive|ssd|flash drive)\b/i],
+  ['Graphics cards', /\b(?:graphics card|video card|gpu)\b/i],
+  ['Networking', /\b(?:router|network switch|networking)\b/i],
+  ['Monitors', /\b(?:monitor|display)\b/i],
+  ['Keyboards', /\bkeyboards?\b/i],
+  ['Mice', /\b(?:mouse|mice)\b/i],
+  ['Printers', /\bprinters?\b/i],
+  ['Tablets', /\btablets?\b/i],
+  ['Laptops', /\b(?:laptop|notebook)s?\b/i],
+  ['Desktops', /\bdesktops?\b/i],
+  ['Computers', /\bcomputers?\b/i],
+  ['Speakers', /\bspeakers?\b/i],
+  ['Headphones', /\b(?:headphones?|earbuds?)\b/i],
+];
+
+const CATEGORY_QUERY_TOKENS: Record<ScoutCategory, ReadonlySet<string>> = Object.fromEntries(
+  SCOUT_CATEGORIES.map((category) => [category, new Set(memoryTokens(category))]),
+) as unknown as Record<ScoutCategory, ReadonlySet<string>>;
+
+const SEARCH_FILLER_TOKENS = new Set([
+  'a', 'an', 'any', 'are', 'buy', 'do', 'find', 'for', 'get', 'have', 'i', 'im',
+  'is', 'looking', 'me', 'need', 'please', 'show', 'some', 'the', 'there', 'to',
+  'want', 'with', 'you',
+]);
+
+export function inferScoutCategory(message: string): ScoutCategory | undefined {
+  return CATEGORY_PATTERNS.find(([, pattern]) => pattern.test(message))?.[0];
+}
+
+export function categoryFreeSearchQuery(message: string, category: ScoutCategory): string {
+  const categoryTokens = CATEGORY_QUERY_TOKENS[category];
+  return memoryTokens(message)
+    .filter((token) => !SEARCH_FILLER_TOKENS.has(token) && !categoryTokens.has(token))
+    .join(' ');
 }
 
 /** Split a finished fallback reply without changing a single whitespace byte. */
@@ -107,7 +158,16 @@ class LegacyReplyModelAdapter implements ScoutModelAdapter {
           id: `${tool.name}-${randomUUID()}`,
           name: tool.name,
           args: tool.name === SCOUT_TOOL_SEARCH_CATALOG
-            ? { query: this.context.message, limit: productLimit(this.context.input) }
+            ? (() => {
+              const category = inferScoutCategory(this.context.message);
+              return {
+                query: category
+                  ? categoryFreeSearchQuery(this.context.message, category)
+                  : this.context.message,
+                ...(category ? { category } : {}),
+                limit: productLimit(this.context.input),
+              };
+            })()
             : {},
         }],
       };
@@ -332,7 +392,15 @@ export class ScoutService {
           inputSchema: {
             type: 'object',
             properties: {
-              query: { type: 'string', description: 'What the shopper wants to find.' },
+              query: {
+                type: 'string',
+                description: 'Brand, model, and specification terms only. Put the requested product type in category.',
+              },
+              category: {
+                type: 'string',
+                enum: [...SCOUT_CATEGORIES],
+                description: 'The product type the shopper wants to buy. Accessories are separate from computers.',
+              },
               limit: { type: 'integer', minimum: 1, maximum: 20 },
             },
             required: ['query'],
@@ -340,15 +408,22 @@ export class ScoutService {
           },
         },
         execute: async (args) => {
-          const query = typeof args.query === 'string' && args.query.trim()
-            ? args.query.trim()
-            : context.message;
+          const category = parseScoutCategory(args.category)
+            ?? inferScoutCategory(context.message);
+          const suppliedQuery = typeof args.query === 'string' ? args.query.trim() : undefined;
+          const query = suppliedQuery ?? (category
+            ? categoryFreeSearchQuery(context.message, category)
+            : context.message);
           const requestedLimit = typeof args.limit === 'number' ? args.limit : undefined;
           const limit = Math.max(
             1,
             Math.min(Number.isInteger(requestedLimit) ? requestedLimit! : productLimit(context.input), 20),
           );
-          context.products = await this.catalog.search(query, limit);
+          context.products = await this.catalog.search(
+            query,
+            limit,
+            category ? SCOUT_CATEGORY_PRODUCT_TYPES[category] : undefined,
+          );
           return {
             content: toJsonValue({ products: context.products }),
             events: [{ type: 'products', products: context.products }],
@@ -373,7 +448,8 @@ export class ScoutService {
 
   private async safeRecall(scopes: string[], query: string): Promise<ScoutMemory[]> {
     try {
-      return await this.memory.recall(scopes, query);
+      const recalled = await this.memory.recall(scopes, query);
+      return recalled.filter((memory) => memoryScore(memory.text, query) >= MIN_MEMORY_RELEVANCE);
     } catch {
       return [];
     }
@@ -418,6 +494,7 @@ function systemPrompt(input: ScoutStreamRequest, memories: readonly ScoutMemory[
   return [
     'You are SideStage Scout, a concise shopping assistant.',
     'Use search_catalog before making any product claim or recommendation.',
+    'For search_catalog, keep brand/model/spec terms in query and choose the requested product category separately; accessories are not computers.',
     'Only describe products and availability returned by the tools in this turn.',
     input.cartId?.trim()
       ? 'The request names a cart. Read it with get_cart before answering about cart state.'
