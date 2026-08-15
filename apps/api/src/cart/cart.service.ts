@@ -356,17 +356,20 @@ export class CartService {
   }
 
   async findCartForBuyer(id: string, buyerId: string): Promise<Cart | null> {
-    const cart = await this.findCart(id);
-    if (!cart) return null;
-    assertCartOwner(cart, buyerId);
-    return cart;
+    const stored = await this.store.get(id);
+    if (!stored) return null;
+    assertCartOwner(stored, buyerId);
+    return this.findCart(id);
   }
 
   async getCart(id?: string, buyerId?: string): Promise<Cart> {
     if (id) {
+      if (buyerId) {
+        const stored = await this.store.get(id);
+        if (stored) assertCartOwner(stored, buyerId);
+      }
       const existing = await this.findCart(id);
       if (existing) {
-        if (buyerId) assertCartOwner(existing, buyerId);
         return existing;
       }
     }
@@ -638,9 +641,13 @@ export class CartService {
   }
 
   private async requireCart(id: string, buyerId?: string): Promise<Cart> {
+    if (buyerId) {
+      const stored = await this.store.get(id);
+      if (!stored) throw new Error(`Cart ${id} was not found`);
+      assertCartOwner(stored, buyerId);
+    }
     const cart = await this.findCart(id);
     if (!cart) throw new Error(`Cart ${id} was not found`);
-    if (buyerId) assertCartOwner(cart, buyerId);
     return cart;
   }
 
