@@ -58,6 +58,6 @@ export class ActionSyncQueries implements OnModuleInit {
       useFactory: actionItemStoreForPool,
     },
   ],
-  exports: [GuardedActionService],
+  exports: [GuardedActionService, ACTION_ITEM_STORE],
 })
 export class ActionModule {}
