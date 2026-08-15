@@ -3,6 +3,8 @@ import { realpathSync } from 'node:fs';
 import { isAbsolute, resolve } from 'node:path';
 import type { SystemTestRunRequest } from '@papercusp/system-test-contract';
 
+import { acceptanceFixtureResource, createAcceptanceFixturePlan } from './acceptance-fixtures';
+
 export const ACCEPTANCE_SERVICES = [
   'postgres',
   'typesense',
@@ -347,6 +349,7 @@ class SpawnCommandRunner implements AcceptanceCommandRunner {
 }
 
 function safeEnvironment(request: AcceptanceProvisionRequest, projectName: string): NodeJS.ProcessEnv {
+  const fixture = createAcceptanceFixturePlan(request.runId);
   const env: NodeJS.ProcessEnv = {
     ...process.env,
     COMPOSE_PROJECT_NAME: projectName,
@@ -354,7 +357,8 @@ function safeEnvironment(request: AcceptanceProvisionRequest, projectName: strin
     SIDESTAGE_SHA: request.requestedSha,
     ACCEPTANCE_RUN_ID: request.runId,
     NODE_ENV: 'test',
-    POSTGRES_DB: `acceptance_${request.runId.replaceAll('-', '_')}`,
+    ACCEPTANCE_FIXTURE_NAMESPACE: fixture.namespace,
+    POSTGRES_DB: acceptanceFixtureResource(fixture, 'postgres-database').identifier,
     POSTGRES_USER: 'sidestage_acceptance',
     POSTGRES_PASSWORD: `acceptance-${request.runId}-postgres`,
     TYPESENSE_API_KEY: `acceptance-${request.runId}-typesense`,
@@ -507,5 +511,6 @@ export class AcceptanceEnvironmentProvisioner {
   }
 }
 
+export * from './acceptance-fixtures';
 export * from './postgres-run-store';
 export * from './queue-worker';

@@ -3,6 +3,8 @@ import {
   ACCEPTANCE_SERVICES,
   AcceptanceEnvironmentBlockedError,
   AcceptanceEnvironmentProvisioner,
+  createAcceptanceFixturePlan,
+  validateAcceptanceFixturePlan,
   type AcceptanceCommandOptions,
   type AcceptanceCommandResult,
   type AcceptanceCommandRunner,
@@ -263,5 +265,38 @@ describe('AcceptanceEnvironmentProvisioner', () => {
       runId: 'run-1', requestedSha: SHA, repositoryRoot: REPOSITORY_ROOT,
     })).rejects.toMatchObject({ stage: 'health', cleanupAttempted: true });
     expect(runner.calls.some((call) => call.args.includes('down'))).toBe(true);
+  });
+});
+
+describe('deterministic acceptance fixtures', () => {
+  it('derives one stable, collision-resistant namespace and every typed resource', () => {
+    const first = createAcceptanceFixturePlan('run-1');
+    const replay = createAcceptanceFixturePlan('run-1');
+    const other = createAcceptanceFixturePlan('run-2');
+
+    expect(replay).toEqual(first);
+    expect(other.namespace).not.toBe(first.namespace);
+    expect(first.namespace).toMatch(/^sst_run_1_[0-9a-f]{10}$/);
+    expect(first.resources).toHaveLength(10);
+    expect(new Set(first.resources.map((resource) => resource.kind))).toHaveLength(10);
+    expect(first.resources.find((resource) => resource.kind === 'postgres-database')?.identifier)
+      .toMatch(/^acceptance_run_1_[0-9a-f]{10}$/);
+  });
+
+  it('rejects production-shaped run, namespace, and resource identifiers', () => {
+    expect(() => createAcceptanceFixturePlan('production')).toThrow(/production identifier/);
+    expect(() => createAcceptanceFixturePlan('run-prod-1')).toThrow(/production identifier/);
+
+    const plan = createAcceptanceFixturePlan('run-safe-1');
+    expect(() => validateAcceptanceFixturePlan({ ...plan, namespace: 'sst_production_data' }))
+      .toThrow(/production identifier/);
+    expect(() => validateAcceptanceFixturePlan({
+      ...plan,
+      resources: plan.resources.map((resource) => (
+        resource.kind === 'external-sandbox'
+          ? { ...resource, identifier: 'https://sidestage.buyrestart.com/sandbox' }
+          : resource
+      )),
+    })).toThrow(/production identifier/);
   });
 });

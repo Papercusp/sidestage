@@ -237,6 +237,7 @@ describe('measured browser preflight', () => {
 
     await expect(probeRealtimeRoundTrip('event/a', {
       apiBaseUrl: 'http://api.test/',
+      principal: 'demo-rehearsal',
       fetchImpl: fetchImpl as typeof fetch,
       now: () => clock,
       nonce: () => 'probe-nonce-123',
@@ -246,6 +247,7 @@ describe('measured browser preflight', () => {
 
     expect(callbacks?.url).toBe('http://api.test/sync/sse?eventId=event%2Fa');
     expect(fetchImpl.mock.calls[0]?.[0]).toBe('http://api.test/rehearsals/client-realtime/event%2Fa');
+    expect(new Headers(fetchImpl.mock.calls[0]?.[1]?.headers).get('x-demo-principal')).toBe('demo-rehearsal');
     expect(close).toHaveBeenCalledOnce();
   });
 

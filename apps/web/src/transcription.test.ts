@@ -122,6 +122,7 @@ describe('transcription transport', () => {
 
     await expect(requestDeepgramToken('https://api.sidestage.test/', {
       sellerAccessToken: 'seller-session-token',
+      principal: 'demo-27',
       fetchImpl: fetchImpl as unknown as typeof fetch,
     }))
       .resolves.toBe('temporary-jwt');
@@ -130,6 +131,7 @@ describe('transcription transport', () => {
       headers: {
         Accept: 'application/json',
         authorization: 'Bearer seller-session-token',
+        'x-demo-principal': 'demo-27',
       },
     });
   });

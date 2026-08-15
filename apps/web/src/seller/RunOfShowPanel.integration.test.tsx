@@ -5,6 +5,7 @@ import { createRoot } from 'react-dom/client';
 import { describe, expect, it, vi } from 'vitest';
 
 vi.mock('@papercusp/sync', () => ({
+  useSyncPrincipal: () => 'demo-runner',
   useSyncQuery: () => ({
     data: [{
       eventId: 'demo-room',
@@ -29,6 +30,7 @@ vi.mock('../events/api', () => ({
 
 import { RunOfShowPanel } from './RunOfShowPanel';
 import { emptyStageLog, stageLogOnProductChange } from '../run-of-show';
+import { fetchSellerEvent } from '../events/api';
 
 describe('RunOfShowPanel integration', () => {
   it('stages a planned id even when its commerce detail is outside the catalog window', async () => {
@@ -53,6 +55,7 @@ describe('RunOfShowPanel integration', () => {
       expect(container.textContent).toContain('Aurora Cup');
       expect(container.textContent).toContain('Lead with the glaze.');
       expect(container.textContent).toContain('Beacon Mug');
+      expect(vi.mocked(fetchSellerEvent)).toHaveBeenCalledWith('demo-room', undefined, 'demo-runner');
     } finally {
       await act(async () => root.unmount());
       delete (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT;
