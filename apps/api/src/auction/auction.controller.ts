@@ -9,6 +9,7 @@ import { AuctionService, type AuctionSseEvent, type PlaceBidInput, type StartAuc
 
 type HeadersMap = Record<string, string | string[] | undefined>;
 type PassthroughResponse = { setHeader(name: string, value: string): void };
+type JsonResponse = { json(body: unknown): void };
 type AuditContext = Omit<AuctionAuditRecord, 'outcome' | 'reasonCode'>;
 
 @Controller('auctions')
@@ -75,8 +76,12 @@ export class AuctionController {
   }
 
   @Get('events/:eventId/active')
-  active(@Param('eventId') eventId: string) {
-    return this.auctions.getCurrentAuction(eventId);
+  async active(@Param('eventId') eventId: string, @Res() response: JsonResponse) {
+    // Nest's Express adapter treats a returned null as an absent response body.
+    // Write through the response explicitly so the public API always returns
+    // valid JSON and clients can safely call response.json() when no auction
+    // has started yet.
+    response.json(await this.auctions.getCurrentAuction(eventId));
   }
 
   @Sse('events/:eventId/stream')

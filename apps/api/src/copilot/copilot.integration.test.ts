@@ -1,3 +1,4 @@
+import { NotFoundException } from '@nestjs/common';
 import { describe, expect, it, vi } from 'vitest';
 import { GuardedActionService } from '../actions/action.service';
 import { ChatService, type ChatMessage } from '../chat/chat.service';
@@ -140,7 +141,39 @@ function sellerMessages(messages: ChatMessage[]): ChatMessage[] {
   return messages.filter((message) => message.role === 'seller');
 }
 
+async function notFoundResponse(run: () => Promise<unknown>): Promise<unknown> {
+  try {
+    await run();
+    expect.unreachable('expected the owner check to fail');
+  } catch (error) {
+    expect(error).toBeInstanceOf(NotFoundException);
+    return (error as NotFoundException).getResponse();
+  }
+}
+
 describe('seller Copilot integration', () => {
+  it('collapses foreign and absent proposal ids across every review action', async () => {
+    const runtime = integrationRuntime();
+    try {
+      const proposal = await runtime.ask('Can this mug ship tomorrow?');
+      const calls = [
+        (id: string) => runtime.controller.approve(id, { actorId: 'seller-forged' }, 'seller-2'),
+        (id: string) => runtime.controller.skip(id, { actorId: 'seller-forged' }, 'seller-2'),
+        (id: string) => runtime.controller.confirmAction(id, { actorId: 'seller-forged' }, 'seller-2'),
+      ];
+
+      for (const call of calls) {
+        const foreign = await notFoundResponse(() => call(proposal.id));
+        const absent = await notFoundResponse(() => call('missing-proposal'));
+        expect(absent).toEqual(foreign);
+      }
+      await expect(runtime.service.find(proposal.id)).resolves.toMatchObject({ status: 'queued' });
+      expect(sellerMessages(await runtime.chat.getMessages('event-live'))).toEqual([]);
+    } finally {
+      runtime.destroy();
+    }
+  });
+
   it('turns a buyer question into a sync proposal and approves its reply exactly once', async () => {
     const runtime = integrationRuntime();
     try {
