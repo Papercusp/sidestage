@@ -65,6 +65,7 @@
 
 .buyer-current-offer-slot {
   align-self: stretch;
+  container-type: inline-size;
 }
 
 .buyer-current-offer-slot[data-offer-state='idle'] {
@@ -96,6 +97,39 @@
 
 .buyer-current-offer-slot .auction-feed {
   grid-column: 1 / -1;
+}
+
+.buyer-current-offer-slot .auction-bid-form {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.buyer-current-offer-slot .auction-bid-form > *,
+.buyer-current-offer-slot .auction-bid-row > * {
+  min-width: 0;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+.buyer-current-offer-slot .auction-leader,
+.buyer-current-offer-slot .auction-bid-form small {
+  overflow-wrap: anywhere;
+}
+
+@container (max-width: 16rem) {
+  .buyer-current-offer-slot .auction-stage {
+    grid-template-columns: 1fr;
+    justify-items: center;
+  }
+
+  .buyer-current-offer-slot .auction-headline {
+    justify-items: center;
+    text-align: center;
+  }
+
+  .buyer-current-offer-slot .auction-feed {
+    width: 100%;
+    justify-self: stretch;
+  }
 }
 
 .buyer-current-offer {
