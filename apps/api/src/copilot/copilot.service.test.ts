@@ -183,8 +183,59 @@ describe('CopilotProposalService', () => {
       revision: 2,
       decision: { actorId: 'seller-1', sentMessageId: expect.any(String) },
     });
-    expect(await runtime.chat.getMessages('event-1')).toHaveLength(1);
+    expect(await runtime.chat.getMessages('event-1')).toEqual([
+      expect.objectContaining({
+        role: 'seller',
+        grounding: {
+          status: 'answered',
+          sourceMessageId: question.id,
+          proposalId: proposal.id,
+          assistant: {
+            kind: 'copilot-assisted',
+            approvedBy: 'seller-1',
+            edited: false,
+            citationSourceIds: ['event-item:event-1:mug'],
+          },
+        },
+      }),
+    ]);
     expect(sent).toHaveLength(1);
+  });
+
+  it('recovers a persisted queued question that missed the in-memory subscriber', async () => {
+    const runtime = setup();
+    const queued = await runtime.chat.addMessage('event-1', {
+      userId: 'buyer-1', displayName: 'Maya', role: 'buyer', text: 'Is the blue mug still available?',
+    });
+
+    const first = await runtime.service.list('event-1');
+    const retry = await runtime.service.list('event-1');
+
+    expect(first).toHaveLength(1);
+    expect(retry).toEqual(first);
+    expect(runtime.pipeline.respond).toHaveBeenCalledTimes(1);
+    expect((await runtime.chat.getMessages('event-1'))[0]?.grounding).toMatchObject({
+      status: 'seller-queue',
+      proposalId: first[0]!.id,
+      route: { destination: 'seller-review', category: 'availability' },
+    });
+    expect(first[0]?.sourceMessageId).toBe(queued.id);
+  });
+
+  it('keeps a failed recovered generation visible and marks the source question blocked', async () => {
+    const runtime = setup();
+    vi.mocked(runtime.pipeline.respond).mockRejectedValueOnce(new Error('provider unavailable'));
+    const queued = await runtime.chat.addMessage('event-1', {
+      userId: 'buyer-1', displayName: 'Maya', role: 'buyer', text: 'Can this ship tomorrow?',
+    });
+
+    await expect(runtime.service.list('event-1')).resolves.toEqual([
+      expect.objectContaining({ status: 'blocked', error: 'provider unavailable' }),
+    ]);
+    expect((await runtime.chat.getMessages('event-1'))[0]).toMatchObject({
+      id: queued.id,
+      grounding: { status: 'blocked', proposalId: expect.any(String) },
+    });
   });
 
   it('skips without sending and makes a repeated skip idempotent', async () => {

@@ -1375,6 +1375,9 @@ CREATE UNIQUE INDEX IF NOT EXISTS chat_message_idempotency_unique
 CREATE INDEX IF NOT EXISTS chat_message_visible_page_idx
   ON chat_message (event_id, created_at DESC, id DESC)
   WHERE moderated_at IS NULL;
+CREATE INDEX IF NOT EXISTS chat_message_copilot_queue_idx
+  ON chat_message (event_id, created_at ASC, id ASC)
+  WHERE moderated_at IS NULL AND role = 'buyer' AND grounding->>'status' = 'seller-queue';
 
 CREATE TABLE IF NOT EXISTS chat_transcript_moment (
   id text PRIMARY KEY,

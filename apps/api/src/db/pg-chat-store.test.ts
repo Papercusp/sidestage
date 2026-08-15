@@ -108,6 +108,48 @@ describe('PgChatStore durable authority', () => {
     });
     expect(query).toHaveBeenCalledWith(expect.stringContaining('LIMIT $4'), ['event-1', null, '', 3]);
   });
+
+  it('pages persisted seller-queue questions oldest first for durable Copilot catch-up', async () => {
+    const messages = [
+      { ...MESSAGE, id: 'chat-1', createdAt: '2026-08-14T18:00:01.000Z' },
+      { ...MESSAGE, id: 'chat-2', createdAt: '2026-08-14T18:00:02.000Z' },
+      { ...MESSAGE, id: 'chat-3', createdAt: '2026-08-14T18:00:03.000Z' },
+    ];
+    const query = vi.fn().mockResolvedValue({ rows: messages.map(row) });
+
+    await expect(new PgChatStore({ query } as never).listQueuedQuestions('event-1', 2)).resolves.toEqual({
+      items: messages.slice(0, 2),
+      nextCursor: { createdAt: messages[1]!.createdAt, id: messages[1]!.id },
+    });
+    expect(query).toHaveBeenCalledWith(
+      expect.stringContaining("grounding->>'status' = 'seller-queue'"),
+      ['event-1', null, '', 3],
+    );
+  });
+
+  it('merges a Copilot resolution into the durable message grounding', async () => {
+    const answered: ChatMessage = {
+      ...MESSAGE,
+      grounding: {
+        status: 'answered',
+        proposalId: 'proposal-1',
+        responseMessageId: 'reply-1',
+      },
+    };
+    const query = vi.fn().mockResolvedValue({ rows: [row(answered)] });
+
+    await expect(new PgChatStore({ query } as never).patchMessageGrounding('event-1', 'chat-1', {
+      status: 'answered',
+      proposalId: 'proposal-1',
+      responseMessageId: 'reply-1',
+    })).resolves.toEqual(answered);
+    expect(query).toHaveBeenCalledWith(
+      expect.stringContaining("COALESCE(grounding, '{}'::jsonb) || $3::jsonb"),
+      ['event-1', 'chat-1', JSON.stringify({
+        status: 'answered', proposalId: 'proposal-1', responseMessageId: 'reply-1',
+      })],
+    );
+  });
 });
 
 describe.runIf(process.env.SIDESTAGE_PG_INTEGRATION === '1')('PgChatStore against Postgres', () => {

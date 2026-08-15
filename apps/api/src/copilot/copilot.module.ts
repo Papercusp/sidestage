@@ -1,10 +1,10 @@
-import { Inject, Injectable, Module, type OnModuleDestroy, type OnModuleInit } from '@nestjs/common';
+import { Inject, Injectable, Logger, Module, type OnModuleDestroy, type OnModuleInit } from '@nestjs/common';
 import type { Pool } from 'pg';
 import type { Subscription } from 'rxjs';
 import { ActionModule } from '../actions/action.module';
 import { CatalogModule } from '../catalog/catalog.module';
 import { ChatModule } from '../chat/chat.module';
-import { ChatService, isBuyerQuestion } from '../chat/chat.service';
+import { ChatService } from '../chat/chat.service';
 import { EventConfigModule } from '../config/event-config.module';
 import { EventModule } from '../events/event.module';
 import { EventOwnershipGuard } from '../events/event-ownership.guard';
@@ -39,6 +39,7 @@ export class CopilotSyncQueries implements OnModuleInit {
 
 @Injectable()
 export class BuyerQuestionCopilotSubscriber implements OnModuleInit, OnModuleDestroy {
+  private readonly logger = new Logger(BuyerQuestionCopilotSubscriber.name);
   private subscription?: Subscription;
 
   constructor(
@@ -48,8 +49,17 @@ export class BuyerQuestionCopilotSubscriber implements OnModuleInit, OnModuleDes
 
   onModuleInit(): void {
     this.subscription = this.chat.messageEvents().subscribe((message) => {
-      if (message.role !== 'buyer' || !isBuyerQuestion(message.text)) return;
-      void this.copilot.createFromChat(message).catch(() => undefined);
+      if (
+        message.role !== 'buyer'
+        || message.grounding?.status !== 'seller-queue'
+        || message.grounding.route?.destination === 'none'
+      ) return;
+      void this.copilot.createFromChat(message).catch((error: unknown) => {
+        this.logger.error(
+          `Failed to deliver queued buyer question ${message.id} to Copilot`,
+          error instanceof Error ? error.stack : String(error),
+        );
+      });
     });
   }
 

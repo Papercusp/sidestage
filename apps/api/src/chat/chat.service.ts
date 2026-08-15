@@ -2,17 +2,50 @@ import { BadRequestException, Inject, Injectable, Optional } from '@nestjs/commo
 import { randomUUID } from 'node:crypto';
 import { Subject, type Observable } from 'rxjs';
 import { SyncInvalidationService } from '../sync/sync-invalidation.service';
+import {
+  classifyBuyerMessage,
+  type BuyerMessageRouting,
+} from './buyer-question-routing';
 import { CHAT_STORE, InMemoryChatStore, type ChatMessagePage, type ChatStore } from './chat.store';
+
+export { classifyBuyerMessage, isBuyerQuestion } from './buyer-question-routing';
 
 export type ChatRole = 'buyer' | 'seller';
 export interface ChatMessage { id: string; eventId: string; userId: string; displayName: string; role: ChatRole; text: string; createdAt: string; grounding?: ChatGrounding; clientRequestId?: string; }
-export interface ChatGrounding { status: 'answered' | 'seller-queue'; sourceMessageId?: string; citation?: { transcriptId: string; label: string; quote: string; startMs?: number; }; }
+export type ChatGroundingStatus = 'not-routed' | 'seller-queue' | 'answered' | 'skipped' | 'blocked';
+export interface ChatGrounding {
+  status: ChatGroundingStatus;
+  route?: BuyerMessageRouting;
+  sourceMessageId?: string;
+  proposalId?: string;
+  responseMessageId?: string;
+  assistant?: {
+    kind: 'copilot-assisted';
+    approvedBy: string;
+    edited: boolean;
+    citationSourceIds: string[];
+  };
+  citation?: { transcriptId: string; label: string; quote: string; startMs?: number; };
+}
 export interface TranscriptMomentInput { text?: unknown; startMs?: unknown; endMs?: unknown; productId?: unknown; productTitle?: unknown; }
 export interface TranscriptMoment { id: string; text: string; startMs?: number; endMs?: number; productId?: string; productTitle?: string; }
 export interface ReplayChapter { id: string; productId: string; productTitle: string; startMs: number; endMs?: number; previewText: string; evidenceKind?: 'condition'; evidenceLabel?: string; }
 export interface ChatPresence { userId: string; displayName: string; role: ChatRole; lastSeenAt: string; }
 export interface ChatStats { activeUsers: number; buyers: number; sellers: number; totalMessages: number; }
 export interface ChatMessageInput { userId?: unknown; displayName?: unknown; role?: unknown; text?: unknown; clientRequestId?: unknown; }
+export interface CopilotReplyInput {
+  actorId: string;
+  text: string;
+  proposalId: string;
+  sourceMessageId: string;
+  edited: boolean;
+  citationSourceIds: readonly string[];
+}
+export interface CopilotQuestionStateInput {
+  status: Extract<ChatGroundingStatus, 'seller-queue' | 'answered' | 'skipped' | 'blocked'>;
+  proposalId: string;
+  responseMessageId?: string;
+}
 export interface PresenceInput { userId?: unknown; displayName?: unknown; role?: unknown; }
 export interface ChatSseEvent { id: string; type: 'heartbeat' | 'invalidate'; data: string; }
 export interface ChatOperationalMetrics { messagesCreated: number; idempotentReplays: number; rejectedWrites: number; transcriptMomentsCreated: number; presenceTouches: number; moderationActions: number; moderationMisses: number; lastPersistedAt?: string; }
@@ -24,6 +57,7 @@ const MAX_TRANSCRIPT_MOMENTS = 200;
 const MAX_USER_ID_LENGTH = 80;
 const MAX_DISPLAY_NAME_LENGTH = 80;
 const MAX_MESSAGE_LENGTH = 500;
+const COPILOT_QUEUE_PAGE_SIZE = 100;
 const CONDITION_EVIDENCE_PATTERNS: ReadonlyArray<{ label: string; pattern: RegExp }> = [
   { label: 'Serial or model number', pattern: /\b(serial|model number|sku|identifier)\b/i },
   { label: 'Item tag or label', pattern: /\b(tag|label|maker(?:'s)? mark)\b/i },
@@ -31,7 +65,6 @@ const CONDITION_EVIDENCE_PATTERNS: ReadonlyArray<{ label: string; pattern: RegEx
 ];
 
 export function conditionEvidenceLabel(text: string): string | undefined { return CONDITION_EVIDENCE_PATTERNS.find(({ pattern }) => pattern.test(text))?.label; }
-export function isBuyerQuestion(value: string): boolean { return value.includes('?') || /^(what|when|where|who|why|how|is|are|does|do|can|could|will|would)\b/i.test(value.trim()); }
 
 @Injectable()
 export class ChatService {
@@ -58,6 +91,18 @@ export class ChatService {
     if (!Number.isInteger(limit) || limit < 1 || limit > MAX_PAGE_SIZE) throw new BadRequestException(`limit must be between 1 and ${MAX_PAGE_SIZE}`);
     const page: ChatMessagePage = await this.store.listMessages(eventId, limit, cursor ? this.decodeCursor(cursor) : undefined);
     return { items: page.items, ...(page.nextCursor ? { nextCursor: this.encodeCursor(page.nextCursor) } : {}) };
+  }
+
+  async getQueuedQuestions(eventId: string): Promise<ChatMessage[]> {
+    this.assertEventId(eventId);
+    const questions: ChatMessage[] = [];
+    let cursor: { createdAt: string; id: string } | undefined;
+    do {
+      const page = await this.store.listQueuedQuestions(eventId, COPILOT_QUEUE_PAGE_SIZE, cursor);
+      questions.push(...page.items);
+      cursor = page.nextCursor;
+    } while (cursor);
+    return questions;
   }
 
   async getTranscript(eventId: string): Promise<TranscriptMoment[]> {
@@ -98,11 +143,65 @@ export class ChatService {
     const role = this.readRole(input.role);
     const clientRequestId = this.readOptionalBoundedString(input.clientRequestId, 'clientRequestId', 160);
     const message: ChatMessage = { id: `chat_${randomUUID()}`, eventId, userId, displayName, role, text, createdAt: new Date().toISOString(), ...(clientRequestId ? { clientRequestId } : {}) };
-    if (role === 'buyer' && isBuyerQuestion(text)) message.grounding = { status: 'seller-queue' };
+    if (role === 'buyer') {
+      const route = classifyBuyerMessage(text);
+      message.grounding = {
+        status: route.destination === 'seller-review' ? 'seller-queue' : 'not-routed',
+        route,
+      };
+    }
+    return this.persistMessage(message);
+  }
+
+  async addCopilotReply(eventId: string, input: CopilotReplyInput): Promise<ChatMessage> {
+    this.assertEventId(eventId);
+    const actorId = this.readBoundedString(input.actorId, 'actorId', MAX_USER_ID_LENGTH);
+    const proposalId = this.readBoundedString(input.proposalId, 'proposalId', 120);
+    const sourceMessageId = this.readBoundedString(input.sourceMessageId, 'sourceMessageId', 120);
+    const message: ChatMessage = {
+      id: `chat_${randomUUID()}`,
+      eventId,
+      userId: actorId,
+      displayName: 'Host',
+      role: 'seller',
+      text: this.readBoundedString(input.text, 'text', MAX_MESSAGE_LENGTH),
+      createdAt: new Date().toISOString(),
+      clientRequestId: `copilot-proposal:${proposalId}`,
+      grounding: {
+        status: 'answered',
+        sourceMessageId,
+        proposalId,
+        assistant: {
+          kind: 'copilot-assisted',
+          approvedBy: actorId,
+          edited: input.edited,
+          citationSourceIds: [...new Set(input.citationSourceIds.filter(Boolean))],
+        },
+      },
+    };
+    return this.persistMessage(message);
+  }
+
+  async setCopilotQuestionState(
+    eventId: string,
+    messageId: string,
+    input: CopilotQuestionStateInput,
+  ): Promise<ChatMessage | undefined> {
+    this.assertEventId(eventId);
+    const updated = await this.store.patchMessageGrounding(eventId, messageId, {
+      status: input.status,
+      proposalId: input.proposalId,
+      ...(input.responseMessageId ? { responseMessageId: input.responseMessageId } : {}),
+    });
+    if (updated) this.emitInvalidation(eventId, 'event.chat.messages');
+    return updated;
+  }
+
+  private async persistMessage(message: ChatMessage): Promise<ChatMessage> {
     const persisted = await this.store.appendMessage(message);
     if (!persisted.created) { this.metrics.idempotentReplays += 1; return { ...persisted.message }; }
     this.metrics.messagesCreated += 1; this.metrics.lastPersistedAt = persisted.message.createdAt;
-    this.emitInvalidation(eventId, 'event.chat.messages'); this.emitInvalidation(eventId, 'event.chat.presence'); this.emitInvalidation(eventId, 'event.chat.stats');
+    this.emitInvalidation(message.eventId, 'event.chat.messages'); this.emitInvalidation(message.eventId, 'event.chat.presence'); this.emitInvalidation(message.eventId, 'event.chat.stats');
     this.messages.next({ ...persisted.message });
     return { ...persisted.message };
   }

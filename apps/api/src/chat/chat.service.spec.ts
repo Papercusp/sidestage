@@ -109,13 +109,72 @@ describe('ChatService', () => {
     });
     const messages = await service.getMessages('demo-event');
 
-    expect(question.grounding).toEqual({ status: 'seller-queue' });
+    expect(question.grounding).toEqual({
+      status: 'seller-queue',
+      route: {
+        version: 1,
+        destination: 'seller-review',
+        category: 'general',
+        signal: 'question-opener',
+      },
+    });
     expect(messages).toEqual([question]);
     expect(observed).toEqual([question.id]);
     expect(await service.getTranscript('demo-event')).toEqual([
       expect.objectContaining({ text: expect.stringContaining('dishwasher safe'), startMs: 83_000 }),
     ]);
     expect((await service.getStats('demo-event')).totalMessages).toBe(1);
+  });
+
+  it('persists one structured routing decision and excludes social questions from Copilot', async () => {
+    const service = new ChatService();
+    const routed = await Promise.all([
+      service.addMessage('demo-event', {
+        userId: 'buyer-1', displayName: 'Maya', role: 'buyer', text: 'How many blue mugs are left?',
+      }),
+      service.addMessage('demo-event', {
+        userId: 'buyer-2', displayName: 'Noah', role: 'buyer', text: 'Please reserve this for me',
+      }),
+    ]);
+    const social = await service.addMessage('demo-event', {
+      userId: 'buyer-3', displayName: 'Priya', role: 'buyer', text: 'Are you ready?',
+    });
+    const statement = await service.addMessage('demo-event', {
+      userId: 'buyer-4', displayName: 'Eli', role: 'buyer', text: 'The blue mug looks great.',
+    });
+
+    expect(routed.map((message) => message.grounding?.route?.category)).toEqual(['availability', 'commerce']);
+    expect(routed.map((message) => message.grounding?.status)).toEqual(['seller-queue', 'seller-queue']);
+    expect(social.grounding).toMatchObject({
+      status: 'not-routed',
+      route: { destination: 'none', category: 'social', signal: 'social-question' },
+    });
+    expect(statement.grounding).toMatchObject({
+      status: 'not-routed',
+      route: { destination: 'none', signal: 'not-a-question' },
+    });
+    expect(await service.getQueuedQuestions('demo-event')).toEqual(routed);
+  });
+
+  it('updates a source question lifecycle without losing its routing decision', async () => {
+    const service = new ChatService();
+    const question = await service.addMessage('demo-event', {
+      userId: 'buyer-1', displayName: 'Maya', role: 'buyer', text: 'Is the blue mug available?',
+    });
+
+    await service.setCopilotQuestionState('demo-event', question.id, {
+      status: 'answered',
+      proposalId: 'proposal-1',
+      responseMessageId: 'reply-1',
+    });
+
+    expect((await service.getMessages('demo-event'))[0]?.grounding).toMatchObject({
+      status: 'answered',
+      proposalId: 'proposal-1',
+      responseMessageId: 'reply-1',
+      route: { destination: 'seller-review', category: 'availability' },
+    });
+    expect(await service.getQueuedQuestions('demo-event')).toEqual([]);
   });
 
   it('deduplicates Copilot-approved messages by client request id', async () => {

@@ -27,7 +27,7 @@ describe('Copilot runtime composition', () => {
     expect(copilot.list).toHaveBeenCalledWith('event-1');
   });
 
-  it('turns buyer questions into proposals without ingesting statements or seller replies', async () => {
+  it('consumes the persisted seller-review route without ingesting social questions, statements, or seller replies', async () => {
     const chat = new ChatService();
     const copilot = {
       createFromChat: vi.fn(async () => ({ id: 'p-1' })),
@@ -40,6 +40,9 @@ describe('Copilot runtime composition', () => {
     });
     await chat.addMessage('event-1', {
       userId: 'buyer-1', displayName: 'Maya', role: 'buyer', text: 'The blue mug looks great.',
+    });
+    await chat.addMessage('event-1', {
+      userId: 'buyer-2', displayName: 'Noah', role: 'buyer', text: 'Are you ready?',
     });
     await chat.addMessage('event-1', {
       userId: 'seller-1', displayName: 'Host', role: 'seller', text: 'It is still available.',

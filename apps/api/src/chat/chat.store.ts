@@ -20,7 +20,9 @@ export interface AppendMessageResult {
 
 export interface ChatStore {
   listMessages(eventId: string, limit: number, before?: ChatCursor): Promise<ChatMessagePage>;
+  listQueuedQuestions(eventId: string, limit: number, after?: ChatCursor): Promise<ChatMessagePage>;
   appendMessage(message: ChatMessage): Promise<AppendMessageResult>;
+  patchMessageGrounding(eventId: string, messageId: string, patch: Partial<NonNullable<ChatMessage['grounding']>>): Promise<ChatMessage | undefined>;
   listTranscript(eventId: string, limit: number): Promise<TranscriptMoment[]>;
   appendTranscript(eventId: string, moment: TranscriptMoment): Promise<TranscriptMoment>;
   listPresence(eventId: string, cutoffIso: string): Promise<ChatPresence[]>;
@@ -51,6 +53,23 @@ export class InMemoryChatStore implements ChatStore {
     };
   }
 
+  async listQueuedQuestions(eventId: string, limit: number, after?: ChatCursor): Promise<ChatMessagePage> {
+    const eligible = this.event(eventId).messages
+      .filter((message) => (
+        message.role === 'buyer'
+        && message.grounding?.status === 'seller-queue'
+        && (!after || compareCursor(message, after) > 0)
+      ))
+      .sort(compareMessages);
+    const items = eligible.slice(0, limit).map(cloneMessage);
+    return {
+      items,
+      ...(eligible.length > items.length && items.at(-1)
+        ? { nextCursor: { createdAt: items.at(-1)!.createdAt, id: items.at(-1)!.id } }
+        : {}),
+    };
+  }
+
   async appendMessage(message: ChatMessage): Promise<AppendMessageResult> {
     const state = this.event(message.eventId);
     if (message.clientRequestId) {
@@ -70,6 +89,19 @@ export class InMemoryChatStore implements ChatStore {
       lastSeenAt: message.createdAt,
     });
     return { message: cloneMessage(message), created: true };
+  }
+
+  async patchMessageGrounding(
+    eventId: string,
+    messageId: string,
+    patch: Partial<NonNullable<ChatMessage['grounding']>>,
+  ): Promise<ChatMessage | undefined> {
+    const message = this.event(eventId).messages.find((candidate) => candidate.id === messageId);
+    if (!message) return undefined;
+    const grounding = { ...(message.grounding ?? { status: 'not-routed' as const }), ...structuredClone(patch) };
+    if (JSON.stringify(grounding) === JSON.stringify(message.grounding)) return undefined;
+    message.grounding = grounding;
+    return cloneMessage(message);
   }
 
   async listTranscript(eventId: string, limit: number): Promise<TranscriptMoment[]> {

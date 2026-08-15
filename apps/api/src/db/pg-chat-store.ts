@@ -54,6 +54,28 @@ export class PgChatStore implements ChatStore {
     };
   }
 
+  async listQueuedQuestions(eventId: string, limit: number, after?: ChatCursor): Promise<ChatMessagePage> {
+    const result = await this.pool.query<MessageRow>(
+      `SELECT id, event_id, user_id, display_name, role, text, grounding, client_request_id, created_at
+         FROM chat_message
+        WHERE event_id = $1 AND role = 'buyer' AND moderated_at IS NULL
+          AND grounding->>'status' = 'seller-queue'
+          AND ($2::timestamptz IS NULL OR (created_at, id) > ($2::timestamptz, $3::text))
+        ORDER BY created_at ASC, id ASC
+        LIMIT $4`,
+      [eventId, after?.createdAt ?? null, after?.id ?? '', limit + 1],
+    );
+    const items = result.rows.map(toMessage);
+    const hasMore = items.length > limit;
+    if (hasMore) items.pop();
+    return {
+      items,
+      ...(hasMore && items.at(-1)
+        ? { nextCursor: { createdAt: items.at(-1)!.createdAt, id: items.at(-1)!.id } }
+        : {}),
+    };
+  }
+
   async appendMessage(message: ChatMessage): Promise<AppendMessageResult> {
     return this.transaction(async (client) => {
       const inserted = await client.query<MessageRow>(
@@ -87,6 +109,22 @@ export class PgChatStore implements ChatStore {
       }
       return { message: persisted, created: inserted.rows.length > 0 };
     });
+  }
+
+  async patchMessageGrounding(
+    eventId: string,
+    messageId: string,
+    patch: Partial<NonNullable<ChatMessage['grounding']>>,
+  ): Promise<ChatMessage | undefined> {
+    const result = await this.pool.query<MessageRow>(
+      `UPDATE chat_message
+          SET grounding = COALESCE(grounding, '{}'::jsonb) || $3::jsonb
+        WHERE event_id = $1 AND id = $2 AND moderated_at IS NULL
+          AND grounding IS DISTINCT FROM (COALESCE(grounding, '{}'::jsonb) || $3::jsonb)
+        RETURNING id, event_id, user_id, display_name, role, text, grounding, client_request_id, created_at`,
+      [eventId, messageId, JSON.stringify(patch)],
+    );
+    return result.rows[0] ? toMessage(result.rows[0]) : undefined;
   }
 
   async listTranscript(eventId: string, limit: number): Promise<TranscriptMoment[]> {
