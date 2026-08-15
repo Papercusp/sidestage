@@ -312,7 +312,7 @@ export class ScoutService {
     // Context is local to this turn, so replacing the readonly view is safe and
     // prevents the runtime from owning the memory store itself.
     (context as { memories: readonly ScoutMemory[] }).memories = memories;
-    const history = await this.safeSessionMessages(sessionId);
+    const history = await this.safeSessionMessages(identity.buyerId, sessionId);
     const messages: RuntimeMessage[] = [
       { role: 'system', content: systemPrompt(input, memories) },
       ...history,
@@ -355,7 +355,7 @@ export class ScoutService {
         if (mode === 'chat' && !context.cart.id) {
           context.cart = await this.carts.getCart(input.cartId);
         }
-        await this.persistTurn(sessionId, message, context.reply);
+        await this.persistTurn(identity.buyerId, sessionId, message, context.reply);
         await this.rememberTurn(writeScope, message);
         yield { type: 'done' };
         return context;
@@ -433,10 +433,13 @@ export class ScoutService {
     ];
   }
 
-  private async safeSessionMessages(sessionId: string): Promise<RuntimeMessage[]> {
-    if (!this.sessions) return [];
+  private async safeSessionMessages(
+    buyerId: string | null,
+    sessionId: string,
+  ): Promise<RuntimeMessage[]> {
+    if (!this.sessions || !buyerId) return [];
     try {
-      const session = await this.sessions.get(sessionId);
+      const session = await this.sessions.get(buyerId, sessionId);
       return (session?.messages ?? []).map((message) => ({
         role: message.role,
         content: message.content,
@@ -464,11 +467,16 @@ export class ScoutService {
     }
   }
 
-  private async persistTurn(sessionId: string, message: string, reply: string): Promise<void> {
-    if (!this.sessions || !reply) return;
+  private async persistTurn(
+    buyerId: string | null,
+    sessionId: string,
+    message: string,
+    reply: string,
+  ): Promise<void> {
+    if (!this.sessions || !buyerId || !reply) return;
     const ts = new Date().toISOString();
     try {
-      await this.sessions.append(sessionId, [
+      await this.sessions.append(buyerId, sessionId, [
         { role: 'user', content: message, ts },
         { role: 'assistant', content: reply, ts },
       ]);

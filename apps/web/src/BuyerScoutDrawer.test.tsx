@@ -1,6 +1,10 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it, vi } from 'vitest';
-import { SIDE_STAGE_SCOUT_STRINGS, handleBuyerScoutAppEvent } from './BuyerScoutDrawer';
+import {
+  SIDE_STAGE_SCOUT_STRINGS,
+  buyerScoutResources,
+  handleBuyerScoutAppEvent,
+} from './BuyerScoutDrawer';
 
 const read = (file: string) => readFileSync(new URL(file, import.meta.url), 'utf8');
 
@@ -37,6 +41,18 @@ describe('BuyerScoutDrawer contract', () => {
 
     expect(rendersBuyerRailDirectly(drawer)).toBe(true);
     expect(productRendererSpansEveryResultColumn(styles)).toBe(true);
+  });
+
+  it('restores only the matching buyer conversation across A → B → A switches', () => {
+    const buyerA = buyerScoutResources('buyer-switch-a');
+    const buyerB = buyerScoutResources('buyer-switch-b');
+    buyerA.conversation.sessionId = 'session-a';
+    buyerB.conversation.sessionId = 'session-b';
+
+    expect(buyerScoutResources('buyer-switch-a').conversation).toBe(buyerA.conversation);
+    expect(buyerScoutResources('buyer-switch-a').conversation.sessionId).toBe('session-a');
+    expect(buyerB.conversation).not.toBe(buyerA.conversation);
+    expect(buyerB.sessionStorageKey).not.toBe(buyerA.sessionStorageKey);
   });
 
   it('detects the original one-track regression', () => {

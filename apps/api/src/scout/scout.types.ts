@@ -171,6 +171,8 @@ export interface ScoutMessage {
 
 export interface ScoutSession {
   id: string;
+  /** Server-resolved owner. Never accepted from a chat/session request body. */
+  buyerId: string;
   messages: ScoutMessage[];
   /** ISO timestamp of the last append — half of the transcript's ETag version. */
   lastActiveAt: string;
@@ -182,9 +184,9 @@ export interface ScoutSession {
  * otherwise, chosen in the module factory.
  */
 export interface ScoutSessionStore {
-  get(id: string): Promise<ScoutSession | null>;
+  get(buyerId: string, id: string): Promise<ScoutSession | null>;
   /** Append messages to (creating if absent) a session; returns the new state. */
-  append(id: string, messages: readonly ScoutMessage[]): Promise<ScoutSession>;
+  append(buyerId: string, id: string, messages: readonly ScoutMessage[]): Promise<ScoutSession>;
 }
 
 // ─── Long-term memory (P-012, D-008) ─────────────────────────────────────────
