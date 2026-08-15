@@ -246,7 +246,7 @@ export const PROCESS_LOCAL_SURFACES: readonly SourceSurface[] = [
   local('apps/api/src/cart/cart.service.ts', 'carts', 'cart', ['buyer-owned'], 'memory backend authority', 'replicate', 'cart', 'P-011/P-018'),
   local('apps/api/src/chat/chat.service.ts', 'updatesByEvent', 'chat-stream', ['streaming'], 'fanout only', 'purpose-built-transport', 'Postgres chat lifecycle rows plus transient SSE fanout', 'P-020'),
   local('apps/api/src/chat/chat.store.ts', 'events', 'chat', ['public', 'streaming'], 'development fallback authority', 'replicate', 'Postgres chat message/transcript/presence tables in production', 'P-011/P-017/P-020'),
-  local('apps/api/src/checkout/checkout.service.ts', 'orders', 'orders', ['buyer-owned'], 'memory backend authority', 'replicate', 'checkout_order', 'P-011/P-018'),
+  local('apps/api/src/checkout/order-store.ts', 'orders', 'orders', ['buyer-owned'], 'memory backend authority', 'replicate', 'checkout_order', 'P-011/P-018'),
   local('apps/api/src/checkout/checkout.service.ts', 'paymentEventTails', 'payment-webhook-ordering', ['buyer-owned', 'operational'], 'bounded in-flight serializer', 'runtime-only', 'checkout_order monotonic Stripe event fields plus bounded per-order promise tail', 'P-011/P-018/P-020'),
   local('apps/api/src/config/event-config.service.ts', 'configs', 'event_config', ['seller-owned'], 'memory backend authority', 'replicate', 'event_config', 'P-011/P-019'),
   local('apps/api/src/copilot/copilot.store.ts', 'proposals', 'copilot', ['seller-owned'], 'memory backend authority', 'replicate', 'copilot_proposal', 'P-011/P-019'),
