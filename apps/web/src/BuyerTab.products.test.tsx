@@ -113,28 +113,65 @@ describe('BuyerTab product preview', () => {
     expect(markup).not.toContain('View all');
   });
 
-  it('keeps the real chat mounted in the video overlay and exposes mobile Shop and Chat controls', () => {
+  it('keeps the real chat mounted in the accessible room panel and the video transcript-only', () => {
     const markup = render(PRODUCTS);
 
-    expect(markup).toContain('aria-label="Buyer mobile view"');
-    expect(markup).toContain('aria-pressed="true">Shop');
-    expect(markup).toContain('aria-pressed="false">Chat');
-    expect(markup).toContain('data-buyer-mode="shop"');
+    expect(markup).toContain('class="buyer-room-tablist" role="tablist"');
+    expect(markup).toContain('role="tab" aria-selected="true" aria-controls="buyer-room-panel-chat"');
+    expect(markup).toContain('aria-controls="buyer-room-panel-details"');
+    expect(markup).toContain('aria-controls="buyer-room-panel-seller"');
     expect(markup).toContain('aria-label="Preview event audience chat"');
     expect(markup).toContain('data-surface="audience-overlay"');
     expect(markup).not.toContain('class="stage-panel event-chat-card"');
     expect(markup).toContain('buyer-video-engagement-overlay');
     expect(markup).toContain('Waiting for captions');
     expect(markup).toContain('aria-expanded="false"');
-    expect(markup).not.toContain('buyer-chat-card');
+    expect(markup).not.toContain('video-engagement-chat-toggle');
+    expect(markup).not.toContain('buyer-mode-switch');
+    expect(markup).not.toContain('data-buyer-mode');
+    expect(markup.match(/class="auction-card buyer-current-offer-slot"/g)).toHaveLength(1);
+    expect(markup).toContain('data-offer-state="idle"');
+  });
+
+  it('uses the active guide seller and falls back honestly when the guide has no match', () => {
+    const guidedMarkup = renderToStaticMarkup(
+      <BuyerTab
+        eventId="studio-drop"
+        eventTitle="Stale title"
+        products={PRODUCTS}
+        stats={{ viewers: 12, itemsSold: 4, totalRaisedCents: 9_500 }}
+        guideEvents={[{
+          eventId: 'studio-drop',
+          title: 'Studio drop',
+          sellerId: 'studio-27',
+          sellerName: 'Studio 27',
+          status: 'live',
+          startsAt: null,
+          endedAt: null,
+          viewers: 12,
+        }]}
+      />,
+    );
+
+    expect(guidedMarkup).toContain('Studio drop');
+    expect(guidedMarkup).toContain('<strong>Studio 27</strong>');
+    expect(guidedMarkup).toContain('@studio-27 · SideStage event host');
+    expect(guidedMarkup).toContain('Hosting live');
+
+    const fallbackMarkup = render(PRODUCTS);
+    expect(fallbackMarkup).toContain('<strong>SideStage event host</strong>');
+    expect(fallbackMarkup).toContain('@event-host · SideStage event host');
+    expect(fallbackMarkup).toContain('Event host');
   });
 
   it('pins the approved responsive stage and non-covering sticky action in page CSS', () => {
     expect(buyerCss).toMatch(/\.buyer-stage-grid\s*\{[^}]*grid-template-columns:/s);
+    expect(buyerCss).toMatch(/\.buyer-stage-primary\s*\{[^}]*display:\s*grid;/s);
     expect(buyerCss).toMatch(/\.buyer-mobile-action\s*\{[^}]*position:\s*sticky/s);
-    expect(buyerCss).toMatch(/\.buyer-mode-switch button\s*\{[^}]*min-height:\s*2\.75rem/s);
-    expect(buyerCss).toContain(".buyer-lower-grid[data-buyer-mode='chat'] .buyer-shop-panel");
-    expect(buyerCss).not.toContain(".buyer-lower-grid[data-buyer-mode='shop'] .buyer-chat-card");
+    expect(buyerCss).toMatch(/\.buyer-room-tablist button\s*\{[^}]*min-height:\s*2\.6rem/s);
+    expect(buyerCss).toContain(".buyer-current-offer-slot[data-offer-state='idle']");
+    expect(buyerCss).not.toContain('.buyer-mode-switch');
+    expect(buyerCss).not.toContain('data-buyer-mode');
     expect(buyerCss).toMatch(/\.buyer-drop-runway\s*\{[^}]*overflow:\s*hidden;/s);
     expect(buyerCss).toMatch(/\.buyer-runway-footer\s*\{[^}]*flex-direction:\s*column;/s);
   });

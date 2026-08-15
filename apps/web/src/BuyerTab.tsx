@@ -19,6 +19,7 @@ import { DEFAULT_EVENT_ID, DEFAULT_EVENT_TITLE } from './event-identity';
 import { streamLabel, useStreamSession } from './hooks';
 import { AuctionPanel } from './AuctionPanel';
 import { BuyerProductRail } from './BuyerProductRail';
+import { BuyerRoomContext, type BuyerRoomSeller } from './BuyerRoomContext';
 import { connectViewer, createEventRoom, type ViewerSession } from './streaming';
 import { EventThumbnail } from './event-creation/EventThumbnail';
 import { isRenderableThumbnailUrl } from './event-creation/thumbnail';
@@ -50,7 +51,6 @@ export interface BuyerTabProps {
 
 const EMPTY_BUYER_STATS: BuyerStats = { viewers: 0, itemsSold: 0, totalRaisedCents: 0 };
 export const BUYER_PRODUCT_PREVIEW_LIMIT = 3;
-type BuyerMode = 'shop' | 'chat';
 
 export function buyerStatsFromSyncRows(rows?: readonly BuyerStats[]): BuyerStats | null {
   return rows?.[0] ?? null;
@@ -146,7 +146,6 @@ export function BuyerTab({
   const [holdNotice, setHoldNotice] = useState<string | null>(null);
   const [holdOverrides, setHoldOverrides] = useState<Record<string, number>>({});
   const [showAllProducts, setShowAllProducts] = useState(false);
-  const [buyerMode, setBuyerMode] = useState<BuyerMode>('shop');
   const stream = useStreamSession<ViewerSession>();
   const {
     streamState,
@@ -169,7 +168,6 @@ export function BuyerTab({
 
   useEffect(() => {
     setShowAllProducts(false);
-    setBuyerMode('shop');
   }, [eventId]);
 
   const connectStream = useCallback(() =>
@@ -245,6 +243,17 @@ export function BuyerTab({
   const displayedProducts = showAllProducts
     ? productsWithLiveQuantity
     : upcomingProducts.slice(0, BUYER_PRODUCT_PREVIEW_LIMIT);
+  const seller = useMemo<BuyerRoomSeller>(() => ({
+    id: activeGuideEvent?.sellerId ?? 'event-host',
+    name: activeGuideEvent?.sellerName ?? 'SideStage event host',
+    status: activeGuideEvent?.status ?? 'unknown',
+  }), [activeGuideEvent]);
+  const viewEventItems = useCallback(() => {
+    setShowAllProducts(true);
+    globalThis.document
+      ?.getElementById('buyer-event-products')
+      ?.scrollIntoView?.({ behavior: 'smooth', block: 'start' });
+  }, []);
 
   return (
     <section className="buyer-tab density-roomy" id="buyer" aria-labelledby="buyer-title">
@@ -275,7 +284,8 @@ export function BuyerTab({
       ) : null}
 
       <section className="buyer-stage-grid" aria-label="Live video and current offer">
-        <div className="buyer-player-card">
+        <div className="buyer-stage-primary">
+          <div className="buyer-player-card">
           <video
             ref={videoRef}
             className="buyer-player"
@@ -297,6 +307,11 @@ export function BuyerTab({
           </div>
           <VideoEngagementOverlay
             className="buyer-video-engagement-overlay"
+            transcript={transcript}
+          />
+          </div>
+
+          <BuyerRoomContext
             chat={(
               <EventChat
                 eventId={eventId}
@@ -308,17 +323,28 @@ export function BuyerTab({
                 apiBaseUrl={resolveApiBaseUrl()}
               />
             )}
-            transcript={transcript}
-            chatOpen={buyerMode === 'chat'}
-            onChatOpenChange={(open) => setBuyerMode(open ? 'chat' : 'shop')}
+            currentProduct={currentProduct}
+            eventTitle={resolvedTitle}
+            productCount={totalProductCount}
+            seller={seller}
+            stats={stats}
+            onViewItems={viewEventItems}
           />
         </div>
 
-        <article
-          className="buyer-current-offer"
-          aria-labelledby="buyer-current-offer-title"
-          data-current-product-id={currentProduct?.id}
-        >
+        <AuctionPanel
+          className="buyer-current-offer-slot"
+          eventId={eventId}
+          products={products}
+          bidderId={userId}
+          displayName={userId}
+          apiBaseUrl={import.meta.env.VITE_API_URL}
+          idleContent={(
+            <article
+              className="buyer-current-offer"
+              aria-labelledby="buyer-current-offer-title"
+              data-current-product-id={currentProduct?.id}
+            >
           <div className="buyer-current-offer-heading">
             <div>
               <p className="eyebrow">Now selling</p>
@@ -363,25 +389,14 @@ export function BuyerTab({
           ) : (
             <p className="muted">Stay in the room—the offer updates when the seller brings an item on stage.</p>
           )}
-        </article>
+            </article>
+          )}
+        />
       </section>
 
-      <div className="buyer-mode-switch" role="group" aria-label="Buyer mobile view">
-        <button type="button" aria-pressed={buyerMode === 'shop'} onClick={() => setBuyerMode('shop')}>Shop</button>
-        <button type="button" aria-pressed={buyerMode === 'chat'} onClick={() => setBuyerMode('chat')}>Chat</button>
-      </div>
-
-      <div className="buyer-lower-grid" data-buyer-mode={buyerMode}>
+      <div className="buyer-lower-grid">
         <div className="buyer-shop-panel">
           <ReplayChapters eventId={eventId} videoRef={videoRef} apiBaseUrl={resolveApiBaseUrl()} />
-
-          <AuctionPanel
-            eventId={eventId}
-            products={products}
-            bidderId={userId}
-            displayName={userId}
-            apiBaseUrl={import.meta.env.VITE_API_URL}
-          />
 
           <section className="buyer-drop-runway" aria-labelledby="buyer-drop-runway-title">
             <header className="buyer-products-heading">
