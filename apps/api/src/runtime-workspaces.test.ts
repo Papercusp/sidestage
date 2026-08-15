@@ -41,6 +41,10 @@ describe('API runtime workspace packages', () => {
       .sort();
 
     expect(internalDependencies.length).toBeGreaterThan(0);
+    expect(
+      apiPackage.scripts?.pretypecheck,
+      'typecheck must build the same internal runtime dependencies as the test lifecycle',
+    ).toBe(apiPackage.scripts?.pretest);
 
     for (const dependency of internalDependencies) {
       expect(

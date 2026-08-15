@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { useSyncMutate, useSyncQuery } from '@papercusp/sync';
+import { useSyncMutate, useSyncPrincipal, useSyncQuery } from '@papercusp/sync';
 import type { RunOfShowEntry, RunOfShowPlan } from '../run-of-show';
 import { fetchSellerEvent, saveRunOfShowPlan } from '../events/api';
 import '../run-of-show.css';
@@ -152,6 +152,7 @@ export function RunOfShowPlannerView({
 }
 
 export function RunOfShowPlannerPanel({ eventId, apiBaseUrl }: RunOfShowPlannerPanelProps) {
+  const principal = useSyncPrincipal() ?? undefined;
   const [rows, setRows] = useState<DraftRow[]>([]);
   const [seededFor, setSeededFor] = useState<string | null>(null);
   const [titles, setTitles] = useState<Record<string, string>>({});
@@ -170,15 +171,15 @@ export function RunOfShowPlannerPanel({ eventId, apiBaseUrl }: RunOfShowPlannerP
 
   /** The save is a useSyncMutate write: optimistic where a mutator exists, REST fallback otherwise. */
   const restSave = useCallback(
-    (entries: RunOfShowEntry[]) => saveRunOfShowPlan(eventId, entries, apiBaseUrl),
-    [eventId, apiBaseUrl],
+    (entries: RunOfShowEntry[]) => saveRunOfShowPlan(eventId, entries, apiBaseUrl, principal),
+    [eventId, apiBaseUrl, principal],
   );
   const mutateSave = useSyncMutate<RunOfShowEntry[], RunOfShowPlan>('runOfShow.save', restSave);
 
   /** Lineup titles through the budgeted events/api transport. */
   useEffect(() => {
     let cancelled = false;
-    fetchSellerEvent(eventId, apiBaseUrl)
+    fetchSellerEvent(eventId, apiBaseUrl, principal)
       .then((event) => {
         if (cancelled) return;
         setTitles(Object.fromEntries(event.items.map((item) => [item.productId, item.title])));
@@ -188,7 +189,7 @@ export function RunOfShowPlannerPanel({ eventId, apiBaseUrl }: RunOfShowPlannerP
     return () => {
       cancelled = true;
     };
-  }, [eventId, apiBaseUrl]);
+  }, [eventId, apiBaseUrl, principal]);
 
   const unplanned = useMemo(() => {
     const planned = new Set(rows.map((row) => row.productId));

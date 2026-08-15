@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
-import { useSyncQuery } from '@papercusp/sync';
+import { useSyncPrincipal, useSyncQuery } from '@papercusp/sync';
 import {
   buildRunOfShowView,
   formatClock,
@@ -183,6 +183,7 @@ export function RunOfShowPanel({
   onActiveProductChange,
   apiBaseUrl,
 }: RunOfShowPanelProps) {
+  const principal = useSyncPrincipal() ?? undefined;
   /**
    * The plan rides the audited sync path (sync-contract.test.ts): the server
    * registers `event.runOfShow` and invalidates it on every PUT, so a save in
@@ -197,7 +198,7 @@ export function RunOfShowPanel({
   /** Lineup titles: one read through the budgeted events/api transport. */
   useEffect(() => {
     let cancelled = false;
-    fetchSellerEvent(eventId, apiBaseUrl)
+    fetchSellerEvent(eventId, apiBaseUrl, principal)
       .then((event) => {
         if (cancelled) return;
         setTitles(Object.fromEntries(event.items.map((item) => [item.productId, item.title])));
@@ -206,7 +207,7 @@ export function RunOfShowPanel({
     return () => {
       cancelled = true;
     };
-  }, [eventId, apiBaseUrl]);
+  }, [eventId, apiBaseUrl, principal]);
 
   const loaded = !planQuery.loading;
   const error = planQuery.error ? 'The show plan could not be loaded.' : null;
