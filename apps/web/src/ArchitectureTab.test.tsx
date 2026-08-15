@@ -33,8 +33,12 @@ describe('ArchitectureTab', () => {
 
   it('uses a sticky section sidebar and keeps the page responsive without hiding content', () => {
     expect(css).toMatch(/\.architecture-layout\s*\{[^}]*grid-template-columns:\s*minmax\(9\.5rem, 12rem\) minmax\(0, 1fr\)/);
-    expect(css).toMatch(/\.architecture-jump-nav\s*\{[^}]*position:\s*sticky[^}]*display:\s*grid/);
+    expect(css).toMatch(/\.architecture-jump-nav\s*\{[^}]*position:\s*sticky[^}]*top:\s*var\(--architecture-sticky-top\)[^}]*display:\s*grid/);
     expect(css).not.toMatch(/\.architecture-jump-nav\s*\{[^}]*display:\s*flex/);
+    expect(css).toMatch(/\.architecture-section\s*\{[^}]*scroll-margin-top:\s*calc\(var\(--architecture-sticky-top\) \+ \.75rem\)/);
+    expect(css).toMatch(/@media \(min-width: 1300px\) and \(max-width: 1699px\)[\s\S]*?--architecture-sticky-top:\s*11rem/);
+    expect(css).toMatch(/@media \(min-width: 901px\) and \(max-width: 1299px\)[\s\S]*?--architecture-sticky-top:\s*14\.5rem/);
+    expect(css).toMatch(/@media \(min-width: 721px\) and \(max-width: 900px\)[\s\S]*?--architecture-sticky-top:\s*18rem/);
     expect(css).toMatch(/@media \(max-width: 1100px\)[\s\S]*?\.architecture-context-diagram\s*\{[^}]*grid-template-columns:\s*1fr/);
     expect(css).toMatch(/@media \(max-width: 720px\)[\s\S]*?\.architecture-layout\s*\{[^}]*grid-template-columns:\s*1fr/);
     expect(css).toMatch(/@media \(max-width: 720px\)[\s\S]*?\.architecture-layer > div[^}]*grid-template-columns:\s*1fr/);
