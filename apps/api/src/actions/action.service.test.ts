@@ -170,16 +170,16 @@ describe('GuardedActionService', () => {
     });
 
     expect(applied.state.priceCents).toBe(1_200);
-    const audit = actions.getAudit(applied.auditId);
+    const audit = await actions.getAudit(applied.auditId);
     expect(audit.kind).toBe('markdown');
     expect(audit.before.item.priceCents).toBe(1_500);
     expect(audit.after.item.priceCents).toBe(1_200);
 
     const rollback = await actions.rollback(applied.auditId, 'seller-1', 'Undo test markdown');
     expect(rollback.state.priceCents).toBe(1_500);
-    expect(actions.listAudit('event-1')).toHaveLength(2);
-    expect(actions.getAudit(applied.auditId).rolledBackAt).toBeDefined();
-    expect(actions.getAudit(rollback.auditId).kind).toBe('rollback');
+    expect(await actions.listAudit('event-1')).toHaveLength(2);
+    expect((await actions.getAudit(applied.auditId)).rolledBackAt).toBeDefined();
+    expect((await actions.getAudit(rollback.auditId)).kind).toBe('rollback');
   });
 
   it('returns one audited result for concurrent retries with the same client request id', async () => {
@@ -201,7 +201,7 @@ describe('GuardedActionService', () => {
     const [first, retry] = await Promise.all([actions.apply(input), actions.apply(input)]);
 
     expect(retry).toEqual(first);
-    expect(actions.listAudit('event-1')).toHaveLength(1);
+    expect(await actions.listAudit('event-1')).toHaveLength(1);
     expect(actions.listOffersForBuyer('buyer-9')).toHaveLength(1);
     expect((await actions.listItems('event-1'))[0]?.availableQty).toBe(4);
   });
@@ -215,7 +215,7 @@ describe('GuardedActionService', () => {
     });
 
     expect(result.state).toMatchObject({ priceCents: 1_400, quantity: 3, availableQty: 5 });
-    expect(actions.getAudit(result.auditId).kind).toBe('price-adjust');
+    expect((await actions.getAudit(result.auditId)).kind).toBe('price-adjust');
     await expect(actions.apply({
       eventId: 'event-1',
       actorId: 'seller-1',
@@ -240,8 +240,8 @@ describe('GuardedActionService', () => {
     expect(result.state.availableQty).toBe(3);
     const rollback = await actions.rollback(result.auditId, 'seller-1');
     expect(rollback.state.availableQty).toBe(5);
-    expect(actions.getAudit(result.auditId).after.offers).toHaveLength(1);
-    expect(actions.getAudit(rollback.auditId).after.offers).toHaveLength(0);
+    expect((await actions.getAudit(result.auditId)).after.offers).toHaveLength(1);
+    expect((await actions.getAudit(rollback.auditId)).after.offers).toHaveLength(0);
   });
 
   it('accepts one buyer-owned offer into one canonical order and releases it idempotently on cancellation', async () => {
@@ -302,7 +302,7 @@ describe('GuardedActionService', () => {
       action: { kind: 'markdown', productId: 'mug', priceCents: 900, reason: 'Unsafe discount' },
     })).rejects.toThrow('floor');
     expect((await actions.listItems('event-1'))[0]?.priceCents).toBe(1_500);
-    expect(actions.listAudit('event-1')).toEqual([]);
+    expect(await actions.listAudit('event-1')).toEqual([]);
   });
 
   it('rejects rollback after a newer write changes the same item', async () => {
