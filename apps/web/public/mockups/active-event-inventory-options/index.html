@@ -1,0 +1,797 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>SideStage · Active Event inventory options</title>
+    <style>
+      :root {
+        color-scheme: light;
+        font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        --bg: #fff8ef;
+        --bg-top: #fff3e0;
+        --surface: #ffffff;
+        --surface-soft: #fdf8f0;
+        --sunken: #fbf2e3;
+        --text: #2a1f1a;
+        --muted: #77685a;
+        --border: #ebdfcc;
+        --border-strong: #e8d3bc;
+        --red: #d62b1f;
+        --red-dark: #b52218;
+        --yellow: #ffc400;
+        --green: #196b42;
+        --shadow: 92 62 34;
+      }
+
+      * { box-sizing: border-box; }
+
+      html { min-width: 320px; scroll-behavior: smooth; }
+
+      body {
+        min-width: 320px;
+        min-height: 100vh;
+        margin: 0;
+        color: var(--text);
+        background:
+          radial-gradient(circle at 8% -5%, rgb(214 43 31 / 9%), transparent 30rem),
+          radial-gradient(circle at 96% 10%, rgb(255 196 0 / 12%), transparent 32rem),
+          linear-gradient(180deg, var(--bg-top), var(--bg) 65%);
+      }
+
+      body::before {
+        position: fixed;
+        inset: 0;
+        content: "";
+        pointer-events: none;
+        opacity: 0.22;
+        background-image:
+          linear-gradient(rgb(42 31 26 / 4%) 1px, transparent 1px),
+          linear-gradient(90deg, rgb(42 31 26 / 4%) 1px, transparent 1px);
+        background-size: 48px 48px;
+        mask-image: linear-gradient(to bottom, #000, transparent 88%);
+      }
+
+      button,
+      input { font: inherit; }
+
+      button { cursor: pointer; }
+
+      :where(button, input):focus-visible {
+        outline: 3px solid rgb(214 43 31 / 28%);
+        outline-offset: 2px;
+      }
+
+      .page {
+        position: relative;
+        z-index: 1;
+        width: min(100% - 2rem, 116rem);
+        margin: 0 auto;
+        padding: clamp(1.5rem, 3vw, 3rem) 0 3.5rem;
+      }
+
+      .page-header {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        gap: 2rem;
+        align-items: end;
+        margin-bottom: 1.35rem;
+      }
+
+      .brand-row {
+        display: flex;
+        align-items: center;
+        gap: 0.7rem;
+        margin-bottom: 1rem;
+        color: var(--red-dark);
+        font-size: 0.68rem;
+        font-weight: 850;
+        letter-spacing: 0.11em;
+        text-transform: uppercase;
+      }
+
+      .brand-mark {
+        display: grid;
+        width: 2rem;
+        height: 2rem;
+        place-items: center;
+        border: 1px solid rgb(214 43 31 / 30%);
+        border-radius: 0.62rem;
+        background: rgb(214 43 31 / 7%);
+        box-shadow: inset 0 -3px 0 rgb(214 43 31 / 9%);
+        font-size: 0.72rem;
+        font-weight: 950;
+      }
+
+      h1 {
+        max-width: 16ch;
+        margin: 0;
+        font-size: clamp(2.1rem, 4vw, 4.45rem);
+        line-height: 0.96;
+        letter-spacing: -0.058em;
+      }
+
+      .intro {
+        max-width: 68ch;
+        margin: 1rem 0 0;
+        color: var(--muted);
+        font-size: clamp(0.92rem, 1.2vw, 1.05rem);
+        line-height: 1.65;
+      }
+
+      .header-actions {
+        display: grid;
+        min-width: 14rem;
+        gap: 0.65rem;
+        justify-items: end;
+      }
+
+      .recommendation {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.48rem;
+        min-height: 2.25rem;
+        padding: 0.55rem 0.8rem;
+        border: 1px solid rgb(25 107 66 / 25%);
+        border-radius: 999px;
+        color: var(--green);
+        background: rgb(25 107 66 / 7%);
+        font-size: 0.7rem;
+        font-weight: 850;
+      }
+
+      .recommendation::before {
+        width: 0.48rem;
+        height: 0.48rem;
+        border-radius: 50%;
+        background: var(--green);
+        content: "";
+      }
+
+      .jump-links {
+        display: flex;
+        gap: 0.35rem;
+      }
+
+      .jump-links button {
+        min-width: 2.2rem;
+        min-height: 2.2rem;
+        border: 1px solid var(--border);
+        border-radius: 0.62rem;
+        color: var(--muted);
+        background: rgb(255 255 255 / 75%);
+        font-size: 0.7rem;
+        font-weight: 850;
+        box-shadow: 0 5px 14px rgb(var(--shadow) / 6%);
+      }
+
+      .jump-links button:hover { color: var(--red-dark); border-color: rgb(214 43 31 / 35%); }
+
+      .gallery-shell {
+        overflow-x: auto;
+        padding: 0.35rem 0 1rem;
+        scrollbar-color: rgb(214 43 31 / 30%) transparent;
+      }
+
+      .gallery {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(28rem, 1fr));
+        gap: 1rem;
+        min-width: 88rem;
+      }
+
+      .option {
+        display: flex;
+        min-width: 0;
+        flex-direction: column;
+        border: 1px solid var(--border);
+        border-radius: 1.25rem;
+        overflow: hidden;
+        background: rgb(255 255 255 / 84%);
+        box-shadow: 0 18px 44px rgb(var(--shadow) / 10%);
+        backdrop-filter: blur(10px);
+      }
+
+      .option.recommended { border-color: rgb(214 43 31 / 36%); box-shadow: 0 18px 46px rgb(214 43 31 / 10%); }
+
+      .option-head {
+        display: grid;
+        grid-template-columns: auto minmax(0, 1fr);
+        gap: 0.8rem;
+        min-height: 9.2rem;
+        padding: 1.05rem;
+        border-bottom: 1px solid var(--border);
+      }
+
+      .option-number {
+        display: grid;
+        width: 2.25rem;
+        height: 2.25rem;
+        place-items: center;
+        border-radius: 0.72rem;
+        color: var(--surface);
+        background: var(--text);
+        font-size: 0.78rem;
+        font-weight: 900;
+      }
+
+      .recommended .option-number { background: var(--red); }
+
+      .option-kicker {
+        margin: 0 0 0.28rem;
+        color: var(--red-dark);
+        font-size: 0.62rem;
+        font-weight: 900;
+        letter-spacing: 0.1em;
+        text-transform: uppercase;
+      }
+
+      .option h2 { margin: 0; font-size: 1.18rem; letter-spacing: -0.025em; }
+
+      .option-summary {
+        margin: 0.45rem 0 0;
+        color: var(--muted);
+        font-size: 0.77rem;
+        line-height: 1.5;
+      }
+
+      .tradeoffs {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.35rem;
+        margin-top: 0.72rem;
+      }
+
+      .tradeoffs span {
+        padding: 0.3rem 0.5rem;
+        border-radius: 999px;
+        color: var(--muted);
+        background: var(--sunken);
+        font-size: 0.58rem;
+        font-weight: 750;
+      }
+
+      .tradeoffs .best { color: var(--green); background: rgb(25 107 66 / 8%); }
+
+      .mock-wrap { flex: 1; padding: 0.7rem; background: var(--surface-soft); }
+
+      .mock-window {
+        display: flex;
+        height: 34rem;
+        min-width: 0;
+        flex-direction: column;
+        border: 1px solid var(--border-strong);
+        border-radius: 0.8rem;
+        overflow: hidden;
+        background: var(--bg);
+        box-shadow: 0 12px 30px rgb(var(--shadow) / 11%);
+      }
+
+      .mock-topbar {
+        display: grid;
+        grid-template-columns: auto minmax(0, 1fr) auto;
+        align-items: center;
+        gap: 0.55rem;
+        min-height: 2.7rem;
+        padding: 0.42rem 0.52rem;
+        border-bottom: 1px solid var(--border);
+        background: rgb(255 255 255 / 92%);
+      }
+
+      .mock-logo { display: flex; align-items: center; gap: 0.38rem; min-width: 0; font-size: 0.64rem; font-weight: 900; }
+      .mock-logo i { display: grid; width: 1.5rem; height: 1.5rem; place-items: center; border-radius: 0.42rem; color: var(--red-dark); background: rgb(214 43 31 / 8%); font-style: normal; font-size: 0.52rem; }
+      .mock-nav { display: flex; justify-content: center; gap: 0.16rem; min-width: 0; }
+      .mock-nav span { padding: 0.34rem 0.44rem; border-radius: 0.4rem; color: var(--muted); font-size: 0.52rem; font-weight: 760; white-space: nowrap; }
+      .mock-nav .active { color: var(--red-dark); background: var(--surface); box-shadow: 0 3px 10px rgb(var(--shadow) / 9%); }
+
+      .live-pill { display: inline-flex; align-items: center; gap: 0.3rem; color: var(--red-dark); font-size: 0.52rem; font-weight: 900; }
+      .live-pill::before { width: 0.42rem; height: 0.42rem; border-radius: 50%; background: var(--red); box-shadow: 0 0 0 0.18rem rgb(214 43 31 / 10%); content: ""; }
+
+      .studio-tabs {
+        display: flex;
+        min-height: 2.45rem;
+        align-items: end;
+        gap: 0.2rem;
+        border-bottom: 1px solid var(--border);
+        padding: 0 0.45rem;
+        background: var(--bg);
+      }
+
+      .studio-tabs span { padding: 0.65rem 0.5rem 0.55rem; border-bottom: 2px solid transparent; color: var(--muted); font-size: 0.54rem; font-weight: 800; }
+      .studio-tabs .active { border-bottom-color: var(--red); color: var(--text); }
+
+      .board { flex: 1; min-height: 0; padding: 0.42rem; overflow: hidden; }
+
+      .dock-grid { display: grid; grid-template-columns: minmax(0, 1.42fr) minmax(11.4rem, 1fr); gap: 0.34rem; height: 100%; }
+      .right-stack { display: grid; grid-template-rows: minmax(0, 0.86fr) minmax(0, 1.14fr); gap: 0.34rem; min-height: 0; }
+
+      .panel {
+        min-width: 0;
+        min-height: 0;
+        border: 1px solid var(--border);
+        border-radius: 0.48rem;
+        overflow: hidden;
+        background: var(--surface);
+      }
+
+      .panel-tabbar {
+        display: flex;
+        min-height: 1.85rem;
+        align-items: stretch;
+        border-bottom: 1px solid var(--border);
+        background: var(--surface-soft);
+      }
+
+      .panel-tabbar > span,
+      .panel-tabbar > button {
+        display: inline-flex;
+        min-width: 0;
+        align-items: center;
+        gap: 0.28rem;
+        border: 0;
+        border-right: 1px solid var(--border);
+        padding: 0.42rem 0.5rem;
+        color: var(--muted);
+        background: transparent;
+        font-size: 0.53rem;
+        font-weight: 820;
+      }
+
+      .panel-tabbar > .selected,
+      .panel-tabbar > button[aria-selected="true"] { color: var(--text); background: var(--surface); }
+      .panel-tabbar .count { display: inline-grid; min-width: 1rem; height: 1rem; place-items: center; border-radius: 999px; color: var(--surface); background: var(--red); font-size: 0.43rem; }
+
+      .panel-body { height: calc(100% - 1.85rem); min-height: 0; overflow: auto; padding: 0.52rem; }
+      .panel-body[hidden] { display: none; }
+
+      .stage {
+        position: relative;
+        display: grid;
+        grid-template-rows: minmax(0, 1fr) auto;
+        height: 100%;
+        padding: 0.55rem;
+        background: #10131a;
+      }
+
+      .stage-video {
+        position: relative;
+        min-height: 0;
+        border: 1px solid #343b47;
+        border-radius: 0.5rem;
+        overflow: hidden;
+        background:
+          radial-gradient(circle at 48% 26%, rgb(255 196 0 / 18%), transparent 24%),
+          linear-gradient(145deg, #2e3340, #151922 62%);
+      }
+
+      .stage-video::before {
+        position: absolute;
+        inset: 17% 28% 0;
+        border-radius: 46% 46% 15% 15%;
+        background: linear-gradient(180deg, #d6b7a1 0 27%, #b73628 28% 100%);
+        box-shadow: 0 0 34px rgb(255 196 0 / 10%);
+        content: "";
+      }
+
+      .stage-live {
+        position: absolute;
+        top: 0.45rem;
+        left: 0.45rem;
+        padding: 0.22rem 0.38rem;
+        border-radius: 0.28rem;
+        color: #fff8f5;
+        background: var(--red);
+        font-size: 0.44rem;
+        font-weight: 900;
+        letter-spacing: 0.08em;
+      }
+
+      .viewer-count { position: absolute; top: 0.47rem; right: 0.48rem; color: #d5cabd; font-size: 0.46rem; font-weight: 750; }
+
+      .caption {
+        position: absolute;
+        right: 0.55rem;
+        bottom: 0.55rem;
+        left: 0.55rem;
+        padding: 0.36rem 0.45rem;
+        border-radius: 0.3rem;
+        color: #f7f0e7;
+        background: rgb(16 19 26 / 82%);
+        font-size: 0.49rem;
+        line-height: 1.35;
+        text-align: center;
+      }
+
+      .stage-controls { display: flex; align-items: center; justify-content: space-between; gap: 0.45rem; padding-top: 0.48rem; color: #bcae9f; }
+      .stage-title { min-width: 0; }
+      .stage-title strong { display: block; overflow: hidden; color: #f7f0e7; font-size: 0.57rem; text-overflow: ellipsis; white-space: nowrap; }
+      .stage-title small { font-size: 0.43rem; }
+      .end-button { border: 1px solid rgb(255 122 107 / 55%); border-radius: 0.36rem; padding: 0.35rem 0.46rem; color: #ff7a6b; background: transparent; font-size: 0.48rem; font-weight: 800; }
+
+      .run-summary { display: flex; align-items: center; justify-content: space-between; gap: 0.3rem; margin-bottom: 0.45rem; color: var(--muted); font-size: 0.47rem; }
+      .run-summary strong { color: var(--text); font-size: 0.55rem; }
+      .run-item { display: grid; grid-template-columns: 1.2rem minmax(0, 1fr) auto; gap: 0.36rem; align-items: center; padding: 0.38rem 0; border-top: 1px solid var(--border); }
+      .run-thumb { display: grid; width: 1.2rem; height: 1.2rem; place-items: center; border-radius: 0.32rem; background: var(--sunken); font-size: 0.56rem; }
+      .run-copy { min-width: 0; }
+      .run-copy strong { display: block; overflow: hidden; font-size: 0.49rem; text-overflow: ellipsis; white-space: nowrap; }
+      .run-copy small { color: var(--muted); font-size: 0.42rem; }
+      .run-time { color: var(--muted); font-size: 0.43rem; font-variant-numeric: tabular-nums; }
+      .run-item.now { margin: 0 -0.25rem; padding-inline: 0.25rem; border-radius: 0.34rem; background: rgb(214 43 31 / 5%); box-shadow: inset 0.16rem 0 0 var(--red); }
+
+      .inventory-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 0.35rem; margin-bottom: 0.35rem; }
+      .inventory-heading { min-width: 0; }
+      .inventory-heading strong { display: block; font-size: 0.55rem; }
+      .inventory-heading small { color: var(--muted); font-size: 0.42rem; }
+
+      .add-button,
+      .save-button,
+      .picker-add {
+        min-height: 1.48rem;
+        border: 1px solid var(--red);
+        border-radius: 0.38rem;
+        padding: 0.3rem 0.43rem;
+        color: #fff8f5;
+        background: var(--red);
+        font-size: 0.46rem;
+        font-weight: 850;
+      }
+
+      .add-button.secondary { color: var(--red-dark); background: var(--surface); }
+
+      .inventory-list { display: grid; gap: 0.27rem; }
+
+      .inventory-row {
+        display: grid;
+        grid-template-columns: 1.45rem minmax(0, 1fr) auto;
+        gap: 0.38rem;
+        align-items: center;
+        min-width: 0;
+        padding: 0.32rem;
+        border: 1px solid var(--border);
+        border-radius: 0.38rem;
+        background: var(--surface);
+      }
+
+      .product-thumb { display: grid; width: 1.45rem; height: 1.45rem; place-items: center; border-radius: 0.34rem; background: linear-gradient(145deg, #f3e2cc, #e8d3bc); font-size: 0.64rem; }
+      .product-copy { min-width: 0; }
+      .product-copy strong { display: block; overflow: hidden; font-size: 0.49rem; text-overflow: ellipsis; white-space: nowrap; }
+      .product-copy small { display: block; color: var(--muted); font-size: 0.4rem; }
+
+      .stepper { display: grid; grid-template-columns: 1.18rem 1.3rem 1.18rem; align-items: center; border: 1px solid var(--border-strong); border-radius: 0.34rem; overflow: hidden; }
+      .stepper button { height: 1.25rem; border: 0; color: var(--muted); background: var(--surface-soft); font-size: 0.65rem; font-weight: 850; }
+      .quantity-value { text-align: center; font-size: 0.48rem; font-weight: 900; font-variant-numeric: tabular-nums; }
+
+      .inventory-footer { display: flex; align-items: center; justify-content: space-between; gap: 0.35rem; margin-top: 0.35rem; }
+      .save-state { color: var(--muted); font-size: 0.42rem; }
+      .save-state.dirty { color: var(--red-dark); font-weight: 800; }
+      .save-state.saved { color: var(--green); font-weight: 800; }
+      .save-button { min-height: 1.38rem; padding-block: 0.25rem; }
+
+      .catalog-picker { margin: 0.32rem 0; padding: 0.36rem; border: 1px solid rgb(214 43 31 / 24%); border-radius: 0.4rem; background: rgb(214 43 31 / 4%); }
+      .catalog-picker[hidden] { display: none; }
+      .catalog-search { width: 100%; min-height: 1.42rem; border: 1px solid var(--border-strong); border-radius: 0.34rem; padding: 0.28rem 0.38rem; color: var(--text); background: var(--surface); font-size: 0.45rem; }
+      .catalog-result { display: flex; align-items: center; justify-content: space-between; gap: 0.35rem; margin-top: 0.3rem; font-size: 0.45rem; }
+      .picker-add { min-height: 1.25rem; padding: 0.2rem 0.36rem; }
+
+      .utility-panel .panel-body { padding: 0.55rem; }
+      .utility-note { margin: 0 0 0.42rem; color: var(--muted); font-size: 0.44rem; line-height: 1.4; }
+
+      .board-tray { display: grid; grid-template-rows: minmax(0, 1fr) auto; gap: 0.34rem; height: 100%; }
+      .tray-top { display: grid; grid-template-columns: minmax(0, 1.42fr) minmax(10.8rem, 1fr); gap: 0.34rem; min-height: 0; }
+      .inventory-tray { max-height: 12.8rem; transition: max-height 180ms ease; }
+      .inventory-tray.collapsed { max-height: 1.85rem; }
+      .inventory-tray.collapsed .tray-content { display: none; }
+      .tray-tabbar { justify-content: space-between; }
+      .tray-tabbar > span { flex: 1; }
+      .tray-toggle { border-left: 1px solid var(--border) !important; border-right: 0 !important; }
+      .tray-content { height: calc(100% - 1.85rem); padding: 0.42rem; overflow: auto; }
+      .tray-content .inventory-toolbar { margin-bottom: 0.28rem; }
+      .tray-content .inventory-list { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+      .tray-content .inventory-row { grid-template-columns: 1.25rem minmax(0, 1fr); gap: 0.28rem; }
+      .tray-content .product-thumb { width: 1.25rem; height: 1.25rem; }
+      .tray-content .stepper { grid-column: 1 / -1; grid-template-columns: 1.2rem minmax(1.4rem, 1fr) 1.2rem; }
+
+      .choice-note {
+        display: grid;
+        grid-template-columns: auto minmax(0, 1fr);
+        gap: 0.6rem;
+        margin-top: 1rem;
+        padding: 0.9rem 1rem;
+        border: 1px solid var(--border);
+        border-radius: 0.9rem;
+        color: var(--muted);
+        background: rgb(255 255 255 / 66%);
+        font-size: 0.76rem;
+        line-height: 1.55;
+      }
+
+      .choice-note strong { color: var(--text); }
+      .choice-note .dot { width: 0.6rem; height: 0.6rem; margin-top: 0.3rem; border-radius: 50%; background: var(--yellow); box-shadow: 0 0 0 0.22rem rgb(255 196 0 / 14%); }
+
+      .preview-only { margin: 1rem 0 0; color: var(--muted); font-size: 0.68rem; text-align: center; }
+
+      @media (max-width: 900px) {
+        .page-header { grid-template-columns: 1fr; align-items: start; }
+        .header-actions { justify-items: start; }
+        .gallery { grid-template-columns: minmax(20rem, 1fr); min-width: 0; }
+        .gallery-shell { overflow: visible; }
+        .mock-window { height: 38rem; }
+      }
+
+      @media (max-width: 520px) {
+        .page { width: min(100% - 1rem, 40rem); padding-top: 1rem; }
+        h1 { font-size: 2.45rem; }
+        .mock-nav span:nth-child(-n + 3) { display: none; }
+        .dock-grid,
+        .tray-top { grid-template-columns: minmax(0, 1fr); }
+        .dock-grid > .panel:first-child,
+        .tray-top > .panel:first-child { display: none; }
+        .right-stack { grid-template-rows: minmax(0, 0.78fr) minmax(0, 1.22fr); }
+        .mock-window { height: 34rem; }
+        .tray-content .inventory-list { grid-template-columns: 1fr; }
+      }
+    </style>
+  </head>
+  <body>
+    <main class="page">
+      <header class="page-header">
+        <div>
+          <div class="brand-row"><span class="brand-mark">SS</span> SideStage Studio · Active Event</div>
+          <h1>Inventory without leaving the show.</h1>
+          <p class="intro">
+            Three ways to let a seller adjust active quantities and add catalog items while the event stays live.
+            The controls below are interactive: try the steppers, Add item, panel tabs, and the bottom tray.
+          </p>
+        </div>
+        <div class="header-actions">
+          <span class="recommendation">Recommended · Persistent split rail</span>
+          <div class="jump-links" aria-label="Jump to option">
+            <button type="button" data-choice="option-1">01</button>
+            <button type="button" data-choice="option-2">02</button>
+            <button type="button" data-choice="option-3">03</button>
+          </div>
+        </div>
+      </header>
+
+      <div class="gallery-shell">
+        <div class="gallery">
+          <section class="option recommended" id="option-1" aria-labelledby="option-1-title">
+            <header class="option-head">
+              <span class="option-number">01</span>
+              <div>
+                <p class="option-kicker">Recommended · always in sight</p>
+                <h2 id="option-1-title">Persistent split rail</h2>
+                <p class="option-summary">Run of Show stays above a compact Inventory pane. Quantities and catalog add are one glance away throughout the event.</p>
+                <div class="tradeoffs"><span class="best">Best live awareness</span><span>Uses rail height</span></div>
+              </div>
+            </header>
+            <div class="mock-wrap">
+              <div class="mock-window">
+                <div class="mock-topbar">
+                  <div class="mock-logo"><i>SS</i><span>SideStage</span></div>
+                  <div class="mock-nav"><span>Watch</span><span>Orders</span><span class="active">Studio</span><span>History</span></div>
+                  <span class="live-pill">LIVE</span>
+                </div>
+                <div class="studio-tabs"><span>Inventory</span><span>Event Manager</span><span class="active">Active Event</span></div>
+                <div class="board">
+                  <div class="dock-grid">
+                    <section class="panel">
+                      <div class="panel-tabbar"><span class="selected">Live console</span></div>
+                      <div class="panel-body stage">
+                        <div class="stage-video">
+                          <span class="stage-live">LIVE</span><span class="viewer-count">● 184</span>
+                          <span class="caption">“This cobalt glaze comes out different every time.”</span>
+                        </div>
+                        <div class="stage-controls"><div class="stage-title"><strong>Cobalt studio mug</strong><small>00:08:42 · captions on</small></div><button class="end-button" type="button">End event</button></div>
+                      </div>
+                    </section>
+                    <div class="right-stack">
+                      <section class="panel">
+                        <div class="panel-tabbar"><span class="selected">Run of show</span></div>
+                        <div class="panel-body">
+                          <div class="run-summary"><strong>3 of 7</strong><span>18:24 elapsed</span></div>
+                          <div class="run-item now"><span class="run-thumb">☕</span><span class="run-copy"><strong>Cobalt studio mug</strong><small>Now · $48</small></span><span class="run-time">08:42</span></div>
+                          <div class="run-item"><span class="run-thumb">◫</span><span class="run-copy"><strong>Terrazzo catchall</strong><small>Next · $36</small></span><span class="run-time">05:00</span></div>
+                        </div>
+                      </section>
+                      <section class="panel inventory-pane">
+                        <div class="panel-tabbar"><span class="selected">Inventory <b class="count">3</b></span></div>
+                        <div class="panel-body">
+                          <div class="inventory-toolbar"><div class="inventory-heading"><strong>Event inventory</strong><small>27 units available</small></div><button class="add-button" type="button" data-add-toggle>+ Add item</button></div>
+                          <div class="catalog-picker" hidden><input class="catalog-search" aria-label="Search catalog" placeholder="Search catalog…" /><div class="catalog-result"><span>👜 Canvas carryall · 18 available</span><button class="picker-add" type="button" data-add-product>Add</button></div></div>
+                          <div class="inventory-list">
+                            <div class="inventory-row"><span class="product-thumb">☕</span><span class="product-copy"><strong>Cobalt mug</strong><small>2 reserved · $48</small></span><span class="stepper"><button type="button" data-step="-1" aria-label="Decrease Cobalt mug">−</button><span class="quantity-value">8</span><button type="button" data-step="1" aria-label="Increase Cobalt mug">+</button></span></div>
+                            <div class="inventory-row"><span class="product-thumb">◫</span><span class="product-copy"><strong>Terrazzo tray</strong><small>1 reserved · $36</small></span><span class="stepper"><button type="button" data-step="-1" aria-label="Decrease Terrazzo tray">−</button><span class="quantity-value">4</span><button type="button" data-step="1" aria-label="Increase Terrazzo tray">+</button></span></div>
+                            <div class="inventory-row"><span class="product-thumb">⌁</span><span class="product-copy"><strong>Linen cap</strong><small>0 reserved · $28</small></span><span class="stepper"><button type="button" data-step="-1" aria-label="Decrease Linen cap">−</button><span class="quantity-value">15</span><button type="button" data-step="1" aria-label="Increase Linen cap">+</button></span></div>
+                          </div>
+                          <div class="inventory-footer"><span class="save-state" aria-live="polite">All changes saved</span><button class="save-button" type="button" data-save>Save</button></div>
+                        </div>
+                      </section>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <section class="option" id="option-2" aria-labelledby="option-2-title">
+            <header class="option-head">
+              <span class="option-number">02</span>
+              <div>
+                <p class="option-kicker">Space-saving · familiar dock tabs</p>
+                <h2 id="option-2-title">Tabbed utility rail</h2>
+                <p class="option-summary">Inventory becomes a peer tab beside Run of Show. It preserves the current layout and signals low stock with a badge.</p>
+                <div class="tradeoffs"><span>Least layout change</span><span>Run of Show is hidden</span></div>
+              </div>
+            </header>
+            <div class="mock-wrap">
+              <div class="mock-window">
+                <div class="mock-topbar">
+                  <div class="mock-logo"><i>SS</i><span>SideStage</span></div>
+                  <div class="mock-nav"><span>Watch</span><span>Orders</span><span class="active">Studio</span><span>History</span></div>
+                  <span class="live-pill">LIVE</span>
+                </div>
+                <div class="studio-tabs"><span>Inventory</span><span>Event Manager</span><span class="active">Active Event</span></div>
+                <div class="board">
+                  <div class="dock-grid">
+                    <section class="panel">
+                      <div class="panel-tabbar"><span class="selected">Live console</span></div>
+                      <div class="panel-body stage">
+                        <div class="stage-video"><span class="stage-live">LIVE</span><span class="viewer-count">● 184</span><span class="caption">“This cobalt glaze comes out different every time.”</span></div>
+                        <div class="stage-controls"><div class="stage-title"><strong>Cobalt studio mug</strong><small>00:08:42 · captions on</small></div><button class="end-button" type="button">End event</button></div>
+                      </div>
+                    </section>
+                    <section class="panel utility-panel">
+                      <div class="panel-tabbar" role="tablist" aria-label="Show utilities">
+                        <button type="button" role="tab" aria-selected="false" data-pane-tab="run">Run of show</button>
+                        <button type="button" role="tab" aria-selected="true" data-pane-tab="inventory">Inventory <b class="count">3</b></button>
+                      </div>
+                      <div class="panel-body" data-pane-body="inventory">
+                        <p class="utility-note">Adjust active quantities here. Pending edits stay in this pane until saved.</p>
+                        <div class="inventory-toolbar"><div class="inventory-heading"><strong>Event inventory</strong><small>3 items · 27 units</small></div><button class="add-button secondary" type="button" data-add-toggle>+ Add</button></div>
+                        <div class="catalog-picker" hidden><input class="catalog-search" aria-label="Search catalog" placeholder="Search catalog…" /><div class="catalog-result"><span>👜 Canvas carryall</span><button class="picker-add" type="button" data-add-product>Add</button></div></div>
+                        <div class="inventory-list">
+                          <div class="inventory-row"><span class="product-thumb">☕</span><span class="product-copy"><strong>Cobalt mug</strong><small>2 reserved</small></span><span class="stepper"><button type="button" data-step="-1">−</button><span class="quantity-value">8</span><button type="button" data-step="1">+</button></span></div>
+                          <div class="inventory-row"><span class="product-thumb">◫</span><span class="product-copy"><strong>Terrazzo tray</strong><small>1 reserved</small></span><span class="stepper"><button type="button" data-step="-1">−</button><span class="quantity-value">4</span><button type="button" data-step="1">+</button></span></div>
+                          <div class="inventory-row"><span class="product-thumb">⌁</span><span class="product-copy"><strong>Linen cap</strong><small>0 reserved</small></span><span class="stepper"><button type="button" data-step="-1">−</button><span class="quantity-value">15</span><button type="button" data-step="1">+</button></span></div>
+                        </div>
+                        <div class="inventory-footer"><span class="save-state" aria-live="polite">All changes saved</span><button class="save-button" type="button" data-save>Save</button></div>
+                      </div>
+                      <div class="panel-body" data-pane-body="run" hidden>
+                        <div class="run-summary"><strong>3 of 7</strong><span>On pace · 18:24</span></div>
+                        <div class="run-item now"><span class="run-thumb">☕</span><span class="run-copy"><strong>Cobalt studio mug</strong><small>Now · $48</small></span><span class="run-time">08:42</span></div>
+                        <div class="run-item"><span class="run-thumb">◫</span><span class="run-copy"><strong>Terrazzo catchall</strong><small>Next · $36</small></span><span class="run-time">05:00</span></div>
+                        <div class="run-item"><span class="run-thumb">⌁</span><span class="run-copy"><strong>Linen cap</strong><small>Later · $28</small></span><span class="run-time">04:00</span></div>
+                      </div>
+                    </section>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <section class="option" id="option-3" aria-labelledby="option-3-title">
+            <header class="option-head">
+              <span class="option-number">03</span>
+              <div>
+                <p class="option-kicker">Bulk editing · collapsible</p>
+                <h2 id="option-3-title">Bottom inventory tray</h2>
+                <p class="option-summary">A full-width tray makes room for denser inventory work and collapses to a status bar when the seller is done.</p>
+                <div class="tradeoffs"><span>Best for larger events</span><span>Reduces stage height</span></div>
+              </div>
+            </header>
+            <div class="mock-wrap">
+              <div class="mock-window">
+                <div class="mock-topbar">
+                  <div class="mock-logo"><i>SS</i><span>SideStage</span></div>
+                  <div class="mock-nav"><span>Watch</span><span>Orders</span><span class="active">Studio</span><span>History</span></div>
+                  <span class="live-pill">LIVE</span>
+                </div>
+                <div class="studio-tabs"><span>Inventory</span><span>Event Manager</span><span class="active">Active Event</span></div>
+                <div class="board">
+                  <div class="board-tray">
+                    <div class="tray-top">
+                      <section class="panel"><div class="panel-tabbar"><span class="selected">Live console</span></div><div class="panel-body stage"><div class="stage-video"><span class="stage-live">LIVE</span><span class="viewer-count">● 184</span><span class="caption">“This cobalt glaze comes out different every time.”</span></div><div class="stage-controls"><div class="stage-title"><strong>Cobalt studio mug</strong><small>00:08:42 · captions on</small></div><button class="end-button" type="button">End event</button></div></div></section>
+                      <section class="panel"><div class="panel-tabbar"><span class="selected">Run of show</span></div><div class="panel-body"><div class="run-summary"><strong>3 of 7</strong><span>On pace</span></div><div class="run-item now"><span class="run-thumb">☕</span><span class="run-copy"><strong>Cobalt studio mug</strong><small>Now</small></span><span class="run-time">08:42</span></div><div class="run-item"><span class="run-thumb">◫</span><span class="run-copy"><strong>Terrazzo catchall</strong><small>Next</small></span><span class="run-time">05:00</span></div></div></section>
+                    </div>
+                    <section class="panel inventory-tray">
+                      <div class="panel-tabbar tray-tabbar"><span class="selected">Inventory <b class="count">3</b> · 27 units</span><button class="tray-toggle" type="button" aria-expanded="true" data-tray-toggle>Collapse ↓</button></div>
+                      <div class="tray-content">
+                        <div class="inventory-toolbar"><div class="inventory-heading"><strong>Quick inventory</strong><small>Edits apply to this event</small></div><button class="add-button" type="button" data-add-toggle>+ Add item</button></div>
+                        <div class="catalog-picker" hidden><input class="catalog-search" aria-label="Search catalog" placeholder="Search catalog…" /><div class="catalog-result"><span>👜 Canvas carryall</span><button class="picker-add" type="button" data-add-product>Add</button></div></div>
+                        <div class="inventory-list">
+                          <div class="inventory-row"><span class="product-thumb">☕</span><span class="product-copy"><strong>Cobalt mug</strong><small>2 reserved</small></span><span class="stepper"><button type="button" data-step="-1">−</button><span class="quantity-value">8</span><button type="button" data-step="1">+</button></span></div>
+                          <div class="inventory-row"><span class="product-thumb">◫</span><span class="product-copy"><strong>Terrazzo tray</strong><small>1 reserved</small></span><span class="stepper"><button type="button" data-step="-1">−</button><span class="quantity-value">4</span><button type="button" data-step="1">+</button></span></div>
+                          <div class="inventory-row"><span class="product-thumb">⌁</span><span class="product-copy"><strong>Linen cap</strong><small>0 reserved</small></span><span class="stepper"><button type="button" data-step="-1">−</button><span class="quantity-value">15</span><button type="button" data-step="1">+</button></span></div>
+                        </div>
+                        <div class="inventory-footer"><span class="save-state" aria-live="polite">All changes saved</span><button class="save-button" type="button" data-save>Save</button></div>
+                      </div>
+                    </section>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </section>
+        </div>
+      </div>
+
+      <aside class="choice-note"><span class="dot"></span><span><strong>Why Option 1 leads:</strong> live selling is glance-driven. The persistent split rail keeps both sequencing and stock visible, while retaining the dock’s existing resize behavior. Option 2 is the smallest structural change; Option 3 is strongest when events routinely carry many products.</span></aside>
+      <p class="preview-only">Interactive design preview · quantities are local to this page · no production Studio behavior changed.</p>
+    </main>
+
+    <template id="canvas-product-template">
+      <div class="inventory-row" data-added-product><span class="product-thumb">👜</span><span class="product-copy"><strong>Canvas carryall</strong><small>0 reserved · $42</small></span><span class="stepper"><button type="button" data-step="-1" aria-label="Decrease Canvas carryall">−</button><span class="quantity-value">6</span><button type="button" data-step="1" aria-label="Increase Canvas carryall">+</button></span></div>
+    </template>
+
+    <script>
+      const dirty = (root) => {
+        const state = root.querySelector('.save-state');
+        if (!state) return;
+        state.textContent = 'Unsaved changes';
+        state.className = 'save-state dirty';
+      };
+
+      document.addEventListener('click', (event) => {
+        const target = event.target.closest('button');
+        if (!target) return;
+
+        if (target.dataset.choice) {
+          document.getElementById(target.dataset.choice)?.scrollIntoView({ behavior: 'smooth', block: 'start', inline: 'center' });
+          return;
+        }
+
+        if (target.dataset.step) {
+          const row = target.closest('.inventory-row');
+          const value = row?.querySelector('.quantity-value');
+          if (!row || !value) return;
+          const reserved = Number(row.querySelector('.product-copy small')?.textContent?.match(/\d+/)?.[0] ?? 0);
+          value.textContent = String(Math.max(reserved, Number(value.textContent) + Number(target.dataset.step)));
+          dirty(target.closest('.mock-window'));
+          return;
+        }
+
+        if (target.hasAttribute('data-add-toggle')) {
+          const panel = target.closest('.panel');
+          const picker = panel?.querySelector('.catalog-picker');
+          if (!picker) return;
+          picker.hidden = !picker.hidden;
+          if (!picker.hidden) picker.querySelector('input')?.focus();
+          return;
+        }
+
+        if (target.hasAttribute('data-add-product')) {
+          const panel = target.closest('.panel');
+          const list = panel?.querySelector('.inventory-list');
+          const template = document.getElementById('canvas-product-template');
+          if (!panel || !list || !template || list.querySelector('[data-added-product]')) return;
+          list.append(template.content.cloneNode(true));
+          panel.querySelector('.catalog-picker').hidden = true;
+          dirty(target.closest('.mock-window'));
+          return;
+        }
+
+        if (target.hasAttribute('data-save')) {
+          const state = target.closest('.mock-window')?.querySelector('.save-state');
+          if (!state) return;
+          state.textContent = 'Saved just now';
+          state.className = 'save-state saved';
+          return;
+        }
+
+        if (target.dataset.paneTab) {
+          const panel = target.closest('.utility-panel');
+          panel?.querySelectorAll('[data-pane-tab]').forEach((tab) => tab.setAttribute('aria-selected', String(tab === target)));
+          panel?.querySelectorAll('[data-pane-body]').forEach((body) => { body.hidden = body.dataset.paneBody !== target.dataset.paneTab; });
+          return;
+        }
+
+        if (target.hasAttribute('data-tray-toggle')) {
+          const tray = target.closest('.inventory-tray');
+          const collapsed = tray?.classList.toggle('collapsed') ?? false;
+          target.setAttribute('aria-expanded', String(!collapsed));
+          target.textContent = collapsed ? 'Expand ↑' : 'Collapse ↓';
+        }
+      });
+    </script>
+  </body>
+</html>
