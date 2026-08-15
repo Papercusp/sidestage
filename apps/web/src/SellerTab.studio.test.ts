@@ -4,6 +4,7 @@ import { act, createElement } from 'react';
 import { createRoot } from 'react-dom/client';
 import { describe, expect, it, vi } from 'vitest';
 import {
+  initialSellerEventIdentity,
   shouldUseMobileStudio,
   sellerEventIdentity,
   STUDIO_VIEW_TABS,
@@ -57,6 +58,15 @@ describe('Studio board selection', () => {
     expect(sellerEventIdentity('event-42', 'Friday camera drop')).toEqual({
       eventId: 'event-42',
       eventTitle: 'Friday camera drop',
+    });
+  });
+
+  it('restores the URL-selected event when the Studio host remounts', () => {
+    window.history.replaceState({}, '', '/?tab=seller&studio=active-event&event=avi-real-test');
+
+    expect(initialSellerEventIdentity()).toEqual({
+      eventId: 'avi-real-test',
+      eventTitle: 'Sunday vintage drop',
     });
   });
 
