@@ -230,13 +230,30 @@ export function BuyerCheckoutDrawer(props: BuyerCheckoutDrawerProps) {
   );
 }
 
-export function BuyerCheckoutProvider({
+type BuyerCheckoutProviderProps = PropsWithChildren<{
+  eventId: string;
+  apiBaseUrl?: string;
+  showScout: boolean;
+}>;
+
+/**
+ * Checkout state is private to one selected demo buyer. Keying the stateful
+ * provider by that principal makes an identity switch an atomic boundary:
+ * drawers, drafts, in-flight order state, and cached cart selection are all
+ * discarded before the next buyer can render.
+ */
+export function BuyerCheckoutProvider(props: BuyerCheckoutProviderProps) {
+  const { buyerId } = useBuyerIdentity();
+  return <BuyerCheckoutProviderForBuyer key={buyerId} {...props} buyerId={buyerId} />;
+}
+
+function BuyerCheckoutProviderForBuyer({
   eventId,
   apiBaseUrl,
   showScout,
   children,
-}: PropsWithChildren<{ eventId: string; apiBaseUrl?: string; showScout: boolean }>) {
-  const { buyerId } = useBuyerIdentity();
+  buyerId,
+}: BuyerCheckoutProviderProps & { buyerId: string }) {
   const [open, setOpen] = useState(false);
   const [cartOpen, setCartOpen] = useState(false);
   const [cartError, setCartError] = useState<string>();
@@ -261,17 +278,9 @@ export function BuyerCheckoutProvider({
     pollIntervalMs: 10_000,
     staleTime: 0,
   });
-  const cart = cartQuery.data?.[0] ?? null;
-
-  useEffect(() => {
-    setCartId(readBuyerCartId(buyerId));
-    setRates([]);
-    setSelectedRateId('');
-    setOrder(null);
-    setCheckout(null);
-    setCompletedOrder(null);
-    setPolling(false);
-  }, [buyerId]);
+  // Some query adapters retain their last payload while `enabled` flips off.
+  // A buyer with no cart id must therefore mask that payload synchronously.
+  const cart = cartId ? (cartQuery.data?.[0] ?? null) : null;
 
   useEffect(() => {
     if (cart) setNowMs(Date.now());
