@@ -202,6 +202,14 @@ export class PgActionItemStore implements ActionItemStore {
   }
 
   private async lockEvent(client: PoolClient, eventId: string): Promise<StoredActionEventItem[]> {
+    const event = await client.query<{ event_id: string }>(
+      `SELECT event_id
+         FROM event
+        WHERE event_id = $1
+        FOR UPDATE`,
+      [eventId],
+    );
+    if (event.rows.length !== 1) throw new NotFoundException('Event was not found');
     const result = await client.query<ActionItemRow>(
       `SELECT ${SELECT_COLUMNS}
          FROM event_lineup_item
