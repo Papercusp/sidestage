@@ -1,0 +1,137 @@
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
+import { describe, expect, it, vi } from 'vitest';
+import {
+  DEFAULT_MAX_DELAY_MS,
+  bootRetryMaxAttempts,
+  bootstrapWithRetry,
+} from './bootstrap-retry';
+
+/**
+ * EI-20491819050412730 — "SideStage API exits during fresh Watch browser QA
+ * after initially passing health check".
+ *
+ * :3100 answered healthz at QA start, then stopped listening mid-run while
+ * :5173 and :8889 stayed up. Cause: `createPoolOrNull` throws on schema drift,
+ * `main.ts` ran `void bootstrap()`, so the rejection killed the process — and
+ * `start:dev`'s surviving `tsx watch` parent only re-runs the entrypoint on a
+ * WATCHED FILE change, which a database-only `npm run db:apply` never makes.
+ * The listener therefore never came back on its own.
+ */
+describe('API bootstrap retry (EI-20491819050412730)', () => {
+  const silentLogger = { log: vi.fn(), warn: vi.fn(), error: vi.fn() };
+
+  it('reclaims the listener once the drifted schema is repaired', async () => {
+    // The exact reported sequence: boot fails while the schema is drifted, an
+    // operator runs db:apply, and the API must come back WITHOUT a file edit.
+    let schemaRepaired = false;
+    const bootstrap = vi.fn(async () => {
+      if (!schemaRepaired) throw new Error('Schema drift: missing tables. Run: npm run db:apply');
+    });
+    const sleep = vi.fn(async () => {
+      schemaRepaired = true; // the repair lands between attempts
+    });
+
+    await expect(
+      bootstrapWithRetry(bootstrap, { sleep, logger: silentLogger }),
+    ).resolves.toBeUndefined();
+
+    expect(bootstrap).toHaveBeenCalledTimes(2);
+    expect(sleep).toHaveBeenCalledOnce();
+  });
+
+  it('survives a failed boot instead of exiting the process', async () => {
+    // Before the fix the first rejection was terminal. Retrying at all is the
+    // property that keeps the process alive to be recovered.
+    const bootstrap = vi
+      .fn<() => Promise<void>>()
+      .mockRejectedValueOnce(new Error('Postgres unreachable'))
+      .mockRejectedValueOnce(new Error('Postgres unreachable'))
+      .mockResolvedValueOnce(undefined);
+
+    await bootstrapWithRetry(bootstrap, { sleep: vi.fn(async () => {}), logger: silentLogger });
+
+    expect(bootstrap).toHaveBeenCalledTimes(3);
+  });
+
+  it('does not sleep or retry when the first attempt succeeds', async () => {
+    const bootstrap = vi.fn(async () => {});
+    const sleep = vi.fn(async () => {});
+
+    await bootstrapWithRetry(bootstrap, { sleep, logger: silentLogger });
+
+    expect(bootstrap).toHaveBeenCalledOnce();
+    expect(sleep).not.toHaveBeenCalled();
+  });
+
+  it('backs off exponentially and caps the delay', async () => {
+    const delays: number[] = [];
+    const sleep = vi.fn(async (ms: number) => {
+      delays.push(ms);
+    });
+    const bootstrap = vi.fn(async () => {
+      if (delays.length < 8) throw new Error('still drifted');
+    });
+
+    await bootstrapWithRetry(bootstrap, {
+      sleep,
+      logger: silentLogger,
+      initialDelayMs: 1_000,
+      maxDelayMs: 8_000,
+    });
+
+    expect(delays).toEqual([1_000, 2_000, 4_000, 8_000, 8_000, 8_000, 8_000, 8_000]);
+  });
+
+  it('rethrows once a finite attempt budget is exhausted', async () => {
+    const bootstrap = vi.fn(async () => {
+      throw new Error('Schema drift: missing tables');
+    });
+
+    await expect(
+      bootstrapWithRetry(bootstrap, {
+        maxAttempts: 3,
+        sleep: vi.fn(async () => {}),
+        logger: silentLogger,
+      }),
+    ).rejects.toThrow('Schema drift');
+
+    expect(bootstrap).toHaveBeenCalledTimes(3);
+  });
+
+  it('retries unattended by default so a dev box self-heals', () => {
+    expect(bootRetryMaxAttempts({})).toBe(Number.POSITIVE_INFINITY);
+    expect(bootRetryMaxAttempts({ API_BOOT_MAX_ATTEMPTS: '  ' })).toBe(Number.POSITIVE_INFINITY);
+    // A malformed budget must not silently become "give up immediately".
+    expect(bootRetryMaxAttempts({ API_BOOT_MAX_ATTEMPTS: 'nope' })).toBe(Number.POSITIVE_INFINITY);
+    expect(bootRetryMaxAttempts({ API_BOOT_MAX_ATTEMPTS: '0' })).toBe(Number.POSITIVE_INFINITY);
+    expect(bootRetryMaxAttempts({ API_BOOT_MAX_ATTEMPTS: '5' })).toBe(5);
+  });
+
+  it('caps the default backoff so a stuck dependency cannot spin', () => {
+    expect(DEFAULT_MAX_DELAY_MS).toBeLessThanOrEqual(60_000);
+  });
+});
+
+/**
+ * The behavioural tests above prove the retry helper works; this proves the
+ * entrypoint still USES it. Without it a future edit could restore the bare
+ * `void bootstrap()` and silently reopen the bug with every unit test green.
+ *
+ * The subject path is overridable so falsifiability can be demonstrated against
+ * a COPY, never by mutating this shared checkout (a sweep can commit an in-tree
+ * mutation even when nothing goes wrong).
+ */
+describe('API entrypoint wiring (EI-20491819050412730 recurrence guard)', () => {
+  const mainPath = process.env.SIDESTAGE_MAIN_TS_PATH ?? resolve(__dirname, 'main.ts');
+  const mainSource = readFileSync(mainPath, 'utf8');
+
+  it('routes startup through the retrying bootstrap', () => {
+    expect(mainSource).toContain("from './bootstrap-retry'");
+    expect(mainSource).toMatch(/bootstrapWithRetry\(\s*bootstrap\s*\)/);
+  });
+
+  it('never fires the entrypoint as an unsupervised `void bootstrap()`', () => {
+    expect(mainSource).not.toMatch(/^\s*void\s+bootstrap\s*\(\s*\)\s*;/m);
+  });
+});

@@ -1,6 +1,8 @@
 import 'reflect-metadata';
+import { Logger } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import { loadAppModule, loadRepoEnv } from './bootstrap-env';
+import { bootstrapWithRetry } from './bootstrap-retry';
 
 // Load the repo-root .env (cp .env.example .env per the README) without a
 // dotenv dependency; already-set variables win, matching dotenv semantics.
@@ -20,4 +22,12 @@ async function bootstrap() {
   await app.listen(port, '0.0.0.0');
 }
 
-void bootstrap();
+// EI-20491819050412730: a bare `void bootstrap()` turned a RECOVERABLE dependency
+// failure (Postgres unreachable / schema drift) into a permanently dead :3100 —
+// the rejection killed the process, and the `tsx watch` parent only re-runs on a
+// file change, so repairing the database never brought the listener back.
+void bootstrapWithRetry(bootstrap).catch((error) => {
+  const message = error instanceof Error ? error.message : String(error);
+  new Logger('Bootstrap').error(`API failed to start: ${message}`);
+  process.exitCode = 1;
+});
