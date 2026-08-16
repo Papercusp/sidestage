@@ -407,6 +407,81 @@ describe('EventChat', () => {
     }
   });
 
+  it('stops retrying presence after a 404 and skips the leave call for a room never joined', async () => {
+    const presenceRequests: Array<{ url: string; method: string | undefined }> = [];
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      if (url.includes('/presence')) {
+        presenceRequests.push({ url, method: init?.method });
+        return {
+          ok: false,
+          status: 404,
+          json: async () => ({}),
+          text: async () => 'Event not found for this seller.',
+        } as Response;
+      }
+      return { ok: true, status: 200, json: async () => [], text: async () => '' } as Response;
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    vi.useFakeTimers();
+    (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
+    const container = document.createElement('div');
+    const root = createRoot(container);
+    const syncValue = {
+      transport: 'POLLING' as const,
+      principal: 'seller-JHGLDS',
+      useDataImpl: () => ({
+        data: [], loading: false, fetching: false, transport: 'POLLING' as const,
+        invalidate: vi.fn(), error: null,
+      }),
+      prefetch: vi.fn(),
+      mutate: null,
+    };
+
+    try {
+      await act(async () => {
+        root.render(
+          <SyncContext.Provider value={syncValue}>
+            <EventChat
+              eventId="sunday-drop"
+              role="seller"
+              userId="seller-JHGLDS"
+              displayName="Host"
+              apiBaseUrl="https://sidestage.example"
+            />
+          </SyncContext.Provider>,
+        );
+        await Promise.resolve();
+        await Promise.resolve();
+      });
+
+      expect(presenceRequests).toHaveLength(1);
+      expect(presenceRequests[0]).toMatchObject({ method: 'POST' });
+      expect(container.querySelector('.event-chat-error')?.textContent).toContain('Chat request failed (404)');
+
+      // A stale/foreign room is a permanent rejection for this identity -- the
+      // heartbeat must not keep re-POSTing every PRESENCE_HEARTBEAT_MS.
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(120_000);
+      });
+      expect(presenceRequests).toHaveLength(1);
+
+      await act(async () => {
+        root.unmount();
+        await Promise.resolve();
+      });
+
+      // Presence was never successfully joined, so cleanup must not fire a
+      // DELETE that is guaranteed to repeat the same 404.
+      expect(presenceRequests.some((request) => request.method === 'DELETE')).toBe(false);
+      expect(presenceRequests).toHaveLength(1);
+    } finally {
+      vi.useRealTimers();
+      vi.unstubAllGlobals();
+      delete (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT;
+    }
+  });
+
   it('pairs seller presence fallbacks with the principal and session credential', async () => {
     const calls: Array<{ url: string; init?: RequestInit }> = [];
     const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {

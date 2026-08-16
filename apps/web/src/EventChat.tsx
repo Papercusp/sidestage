@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { FormEvent } from 'react';
 import { DEMO_PRINCIPAL_HEADER, useSyncMutate, useSyncPrincipal, useSyncQuery } from '@papercusp/sync';
-import { requestChatJson } from './chat-api';
+import { ChatRequestError, requestChatJson } from './chat-api';
 import { sellerPrivateRequestHeaders } from './events/api';
 import { MESSAGE_IMPORTANCE_ORDER, triageMessages, type MessageImportance, type TriagedMessage } from './message-triage';
 
@@ -268,16 +268,32 @@ function EventChatSurface({
   useEffect(() => {
     let stopped = false;
     let timer: ReturnType<typeof setTimeout> | null = null;
+    // Whether THIS effect run ever successfully joined presence for
+    // (eventId, role, userId). Gates the unmount/identity-switch cleanup below
+    // so it never fires a leave for a room we were never actually present in.
+    let joined = false;
     const input = { userId, displayName, role };
 
     const touch = async () => {
       try {
         await touchPresence(input);
+        joined = true;
         if (!stopped) setPresenceError(null);
+        if (!stopped) timer = setTimeout(() => void touch(), PRESENCE_HEARTBEAT_MS);
       } catch (error) {
         if (!stopped) setPresenceError(error instanceof Error ? error.message : 'Presence is unavailable.');
-      } finally {
-        if (!stopped) timer = setTimeout(() => void touch(), PRESENCE_HEARTBEAT_MS);
+        // A 404 means this identity cannot (currently) hold presence in this
+        // room -- most commonly a stale room carried over from before an
+        // identity/tab switch settles on the new principal's own event.
+        // Retrying on the heartbeat just repeats the same rejection every
+        // PRESENCE_HEARTBEAT_MS and floods the console; stop, and let a fresh
+        // attempt happen naturally when eventId/role/userId change and this
+        // effect re-runs. Any other failure (network blip, 5xx) keeps retrying
+        // as before.
+        const permanentlyRejected = error instanceof ChatRequestError && error.status === 404;
+        if (!stopped && !permanentlyRejected) {
+          timer = setTimeout(() => void touch(), PRESENCE_HEARTBEAT_MS);
+        }
       }
     };
 
@@ -285,7 +301,11 @@ function EventChatSurface({
     return () => {
       stopped = true;
       if (timer) clearTimeout(timer);
-      void leavePresence({ role }).catch(() => undefined);
+      // One bounded cleanup attempt, and only when there is something to
+      // clean up: if touch() never succeeded for this room there is no
+      // presence row to leave, and firing the DELETE anyway just repeats the
+      // same failure touch() already surfaced above.
+      if (joined) void leavePresence({ role }).catch(() => undefined);
     };
   }, [displayName, eventId, leavePresence, role, touchPresence, userId]);
 
