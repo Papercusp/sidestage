@@ -36,6 +36,10 @@ vi.mock('./VideoEngagementOverlay', () => ({
     statusLabel: 'Waiting for captions',
     emptyLabel: 'Seller captions will appear here as the event unfolds.',
   }),
+  nextTranscriptErrorState: (_prevStreak: number, error: unknown) => ({
+    streak: error ? 1 : 0,
+    confirmed: false,
+  }),
   VideoEngagementOverlay: () => null,
 }));
 
