@@ -28,6 +28,7 @@ import { ReplayChapters } from './ReplayChapters';
 import { type BuyerCheckoutActions, useBuyerCheckout } from './BuyerCheckout';
 import { useDemoIdentity } from './buyer-identity';
 import {
+  nextTranscriptErrorState,
   remoteTranscriptPresentation,
   VideoEngagementOverlay,
   type EventTranscriptMoment,
@@ -120,13 +121,24 @@ export function BuyerTab({
     args: { eventId },
     pollIntervalMs: 5_000,
   });
+  // A single failed poll (resolver hiccup, transient network blip) should not
+  // flip an otherwise-healthy room into a scary "transcript unavailable"
+  // alert — EI-20538641531453022. Only surface the error once it repeats on
+  // a second consecutive poll; any success resets it immediately.
+  const [confirmedTranscriptError, setConfirmedTranscriptError] = useState<Error | null>(null);
+  const transcriptErrorStreakRef = useRef(0);
+  useEffect(() => {
+    const next = nextTranscriptErrorState(transcriptErrorStreakRef.current, transcriptQuery.error);
+    transcriptErrorStreakRef.current = next.streak;
+    setConfirmedTranscriptError(next.confirmed);
+  }, [transcriptQuery.error]);
   const transcript = useMemo(
     () => remoteTranscriptPresentation(
       transcriptQuery.data ?? [],
-      transcriptQuery.error,
+      confirmedTranscriptError,
       transcriptQuery.loading,
     ),
-    [transcriptQuery.data, transcriptQuery.error, transcriptQuery.loading],
+    [transcriptQuery.data, confirmedTranscriptError, transcriptQuery.loading],
   );
   // The event's product rail comes from the ONE catalog source (P-102): the
   // API read model when reachable; explicit development builds may use the
