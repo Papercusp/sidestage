@@ -22,6 +22,29 @@ describe('CartController buyer principal boundary', () => {
       .resolves.toMatchObject({ items: [] });
   });
 
+  it('treats releasing an already-gone hold as a no-op, never a 400 or 404 (EI-20587893882016538)', async () => {
+    // A buyer's "release" click can race the server's own read-time expiry
+    // prune (GET /cart/:id releases + drops any expired line before this
+    // DELETE lands) or simply arrive twice. Either way the item is already
+    // absent from the buyer's own cart -- removeItem must treat that as
+    // success, not surface a 400/404 to the console for a hold the buyer no
+    // longer holds.
+    const controller = new CartController(new CartService(new InMemoryCartStore()));
+    const held = await controller.addItem({
+      cartId: 'cart-avi',
+      productId: 'mug',
+      title: 'Harbor Kettle',
+      priceCents: 7_600,
+    }, 'demo-avi');
+
+    await expect(controller.removeItem(held.id, 'mug', 'demo-avi')).resolves.toMatchObject({ items: [] });
+    // The item is already gone -- a second (or expiry-raced) release for the
+    // very same product must still resolve cleanly.
+    await expect(controller.removeItem(held.id, 'mug', 'demo-avi')).resolves.toMatchObject({ items: [] });
+    // A product that was never held at all is the same no-op shape.
+    await expect(controller.removeItem(held.id, 'never-held', 'demo-avi')).resolves.toMatchObject({ items: [] });
+  });
+
   it('hides another buyer cart across read, create-by-id, patch, and delete routes', async () => {
     const controller = new CartController(new CartService(new InMemoryCartStore()));
     await controller.addItem({
