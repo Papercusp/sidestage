@@ -50,6 +50,30 @@ export function remoteTranscriptPresentation(
   };
 }
 
+export interface TranscriptErrorState {
+  /** Consecutive failed polls seen so far (resets to 0 on any success). */
+  streak: number;
+  /** Non-null only once the failure has been confirmed as sustained. */
+  confirmed: Error | null;
+}
+
+/**
+ * Debounces a transcript-polling error against a single transient blip.
+ *
+ * A room in a genuinely healthy state (buyer holds an item, inventory and
+ * chat keep updating fine) can still see ONE poll fail — a resolver hiccup,
+ * a network retry exhausting — without the room actually being unhealthy.
+ * Surfacing that immediately as "transcript unavailable" misleads the buyer
+ * mid-purchase. Require the error to repeat on a SECOND consecutive poll
+ * before treating it as real; any success resets the streak.
+ */
+export function nextTranscriptErrorState(prevStreak: number, error: unknown): TranscriptErrorState {
+  if (!error) return { streak: 0, confirmed: null };
+  const streak = prevStreak + 1;
+  const err = error instanceof Error ? error : new Error(String(error));
+  return { streak, confirmed: streak >= 2 ? err : null };
+}
+
 export function scrollVideoEngagementChatToLatest(root: ParentNode | null): void {
   const messages = root?.querySelector<HTMLElement>('[data-video-chat-scroll]');
   if (messages) messages.scrollTop = messages.scrollHeight;

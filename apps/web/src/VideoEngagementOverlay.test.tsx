@@ -2,6 +2,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
 
 import {
+  nextTranscriptErrorState,
   remoteTranscriptPresentation,
   scrollVideoEngagementChatToLatest,
   VideoEngagementOverlay,
@@ -70,6 +71,37 @@ describe('VideoEngagementOverlay', () => {
     expect(markup).toContain('This jacket is the current item.');
     expect(markup).not.toContain('video-engagement-chat-panel');
     expect(markup).not.toContain('video-engagement-chat-toggle');
+  });
+
+  it('forgives a single transient transcript-poll failure (EI-20538641531453022)', () => {
+    // Healthy start.
+    let state = nextTranscriptErrorState(0, null);
+    expect(state).toEqual({ streak: 0, confirmed: null });
+
+    // One failed poll: not yet confirmed — a single blip shouldn't alarm the buyer.
+    state = nextTranscriptErrorState(state.streak, new Error('transient'));
+    expect(state.streak).toBe(1);
+    expect(state.confirmed).toBeNull();
+
+    // Recovers on the very next poll: streak resets, still no alert.
+    state = nextTranscriptErrorState(state.streak, null);
+    expect(state).toEqual({ streak: 0, confirmed: null });
+  });
+
+  it('confirms a sustained transcript-poll failure across two consecutive polls', () => {
+    let state = nextTranscriptErrorState(0, new Error('offline'));
+    expect(state.confirmed).toBeNull();
+    state = nextTranscriptErrorState(state.streak, new Error('offline'));
+    expect(state.streak).toBe(2);
+    expect(state.confirmed).toBeInstanceOf(Error);
+    expect(state.confirmed?.message).toBe('offline');
+  });
+
+  it('wraps a non-Error rejection into an Error for the confirmed state', () => {
+    let state = nextTranscriptErrorState(0, 'boom');
+    state = nextTranscriptErrorState(state.streak, 'boom');
+    expect(state.confirmed).toBeInstanceOf(Error);
+    expect(state.confirmed?.message).toBe('boom');
   });
 
   it('scrolls an explicit chat target to its latest row', () => {
