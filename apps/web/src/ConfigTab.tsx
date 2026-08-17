@@ -93,7 +93,20 @@ const GUARDRAIL_COPY: ReadonlyArray<GuardrailCopy> = [
 ];
 
 export interface ConfigReadiness {
+  /**
+   * Safe to CLAIM the event is configured. Never true while the event is still
+   * running on unsaved defaults, so this pane cannot show "Ready / 3 of 3" next
+   * to a preflight report that is blocking on "never saved" (WI-39274).
+   */
   ready: boolean;
+  /**
+   * The form has enough to SUBMIT. Deliberately separate from `ready`: the two
+   * were one flag, so making `ready` honest about unsaved defaults would have
+   * disabled the very Save action that resolves them — you could never save.
+   */
+  canSave: boolean;
+  /** The event is on defaults the host has never persisted. */
+  neverSaved: boolean;
   completedRequired: number;
   totalRequired: number;
   issue: string | null;
@@ -101,12 +114,22 @@ export interface ConfigReadiness {
 
 export function configReadiness(config: EventConfigView): ConfigReadiness {
   const identityComplete = config.name.trim().length > 0;
-  const completedRequired = (identityComplete ? 1 : 0) + 2;
+  const neverSaved = isNeverSaved(config.updatedAt);
+  // Nothing has been persisted, so no section is genuinely established yet.
+  // The old `identity + 2` hardcoded the guardrail and copilot sections as
+  // complete, which is what produced "3 of 3 / Ready" on a default config.
+  const completedRequired = neverSaved ? 0 : (identityComplete ? 1 : 0) + 2;
   return {
-    ready: identityComplete,
+    ready: identityComplete && !neverSaved,
+    canSave: identityComplete,
+    neverSaved,
     completedRequired,
     totalRequired: 3,
-    issue: identityComplete ? null : 'Event name is required before these defaults can be saved.',
+    issue: !identityComplete
+      ? 'Event name is required before these defaults can be saved.'
+      : neverSaved
+        ? 'This event is running on defaults — save the Config tab to apply these settings.'
+        : null,
   };
 }
 
@@ -148,7 +171,23 @@ function savedLabel(saveState: ConfigSaveState, savedAt: Date | null, dirtyCount
   return dirtyCount > 0 ? 'Review the changes before saving.' : 'All changes are saved.';
 }
 
+/**
+ * `defaultEventConfig` (apps/api/src/config/event-config.service.ts) uses
+ * `new Date(0).toISOString()` as the deliberate NEVER-SAVED sentinel. That is a
+ * perfectly valid date, so localizing it blindly rendered "12/31/1969, 7:00:00 PM"
+ * — a real timestamp implying the host HAD saved settings, next to a readiness
+ * report saying the Config tab had never been saved (WI-39274).
+ *
+ * The epoch test mirrors the authoritative server predicate verbatim
+ * (apps/api/src/rehearsals/preflight.ts: `Date.parse(config.updatedAt) === 0`),
+ * so the two readiness writers cannot drift apart on what "never saved" means.
+ */
+export function isNeverSaved(updatedAt: string): boolean {
+  return Date.parse(updatedAt) === 0;
+}
+
 function formattedRevision(value: string): string {
+  if (isNeverSaved(value)) return 'Never saved';
   const parsed = new Date(value);
   return Number.isNaN(parsed.valueOf()) ? value : parsed.toLocaleString();
 }
@@ -186,7 +225,9 @@ export function ConfigEditor({
 
   const submit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (!readiness.ready) {
+    // `canSave`, NOT `ready` — an event on unsaved defaults is deliberately not
+    // "ready", and gating submit on that would make it unsaveable (WI-39274).
+    if (!readiness.canSave) {
       setValidationVisible(true);
       nameInput.current?.focus();
       return;
@@ -207,7 +248,9 @@ export function ConfigEditor({
         <div>
           <strong>
             {!readiness.ready
-              ? 'Configuration needs attention'
+              ? readiness.neverSaved && readiness.canSave
+                ? 'These settings have never been saved'
+                : 'Configuration needs attention'
               : publishedPolicyActive
                 ? 'A published policy is active for this event'
                 : 'Event settings are complete'}
@@ -220,7 +263,7 @@ export function ConfigEditor({
                 : 'Price floors are derived from verified catalog prices, and event preflight reads this same configuration.'}
           </p>
         </div>
-        {!readiness.ready ? (
+        {!readiness.canSave ? (
           <button className="button secondary" type="button" onClick={() => nameInput.current?.focus()}>Fix event name</button>
         ) : null}
       </div>
@@ -238,8 +281,8 @@ export function ConfigEditor({
           <details className="config-section" open>
             <summary>
               <span><strong>Event identity</strong><small>What buyers see when they enter this event.</small></span>
-              <span className={`config-section-status ${readiness.ready ? 'is-complete' : 'is-blocked'}`}>
-                {readiness.ready ? 'Complete' : 'Required'}
+              <span className={`config-section-status ${readiness.canSave ? 'is-complete' : 'is-blocked'}`}>
+                {readiness.canSave ? (readiness.neverSaved ? 'Unsaved' : 'Complete') : 'Required'}
               </span>
             </summary>
             <div className="config-section-content">
@@ -249,12 +292,12 @@ export function ConfigEditor({
                   ref={nameInput}
                   id={eventNameId}
                   value={config.name}
-                  aria-invalid={validationVisible && !readiness.ready ? true : undefined}
-                  aria-describedby={validationVisible && !readiness.ready ? eventNameErrorId : eventNameHelpId}
+                  aria-invalid={validationVisible && !readiness.canSave ? true : undefined}
+                  aria-describedby={validationVisible && !readiness.canSave ? eventNameErrorId : eventNameHelpId}
                   onChange={(event) => update({ ...config, name: event.target.value })}
                 />
                 <small id={eventNameHelpId}>Shown in the room and in the event guide.</small>
-                {validationVisible && !readiness.ready ? <small className="config-field-error" id={eventNameErrorId}>Enter an event name before saving.</small> : null}
+                {validationVisible && !readiness.canSave ? <small className="config-field-error" id={eventNameErrorId}>Enter an event name before saving.</small> : null}
               </label>
             </div>
           </details>
@@ -262,7 +305,9 @@ export function ConfigEditor({
           <details className="config-section" open>
             <summary>
               <span><strong>Commerce guardrails</strong><small>Boundaries the seller and copilot must honor.</small></span>
-              <span className="config-section-status is-complete">Configured</span>
+              <span className={`config-section-status ${readiness.neverSaved ? 'is-blocked' : 'is-complete'}`}>
+                {readiness.neverSaved ? 'Unsaved defaults' : 'Configured'}
+              </span>
             </summary>
             <div className="config-section-content config-guardrail-list">
               {GUARDRAIL_COPY.map((guardrail) => {
