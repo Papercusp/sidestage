@@ -168,6 +168,21 @@ export interface ModelDraft {
     ttftMs?: number;
     completeMs?: number;
   };
+  /**
+   * Which reply engine actually produced this draft (e.g. 'vertex',
+   * 'openai', 'deterministic'). Latency/benchmark provenance: without this,
+   * a p95 measured against the deterministic fallback is indistinguishable
+   * from one measured against the real provider.
+   */
+  provider?: string;
+  /**
+   * Set only when a real provider leg failed or returned an unparseable
+   * response and this draft is therefore the FALLBACK, not the provider's
+   * own answer. Undefined means the provider named by `provider` produced
+   * this draft directly. Lets latency/error-rate accounting distinguish a
+   * real provider failure from a clean response.
+   */
+  providerError?: string;
 }
 
 export interface RetrievalRequest {
@@ -278,6 +293,10 @@ export interface CopilotLatency {
     ttftMs: number | null;
     completeMs: number | null;
   };
+  /** Which engine produced THIS sample ('vertex', 'openai', 'deterministic', 'unknown'). */
+  provider: string;
+  /** Fraction (0..1) of the samples in the current window whose provider leg errored/fell back. */
+  errorRate: number;
 }
 
 export interface CopilotResponse {
