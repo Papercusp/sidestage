@@ -8,7 +8,7 @@ import { BuildHistoryTab } from './BuildHistoryTab';
 import { BuyerTab } from './BuyerTab';
 import { BuyerCheckoutProvider, useBuyerCheckout } from './BuyerCheckout';
 import { useDemoIdentity } from './buyer-identity';
-import { browserEventId, DEFAULT_EVENT_TITLE, mediaBaseUrl } from './event-identity';
+import { DEFAULT_EVENT_ID, DEFAULT_EVENT_TITLE, mediaBaseUrl, urlEventId } from './event-identity';
 import type { GuideEvent } from './events/api';
 import { ChannelGuide } from './events/ChannelGuide';
 import { OrdersTab } from './OrdersTab';
@@ -55,8 +55,9 @@ export function App() {
 
   /* P-118 / D-019: the active event is app state, not a hard-pin. It seeds
      from ?event= so existing share links keep resolving, and the Channel Guide
-     moves it. */
-  const [activeEventId, setActiveEventId] = useState(browserEventId);
+     moves it. `null` means "the URL named no room and the buyer has not picked
+     one" — an honest absence the guide resolves below, never a constant. */
+  const [pinnedEventId, setPinnedEventId] = useState<string | null>(urlEventId);
 
   /* P-118 / D-019: one live directory powers the site-wide guide. Keeping the
      query at this shell boundary means the rail and its data remain mounted as
@@ -69,8 +70,16 @@ export function App() {
   const guideEvents = guideQuery.data ?? [];
   const guideError = guideQuery.error ? 'Could not load the event guide.' : null;
 
+  /* D-001: with no ?event= in the URL, the landing room is the guide's FIRST
+     row — literally the top of the sidebar the buyer is looking at, since both
+     read this one already-ordered directory (live by viewers, then soonest
+     scheduled, then most recently ended). A hardcoded id here was the reported
+     defect: it survives as the pre-directory seed ONLY, and never outranks a
+     row the guide actually has. */
+  const activeEventId = pinnedEventId ?? guideEvents[0]?.eventId ?? DEFAULT_EVENT_ID;
+
   const selectEvent = useCallback((nextEventId: string) => {
-    setActiveEventId(nextEventId);
+    setPinnedEventId(nextEventId);
     if (typeof window === 'undefined') return;
     // From another page, first create the Watch history entry. Within Watch,
     // room switches replace the current entry so Back does not walk through a
