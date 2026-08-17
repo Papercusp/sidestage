@@ -86,6 +86,11 @@ export interface ScoutCatalog {
 export interface ScoutReplyRequest {
   message: string;
   products: readonly ProductCard[];
+  /**
+   * A few real catalog rows to fall back on when `products` is empty, so a
+   * no-match turn can still ground its answer in inventory (WI-39741).
+   */
+  alternatives?: readonly ProductCard[];
   cart: Cart;
   eventId?: string;
   /**

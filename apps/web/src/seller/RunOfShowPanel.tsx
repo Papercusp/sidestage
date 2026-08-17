@@ -190,6 +190,7 @@ export function RunOfShowPanelView({
     offPlanActive,
     nextUp,
     paceDeltaSec,
+    plannedTotalSec,
     remainingCount,
     totalElapsedSec,
   } = view;
@@ -209,7 +210,7 @@ export function RunOfShowPanelView({
         <p className="run-of-show-summary">
           <span>{formatClock(totalElapsedSec)} elapsed</span>
           <span aria-hidden="true">·</span>
-          <span className="run-of-show-pace">{formatPace(paceDeltaSec, remainingCount)}</span>
+          <span className="run-of-show-pace">{formatPace(paceDeltaSec, remainingCount, plannedTotalSec)}</span>
         </p>
       </header>
 

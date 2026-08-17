@@ -92,6 +92,37 @@ describe('buildRunOfShowView', () => {
     expect(late.paceDeltaSec).toBe(60);
   });
 
+  /*
+   * WI-39722: budgets the seller typed were invisible to the header until the
+   * show started, because `paceDeltaSec` is null until a budgeted slot has been
+   * ON STAGE — which pre-show is every budgeted slot. The plan-side total is the
+   * thing that can answer "are there budgets?" before anything is live.
+   */
+  it('totals the budgets that EXIST, before anything has been on stage', () => {
+    const view = buildRunOfShowView({
+      entries: entries(),
+      titles: TITLES,
+      log: emptyStageLog(),
+      nowMs: T0,
+    });
+    // a: 300s, b: none, c: 120s.
+    expect(view.plannedTotalSec).toBe(420);
+    expect(view.budgetedCount).toBe(2);
+    // The pace claim itself stays honest: nothing has been on stage yet.
+    expect(view.paceDeltaSec).toBeNull();
+  });
+
+  it('reports no planned total when the seller budgeted nothing', () => {
+    const view = buildRunOfShowView({
+      entries: entries().map((entry) => ({ ...entry, plannedDurationSec: null })),
+      titles: TITLES,
+      log: emptyStageLog(),
+      nowMs: T0,
+    });
+    expect(view.plannedTotalSec).toBe(0);
+    expect(view.budgetedCount).toBe(0);
+  });
+
   it('lists lineup products missing from the plan, in lineup order', () => {
     const view = buildRunOfShowView({
       entries: entries(),

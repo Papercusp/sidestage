@@ -63,11 +63,48 @@ export class DeterministicScoutReplyModel implements ScoutReplyModel {
       return heldItemsReply(request.cart, callback);
     }
     if (request.products.length === 0) {
-      return `I couldn't find a verified match for “${request.message}”.${callback} Try a brand, product type, or budget.`;
+      return noMatchReply(request, callback);
     }
     const names = request.products.slice(0, 3).map((product) => product.title).join(', ');
     return `I found ${request.products.length} verified option${request.products.length === 1 ? '' : 's'}: ${names}.${callback} Pick one to add it to your cart.`;
   }
+}
+
+/**
+ * Lead-ins a shopper wraps a product noun in. Stripped so the reply names the
+ * SUBJECT ("laptops") rather than quoting the whole question back — echoing the
+ * sentence made a correct "we don't carry that" read as a failed substring
+ * search, which is how WI-39741 was reported.
+ */
+const SUBJECT_LEAD_IN =
+  /^(?:hi\s+|hey\s+|hello\s+)?(?:do\s+you\s+(?:have|sell|carry|stock)|are\s+there|is\s+there|have\s+you\s+got|i'?m\s+looking\s+for|looking\s+for|show\s+me|find\s+me|can\s+i\s+(?:get|buy)|what\s+about|got|any)\s+/i;
+const SUBJECT_TRAILER = /\s+(?:for\s+sale|in\s+stock|available|today|right\s+now|please)$/i;
+
+/** The product noun a question is about, or null when we cannot tell. */
+function searchSubject(message: string): string | null {
+  let subject = message.trim().replace(/[?!.]+$/, '').trim();
+  subject = subject.replace(SUBJECT_LEAD_IN, '').replace(SUBJECT_TRAILER, '').trim();
+  subject = subject.replace(/^(?:any|some|a|an|the)\s+/i, '').trim();
+  // Anything still sentence-length is not a noun phrase we can quote safely.
+  if (!subject || subject === message.trim() || subject.split(/\s+/).length > 4) return null;
+  return subject.toLowerCase();
+}
+
+/**
+ * A no-match turn still knows what the catalog holds, so it says so. "No" plus
+ * generic advice is an ungrounded answer when real inventory is in hand.
+ */
+function noMatchReply(
+  request: { message: string; alternatives?: readonly ProductCard[] },
+  callback: string,
+): string {
+  const subject = searchSubject(request.message);
+  const lead = subject
+    ? `I don't have any ${subject} in this event's catalog.`
+    : "I couldn't find a match for that in this event's catalog.";
+  const names = (request.alternatives ?? []).slice(0, 3).map((product) => product.title);
+  if (names.length === 0) return `${lead}${callback} Try a brand, product type, or budget.`;
+  return `${lead}${callback} What I do have includes ${names.join(', ')}. Want me to show one of those?`;
 }
 
 function recallCallback(memories: readonly ScoutMemory[] | undefined): string {
@@ -179,6 +216,7 @@ interface ScoutTurnContext {
   readonly memories: readonly ScoutMemory[];
   readonly writeScope: string | null;
   products: ProductCard[];
+  alternatives: ProductCard[];
   cart: Cart;
   reply: string;
   error?: string;
@@ -227,6 +265,7 @@ class LegacyReplyModelAdapter implements ScoutModelAdapter {
     const request = {
       message: this.context.message,
       products: this.context.products,
+      alternatives: this.context.alternatives,
       cart: this.context.cart,
       eventId: this.context.input.eventId,
       memories: this.context.memories,
@@ -340,6 +379,7 @@ export class ScoutService {
     const message = input.message?.trim() ?? '';
     const { scopes, writeScope } = memoryScopes(identity.buyerId);
     const context: ScoutTurnContext = {
+      alternatives: [],
       input,
       identity,
       mode,
@@ -484,6 +524,12 @@ export class ScoutService {
             limit,
             category ? SCOUT_CATEGORY_PRODUCT_TYPES[category] : undefined,
           );
+          if (context.products.length === 0) {
+            // A no-match turn still has the catalog in hand. Grounding the
+            // refusal in real rows is the difference between an answer that is
+            // correct and one that READS broken (WI-39741).
+            context.alternatives = await this.catalog.search('', 3).catch(() => []);
+          }
           return {
             content: toJsonValue({ products: context.products }),
             events: [{ type: 'products', products: context.products }],
