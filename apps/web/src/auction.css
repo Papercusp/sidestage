@@ -24,7 +24,12 @@
 
 .auction-headline { display: grid; justify-items: start; gap: .32rem; min-width: 0; }
 .auction-price-label { color: var(--muted); font-size: .68rem; font-weight: 700; letter-spacing: .13em; text-transform: uppercase; }
-.auction-price { color: var(--on-brand-yellow); background: var(--brand-yellow); padding: .28rem .7rem .38rem; border-radius: .5rem; font-size: clamp(1.5rem,4.4vw,2rem); font-weight: 800; line-height: 1; letter-spacing: -.045em; font-variant-numeric: tabular-nums; box-shadow: 0 3px 0 color-mix(in srgb, var(--yellow-text) 35%, transparent); }
+/* Plain bold numeral, NOT a filled chip. The approved mockup renders the amount as
+   `.offer-price` (bare type) and reserves the pill treatment for the small
+   `.status-chip`, whose LIVE state is red — so a yellow block behind the price both
+   double-encodes status and reads as the pre-mockup styling the fidelity audit
+   flagged. Weight/tracking carry the emphasis the fill used to. */
+.auction-price { color: var(--text); font-size: clamp(1.5rem,4.4vw,2rem); font-weight: 900; line-height: 1; letter-spacing: -.045em; font-variant-numeric: tabular-nums; }
 .auction-call { min-height: 1.1em; color: var(--muted); font-size: .66rem; font-weight: 700; letter-spacing: .16em; text-transform: uppercase; }
 .auction-call.is-once,.auction-call.is-twice { color: var(--red-text); }
 .auction-call.is-sold { color: var(--success); }

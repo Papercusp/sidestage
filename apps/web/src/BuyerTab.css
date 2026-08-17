@@ -43,9 +43,15 @@
   max-width: 15rem;
 }
 
+/* Offer column is BOUNDED in rem, not a fraction (D-003 approved mockup:
+   `.stage-grid { grid-template-columns: minmax(0, 1fr) minmax(19rem, 22rem) }`).
+   A fractional max let the persistent channel guide squeeze the current-offer
+   slot down to its 17rem floor — exactly 272px, the width the mockup-fidelity
+   audit measured against an approved 352px. A rem bound cannot be squeezed by a
+   sibling, so the offer card keeps its approved size whatever else is on stage. */
 .buyer-stage-grid {
   display: grid;
-  grid-template-columns: minmax(0, 1.7fr) minmax(17rem, 0.62fr);
+  grid-template-columns: minmax(0, 1fr) minmax(19rem, 22rem);
   align-items: start;
   gap: var(--ss-gap);
   margin-top: calc(var(--ss-gap) * 1.35);
@@ -63,8 +69,13 @@
   min-width: 0;
 }
 
+/* `start`, never `stretch`: the approved mockup lets the offer card be bounded by
+   its own content (`.stage-grid { align-items: start }` with no per-slot override).
+   `stretch` overrode that grid default and pulled the card down across the full
+   video + room-panel column height — the 728px the audit measured against an
+   approved 546px. Height comes from content; do not reintroduce a stretch here. */
 .buyer-current-offer-slot {
-  align-self: stretch;
+  align-self: start;
   container-type: inline-size;
 }
 
@@ -617,8 +628,11 @@
     flex-direction: column;
   }
 
+  /* Narrower bound, still a rem bound — mirrors the approved mockup's own
+     breakpoint (`minmax(0, 1fr) minmax(18rem, 20rem)`). The offer card steps
+     down one size; it does not go back to being squeezable by a fraction. */
   .buyer-stage-grid {
-    grid-template-columns: minmax(0, 1.35fr) minmax(15rem, 0.65fr);
+    grid-template-columns: minmax(0, 1fr) minmax(18rem, 20rem);
   }
 }
 
