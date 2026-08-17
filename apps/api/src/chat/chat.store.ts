@@ -72,7 +72,9 @@ export class InMemoryChatStore implements ChatStore {
   private readonly events = new Map<string, MemoryEvent>();
 
   async listMessages(eventId: string, limit: number, before?: ChatCursor): Promise<ChatMessagePage> {
-    const eligible = this.event(eventId).messages
+    const state = this.event(eventId);
+    const eligible = state.messages
+      .filter((message) => !state.moderated.has(message.id))
       .filter((message) => !before || compareCursor(message, before) < 0)
       .sort(compareMessages);
     const items = eligible.slice(Math.max(0, eligible.length - limit)).map(cloneMessage);
@@ -84,9 +86,11 @@ export class InMemoryChatStore implements ChatStore {
   }
 
   async listQueuedQuestions(eventId: string, limit: number, after?: ChatCursor): Promise<ChatMessagePage> {
-    const eligible = this.event(eventId).messages
+    const state = this.event(eventId);
+    const eligible = state.messages
       .filter((message) => (
         message.role === 'buyer'
+        && !state.moderated.has(message.id)
         && message.grounding?.status === 'seller-queue'
         && (!after || compareCursor(message, after) > 0)
       ))
@@ -102,6 +106,9 @@ export class InMemoryChatStore implements ChatStore {
 
   async appendMessage(message: ChatMessage): Promise<AppendMessageResult> {
     const state = this.event(message.eventId);
+    // Deliberately NOT filtered by moderation: in Postgres a moderated row still
+    // occupies the (event_id, user_id, client_request_id) unique index, so a
+    // replayed key returns the original message rather than creating a new one.
     if (message.clientRequestId) {
       const existing = state.messages.find((candidate) => (
         candidate.userId === message.userId && candidate.clientRequestId === message.clientRequestId
@@ -126,8 +133,11 @@ export class InMemoryChatStore implements ChatStore {
     messageId: string,
     patch: Partial<NonNullable<ChatMessage['grounding']>>,
   ): Promise<ChatMessage | undefined> {
-    const message = this.event(eventId).messages.find((candidate) => candidate.id === messageId);
-    if (!message) return undefined;
+    const state = this.event(eventId);
+    const message = state.messages.find((candidate) => candidate.id === messageId);
+    // PgChatStore's UPDATE carries `AND moderated_at IS NULL`, so a moderated
+    // message is not groundable.
+    if (!message || state.moderated.has(messageId)) return undefined;
     const grounding = { ...(message.grounding ?? { status: 'not-routed' as const }), ...structuredClone(patch) };
     if (JSON.stringify(grounding) === JSON.stringify(message.grounding)) return undefined;
     message.grounding = grounding;
@@ -176,21 +186,33 @@ export class InMemoryChatStore implements ChatStore {
   }
 
   async countMessages(eventId: string): Promise<number> {
-    return this.event(eventId).messages.length;
+    // Mirrors `WHERE event_id = $1 AND moderated_at IS NULL`.
+    const state = this.event(eventId);
+    return state.messages.reduce((total, message) => total + (state.moderated.has(message.id) ? 0 : 1), 0);
   }
 
-  async moderateMessage(eventId: string, messageId: string): Promise<boolean> {
-    const messages = this.event(eventId).messages;
-    const index = messages.findIndex((message) => message.id === messageId);
-    if (index < 0) return false;
-    messages.splice(index, 1);
+  async moderateMessage(eventId: string, messageId: string, moderatorId: string, reason: string): Promise<boolean> {
+    // A SOFT delete, matching PgChatStore's
+    // `UPDATE ... SET moderated_at = now(), moderated_by, moderation_reason
+    //  WHERE event_id = $1 AND id = $2 AND moderated_at IS NULL`.
+    // The message row is retained so the audit fields survive and so a replayed
+    // idempotency key still collides with it; re-moderating an already-moderated
+    // message reports no change, exactly as the SQL predicate makes it do.
+    const state = this.event(eventId);
+    const message = state.messages.find((candidate) => candidate.id === messageId);
+    if (!message || state.moderated.has(messageId)) return false;
+    state.moderated.set(messageId, {
+      moderatedAt: new Date().toISOString(),
+      moderatedBy: moderatorId,
+      moderationReason: reason,
+    });
     return true;
   }
 
   private event(eventId: string): MemoryEvent {
     let state = this.events.get(eventId);
     if (!state) {
-      state = { messages: [], transcript: [], presence: new Map() };
+      state = { messages: [], transcript: [], presence: new Map(), moderated: new Map() };
       this.events.set(eventId, state);
     }
     return state;
