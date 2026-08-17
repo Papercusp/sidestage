@@ -75,9 +75,23 @@ else
   # SCRIPT and everything after it silently never runs. Cost a live cutover an
   # hour on 2026-08-17. Every query exec below closes stdin; only pg_apply_file,
   # which deliberately feeds the .sql file on stdin, does not.
+  # ⚠ THE QUERY IS PASSED AS A POSITIONAL ARG, never interpolated into the sh
+  # script text. Interpolating it inside single quotes -- `-tAc '$1'` -- breaks
+  # the moment the query itself contains a single quote, which every predicate
+  # here does (`where pubname='zero_publication'`): the embedded quotes close and
+  # reopen the shell string, psql receives a BARE IDENTIFIER, and errors with
+  # `column "zero_publication" does not exist`. Combined with the `2>/dev/null
+  # || true` below that failure is indistinguishable from a real empty result,
+  # so the caller concludes "publication has no tables" and the deploy
+  # auto-rolls-back -- against a database whose publication is perfectly fine.
+  # That cost four production deploys on 2026-08-17. The `wal_level` query
+  # survived only because it happens to contain no quotes, which is exactly the
+  # positive control that shows the instrument, not the database, was broken.
+  # `sh -c '<script>' sh "$1"` binds the query to $1 INSIDE the container shell,
+  # so no amount of quoting in the SQL can reach the script text.
   pg_query() {
     docker compose "${COMPOSE_ARGS[@]}" exec -T postgres sh -c \
-      "psql -U \"\$POSTGRES_USER\" -d \"\$POSTGRES_DB\" -tAc '$1'" </dev/null 2>/dev/null || true
+      'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -tAc "$1"' sh "$1" </dev/null 2>/dev/null || true
   }
   pg_apply_file() {
     docker compose "${COMPOSE_ARGS[@]}" exec -T postgres sh -c \
