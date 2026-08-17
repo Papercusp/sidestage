@@ -25,8 +25,21 @@
   color: var(--muted);
 }
 
+/*
+ * `width: 100%; min-width: 0` is load-bearing, not cosmetic — see WI-39732.
+ * The label above is `display: grid` with a fixed 7rem width, so the input is a
+ * grid item whose `min-width: auto` resolves to its min-content size; for a
+ * bare `<input>` that is the default `size=20` (~249px), which simply refuses
+ * to shrink into 7rem. Nothing clips — the flex siblings in `.offer-composer`
+ * are laid out from the LABEL's 7rem, so the overflow is painted over: measured
+ * here, "Offer qty" sat under "Offer price" by 129x37px and "Offer price" under
+ * "Send offer" by 95x37px. Guarded by lineup-field-width.test.ts, which holds
+ * this invariant for every fixed-width field in apps/web.
+ */
 .offer-composer-field input {
   min-height: var(--ss-control-h);
+  width: 100%;
+  min-width: 0;
   padding: 0 .5rem;
   font: inherit;
   color: var(--text);
