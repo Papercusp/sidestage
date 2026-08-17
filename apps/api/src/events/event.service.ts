@@ -194,6 +194,18 @@ export interface EventSummary extends EventRecord {
   viewers: number;
 }
 
+/**
+ * A row in the SELLER's own directory: the record plus whether the buyer guide
+ * is withholding it, and why (WI-39723).
+ *
+ * `null` is the overwhelmingly common answer and means exactly "no rule here is
+ * hiding this from buyers" — it is not a promise that buyers can see it, since
+ * a `draft` is invisible for the ordinary reason that it is unpublished.
+ */
+export interface SellerEventRecord extends EventRecord {
+  withheldFromGuide: GuideWithholdReason | null;
+}
+
 /** What the seller's create/update flow publishes into the directory. */
 export interface EventPublication {
   eventId: string;

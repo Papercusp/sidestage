@@ -22,6 +22,7 @@ import {
   isEventLifecycleAction,
   type EventRecord,
   type EventSummary,
+  type SellerEventRecord,
 } from './event.service';
 
 export interface EventListResponse {
@@ -29,7 +30,12 @@ export interface EventListResponse {
 }
 
 export interface SellerEventListResponse {
-  events: EventRecord[];
+  /**
+   * `SellerEventRecord`, not `EventRecord`: each row carries
+   * `withheldFromGuide` so the seller's own directory can say when the buyer
+   * guide is hiding one of these events, and why (WI-39723).
+   */
+  events: SellerEventRecord[];
 }
 
 function requireSellerId(principal: unknown): string {
