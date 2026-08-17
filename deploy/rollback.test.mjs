@@ -43,13 +43,27 @@ function shellFunction(source, name) {
   return source.slice(start, end + 3);
 }
 
+/**
+ * Drive the scripts' real health_probe with a stubbed curl/ssh.
+ *
+ * `publicStatus` / `publicBody` express what the PUBLIC url actually answered,
+ * which is the distinction WI-39708 turned on: the old stub could only say
+ * "a 200 carrying sha X" or "nothing", so a 3xx — the state prod was actually
+ * in — was inexpressible and therefore untested. The stub mimics
+ * `curl -w '\n%{http_code}'`: body, newline, status code.
+ */
 function runHealthProbe(
   source,
-  { publicSha, containerSha },
+  { publicSha, publicStatus, publicBody, containerSha },
   target = '547c47e4dac6b10e8c9c164b1e73275744b34712',
 ) {
   const bodyCheck = shellFunction(source, 'health_body_reports_sha');
+  const publicLeg = shellFunction(source, 'public_health_body');
   const probe = shellFunction(source, 'health_probe');
+  const stubBody = publicBody ?? (publicSha ? `{"sha":"${publicSha}"}` : '');
+  // No status at all == curl itself failed to get a response (exit 7), which
+  // is a DIFFERENT thing from an HTTP error and must stay distinguishable.
+  const stubCode = publicStatus ?? (publicSha ? '200' : '');
   return execFileSync('bash', ['-c', `
     set -euo pipefail
     HEALTH_URL=https://sidestage.example/healthz
@@ -57,8 +71,8 @@ function runHealthProbe(
     COMPOSE='docker compose -f docker-compose.prod.yml'
     TARGET=${target}
     curl() {
-      [[ -n "${publicSha ?? ''}" ]] || return 22
-      printf '{"sha":"%s"}' '${publicSha ?? ''}'
+      [[ -n '${stubCode}' ]] || return 7
+      printf '%s\\n%s' '${stubBody}' '${stubCode}'
     }
     ssh_stub() {
       [[ -n "${containerSha ?? ''}" ]] || return 22
@@ -68,10 +82,11 @@ function runHealthProbe(
     HEALTH_LEG=none
     HEALTH_BODY=''
     ${bodyCheck}
+    ${publicLeg}
     ${probe}
     if health_probe "$TARGET"; then result=ok; else result=failed; fi
     printf '%s\n%s\n%s\n' "$result" "$HEALTH_LEG" "$HEALTH_BODY"
-  `], { encoding: 'utf8' });
+  `], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] });
 }
 
 describe.each([
@@ -109,6 +124,49 @@ describe.each([
     })).toBe(
       'failed\npublic\n{"sha":"eae0aa0b5eafc0a12e7efe527744fb8d42c4d293"}\n',
     );
+  });
+
+  // WI-39708 REGRESSION GUARD. `curl -sf` fails only on >= 400, so a 3xx
+  // SUCCEEDED and handed the redirect body back as if it were /healthz output.
+  // Live on 2026-08-17: prod moved to sidestage.papercusp.com, the stale
+  // sidestage.buyrestart.com default 301'd there, and the probe compared the
+  // literal string "Moved Permanently" against the expected sha -- so a
+  // perfectly healthy deploy reported a sha MISMATCH. The old harness could
+  // not even express this case, which is why it shipped.
+  it('does not accept a 3xx redirect body as the public health body', () => {
+    expect(runHealthProbe(source, {
+      publicStatus: '301',
+      publicBody: 'Moved Permanently',
+    })).toBe('failed\nnone\n\n');
+  });
+
+  it('falls back to the container leg when the public url only redirects', () => {
+    expect(runHealthProbe(source, {
+      publicStatus: '301',
+      publicBody: 'Moved Permanently',
+      containerSha: '547c47e4dac6b10e8c9c164b1e73275744b34712',
+    })).toBe(
+      'ok\ncontainer\n{"sha":"547c47e4dac6b10e8c9c164b1e73275744b34712"}\n',
+    );
+  });
+
+  it('does not accept a 500 body as the public health body', () => {
+    expect(runHealthProbe(source, {
+      publicStatus: '500',
+      publicBody: '{"sha":"547c47e4dac6b10e8c9c164b1e73275744b34712"}',
+    })).toBe('failed\nnone\n\n');
+  });
+
+  it('gates the public leg on a 2xx status rather than on curl --fail', () => {
+    const probeCode = shellFunction(source, 'public_health_body')
+      .split('\n')
+      .filter((line) => !/^\s*#/.test(line))
+      .join('\n');
+    expect(probeCode).not.toMatch(/curl\s+-sf/);
+    expect(probeCode).toMatch(/%\{http_code\}/);
+    // -L would follow the redirect and report a DIFFERENT host's health as
+    // ours -- a quieter failure than the one being fixed, not a fix.
+    expect(probeCode).not.toMatch(/curl\s[^\n]*-L\b/);
   });
 
   it('never calls health_probe through command substitution', () => {
