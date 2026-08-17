@@ -116,14 +116,14 @@ function useSyncQueryCallSites(file: string): { at: string; names: string[] }[] 
  * is not a fix, and needs the same scrutiny as a new Zero registry exception.
  */
 const KNOWN_UNSYNCED_CALL_SITES: readonly string[] = [
-  'apps/web/src/BuildHistoryTab.tsx:922 -> build.history',
-  'apps/web/src/BuyerTab.tsx:127 -> event.stats',
-  'apps/web/src/OrdersTab.tsx:492 -> orders.byBuyer',
-  'apps/web/src/SystemTestsTab.tsx:139 -> judge.latest',
-  'apps/web/src/TestTab.tsx:214 -> rehearsal.preflight',
-  'apps/web/src/TestTab.tsx:378 -> judge.latest',
-  'apps/web/src/catalog.ts:177 -> catalog.types',
-  'apps/web/src/seller/PricingHistoryPanel.tsx:58 -> event.pricingHistory',
+  'apps/web/src/BuildHistoryTab.tsx -> build.history',
+  'apps/web/src/BuyerTab.tsx -> event.stats',
+  'apps/web/src/OrdersTab.tsx -> orders.byBuyer',
+  'apps/web/src/SystemTestsTab.tsx -> judge.latest',
+  'apps/web/src/TestTab.tsx -> rehearsal.preflight',
+  'apps/web/src/TestTab.tsx -> judge.latest',
+  'apps/web/src/catalog.ts -> catalog.types',
+  'apps/web/src/seller/PricingHistoryPanel.tsx -> event.pricingHistory',
 ].sort();
 
 /**
@@ -323,7 +323,15 @@ describe('Zero contract parity with the live sync surfaces', () => {
     // `Query '<name>' is not a function`; the polling/SSE adapters resolve the
     // same name over REST and never consult the registry, which is exactly why
     // this class of break stays invisible until a client is really on WebSockets.
+    // The ratchet compares `file -> queryName` and deliberately NOT the line
+    // number: pinning lines made this test red on any unrelated edit ABOVE a
+    // call site (a peer moving BuildHistoryTab.tsx's `build.history` from 922
+    // to 926 reds the gate while changing nothing this test is about). It stays
+    // exact all the same — offenders keep their multiplicity, so a SECOND call
+    // site naming the same query in the same file still grows the list. Line
+    // numbers survive where they are actually useful: the failure message.
     const offenders: string[] = [];
+    const located: string[] = [];
     const unreadable: string[] = [];
     for (const file of webSourceFiles()) {
       for (const site of useSyncQueryCallSites(file)) {
@@ -333,7 +341,9 @@ describe('Zero contract parity with the live sync surfaces', () => {
         // is unreadable, and it fails below rather than passing silently.
         if (site.names.length === 0) unreadable.push(site.at);
         for (const name of site.names) {
-          if (name in UNSYNCED_QUERY_REASONS) offenders.push(`${site.at} -> ${name}`);
+          if (!(name in UNSYNCED_QUERY_REASONS)) continue;
+          offenders.push(`${relative(REPO_ROOT, file).replaceAll('\\', '/')} -> ${name}`);
+          located.push(`${site.at} -> ${name}`);
         }
       }
     }
@@ -348,7 +358,7 @@ describe('Zero contract parity with the live sync surfaces', () => {
 
     expect(
       offenders.sort(),
-      'web call sites naming an UNSYNCED_QUERY_REASONS query — each throws "Query \'<name>\' is not a function" the moment that client is on the WEBSOCKETS transport. Fix the call site (derive client-side, or move it to an explicit REST fetch); do not add the name to the Zero registry, and do not grow the list in KNOWN_UNSYNCED_CALL_SITES',
+      `web call sites naming an UNSYNCED_QUERY_REASONS query — each throws "Query '<name>' is not a function" the moment that client is on the WEBSOCKETS transport. Fix the call site (derive client-side, or move it to an explicit REST fetch); do not add the name to the Zero registry, and do not grow the list in KNOWN_UNSYNCED_CALL_SITES.\nCall sites found, with line numbers:\n${located.sort().join('\n')}`,
     ).toEqual(KNOWN_UNSYNCED_CALL_SITES);
   });
 
