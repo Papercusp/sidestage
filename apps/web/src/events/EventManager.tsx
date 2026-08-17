@@ -272,49 +272,86 @@ export function EventManager({
     enabled: !isCreateView && hasSelectedEvent,
   });
   const storedPlan = planQuery.data?.[0];
-  /** Array order IS the show order; the drafts hold what the seller is typing. */
-  const [showOrder, setShowOrder] = useState<string[]>([]);
+  /*
+   * `null` = the seller has not reordered, added or removed anything yet, so
+   * the show order is DERIVED rather than seeded into state.
+   *
+   * Deriving it is not a style preference. A seeding effect cannot run during
+   * `renderToStaticMarkup` (this codebase's test convention) so the show would
+   * test as permanently empty; it would flash the empty state on first paint
+   * before the effect landed; and it has to race the lineup and plan queries,
+   * which resolve independently, so a seed taken while either was still loading
+   * would pin the wrong show and never re-seed. Derivation has none of those
+   * failure modes — every render simply reads the best truth available.
+   */
+  const [showOrderEdit, setShowOrderEdit] = useState<string[] | null>(null);
   const [slotDrafts, setSlotDrafts] = useState<Record<string, TimelineSlotDraft>>({});
-  const [planSeededFor, setPlanSeededFor] = useState<string | null>(null);
   const [openSlotProductId, setOpenSlotProductId] = useState<string | null>(null);
   const [planSaveStatus, setPlanSaveStatus] = useState<'idle' | 'saving' | 'saved'>('idle');
   const [planSaveError, setPlanSaveError] = useState<string | null>(null);
   const [nowMs, setNowMs] = useState(() => Date.now());
 
+  const storedEntries = useMemo<readonly RunOfShowEntry[]>(
+    () => storedPlan?.entries ?? [],
+    [storedPlan],
+  );
+  const storedByProduct = useMemo(
+    () => new Map(storedEntries.map((entry) => [entry.productId, entry])),
+    [storedEntries],
+  );
   /*
-   * Seed the editable draft once per event.
-   *
    * AN EVENT NOBODY PLANNED STILL HAS A SHOW (D-010). Direction C's premise is
-   * that the lineup IS the run of show, so when no plan was ever saved the show
+   * that the lineup IS the run of show, so with nothing ever saved the show
    * order defaults to LINEUP ORDER — every reserved product becomes a slot with
-   * no budget. Seeding empty instead would put every product in the "reserved,
-   * not in the show" tray and render no commerce control at all, which is the
-   * old two-surface split wearing the new surface's clothes: a seller who never
-   * opened a planner could not push, mark down, or auction anything.
+   * no budget. Defaulting to empty instead would put every product in the
+   * "reserved, not in the show" tray, and because the commerce controls hang
+   * off a slot, a seller who never opened a planner could not push, mark down
+   * or auction anything: the old two-surface split wearing the new surface's
+   * clothes, with the authoring step now mandatory.
    *
-   * A plan that WAS saved is seeded verbatim, including a deliberately emptied
-   * one, so removing a product from the show survives a reload. The server
-   * makes the two cases distinguishable: a never-saved plan comes back from
+   * A plan that WAS saved wins verbatim, INCLUDING a deliberately emptied one,
+   * so removing a product from the show survives a reload. The server makes the
+   * two cases distinguishable: a never-saved plan comes back from
    * `emptyRunOfShow()` stamped with the epoch, while every real save stamps
-   * `new Date()` (run-of-show.service.ts:76 vs :105).
+   * `new Date()` (run-of-show.service.ts:76 vs :105). Testing emptiness alone
+   * would resurrect products the seller deliberately removed.
    */
-  useEffect(() => {
-    if (!storedPlan || planSeededFor === selectedEventId) return;
-    // The lineup may still be loading; seeding from an empty one would pin an
-    // empty show for the event and never re-seed.
-    const neverSaved = storedPlan.entries.length === 0
-      && Date.parse(storedPlan.updatedAt) === 0;
-    if (neverSaved && items.length === 0) return;
-    const seedEntries: readonly RunOfShowEntry[] = neverSaved
-      ? items.map((item) => ({ productId: item.productId, plannedDurationSec: null, notes: '' }))
-      : storedPlan.entries;
-    setShowOrder(seedEntries.map((entry) => entry.productId));
-    setSlotDrafts(Object.fromEntries(seedEntries.map((entry) => [
-      entry.productId,
-      { ...emptySlotDraft(), ...draftFromEntry(entry) },
-    ])));
-    setPlanSeededFor(selectedEventId);
-  }, [storedPlan, planSeededFor, selectedEventId, items]);
+  const planNeverSaved = storedEntries.length === 0
+    && (storedPlan === undefined || Date.parse(storedPlan.updatedAt) === 0);
+  const showOrder = useMemo(
+    () => showOrderEdit
+      ?? (planNeverSaved
+        ? items.map((item) => item.productId)
+        : storedEntries.map((entry) => entry.productId)),
+    [showOrderEdit, planNeverSaved, items, storedEntries],
+  );
+
+  /**
+   * A slot's values before any local edit: the stored entry, or empty.
+   *
+   * Local edits must layer OVER this rather than replace it — a draft created
+   * by typing a markdown percent would otherwise carry `minutes: ''` and
+   * silently wipe a budget the seller never touched.
+   */
+  const baseDraftFor = useCallback(
+    (productId: string): TimelineSlotDraft => {
+      const stored = storedByProduct.get(productId);
+      return { ...emptySlotDraft(), ...(stored ? draftFromEntry(stored) : {}) };
+    },
+    [storedByProduct],
+  );
+  const timelineDrafts = useMemo(() => {
+    const drafts: Record<string, TimelineSlotDraft> = {};
+    for (const productId of showOrder) {
+      drafts[productId] = slotDrafts[productId] ?? baseDraftFor(productId);
+    }
+    // Commerce drafts typed against a product that has since left the show
+    // survive in the tray, so re-adding it does not lose what was typed.
+    for (const [productId, draft] of Object.entries(slotDrafts)) {
+      drafts[productId] ??= draft;
+    }
+    return drafts;
+  }, [showOrder, slotDrafts, baseDraftFor]);
 
   /*
    * The ONE shared clock (D-003) — read, never created. Outside a provider
@@ -347,7 +384,7 @@ export function EventManager({
    */
   const planEntries = useMemo<RunOfShowEntry[]>(
     () => showOrder.map((productId) => {
-      const draft = slotDrafts[productId] ?? emptySlotDraft();
+      const draft = timelineDrafts[productId] ?? emptySlotDraft();
       const seconds = draftMinutesToSeconds(draft.minutes);
       return {
         productId,
@@ -355,7 +392,7 @@ export function EventManager({
         notes: draft.notes,
       };
     }),
-    [showOrder, slotDrafts],
+    [showOrder, timelineDrafts],
   );
   /** Every slot, pace and tray value the timeline renders (D-002: never re-derived). */
   const runOfShowView = useMemo(
