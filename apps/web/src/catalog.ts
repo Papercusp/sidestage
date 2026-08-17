@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { useSyncQuery } from '@papercusp/sync';
+import { useRestSyncQuery, useSyncQuery } from '@papercusp/sync';
 import type { CatalogRow } from './event-creation/catalog';
 import type { BuyerProduct } from './buyer';
 import { productDescriptionText } from './product-description-text';
@@ -174,7 +174,7 @@ export function useCatalog(
     args: { ...debouncedSearch },
     pollIntervalMs: 10_000,
   });
-  const typesQuery = useSyncQuery<string>({
+  const typesQuery = useRestSyncQuery<string>({
     queryName: 'catalog.types',
     pollIntervalMs: 60_000,
   });

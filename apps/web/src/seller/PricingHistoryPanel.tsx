@@ -1,4 +1,4 @@
-import { useSyncQuery } from '@papercusp/sync';
+import { useRestSyncQuery } from '@papercusp/sync';
 
 export interface PricingHistory {
   productId: string;
@@ -55,7 +55,7 @@ export function PricingHistoryContent({ history }: { history: PricingHistory }) 
 }
 
 export function PricingHistoryPanel({ eventId, productId }: { eventId: string; productId: string }) {
-  const historyQuery = useSyncQuery<PricingHistory>({
+  const historyQuery = useRestSyncQuery<PricingHistory>({
     queryName: 'event.pricingHistory',
     args: { eventId, productId },
     pollIntervalMs: 15_000,

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
-import { useSyncMutate, useSyncPrincipal, useSyncQuery } from '@papercusp/sync';
+import { useRestSyncQuery, useSyncMutate, useSyncPrincipal, useSyncQuery } from '@papercusp/sync';
 import { fetchCatalog } from './catalog';
 import { TabHeader } from './components/TabHeader';
 import { browserEventId, DEFAULT_EVENT_TITLE } from './event-identity';
@@ -211,7 +211,7 @@ export function TestTab() {
   }, [eventConfig?.name]);
 
   // ---- Server-side preflight (the config lint) --------------------------------
-  const serverPreflightQuery = useSyncQuery<PreflightReport>({
+  const serverPreflightQuery = useRestSyncQuery<PreflightReport>({
     queryName: 'rehearsal.preflight',
     args: { eventId },
     pollIntervalMs: 30_000,
@@ -375,7 +375,7 @@ export function TestTab() {
   const [judgeReport, setJudgeReport] = useState<JudgeReport | null>(null);
   const [judgeError, setJudgeError] = useState<string | null>(null);
   const [judgeRunning, setJudgeRunning] = useState(false);
-  const judgeQuery = useSyncQuery<JudgeReport>({
+  const judgeQuery = useRestSyncQuery<JudgeReport>({
     queryName: 'judge.latest',
     pollIntervalMs: 60_000,
   });

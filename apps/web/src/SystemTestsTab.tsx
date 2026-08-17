@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
-import { useSyncMutate, useSyncQuery } from '@papercusp/sync';
+import { useRestSyncQuery, useSyncMutate } from '@papercusp/sync';
 import { TabHeader } from './components/TabHeader';
 import {
   JUDGE_DIMENSIONS,
@@ -136,7 +136,7 @@ export function SystemTestsTab() {
   const [judgeReport, setJudgeReport] = useState<JudgeReport | null>(null);
   const [judgeError, setJudgeError] = useState<string | null>(null);
   const [judgeRunning, setJudgeRunning] = useState(false);
-  const judgeQuery = useSyncQuery<JudgeReport>({
+  const judgeQuery = useRestSyncQuery<JudgeReport>({
     queryName: 'judge.latest',
     pollIntervalMs: 60_000,
   });

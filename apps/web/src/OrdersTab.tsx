@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { useSyncQuery } from '@papercusp/sync';
+import { useRestSyncQuery } from '@papercusp/sync';
 import { useBuyerCheckout } from './BuyerCheckout';
 import { useBuyerIdentity } from './buyer-identity';
 import { formatReplayTime } from './ReplayChapters';
@@ -489,7 +489,7 @@ export function OrdersWorkspace({
 export function OrdersTab() {
   const { buyerId } = useBuyerIdentity();
   const buyerCheckout = useBuyerCheckout();
-  const ordersQuery = useSyncQuery<BuyerOrder>({
+  const ordersQuery = useRestSyncQuery<BuyerOrder>({
     queryName: 'orders.byBuyer',
     args: { buyerId },
     staleTime: 0,
