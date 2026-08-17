@@ -111,9 +111,14 @@ describe('ConfigTab sync mapping', () => {
     expect(html).toContain('Commerce guardrails');
     expect(html).toContain('Copilot behavior');
     expect(html).toContain('Configuration readiness');
-    expect(html).toContain('Event readiness');
-    expect(html).toContain('Running event preflight');
     expect(html).toContain('Save event settings');
+    /* [owner:Avi 2026-08-17] The event-preflight section was removed from this
+       tab outright. Asserted as absence so it cannot drift back in: the
+       'Configuration readiness' progressbar above is a DIFFERENT surface that
+       stays, and the two read almost identically in a diff. */
+    expect(html).not.toContain('Event readiness');
+    expect(html).not.toContain('Current event · preflight');
+    expect(html).not.toContain('Run event preflight');
     expect(html).toContain('No unsaved changes');
     expect(html).not.toContain('Open Rehearse');
   });

@@ -3,7 +3,6 @@ import { DEMO_PRINCIPAL_HEADER, useSyncMutate, useSyncQuery } from '@papercusp/s
 import { catalogDemoDataEnabled, resolveApiBaseUrl } from './catalog';
 import { TabHeader } from './components/TabHeader';
 import { browserEventId } from './event-identity';
-import { EventReadinessPanel } from './EventReadinessPanel';
 import './config.css';
 
 export interface EventGuardrails {
@@ -342,8 +341,6 @@ export function ConfigEditor({
           </article>
         </aside>
       </div>
-
-      <EventReadinessPanel eventId={config.eventId} />
 
       <footer className="config-save-bar">
         <p>

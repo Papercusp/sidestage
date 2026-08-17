@@ -189,16 +189,13 @@ describe('SideStage web sync contract', () => {
   it('routes rehearsal reads and commands through named sync seams while preserving measurement transports', () => {
     const testTab = readFileSync(path.join(sourceRoot, 'TestTab.tsx'), 'utf8');
     const systemTests = readFileSync(path.join(sourceRoot, 'SystemTestsTab.tsx'), 'utf8');
-    const readiness = readFileSync(path.join(sourceRoot, 'EventReadinessPanel.tsx'), 'utf8');
     const rehearsals = readFileSync(path.join(sourceRoot, 'rehearsals.ts'), 'utf8');
 
     expect(testTab).toContain("queryName: 'rehearsal.preflight'");
     expect(testTab).toContain("'rehearsal.run'");
     expect(testTab).toContain("'rehearsal.runAll'");
     expect(systemTests).toContain("'rehearsal.run'");
-    expect(readiness).toContain("queryName: 'rehearsal.preflight'");
     expect(testTab).not.toContain('fetchPreflight');
-    expect(readiness).not.toContain('fetchPreflight');
     expect(rehearsals).not.toContain('fetchPreflight');
 
     // These direct paths are the probes themselves, not server-state bypasses.
