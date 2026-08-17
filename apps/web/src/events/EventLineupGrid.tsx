@@ -139,34 +139,20 @@ export function EventLineupGrid({
       key: 'price',
       header: 'Live price',
       headerText: 'Live price',
-      width: 'minmax(180px, 1fr)',
+      width: 'minmax(240px, 1.2fr)',
       align: 'right',
       toCopyText: (item) => formatPrice(item.priceCents),
       render: ({ row }) => (
-        <div className="event-inline-action">
-          <strong>{formatPrice(row.priceCents)}</strong>
-          <label>
-            <span className="sr-only">Markdown percent for {row.title}</span>
-            <input
-              aria-label={`Markdown percent for ${row.title}`}
-              type="number"
-              min={0}
-              max={100}
-              step={0.5}
-              value={markdowns[row.productId] ?? ''}
-              placeholder="%"
-              onChange={(event) => setMarkdowns((current) => ({ ...current, [row.productId]: event.target.value }))}
-            />
-          </label>
-          <button
-            className="button tertiary"
-            type="button"
-            disabled={busyProductId === row.productId || !markdowns[row.productId]}
-            onClick={() => onMarkdown(row, Number(markdowns[row.productId]))}
-          >
-            Markdown
-          </button>
-        </div>
+        <MarkdownControl
+          productId={row.productId}
+          title={row.title}
+          currentPriceCents={row.priceCents}
+          policy={policy}
+          percent={markdowns[row.productId] ?? ''}
+          onPercentChange={(next) => setMarkdowns((current) => ({ ...current, [row.productId]: next }))}
+          onApply={(percent, priceCents) => onMarkdown(row, percent, priceCents)}
+          disabled={busyProductId === row.productId}
+        />
       ),
     },
     {
@@ -305,7 +291,7 @@ export function EventLineupGrid({
         );
       },
     },
-  ], [auctionWriteDisabledReason, auctionWritesEnabled, busyProductId, commerceDrafts, markdowns, onMarkdown, onPush, onSendOffer, onStage, onStartAuction, onStockAdjust, onSwap, quantities]);
+  ], [auctionWriteDisabledReason, auctionWritesEnabled, busyProductId, commerceDrafts, markdowns, onMarkdown, onPush, onSendOffer, onStage, onStartAuction, onStockAdjust, onSwap, policy, quantities]);
 
   return (
     <RichGrid

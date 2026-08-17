@@ -506,6 +506,7 @@ export function EventManager({
                       busyProductId={busyProductId}
                       auctionWritesEnabled={auctionWritesEnabled}
                       auctionWriteDisabledReason={auctionWriteDisabledReason}
+                      policy={configQuery.data?.[0]?.policy}
                       onPush={(item) => void runAction(
                         item.productId,
                         () => mutateAction({
@@ -529,7 +530,7 @@ export function EventManager({
                         }),
                         `${target.title} replaced ${current.title} on stage.`,
                       )}
-                      onMarkdown={(item, percent) => void runAction(
+                      onMarkdown={(item, percent, priceCents) => void runAction(
                         item.productId,
                         () => mutateAction({
                           eventId: selectedEventId,
@@ -537,7 +538,12 @@ export function EventManager({
                           action: {
                             kind: 'markdown',
                             productId: item.productId,
-                            priceCents: Math.max(1, Math.round(item.priceCents * (1 - percent / 100))),
+                            // The price the control PREVIEWED, not a recomputed
+                            // one. This used to be Math.round(...) here while
+                            // the server derives its floor with Math.ceil, so a
+                            // markdown at exactly the event limit was rejected
+                            // for landing a cent under the floor.
+                            priceCents,
                             reason: `Seller applied a ${percent}% live-event markdown`,
                           },
                         }),
