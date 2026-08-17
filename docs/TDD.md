@@ -271,6 +271,36 @@ ladder.
   direct live-transcription session. Buyers consume the shared event transcript
   and never create their own transcription sessions.
 
+### Media connection loss is observed, not assumed
+
+A WebRTC session that *establishes* and later dies is the failure this design
+treats as normal, because the two sides fail asymmetrically and neither one
+notices on its own:
+
+- **The seller's preview proves nothing about the publish.** The preview element
+  renders the LOCAL camera stream, so it looks identical whether the WHIP upload
+  is healthy or dead. A seller watching their own face is not evidence that any
+  buyer is receiving video.
+- **The buyer's black pane is indistinguishable from "not started yet."** A
+  viewer that never receives media cannot tell a publisher that has not arrived
+  from one that arrived and dropped.
+
+So both connections report their own state rather than inferring it.
+`connectPublisher` and `connectViewer` each watch the peer connection and raise
+`onConnectionLost` exactly once, only on a terminal `failed` state, and never
+after a deliberate `stop()` — so an intentional teardown cannot masquerade as a
+fault. The seller surfaces it as an explicit "camera disconnected" error instead
+of a preview that keeps looking correct; the buyer re-enters its bounded
+wait-for-publisher retry, capped so a peer that will never return cannot spin.
+
+**Environment note.** MediaMTX advertises ICE host candidates, and it must
+advertise an address the *viewer's device* can route to. Production pins
+`MEDIAMTX_PUBLIC_IP` for exactly this reason (see Deployment). A local
+docker-compose stack that advertises only loopback and the container-internal
+bridge address will serve a browser on the same host and fail every other
+device — set `MEDIAMTX_HOST` to the machine's LAN address when testing a buyer
+on a phone or a second laptop.
+
 ## Checkout and commerce
 
 Reservation before payment, webhook before trust: the checkout path is built so
