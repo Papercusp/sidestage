@@ -4,6 +4,7 @@ import {
   CopilotProposalCard,
   ProductResearchLatency,
   citedSources,
+  parseRequiredProperties,
   type CopilotProposal,
 } from './CopilotPanel';
 
