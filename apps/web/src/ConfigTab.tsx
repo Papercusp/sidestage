@@ -492,7 +492,10 @@ export function EventSettingsPanel({
   };
 
   const save = async () => {
-    if (!config || !configReadiness(config).ready) return;
+    // MUST be `canSave`, not `ready`: a never-saved default config is not
+    // "ready" by design, and gating the save on that would make the unsaved
+    // state permanent — the save is precisely what clears it (WI-39274).
+    if (!config || !configReadiness(config).canSave) return;
     setSaveState('saving');
     try {
       const saved = await mutateConfig(eventConfigUpdate(config));

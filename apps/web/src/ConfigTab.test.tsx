@@ -84,14 +84,72 @@ describe('ConfigTab sync mapping', () => {
   it('blocks only an invalid event identity and keeps policy choices explicit', () => {
     expect(configReadiness(CONFIG)).toEqual({
       ready: true,
+      canSave: true,
+      neverSaved: false,
       completedRequired: 3,
       totalRequired: 3,
       issue: null,
     });
     expect(configReadiness({ ...CONFIG, name: '  ' })).toMatchObject({
       ready: false,
+      canSave: false,
       completedRequired: 2,
     });
+  });
+
+  /* WI-39274 — this pane claimed "3 of 3 sections / Ready / Event settings are
+     complete" next to a colocated readiness report saying the Config tab had
+     never been saved, because `ready` was `name.trim() !== ''` and the other two
+     sections were hardcoded complete. The epoch updatedAt is the server's
+     deliberate never-saved sentinel (apps/api/src/config/event-config.service.ts),
+     and apps/api/src/rehearsals/preflight.ts blocks on `Date.parse(updatedAt)===0`
+     — so a Ready claim here is a direct contradiction of the authority. */
+  const NEVER_SAVED: EventConfigView = {
+    ...CONFIG,
+    name: 'Sunday vintage drop', // the DEFAULT_EVENT_NAME preflight calls out
+    updatedAt: new Date(0).toISOString(),
+  };
+
+  it('never claims Ready or 3-of-3 for an event running on unsaved defaults', () => {
+    expect(configReadiness(NEVER_SAVED)).toMatchObject({
+      ready: false,
+      neverSaved: true,
+      completedRequired: 0,
+      totalRequired: 3,
+    });
+    expect(configReadiness(NEVER_SAVED).issue).toBeTruthy();
+  });
+
+  it('still allows SAVING an unsaved-defaults config — the save is what clears it', () => {
+    // Regression guard: `ready` and `canSave` were once one flag, so making
+    // `ready` honest about the epoch sentinel would have made the config
+    // permanently unsaveable (ConfigEditor.submit and EventSettingsPanel.save
+    // both gate on it).
+    expect(configReadiness(NEVER_SAVED).canSave).toBe(true);
+    expect(configReadiness({ ...NEVER_SAVED, name: '  ' }).canSave).toBe(false);
+  });
+
+  it('renders the epoch sentinel as Never saved, never as a locale date', () => {
+    const html = renderToStaticMarkup(
+      <ConfigEditor
+        config={NEVER_SAVED}
+        baseline={NEVER_SAVED}
+        saveState="idle"
+        savedAt={null}
+        onChange={() => undefined}
+        onSave={() => undefined}
+      />,
+    );
+
+    expect(html).toContain('Never saved');
+    // The exact production symptom: the sentinel localized into a 1969/1970
+    // timestamp that reads as a real save having happened.
+    expect(html).not.toContain('1969');
+    expect(html).not.toContain('1970');
+    // And the pane must not claim completeness while preflight blocks.
+    expect(html).not.toContain('Event settings are complete');
+    expect(html).not.toContain('3 of 3 sections');
+    expect(html).toContain('0 of 3 sections');
   });
 
   it('renders the approved consequence-aware layout with real save and rehearsal actions', () => {
