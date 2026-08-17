@@ -141,6 +141,7 @@ export class ConfiguredCopilotReplyModel implements ReplyModel {
       confidence: typeof raw.confidence === 'number' ? raw.confidence : 0,
       tone: isCopilotTone(raw.tone) ? raw.tone : undefined,
       action,
+      provider: 'openai',
       latency: { completeMs: Date.now() - started },
     };
   }
