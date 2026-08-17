@@ -731,7 +731,11 @@ export function BuildHistoryList({
   const [search, setSearch] = useState('');
   const deferredSearch = useDeferredValue(search);
   const [status, setStatus] = useState('all');
-  const [date, setDate] = useState<BuildHistoryDateFilter>('30d');
+  // The archive opens UNFILTERED by date: this page is the project's build
+  // history, so a rolling window silently hid most of it (62 plans rendered as
+  // 28). Narrowing stays available in the Date select; it is just not the
+  // default. Keep this in sync with resetFilters below.
+  const [date, setDate] = useState<BuildHistoryDateFilter>('all');
   const [kind, setKind] = useState('all');
   const [planLimit, setPlanLimit] = useState(PLAN_PAGE_SIZE);
   const [documentSlug, setDocumentSlug] = useState(initialDocument);
@@ -777,7 +781,7 @@ export function BuildHistoryList({
   const resetFilters = () => {
     setSearch('');
     setStatus('all');
-    setDate('30d');
+    setDate('all');
     setKind('all');
     setPlanLimit(PLAN_PAGE_SIZE);
   };
@@ -859,9 +863,9 @@ export function BuildHistoryList({
         <label>
           <span>Date</span>
           <select value={date} onChange={(event) => setDate(event.target.value as BuildHistoryDateFilter)}>
+            <option value="all">All time</option>
             <option value="30d">Last 30 days</option>
             <option value="7d">Last 7 days</option>
-            <option value="all">All time</option>
           </select>
         </label>
         <label>

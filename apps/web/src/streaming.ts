@@ -224,41 +224,67 @@ export function buildMediaEndpoint(
 }
 
 /**
+ * How long negotiation waits for ICE gathering before offering the candidates
+ * it already has. Host candidates arrive in milliseconds; what stalls gathering
+ * is a relay allocation against an unreachable TURN server, and MediaMTX
+ * advertises exactly one (`turns:...?transport=tcp`) in production. Waiting the
+ * full browser allocation timeout for an OPTIONAL candidate would hold a
+ * user-facing "go live" action hostage to a network we do not need.
+ */
+export const DEFAULT_ICE_GATHERING_TIMEOUT_MS = 3_000;
+
+/**
+ * Whether gathering finished, or the budget expired with candidates still
+ * outstanding. `partial` is a normal, shippable outcome — not an error.
+ */
+export type IceGatheringOutcome = 'complete' | 'partial';
+
+/** Vanilla-ICE SDP carries its candidates inline as `a=candidate:` lines. */
+export function sdpHasIceCandidate(sdp: string): boolean {
+  return /^a=candidate:/m.test(sdp);
+}
+
+/**
  * Wait until ICE candidates have been included in the local SDP. MediaMTX's
- * WHIP/WHEP endpoints expect the complete offer in the POST body.
+ * WHIP/WHEP endpoints expect a vanilla-ICE offer in the POST body, so we prefer
+ * a fully gathered one.
+ *
+ * On timeout this RESOLVES `partial` rather than rejecting. Relay candidates are
+ * a fallback, and MediaMTX publishes its own public address as a host candidate,
+ * so the candidates already in the local description are usually enough to
+ * connect. Aborting here instead would turn one unreachable TURN server into a
+ * total streaming outage — with no server-side trace, because the offer would
+ * never be POSTed at all. The caller decides what a `partial` offer is worth.
  */
 export function waitForIceGatheringComplete(
   peerConnection: RTCPeerConnection,
-  timeoutMs = 10_000,
-): Promise<void> {
+  timeoutMs = DEFAULT_ICE_GATHERING_TIMEOUT_MS,
+): Promise<IceGatheringOutcome> {
   if (peerConnection.iceGatheringState === 'complete') {
-    return Promise.resolve();
+    return Promise.resolve('complete');
   }
 
-  return new Promise((resolve, reject) => {
+  return new Promise((resolve) => {
     let settled = false;
     const previousHandler = peerConnection.onicegatheringstatechange;
-    const timeout = globalThis.setTimeout(() => {
-      settle(new MediaTransportError('Timed out while gathering media ICE candidates.'));
-    }, timeoutMs);
+    const timeout = globalThis.setTimeout(() => settle('partial'), timeoutMs);
 
-    const settle = (error?: Error) => {
+    const settle = (outcome: IceGatheringOutcome) => {
       if (settled) return;
       settled = true;
       globalThis.clearTimeout(timeout);
       peerConnection.onicegatheringstatechange = previousHandler;
-      if (error) reject(error);
-      else resolve();
+      resolve(outcome);
     };
 
     peerConnection.onicegatheringstatechange = (event) => {
       previousHandler?.call(peerConnection, event);
-      if (peerConnection.iceGatheringState === 'complete') settle();
+      if (peerConnection.iceGatheringState === 'complete') settle('complete');
     };
 
     // A state transition can happen between the initial check and installing
     // the handler, especially in test doubles and fast local connections.
-    if (peerConnection.iceGatheringState === 'complete') settle();
+    if (peerConnection.iceGatheringState === 'complete') settle('complete');
   });
 }
 
@@ -269,11 +295,17 @@ async function negotiate(
 ): Promise<string | null> {
   const offer = await peerConnection.createOffer();
   await peerConnection.setLocalDescription(offer);
-  await waitForIceGatheringComplete(peerConnection);
+  const gathering = await waitForIceGatheringComplete(peerConnection);
 
   const localDescription = peerConnection.localDescription;
   if (!localDescription?.sdp) {
     throw new MediaTransportError('The browser did not produce a local media offer.');
+  }
+  // Only a gathering stall that produced NOTHING is fatal. A partial offer still
+  // carries host candidates, which is the path that actually connects to
+  // MediaMTX; sending it is strictly better than never POSTing at all.
+  if (gathering === 'partial' && !sdpHasIceCandidate(localDescription.sdp)) {
+    throw new MediaTransportError('Timed out while gathering media ICE candidates.');
   }
 
   const response = await fetchImpl(endpoint, {
