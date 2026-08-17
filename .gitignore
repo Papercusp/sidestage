@@ -19,3 +19,8 @@ apps/web/public/vditor/
 # copy of the replicated publication — measured 3476 MB on 2026-08-17 — plus its
 # WAL. It must never be committed.
 .zero/
+# Agent console liveness markers (one per running agent console, named by PID).
+# Purely local scratch — 17 of these had been committed to the public repo root,
+# where they were the first thing a reviewer saw in a clean clone (WI-39713).
+# This rule is the recurrence guard: without it they come straight back.
+.papercup-console-active.*
