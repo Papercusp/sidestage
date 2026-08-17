@@ -9,7 +9,9 @@ import {
   type StageLog,
 } from '../run-of-show';
 import {
+  executeSellerAction,
   startSellerAuction,
+  type SellerActionResult,
   type SellerAuction,
   type SellerEventItem,
 } from '../events/api';
@@ -28,6 +30,8 @@ import '../run-of-show.css';
 
 export interface RunOfShowPanelProps {
   eventId: string;
+  /** The acting seller, for the guarded push action "Take live" now performs. */
+  actorId: string;
   /** Seller-owned history persists when desktop/mobile panel hosts remount. */
   stageLog: StageLog;
   /** The product currently on stage, including the live card's commerce detail. */
@@ -155,6 +159,8 @@ export function RunOfShowPanelView({
   activeProduct = null,
   pricingHistory = null,
   nextAuctionLauncher = null,
+  stageBusy = false,
+  stageError = null,
 }: {
   view: RunOfShowView;
   loaded: boolean;
@@ -163,6 +169,10 @@ export function RunOfShowPanelView({
   activeProduct?: CatalogProduct | null;
   pricingHistory?: ReactNode;
   nextAuctionLauncher?: ReactNode;
+  /** True while the guarded push is in flight, so the button cannot double-fire. */
+  stageBusy?: boolean;
+  /** The server's own refusal, shown verbatim — it is the authority, not us. */
+  stageError?: string | null;
 }) {
   const {
     slots,
@@ -267,9 +277,18 @@ export function RunOfShowPanelView({
                         </span>
                       </div>
                       {nextAuctionLauncher}
-                      <button className="button secondary run-of-show-take-live" type="button" onClick={() => onStageNext(slot.productId)}>
-                        Take live
+                      <button
+                        className="button secondary run-of-show-take-live"
+                        type="button"
+                        disabled={stageBusy}
+                        aria-busy={stageBusy || undefined}
+                        onClick={() => onStageNext(slot.productId)}
+                      >
+                        {stageBusy ? 'Taking live…' : 'Take live'}
                       </button>
+                      {stageError ? (
+                        <p className="run-of-show-stage-error" role="status">{stageError}</p>
+                      ) : null}
                     </div>
                   ) : (
                     <details className="run-of-show-card run-of-show-later-card">
@@ -294,6 +313,7 @@ export function RunOfShowPanelView({
 
 export function RunOfShowPanel({
   eventId,
+  actorId,
   stageLog: log,
   activeProduct,
   catalogProducts = [],
@@ -323,6 +343,8 @@ export function RunOfShowPanel({
   const [startingPrice, setStartingPrice] = useState('');
   const [durationSec, setDurationSec] = useState(90);
   const [auctionBusy, setAuctionBusy] = useState(false);
+  const [stageBusy, setStageBusy] = useState(false);
+  const [stageError, setStageError] = useState<string | null>(null);
   const [auctionFeedback, setAuctionFeedback] = useState<NextAuctionLauncherProps['feedback']>(null);
 
   const loaded = !planQuery.loading && !itemsQuery.loading;
@@ -399,6 +421,71 @@ export function RunOfShowPanel({
               ? 'Enter a valid opening bid'
               : null;
 
+  /**
+   * "Take live" performs the GUARDED SERVER PUSH, then follows the server.
+   *
+   * D-005 makes the stage clock advance on the event's server-authoritative
+   * `onStage` flag rather than the seller's local selection. This button used to
+   * set local selection ONLY, so under that clock it was visibly inert: the
+   * seller tapped it, the card changed, and the clock never started because
+   * nothing on the server had moved.
+   *
+   * Note the ORDER, which is the whole correctness argument: local selection is
+   * advanced only AFTER the push resolves. Advancing first (or optimistically)
+   * would put the dock and the clock into exactly the disagreement D-005 exists
+   * to prevent, and a rejected push would leave the seller looking at a card
+   * that is not on stage.
+   *
+   * There is deliberately NO client mirror of the push guard here, unlike the
+   * markdown and offer controls. Those mirrors exist because the seller COMPOSES
+   * a value the server may refuse (a percent, a price, a quantity, a buyer), so
+   * the control must stop where the server stops. "Take live" composes nothing —
+   * it is one button on one already-planned product — so there is no value to
+   * pre-validate, and the honest design is to call the server and report its
+   * verdict verbatim rather than to predict it.
+   */
+  type StagePushMutation = { eventId: string; actorId: string; productId: string; title: string };
+  const stagePushFallback = useCallback(
+    ({ eventId: pushEventId, actorId: pushActorId, productId, title }: StagePushMutation) => executeSellerAction(
+      pushEventId,
+      pushActorId,
+      {
+        kind: 'push',
+        productId,
+        // A push carries NO quantity, price, or swap target: guardrail.ts:101-118
+        // blocks a push that includes any of them, and a reason is required
+        // before any action is evaluated at all (guardrail.ts:70).
+        reason: `Seller took ${title} live from the run of show`,
+      },
+      apiBaseUrl,
+      principal,
+    ),
+    [apiBaseUrl, principal],
+  );
+  const mutateStagePush = useSyncMutate<StagePushMutation, SellerActionResult>('event.executeAction', stagePushFallback);
+
+  const stageNext = async (productId: string) => {
+    if (stageBusy) return;
+    setStageBusy(true);
+    setStageError(null);
+    try {
+      await mutateStagePush({
+        eventId,
+        actorId,
+        productId,
+        title: titles[productId] ?? 'the next item',
+      });
+      // The server is now the source of truth for what is on stage; re-read it
+      // so the clock and the "on stage" chip both see the transition.
+      itemsQuery.invalidate();
+      onActiveProductChange(productId);
+    } catch (caught) {
+      setStageError(caught instanceof Error ? caught.message : 'This item could not be taken live.');
+    } finally {
+      setStageBusy(false);
+    }
+  };
+
   const startNextAuction = async () => {
     if (!nextItem || auctionDisabledReason || auctionBusy) return;
     const startingPriceCents = moneyInputToCents(startingPrice);
@@ -424,7 +511,9 @@ export function RunOfShowPanel({
       view={view}
       loaded={loaded}
       error={error}
-      onStageNext={(productId) => onActiveProductChange(productId)}
+      onStageNext={(productId) => void stageNext(productId)}
+      stageBusy={stageBusy}
+      stageError={stageError}
       activeProduct={activeProduct}
       pricingHistory={activeProduct ? <PricingHistoryPanel eventId={eventId} productId={activeProduct.id} /> : null}
       nextAuctionLauncher={nextItem ? (

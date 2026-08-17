@@ -6,6 +6,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
   auctionInvalidate: vi.fn(),
+  itemsInvalidate: vi.fn(),
+  executeSellerAction: vi.fn(async () => ({ ok: true })),
   startSellerAuction: vi.fn(async () => ({
     id: 'auction-1',
     eventId: 'demo-room',
@@ -54,6 +56,9 @@ vi.mock('@papercusp/sync', () => ({
     if (queryName === 'event.auction.active') {
       return { ...state, data: [], invalidate: mocks.auctionInvalidate };
     }
+    if (queryName === 'event.actions.items.invalidate-probe') {
+      return { ...state, data: [] };
+    }
     return { ...state, data: [] };
   },
   useSyncMutate: (_name: string, fallback: (input: unknown) => Promise<unknown>) => fallback,
@@ -61,6 +66,7 @@ vi.mock('@papercusp/sync', () => ({
 
 vi.mock('../events/api', () => ({
   startSellerAuction: mocks.startSellerAuction,
+  executeSellerAction: mocks.executeSellerAction,
 }));
 
 import { RunOfShowPanel } from './RunOfShowPanel';
@@ -83,6 +89,7 @@ describe('RunOfShowPanel integration', () => {
         root.render(
           <RunOfShowPanel
             eventId="demo-room"
+            actorId="seller-1"
             stageLog={stageLog}
             activeProduct={null}
             onActiveProductChange={() => undefined}
@@ -114,6 +121,7 @@ describe('RunOfShowPanel integration', () => {
         root.render(
           <RunOfShowPanel
             eventId="demo-room"
+            actorId="seller-1"
             stageLog={stageLog}
             activeProduct={null}
             catalogProducts={[{
