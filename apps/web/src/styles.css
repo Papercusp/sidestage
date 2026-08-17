@@ -135,6 +135,16 @@
   --ss-gap: .9rem;
   --ss-section-gap: 2.75rem;
   --ss-h1-max: 4.5rem;
+  /* EI-20490096718304228: .topbar is position:sticky;z-index:30 and WRAPS to
+     more rows as .topbar-inner/.tab-nav/.topbar-install-and-identity restack
+     at each breakpoint below (see the matching @media blocks near .topbar-inner
+     around line ~540+). A single fixed scroll-padding-top sized for the
+     desktop single-row topbar leaves scroll-into-view targets (e.g. the buyer
+     video overlay's Connect/Retry button) hidden under the sticky bar once it
+     has wrapped. Mirrors the --architecture-sticky-top pattern
+     (architecture.css) — live-measured real .topbar height per breakpoint via
+     verdict at :5173/?tab=buyer, each rounded up with a ~6-8px buffer. */
+  --topbar-sticky-height: 5.25rem;
 }
 
 /* Non-compact: shopping surfaces breathe (Buyer). */
@@ -168,7 +178,7 @@
 }
 
 * { box-sizing: border-box; }
-html { min-width: 320px; scroll-padding-top: 5.25rem; }
+html { min-width: 320px; scroll-padding-top: var(--topbar-sticky-height, 5.25rem); }
 /* Page ground on the R3 "Ticket" cream (D-004): warm red/yellow glows at low
    alpha replace the old navy/cyan/violet stack (leader hotfix ahead of the
    P-003 sweep — WI-38659 covers the remaining component strays). */
@@ -537,13 +547,38 @@ a.app-badge:active { transform: translateY(1px); box-shadow: 0 2px 0 color-mix(i
   .topbar-status-group { grid-column: 2; grid-row: 2; }
   .connection-pill { display: none; }
 }
+/* EI-20490096718304228: --topbar-sticky-height per breakpoint — live-measured
+   real .topbar getBoundingClientRect().height via verdict at :5173/?tab=buyer
+   (chrome-rendered, root font-size 16px), each bucket sized to the WORST-CASE
+   height observed across its width range plus a ~6-8px buffer:
+     1300-1699px: 160.52px measured -> 10.5rem
+     901-1299px:  215.28px typical, 227.78px at the 901px edge -> 14.75rem
+     681-900px:   260.09px measured (steady 681-900) -> 16.75rem
+     <=680px:     313.69px measured (steady down to 320px; 460px itself reads
+                  slightly lower at 310.48px, so the wider bucket's value
+                  safely covers both) -> 20rem
+   Thresholds intentionally mirror the .topbar-inner/.tab-nav/.topbar-install-
+   and-identity restack points above and at max-width:900px/680px below, not
+   architecture.css's unrelated 720/900/1300 set. */
+@media (min-width: 1300px) and (max-width: 1699px) {
+  :root { --topbar-sticky-height: 10.5rem; }
+}
 @media (min-width: 761px) and (max-width: 1299px) {
   .tab-nav { grid-column: 1 / -1; }
   .topbar-status-group { grid-column: 1 / -1; grid-row: 3; }
 }
+@media (min-width: 901px) and (max-width: 1299px) {
+  :root { --topbar-sticky-height: 14.75rem; }
+}
 @media (max-width: 1100px) { .connection-pill { display: none; } }
 @media (max-width: 900px) { .topbar-inner { gap: .75rem; } .topbar-brand-group { flex-wrap: wrap; gap: .6rem; } .topbar-install-and-identity { flex: 1 0 100%; justify-content: flex-end; } .topbar-demo-user { width: 13rem; } .app-badges { gap: .3rem; } .app-badge { min-width: 5.85rem; padding-inline: .55rem; } .tab-nav { justify-content: flex-start; gap: .3rem; overflow-x: auto; scrollbar-width: thin; } .nav-link { padding-inline: .5rem; } .product-grid, .seller-grid, .config-grid { grid-template-columns: 1fr; } .stage-primary { grid-row: auto; } .stream-room-heading { align-items: flex-start; flex-direction: column; } .stream-room-actions { justify-content: flex-start; } }
-@media (max-width: 680px) { .topbar-install-and-identity { flex-wrap: wrap; } .topbar-demo-user { flex: 1 0 100%; width: 100%; } }
+@media (min-width: 681px) and (max-width: 900px) {
+  :root { --topbar-sticky-height: 16.75rem; }
+}
+@media (max-width: 680px) {
+  .topbar-install-and-identity { flex-wrap: wrap; } .topbar-demo-user { flex: 1 0 100%; width: 100%; }
+  :root { --topbar-sticky-height: 20rem; }
+}
 @media (max-width: 600px) { .app-shell { --channel-guide-width: 10rem; } }
 @media (max-width: 760px) {
   /* EI-20490117751347501: the desktop 2-column shell (channel-guide rail +
