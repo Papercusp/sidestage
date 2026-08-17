@@ -1,58 +1,77 @@
-import { readFileSync } from 'node:fs';
+import { readdirSync, readFileSync } from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 
 /**
- * WI-39732: a lineup field whose LABEL has a fixed width must also constrain
- * the `<input>` inside it, or the input overflows the label and the controls
- * beside it paint on top.
+ * WI-39732 — APP-WIDE INVARIANT: a field label with a FIXED width must also
+ * constrain the control inside it, or the control overflows the label and
+ * whatever sits beside it paints on top.
  *
- * WHY THIS IS A GUARD AND NOT A ONE-LINE ASSERTION. The shipped bug was not a
- * typo — it was a whole CLASS, invisible three ways at once:
+ * WHY THIS IS A SWEEP AND NOT A ONE-LINE ASSERTION. The reported bug (the red
+ * "Take live" button sitting over the Minutes box in Event Manager) was not a
+ * typo in one rule — it was a CLASS, and it was invisible three ways at once:
  *
- *   1. Every field label here is `display: grid`, so its input is a GRID ITEM,
- *      and a grid item's `min-width: auto` resolves to its MIN-CONTENT size.
- *      For a bare `<input>` that comes from the default `size=20` attribute
- *      (~249px), so the input simply refuses to shrink into a 5.5rem or 7rem
- *      label.
- *   2. Nothing clips, wraps, scrolls or errors. The flex/grid siblings are laid
- *      out from the LABEL's declared width, so the overflow is painted OVER by
- *      whatever sits to its right. The DOM is correct; only the pixels are wrong.
- *   3. jsdom does not lay out grid or flex at all, so no unit test that renders
- *      LineupTimeline can see it, and a typechecker never will. It was found by
- *      a human looking at a screenshot.
+ *   1. Every field label of this shape is `display: grid`, so its control is a
+ *      GRID ITEM, and a grid item's `min-width: auto` resolves to its
+ *      MIN-CONTENT size. For a bare `<input>` that comes from the default
+ *      `size=20` attribute — ~249px here — so an unconstrained input simply
+ *      refuses to shrink into a 5.5rem or 7rem label.
+ *   2. Nothing clips, wraps, scrolls, or errors. The flex/grid siblings are
+ *      laid out from the LABEL's declared width, so the overflow is painted
+ *      OVER by whatever is to its right. The DOM is correct; only pixels lie.
+ *   3. jsdom lays out neither grid nor flex, so no unit test that RENDERS the
+ *      component can see it, and a typechecker never will. It was found by a
+ *      human looking at a screenshot.
  *
- * Live-measured before the fix (localhost:5173, real rendered rows): the
- * Minutes input overlapped "Take live" by 85x27px and "Controls" by 24x27px on
- * every row, and in the Controls drawer "Live quantity" sat under "Set
- * quantity" (97x36), "Auction qty" under "Start price" (97x36), and "Start
- * price" under "Start auction" (97x36). Eight collisions from one missing pair
- * of declarations.
+ * That combination is why the same three lines went missing in three separate
+ * places before anyone noticed. Live-measured before the fix:
+ *   - lineup Minutes input   over "Take live"     85x27  (every row)
+ *   - lineup Minutes input   over "Controls"      24x27  (every row)
+ *   - drawer "Live quantity" over "Set quantity"  97x36
+ *   - drawer "Auction qty"   over "Start price"   97x36
+ *   - drawer "Start price"   over "Start auction" 97x36
+ *   - offer  "Offer qty"     over "Offer price"  129x37
+ *   - offer  "Offer price"   over "Send offer"    95x37
  *
- * So the assertion below is deliberately NOT "the file contains min-width: 0".
- * It is the INVARIANT: every fixed-width field label in this stylesheet has a
- * width-constrained input. That is what makes a NEW `.lineup-something-field {
- * width: 6rem }` added next month fail here instead of shipping the same
- * defect again.
+ * So the check below deliberately scans EVERY stylesheet in apps/web/src
+ * rather than asserting a string in one file. A new `.something-field { width:
+ * 6rem }` added next month fails here instead of shipping the same defect a
+ * fourth time.
  *
  * FALSIFIABILITY (tier 1 — no tree mutation). Every predicate is a pure
- * function run against the real stylesheet, which must pass, AND against
+ * function run against the real stylesheets, which must pass, AND against
  * permanent deliberately-broken controls kept in this file, which must each be
- * DETECTED — including the exact pre-fix text of the rule this bug lived in.
+ * DETECTED — including the exact pre-fix text of the rule the bug lived in.
  */
 
-const css = readFileSync(new URL('./lineup-timeline.css', import.meta.url), 'utf8');
+const seller = path.dirname(fileURLToPath(import.meta.url));
+const webSrc = path.resolve(seller, '..');
+
+function stylesheets(dir: string): string[] {
+  const out: string[] = [];
+  for (const entry of readdirSync(dir, { withFileTypes: true })) {
+    const full = path.join(dir, entry.name);
+    if (entry.isDirectory()) {
+      if (!/^(node_modules|dist|\.vite)$/.test(entry.name)) out.push(...stylesheets(full));
+    } else if (entry.name.endsWith('.css')) {
+      out.push(full);
+    }
+  }
+  return out;
+}
 
 interface Rule {
   selectors: string[];
   decls: Record<string, string>;
 }
 
-/** Flat rule list. Nested at-rules are not used in this stylesheet's field section. */
+/** Flat rule list; at-rule preludes are skipped, their inner rules still seen. */
 export function parseRules(source: string): Rule[] {
   const withoutComments = source.replace(/\/\*[\s\S]*?\*\//g, '');
   const rules: Rule[] = [];
   for (const match of withoutComments.matchAll(/([^{}]+)\{([^{}]*)\}/g)) {
-    const selectorText = match[1].trim();
+    const selectorText = match[1].trim().replace(/^[\s\S]*\}/, '').trim();
     if (!selectorText || selectorText.startsWith('@')) continue;
     const decls: Record<string, string> = {};
     for (const decl of match[2].split(';')) {
@@ -65,20 +84,18 @@ export function parseRules(source: string): Rule[] {
   return rules;
 }
 
-/** A length that pins a box to a fixed size — the thing an input cannot shrink into. */
-function isFixedLength(value: string): boolean {
-  return /^-?[\d.]+(rem|em|px|ch)$/.test(value.trim());
+/** A length that pins a box to a fixed size — what a control cannot shrink into. */
+export function isFixedLength(value: string | undefined): boolean {
+  return /^-?[\d.]+(rem|em|px|ch)$/.test((value ?? '').trim());
 }
 
-/**
- * Field labels that declare a fixed width. These are the boxes an unconstrained
- * input overflows; `%`, `auto`, `min-content` and friends are not at risk.
- */
-export function fixedWidthFieldSelectors(source: string): string[] {
+const CONTROLS = ['input', 'select', 'textarea'] as const;
+
+/** Single-class selectors that declare a fixed width — the boxes at risk. */
+export function fixedWidthBoxes(source: string): string[] {
   const found = new Set<string>();
   for (const rule of parseRules(source)) {
-    const width = rule.decls.width;
-    if (!width || !isFixedLength(width)) continue;
+    if (!isFixedLength(rule.decls.width)) continue;
     for (const selector of rule.selectors) {
       if (/^\.[\w-]+$/.test(selector)) found.add(selector);
     }
@@ -87,16 +104,20 @@ export function fixedWidthFieldSelectors(source: string): string[] {
 }
 
 /**
- * Does some rule constrain the width of `<selector> input`?
+ * Does some rule constrain the width of `<box> <control>`?
  *
- * BOTH declarations are required, and the second is the load-bearing one:
- * `width: 100%` alone happens to be sufficient only while the label's width is
- * a definite length (a definite specified size clamps the automatic minimum
+ * BOTH declarations are required, and `min-width` is the load-bearing one:
+ * `width: 100%` alone is sufficient only while the label's own width is a
+ * definite length (a definite specified size clamps the automatic minimum
  * size). Change that label to `flex: 1` or `width: auto` and `min-width: auto`
  * comes straight back — which is exactly how a fixed bug reopens quietly.
  */
-export function inputWidthConstraint(source: string, selector: string): { width: boolean; minWidth: boolean } {
-  const target = `${selector} input`;
+export function controlWidthConstraint(
+  source: string,
+  box: string,
+  control: string,
+): { width: boolean; minWidth: boolean } {
+  const target = `${box} ${control}`;
   let width = false;
   let minWidth = false;
   for (const rule of parseRules(source)) {
@@ -107,39 +128,62 @@ export function inputWidthConstraint(source: string, selector: string): { width:
   return { width, minWidth };
 }
 
-export function unconstrainedFields(source: string): string[] {
-  return fixedWidthFieldSelectors(source).filter((selector) => {
-    // Only fields that actually contain an input can suffer this.
-    if (!new RegExp(`${selector.replace('.', '\\.')}\\s+input\\b`).test(source)) return false;
-    const constraint = inputWidthConstraint(source, selector);
-    return !constraint.width || !constraint.minWidth;
-  });
+/** Every `<fixed-width box> <control>` pair in `source` that is NOT constrained. */
+export function unconstrainedControls(source: string): string[] {
+  const violations: string[] = [];
+  for (const box of fixedWidthBoxes(source)) {
+    for (const control of CONTROLS) {
+      // Only boxes that actually contain such a control can suffer this.
+      const styled = new RegExp(`${box.replace('.', '\\.')}\\s+${control}\\b`);
+      if (!styled.test(source)) continue;
+      const constraint = controlWidthConstraint(source, box, control);
+      if (!constraint.width || !constraint.minWidth) violations.push(`${box} ${control}`);
+    }
+  }
+  return violations;
 }
 
-describe('lineup fields: a fixed-width label constrains its input (WI-39732)', () => {
-  it('finds the fixed-width field labels this stylesheet actually declares', () => {
-    // Fails loudly if the fields are renamed or restructured, rather than
-    // reporting "0 violations" because it stopped finding anything to check.
-    expect(fixedWidthFieldSelectors(css).sort()).toEqual(
-      expect.arrayContaining(['.lineup-drawer-field', '.lineup-slot-minutes']),
-    );
+const sheets = stylesheets(webSrc).map((file) => ({
+  file: path.relative(webSrc, file),
+  css: readFileSync(file, 'utf8'),
+}));
+
+describe('a fixed-width field constrains its control (WI-39732)', () => {
+  it('has stylesheets to check at all, so a green result is not an empty sweep', () => {
+    expect(sheets.length).toBeGreaterThan(10);
+    expect(sheets.some((s) => s.file === 'seller/lineup-timeline.css')).toBe(true);
+    expect(sheets.some((s) => s.file === 'seller/offer-composer.css')).toBe(true);
   });
 
-  it('leaves no fixed-width field with an unconstrained input', () => {
-    expect(unconstrainedFields(css)).toEqual([]);
+  it('finds the fixed-width field boxes these stylesheets actually declare', () => {
+    // Fails loudly if the fields are renamed or restructured, rather than
+    // reporting "no violations" because it stopped finding anything to check.
+    const lineup = sheets.find((s) => s.file === 'seller/lineup-timeline.css')!.css;
+    expect(fixedWidthBoxes(lineup)).toEqual(
+      expect.arrayContaining(['.lineup-slot-minutes', '.lineup-drawer-field']),
+    );
+    const offer = sheets.find((s) => s.file === 'seller/offer-composer.css')!.css;
+    expect(fixedWidthBoxes(offer)).toEqual(expect.arrayContaining(['.offer-composer-field']));
+  });
+
+  it('leaves NO fixed-width field with an unconstrained control, anywhere in apps/web', () => {
+    const violations = sheets.flatMap(({ file, css }) =>
+      unconstrainedControls(css).map((selector) => `${file}: ${selector}`),
+    );
+    expect(violations).toEqual([]);
   });
 
   it('constrains the Minutes field specifically — the reported collision', () => {
-    expect(inputWidthConstraint(css, '.lineup-slot-minutes')).toEqual({ width: true, minWidth: true });
-  });
-
-  it('constrains the Controls-drawer fields — the same defect, one surface over', () => {
-    expect(inputWidthConstraint(css, '.lineup-drawer-field')).toEqual({ width: true, minWidth: true });
+    const lineup = sheets.find((s) => s.file === 'seller/lineup-timeline.css')!.css;
+    expect(controlWidthConstraint(lineup, '.lineup-slot-minutes', 'input')).toEqual({
+      width: true,
+      minWidth: true,
+    });
   });
 });
 
 describe('permanent controls — each must be caught', () => {
-  /** The rule as it shipped, verbatim: fixed label, unconstrained input. */
+  /** The lineup rule as it shipped, verbatim: fixed labels, unconstrained input. */
   const shippedBug = `
     .lineup-slot-minutes, .lineup-slot-notes, .lineup-drawer-field { display: grid; gap: .2rem; }
     .lineup-slot-minutes { width: 5.5rem; flex: 0 0 auto; }
@@ -150,15 +194,26 @@ describe('permanent controls — each must be caught', () => {
   `;
 
   it('catches the exact stylesheet that shipped the bug', () => {
-    expect(unconstrainedFields(shippedBug).sort()).toEqual(['.lineup-drawer-field', '.lineup-slot-minutes']);
+    expect(unconstrainedControls(shippedBug).sort()).toEqual([
+      '.lineup-drawer-field input',
+      '.lineup-slot-minutes input',
+    ]);
   });
 
-  it('catches a HALF fix — width: 100% without min-width: 0', () => {
+  it('catches the offer composer as it shipped', () => {
+    const offerBug = `
+      .offer-composer-field { display: grid; gap: .2rem; width: 7rem; }
+      .offer-composer-field input { min-height: var(--ss-control-h); padding: 0 .5rem; }
+    `;
+    expect(unconstrainedControls(offerBug)).toEqual(['.offer-composer-field input']);
+  });
+
+  it('catches a HALF fix — width without min-width: 0', () => {
     const halfFixed = `
       .lineup-slot-minutes { width: 5.5rem; }
       .lineup-slot-minutes input { width: 100%; padding: 0 .5rem; }
     `;
-    expect(unconstrainedFields(halfFixed)).toEqual(['.lineup-slot-minutes']);
+    expect(unconstrainedControls(halfFixed)).toEqual(['.lineup-slot-minutes input']);
   });
 
   it('catches a HALF fix — min-width: 0 without a width', () => {
@@ -166,15 +221,24 @@ describe('permanent controls — each must be caught', () => {
       .lineup-slot-minutes { width: 5.5rem; }
       .lineup-slot-minutes input { min-width: 0; padding: 0 .5rem; }
     `;
-    expect(unconstrainedFields(halfFixed)).toEqual(['.lineup-slot-minutes']);
+    expect(unconstrainedControls(halfFixed)).toEqual(['.lineup-slot-minutes input']);
   });
 
   it('catches a NEW fixed-width field added later without the constraint', () => {
-    const regression = `${css}
-      .lineup-cue-field { width: 6rem; }
+    const regression = `
+      .lineup-cue-field { display: grid; width: 6rem; }
       .lineup-cue-field input { min-height: var(--ss-control-h); }
     `;
-    expect(unconstrainedFields(regression)).toEqual(['.lineup-cue-field']);
+    expect(unconstrainedControls(regression)).toEqual(['.lineup-cue-field input']);
+  });
+
+  it('catches a <select> and a <textarea>, not just <input>', () => {
+    const other = `
+      .some-field { width: 6rem; }
+      .some-field select { padding: 0 .5rem; }
+      .some-field textarea { padding: 0 .5rem; }
+    `;
+    expect(unconstrainedControls(other).sort()).toEqual(['.some-field select', '.some-field textarea']);
   });
 
   it('passes a correctly constrained field, so the check is not simply always-fail', () => {
@@ -182,15 +246,15 @@ describe('permanent controls — each must be caught', () => {
       .lineup-slot-minutes { width: 5.5rem; }
       .lineup-slot-minutes input { width: 100%; min-width: 0; padding: 0 .5rem; }
     `;
-    expect(unconstrainedFields(correct)).toEqual([]);
+    expect(unconstrainedControls(correct)).toEqual([]);
   });
 
-  it('does not fire on a fixed-width box that holds no input', () => {
+  it('does not fire on a fixed-width box that holds no control', () => {
     const innocent = `
       .lineup-slot-handle { width: 3rem; }
       .lineup-drawer-note { width: 8rem; }
     `;
-    expect(unconstrainedFields(innocent)).toEqual([]);
+    expect(unconstrainedControls(innocent)).toEqual([]);
   });
 
   it('does not fire on a fluid label, which has no automatic-minimum problem', () => {
@@ -198,7 +262,7 @@ describe('permanent controls — each must be caught', () => {
       .lineup-slot-notes { width: 100%; }
       .lineup-slot-notes input { padding: 0 .5rem; }
     `;
-    expect(unconstrainedFields(fluid)).toEqual([]);
+    expect(unconstrainedControls(fluid)).toEqual([]);
   });
 });
 
@@ -210,10 +274,11 @@ describe('the parser itself, so a silent parse failure cannot read as "clean"', 
 
   it('recognises fixed lengths and rejects fluid ones', () => {
     expect(['5.5rem', '7rem', '120px', '20ch'].every(isFixedLength)).toBe(true);
-    expect(['100%', 'auto', 'min-content', 'var(--w)'].some(isFixedLength)).toBe(false);
+    expect(['100%', 'auto', 'min-content', 'var(--w)', undefined].some(isFixedLength)).toBe(false);
   });
 
-  it('actually parsed the real stylesheet rather than yielding nothing', () => {
-    expect(parseRules(css).length).toBeGreaterThan(20);
+  it('actually parsed the real stylesheets rather than yielding nothing', () => {
+    const lineup = sheets.find((s) => s.file === 'seller/lineup-timeline.css')!.css;
+    expect(parseRules(lineup).length).toBeGreaterThan(20);
   });
 });
