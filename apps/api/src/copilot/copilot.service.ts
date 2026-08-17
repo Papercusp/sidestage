@@ -11,6 +11,7 @@ import { ChatService, type ChatMessage } from '../chat/chat.service';
 import { AutoResponderJudgeService } from '../judge/judge.service';
 import { SyncInvalidationService } from '../sync/sync-invalidation.service';
 import { PolicyReplyGuard } from './guardrail';
+import { citedEvidenceDrift } from './copilot.claims';
 import { GroundedCopilotPipeline } from './copilot.pipeline';
 import type { GroundingContext, GroundingRetriever } from './copilot.types';
 import { SideStageGroundingRetriever } from './copilot.grounding';

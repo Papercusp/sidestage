@@ -185,7 +185,10 @@ describe('production research wiring', () => {
 
     const response = await pipeline.respond({
       eventId: 'e-1',
-      message: 'What colour is it?',
+      // "color", not "colour": citation relevance matches the question's tokens
+      // against the source's own attribute names, so the spelling the catalog
+      // stores is the spelling that grounds.
+      message: 'What color is it?',
       requiredProperties: ['color'],
     });
 
