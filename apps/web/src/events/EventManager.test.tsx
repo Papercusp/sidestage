@@ -195,16 +195,15 @@ describe('EventManager', () => {
       expect(markup).not.toContain('Only a live event can be ended.');
       expect(markup).not.toContain('End the live event before rescheduling it.');
       // Re-running a finished show is a real thing to want, so Go live stays.
-      expect(markup).toContain('Go live');
+      expect(buttonTag(markup, 'Go live')).not.toContain('disabled');
+      expect(buttonTag(markup, 'End event')).not.toContain('disabled');
     });
 
     it('disables Schedule until a start time is entered, on every status', () => {
       // The date field starts empty, so Schedule must never be the button that
       // teaches the seller about ISO-8601 by failing.
       for (const status of ['draft', 'scheduled', 'live', 'ended'] as const) {
-        const markup = renderStatus(status);
-        const scheduleButton = markup.slice(0, markup.indexOf('>Schedule<'));
-        expect(scheduleButton.slice(-90)).toContain('disabled=""');
+        expect(buttonTag(renderStatus(status), 'Schedule')).toContain('disabled');
       }
     });
   });
