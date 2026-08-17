@@ -353,6 +353,7 @@ export function SellerTab({
     },
     'run-of-show': {
       eventId,
+      actorId: userId,
       stageLog: runOfShowLog,
       activeProduct: selectedProduct,
       catalogProducts: sellerProducts,
