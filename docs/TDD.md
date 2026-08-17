@@ -197,7 +197,111 @@ its own component; shared behavior lives in hooks
 (`useStreamSession`, `useCopyState`, `useCatalog`). Product surfaces render
 from the one catalog source; grids use the shared `RichGrid`
 (`@papercusp/grid-core`). A density token system (compact / console / roomy)
-implements the approved design mockups per tab.
+implements the approved design mockups per tab. The reasoning behind each
+surface is recorded in the next section; the primary design evidence lives
+in-repo under `design/` (one dated directory per design pass, each with its
+mockups, UI-IR specs, and QA records).
+
+## UI design rationale — why the surfaces are shaped the way they are
+
+Every UI direction in this app was chosen through an explicit design pass:
+registry search first, standalone preview mockups (never production edits),
+validated UI-IR specs, a written comparison, then implementation. The passes
+are committed under `design/*` as the audit trail, and the decisions they
+produced are cited as `D-NNN` comments at the exact code they govern. The
+ones that shaped the product:
+
+**One site, two work groups.** SideStage is one identity with two audiences:
+buyer work (Watch, Orders) and operator work (Studio, History, Tests,
+Architecture). The 2026-08-14 page-redesign pass set the shared rules every
+page follows: one obvious next action per page; status is always text plus
+color, never color alone; below 760px, one active work panel at a time
+instead of a compressed desktop grid. The shipped palette is the R3 "Ticket"
+system (cream canvas, white paper surfaces, ink text, red primary action,
+yellow attention, green success) from the red/yellow retheme plan, and
+`styles.css` `:root` is the single token authority every surface — including
+third-party grid theming — derives from (`grid-theme-bridge.ts` D-002).
+
+**Watch lands you where the sidebar points.** One live directory (the
+Channel Guide) powers the site-wide What's-On rail, and the "active" event is
+app state, not a hard pin (P-118 / D-019, `App.tsx`). Landing precedence is:
+the URL's `?event=`, else the guide's FIRST row, else a pre-directory seed
+(D-001, `event-identity.ts`). The middle term is the point: the server
+already orders the guide (live by viewers, then soonest-scheduled, then most
+recently ended) and the sidebar paints that order, so the room a visitor
+lands in is the top row they can see. This replaced a hard-coded default
+event that had drifted from the live directory — the app opened a room the
+sidebar could not even list.
+
+**One video-owned engagement overlay, not stacked panels.** Captions,
+expandable transcript history, product context, and Event Chat compose into
+a single overlay owned by the video surface, for buyer and seller alike —
+both roles render the same `EventChat` component. Chat stays mounted while
+collapsed so its subscription and message state survive view changes.
+Captions update through a polite atomic live region; chat and transcript
+toggles are wired with `aria-controls`/`aria-expanded`. The earlier
+stacked-panel layouts and three seller reply-workflow concepts (Answer
+Queue, Conversation + Focus, Live Pulse) are retained in
+`design/sidestage-event-chat-mockups-2026-08-14/` as future research.
+
+**Auction: the Panel is product, the Board is presentation.** The landing
+pass built a marketing "Board" animation and then compared it side-by-side
+against the shipping `AuctionPanel` under one simulation
+(`design/sidestage-landing-2026-08-14/`). The verdict: graft the Board's
+presentation onto the Panel, never replace it — the server stays the bid
+ordering authority, and a scripted animation must not masquerade as bidding.
+
+**Studio navigation names the event lifecycle.** The event-list study
+compared three information architectures and chose four peer tabs —
+Inventory · Create Event · Events · Active Event — because each lifecycle
+job gets a stable, plainly named destination: "what can I sell?", "how do I
+start?", "where is the event I own?", "how do I run the room now?". The
+extra tab is a visible cost accepted deliberately, rather than hiding
+creation inside a generic hub or nesting the event list in an already-dense
+manager. ("Active Event" means the event this studio session is operating —
+it is being hardened to surface the event's lifecycle status inline so a
+draft can never be mistaken for a published listing.)
+
+**Studio panels are a dock workbench with a strict layout/state boundary.**
+Seller surfaces mount as Dockview panels over the shared `@papercusp`
+workbench store, and the persisted layout carries panel IDs and geometry
+ONLY (D-006/D-007, `seller-dock-layout.ts`, `seller-dock-store.ts`); live
+props reach panels through React context, never through serialized panel
+params (D-009). Rationale: a saved layout must restore *arrangement*,
+not resurrect stale application state.
+
+**Run of Show: pacing over alarms, server truth over local guesses.** The
+lineup study merged the event Lineup and the run-of-show planner into one
+seller workspace (drag-and-drop ordering plus explicit Move up / Move down
+for keyboard and touch). The stage clock advances on the event's
+server-authoritative STAGED product, not a local timer (D-005), and timing
+is presented as pacing guidance rather than alarms (D-001) — a live seller
+needs a nudge, not a deadline. In the markdown flow the previewed price IS
+the sent price (D-006), because an authoritative-looking wrong number is
+worse than none (D-003).
+
+**Copilot: density must not hide why an action is safe.** The compact-layout
+study's constraint was that tightening the proposal review pane may not drop
+the evidence: buyer identity, the question, cited sources, the guarded
+action, and explicit guardrail language survive every density level, and
+wide layouts collapse into one readable column instead of clipped
+miniatures. This is the UI half of the server-side guardrail gate above —
+the seller approves from evidence, so the evidence is non-negotiable chrome.
+
+**Demo identity is a feature, not a gap.** Buyer identity is a deliberately
+auth-free, switchable demo seam (D-013, `buyer-identity.ts`,
+`BuyerIdentityControl.tsx`): reviewers and pilot sellers can flip between
+buyer personas instantly to exercise carts, offers, and chat presence.
+Real authentication is an explicit non-goal of this build (PRD).
+
+**The Architecture tab is audited, not aspirational.** Because the app
+explains itself to reviewers, its claims are held to the same standard as
+code: the 2026-08-15 audit checked `ArchitectureTab.tsx` claim-by-claim
+against the source tree, and the chosen "Authority map" direction renders
+ownership and runtime truth without presenting configured-but-unused
+infrastructure as active. The Tests tab exposes the same rehearsal
+instruments the Guardrails section describes (reply judge, load simulator)
+so a reviewer can run the safety story, not just read it.
 
 ## Testing
 

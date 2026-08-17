@@ -156,6 +156,12 @@ npm run build
 | Restart-compatible catalog and variations data | `docs/data-model.md`, `docs/variations-schema.md`, `db/schema.sql`, `db/seed/demo.sql` |
 | Native mobile buyer apps (shared Rust core; UniFFI Kotlin/Swift bindings; Kotlin + Swift UIs) | [`Papercusp/sidestage-mobile`](https://github.com/Papercusp/sidestage-mobile) — `crates/`, `android/`, `ios/`; [v1.0.0 release](https://github.com/Papercusp/sidestage-mobile/releases/tag/v1.0.0) with signed APK + AAB, unsigned iOS IPA, and build-provenance manifest |
 
+The reasoning behind each UI surface — why the shell splits into buyer and
+operator work groups, why Studio names the event lifecycle in its tabs, why
+the engagement overlay is video-owned, and the design-pass evidence for each
+choice — is written up in [`TDD.md` § UI design rationale](TDD.md#ui-design-rationale--why-the-surfaces-are-shaped-the-way-they-are),
+with the underlying mockup passes committed under `design/*`.
+
 The copilot pipeline sends only verified event/catalog/policy context to the
 provider seam, requires citations for grounded replies, and returns a safe
 fallback when context is incomplete. Action proposals are evaluated again at
