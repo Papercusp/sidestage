@@ -1,11 +1,24 @@
 import { Inject, Injectable, Module, type OnModuleInit } from '@nestjs/common';
+import type { Pool } from 'pg';
+import { DatabaseModule, PG_POOL } from '../db/database.module';
+import { PgJudgeStore } from '../db/pg-judge-store';
 import { createVertexAdapter } from '../llm/vertex-adapter';
 import { SyncModule } from '../sync/sync.module';
 import { SyncQueryRegistry } from '../sync/sync-query.registry';
 import { JudgeController } from './judge.controller';
 import { DeterministicReplyJudgeModel, AutoResponderJudgeService } from './judge.service';
+import { InMemoryJudgeStore, JUDGE_STORE, type JudgeStore } from './judge.store';
 import { VertexReplyJudgeModel } from './judge-vertex.model';
 import { JUDGE_MODEL, type ReplyJudgeModel } from './judge.types';
+
+/**
+ * Postgres is the authority whenever a pool exists. The in-memory store is a
+ * development fallback only — it is process-local, so a deployment that lands
+ * on it silently loses the durability this lane exists to provide.
+ */
+export function judgeStoreForPool(pool: Pool | null): JudgeStore {
+  return pool ? new PgJudgeStore(pool) : new InMemoryJudgeStore();
+}
 
 @Injectable()
 export class JudgeSyncQueries implements OnModuleInit {
