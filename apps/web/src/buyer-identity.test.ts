@@ -25,6 +25,29 @@ class MemoryStorage implements BuyerIdentityStorage {
   }
 }
 
+describe('seller-role seed-owner resolution', () => {
+  it('defaults a fresh seller visit to the seed owner, not a minted stranger', () => {
+    const storage = new MemoryStorage();
+    expect(readDemoIdentity({ storage, randomId: () => 'abc12345' }, 'seller')).toBe('demo-seller');
+    // The minted persona still lands in storage for the shared buyer surfaces.
+    expect(storage.getItem(DEMO_IDENTITY_STORAGE_KEY)).toBe('demo-abc12345');
+  });
+
+  it('resolves an already-minted anonymous persona to the seed owner for the seller role only', () => {
+    const storage = new MemoryStorage();
+    storage.setItem(DEMO_IDENTITY_STORAGE_KEY, 'demo-abc12345');
+    expect(readDemoIdentity({ storage }, 'seller')).toBe('demo-seller');
+    expect(readDemoIdentity({ storage }, 'buyer')).toBe('buyer-demo-abc12345');
+    expect(readDemoIdentity({ storage })).toBe('demo-abc12345');
+  });
+
+  it('never overrides an explicitly impersonated seller persona', () => {
+    const storage = new MemoryStorage();
+    storage.setItem(DEMO_IDENTITY_STORAGE_KEY, 'JHGLDS');
+    expect(readDemoIdentity({ storage }, 'seller')).toBe('seller-JHGLDS');
+  });
+});
+
 describe('shared demo identity', () => {
   it('reuses the canonical app-wide id across reloads', () => {
     const storage = new MemoryStorage();

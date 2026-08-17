@@ -98,19 +98,37 @@ function persistIdentity(storage: DemoIdentityStorage | null, userId: string): v
   }
 }
 
+/**
+ * An auto-minted anonymous persona (`demo-` + the 8-char random token from
+ * generatedDemoUserId). Distinct from every deliberately impersonated identity,
+ * which is whatever the user actually typed.
+ */
+function isMintedDemoPersona(value: string): boolean {
+  return /^demo-[a-z0-9]{8}$/.test(value);
+}
+
 export function readDemoIdentity(
   options: DemoIdentityOptions = {},
   role?: DemoIdentityRole,
 ): string {
   const storage = options.storage === undefined ? browserStorage() : options.storage;
   const existing = readStoredIdentity(storage, DEMO_IDENTITY_STORAGE_KEY);
-  if (existing) return role ? normalizeRoleDemoIdentity(existing, role)! : existing;
+  if (existing) {
+    // A minted persona was never a deliberate identity choice, and a
+    // `seller-<random>` principal owns no events — the Studio's chat, config
+    // and copilot panes all 404 against the seeded default room. The seller
+    // role therefore resolves minted personas to the seed owner; only an
+    // explicitly impersonated identity names a different seller.
+    if (role === 'seller' && isMintedDemoPersona(existing)) return LEGACY_DEMO_SELLER_ID;
+    return role ? normalizeRoleDemoIdentity(existing, role)! : existing;
+  }
 
   // One-way migration from the buyer-only D-013 seam. Mirroring the value into
   // the canonical key preserves every existing demo user across this upgrade.
   const legacyBuyerId = readStoredIdentity(storage, BUYER_ID_STORAGE_KEY);
   if (legacyBuyerId) {
     persistIdentity(storage, legacyBuyerId);
+    if (role === 'seller' && isMintedDemoPersona(legacyBuyerId)) return LEGACY_DEMO_SELLER_ID;
     return role ? normalizeRoleDemoIdentity(legacyBuyerId, role)! : legacyBuyerId;
   }
 
@@ -120,6 +138,7 @@ export function readDemoIdentity(
 
   const created = `demo-${(options.randomId ?? (() => generatedDemoUserId().slice('demo-'.length)))()}`;
   persistIdentity(storage, created);
+  if (role === 'seller') return LEGACY_DEMO_SELLER_ID;
   return role ? normalizeRoleDemoIdentity(created, role)! : created;
 }
 
@@ -158,15 +177,23 @@ export function useDemoIdentity(role?: DemoIdentityRole): {
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
+    // Same minted-persona resolution as readDemoIdentity: a cross-tab mint of
+    // an anonymous buyer id must not flip a mounted Studio onto a seller
+    // principal that owns nothing.
+    const resolve = (value: string): string | null => {
+      const normalized = normalizeDemoIdentity(value);
+      if (role === 'seller' && normalized && isMintedDemoPersona(normalized)) {
+        return LEGACY_DEMO_SELLER_ID;
+      }
+      return role ? normalizeRoleDemoIdentity(value, role) : normalized;
+    };
     const onIdentityChange = (event: Event) => {
-      const value = (event as CustomEvent<string>).detail ?? '';
-      const next = role ? normalizeRoleDemoIdentity(value, role) : normalizeDemoIdentity(value);
+      const next = resolve((event as CustomEvent<string>).detail ?? '');
       if (next) setUserId(next);
     };
     const onStorage = (event: StorageEvent) => {
       if (event.key !== DEMO_IDENTITY_STORAGE_KEY && event.key !== BUYER_ID_STORAGE_KEY) return;
-      const value = event.newValue ?? '';
-      const next = role ? normalizeRoleDemoIdentity(value, role) : normalizeDemoIdentity(value);
+      const next = resolve(event.newValue ?? '');
       if (next) setUserId(next);
     };
     window.addEventListener(DEMO_IDENTITY_CHANGED_EVENT, onIdentityChange);
