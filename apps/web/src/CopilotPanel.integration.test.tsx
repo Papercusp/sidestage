@@ -179,6 +179,28 @@ describe('CopilotPanel sync integration', () => {
     expect(status?.getAttribute('aria-atomic')).toBe('true');
   });
 
+  it('announces a live queue arrival by updating the same status region in place', async () => {
+    const first = { ...baseProposal, id: 'proposal-1' };
+    const second = { ...baseProposal, id: 'proposal-2' };
+
+    await mount([first, second]);
+    const badge = container.querySelector('.live-badge');
+    expect(badge?.textContent).toContain('2 PENDING');
+
+    // A third pending proposal arrives on the live query.
+    await mount([first, second, { ...baseProposal, id: 'proposal-3' }]);
+
+    // The SAME DOM node must carry the new count. A live region that is
+    // unmounted and remounted on arrival is not reliably announced by
+    // assistive technology, so node identity is the regression this pins —
+    // the visible count alone can look correct while announcing nothing.
+    expect(container.querySelector('.live-badge')).toBe(badge);
+    expect(badge?.textContent).toContain('3 PENDING');
+    expect(badge?.getAttribute('role')).toBe('status');
+    expect(badge?.getAttribute('aria-live')).toBe('polite');
+    expect(badge?.getAttribute('aria-atomic')).toBe('true');
+  });
+
   it('requires the guarded action confirmation to use its dedicated mutation', async () => {
     const runtime = await mount({
       ...baseProposal,
