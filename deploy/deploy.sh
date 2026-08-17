@@ -123,6 +123,21 @@ health_probe() {
   return 1
 }
 
+# The release probes (positive control, event hygiene) must run from a vantage
+# that can actually reach the PUBLIC url. The office LAN this deploy usually
+# runs from drops TLS handshakes whose SNI is *.papercusp.com and poisons DNS
+# for the same names (measured 2026-08-17: curl --resolve to the origin IP
+# hangs after ClientHello locally while the same request succeeds from prod and
+# from external vantages) -- so a locally-run fetch fails against a globally
+# healthy release and forces a FALSE rollback. Running the probe script on the
+# prod host keeps its meaning (public hostname -> DNS -> Traefik -> TLS -> app)
+# while removing the office network from the verdict. The prod HOST has no
+# node, so the probe rides in the freshly-built api image, which does.
+run_release_probe() { # <script-basename> <sha>
+  "${SSH[@]}" "docker run --rm --network host -v $PROD_DIR/deploy:/probe:ro \
+    --entrypoint node sidestage-api:$2 /probe/$1 --base-url https://$PUBLIC_HOSTNAME"
+}
+
 SNAPSHOT_DIR="$(mktemp -d "${TMPDIR:-/tmp}/sidestage-deploy.XXXXXX")"
 cleanup() {
   sidestage_release_release_lock
@@ -278,7 +293,7 @@ say "OK: /healthz (leg: $HEALTH_LEG) reports ${SHA:0:7}"
 # those rows before making this sha the recorded rollback baseline. This guard
 # is read-only; a failure restores the previously proven release.
 say "Release positive control (real catalog + Scout)"
-if ! node "$SCRIPT_DIR/release-positive-control.mjs" --base-url "https://$PUBLIC_HOSTNAME"; then
+if ! run_release_probe release-positive-control.mjs "$SHA"; then
   echo "ERROR: release positive control failed" >&2
   auto_rollback_failed_release "release positive control" 6
 fi
@@ -289,7 +304,7 @@ fi
 # release-probe-hygiene.mjs, and a failure restores the previously proven
 # release without deleting diagnostic/event history.
 say "Release event hygiene (no public probe residue)"
-if ! node "$SCRIPT_DIR/release-probe-hygiene.mjs" --base-url "https://$PUBLIC_HOSTNAME"; then
+if ! run_release_probe release-probe-hygiene.mjs "$SHA"; then
   echo "ERROR: release event hygiene failed" >&2
   auto_rollback_failed_release "release event hygiene" 7
 fi
