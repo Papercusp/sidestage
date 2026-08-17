@@ -16,10 +16,10 @@
 #
 # 2. V8 HEAP. The initial replication snapshot is loaded into the JS heap, and
 #    the SideStage published set is BIG — measured 2026-08-17 against the live
-#    dev database (19 tables in publication `zero_publication`, 3476 MB total):
+#    dev database (20 tables in publication `zero_publication`, 3476 MB total):
 #      product_catalog     2637 MB
 #      storefront_product   836 MB
-#      (all 17 others together < 2 MB)
+#      (all 18 others together < 2 MB)
 #    Node's default heap (~2 GB) cannot hold that snapshot, and the failure mode
 #    is not a clean error: the node OOMs mid-sync, restarts, and never
 #    converges. The Restart project hit 92920 restarts in 30 days on a snapshot
@@ -120,8 +120,71 @@ EOF
     exit 1
   fi
   echo "[zero-cache-start] preflight ok: wal_level=$wal_level"
+
+  # --- 0b. preflight: the LIVE publication must match the DECLARED one --------
+  # db/zero-publication.sql wraps CREATE PUBLICATION in
+  # `IF NOT EXISTS (SELECT 1 FROM pg_publication ...)`, so once the publication
+  # exists the whole file is a permanent no-op. A table APPENDED to that file
+  # afterwards is therefore never added to an already-provisioned database —
+  # the declared object and the live object silently diverge.
+  #
+  # This is not hypothetical: `targeted_offer` was added to the file on
+  # 2026-08-17 and never reached the dev publication. Every STATIC check passed
+  # (the file lists it, and zero-publication.parity.test.ts — which reads the
+  # FILE, by design, and says so in its own header — stayed green), while the
+  # first real WS client died with a ProtocolError naming the missing table.
+  #
+  # Why compare against the FILE rather than the Zero contract: the parity test
+  # already guarantees contract == file. Checking file == live here CHAINS onto
+  # that to give contract == live, without re-deriving the contract in bash or
+  # needing a TS runtime at launch time.
+  declared_tables="$(
+    sed -n '/CREATE PUBLICATION zero_publication FOR TABLE/,/^      );/p' \
+      "$ROOT_DIR/db/zero-publication.sql" 2>/dev/null |
+      grep -oE 'public\.[a-z_]+' | sed 's/^public\.//' | sort -u
+  )"
+  live_tables="$(
+    psql "$ZERO_UPSTREAM_DB" -tAc \
+      "select tablename from pg_publication_tables where pubname='$ZERO_APP_PUBLICATIONS'" \
+      2>/dev/null | sed '/^$/d' | sort -u
+  )"
+  if [[ -z "$declared_tables" ]]; then
+    echo "[zero-cache-start] NOTE: could not parse the declared table list from db/zero-publication.sql; skipping the publication preflight" >&2
+  elif [[ -z "$live_tables" ]]; then
+    echo "[zero-cache-start] NOTE: publication '$ZERO_APP_PUBLICATIONS' has no tables yet (fresh database?); skipping the publication preflight" >&2
+  else
+    # Declared-but-not-live is the failure that silently breaks clients.
+    missing="$(comm -23 <(echo "$declared_tables") <(echo "$live_tables") | tr '\n' ' ')"
+    # Live-but-not-declared is the reverse drift: it still replicates, so it is
+    # a warning, not a stop.
+    extra="$(comm -13 <(echo "$declared_tables") <(echo "$live_tables") | tr '\n' ' ')"
+    if [[ -n "${missing// /}" ]]; then
+      cat >&2 <<EOF
+[zero-cache-start] FATAL: publication '$ZERO_APP_PUBLICATIONS' is MISSING table(s)
+  that db/zero-publication.sql declares:
+
+    ${missing}
+
+  Re-running db/zero-publication.sql will NOT fix this — its CREATE is guarded
+  by IF NOT EXISTS, so it is a no-op against an existing publication. Widening
+  replication on a live database takes an explicit ALTER:
+
+$(for t in ${missing}; do
+  echo "    ALTER PUBLICATION $ZERO_APP_PUBLICATIONS ADD TABLE public.${t};"
+done)
+
+  Left unfixed, a client querying one of those tables fails at CONNECT time with
+  a ProtocolError ("... does not exist or is not one of the replicated tables").
+EOF
+      exit 1
+    fi
+    if [[ -n "${extra// /}" ]]; then
+      echo "[zero-cache-start] WARN: publication has table(s) the file does not declare: ${extra}" >&2
+    fi
+    echo "[zero-cache-start] preflight ok: publication matches db/zero-publication.sql ($(echo "$declared_tables" | wc -l) tables)"
+  fi
 else
-  echo "[zero-cache-start] NOTE: psql not on PATH; skipping the wal_level preflight" >&2
+  echo "[zero-cache-start] NOTE: psql not on PATH; skipping the wal_level + publication preflights" >&2
 fi
 
 # --- 1. clear stale lock holders on this replica ------------------------------
