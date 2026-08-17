@@ -338,7 +338,9 @@ export function ConfigEditor({
           <details className="config-section" open>
             <summary>
               <span><strong>Copilot behavior</strong><small>How suggestions should sound to the seller and buyer.</small></span>
-              <span className="config-section-status is-complete">Complete</span>
+              <span className={`config-section-status ${readiness.neverSaved ? 'is-blocked' : 'is-complete'}`}>
+                {readiness.neverSaved ? 'Unsaved defaults' : 'Complete'}
+              </span>
             </summary>
             <div className="config-section-content">
               <label className="config-field" htmlFor={replyToneId}>
@@ -368,9 +370,9 @@ export function ConfigEditor({
               <span style={{ width: `${progress}%` }} />
             </div>
             <dl className="config-readiness-list">
-              <div><dt>Event identity</dt><dd className={readiness.ready ? 'is-complete' : 'is-blocked'}>{readiness.ready ? 'Complete' : 'Required'}</dd></div>
-              <div><dt>Commerce guardrails</dt><dd className="is-complete">Configured</dd></div>
-              <div><dt>Copilot behavior</dt><dd className="is-complete">Complete</dd></div>
+              <div><dt>Event identity</dt><dd className={readiness.canSave ? 'is-complete' : 'is-blocked'}>{readiness.canSave ? (readiness.neverSaved ? 'Unsaved' : 'Complete') : 'Required'}</dd></div>
+              <div><dt>Commerce guardrails</dt><dd className={readiness.neverSaved ? 'is-blocked' : 'is-complete'}>{readiness.neverSaved ? 'Unsaved defaults' : 'Configured'}</dd></div>
+              <div><dt>Copilot behavior</dt><dd className={readiness.neverSaved ? 'is-blocked' : 'is-complete'}>{readiness.neverSaved ? 'Unsaved defaults' : 'Complete'}</dd></div>
             </dl>
           </article>
 
