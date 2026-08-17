@@ -1,5 +1,6 @@
 .active-event-inventory {
   display: flex;
+  container-type: inline-size;
   min-width: 0;
   min-height: 100%;
   flex-direction: column;
@@ -193,7 +194,7 @@
   box-shadow: none;
 }
 
-@media (max-width: 760px) {
+@container (max-width: 760px) {
   .active-event-inventory-header {
     align-items: stretch;
     flex-direction: column;
@@ -206,5 +207,27 @@
 
   .active-event-inventory-picker .event-creation {
     min-width: 36rem;
+  }
+}
+
+@container (max-width: 420px) {
+  .active-event-inventory-list li {
+    grid-template-columns: 2rem minmax(0, 1fr);
+    grid-template-areas:
+      'mark product'
+      'stepper stepper';
+  }
+
+  .active-event-inventory-mark {
+    grid-area: mark;
+  }
+
+  .active-event-inventory-product {
+    grid-area: product;
+  }
+
+  .active-event-inventory-stepper {
+    grid-area: stepper;
+    grid-template-columns: 1fr auto 1fr;
   }
 }
