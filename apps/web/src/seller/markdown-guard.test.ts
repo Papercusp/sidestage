@@ -115,7 +115,12 @@ describe('the client mirror agrees with the real server guard', () => {
     const unsound: string[] = [];
     for (const price of PRICES) {
       for (const cap of CAPS) {
-        for (const floors of [{}, { [PRODUCT]: Math.ceil(price * 0.8) }, { [PRODUCT]: 1 }]) {
+        const floorCases: Record<string, number>[] = [
+          {},
+          { [PRODUCT]: Math.ceil(price * 0.8) },
+          { [PRODUCT]: 1 },
+        ];
+        for (const floors of floorCases) {
           const policy = rawPolicy(cap, floors);
           const view = clientView(policy);
           for (let percent = 0; percent <= 100; percent += STEP) {
@@ -227,7 +232,12 @@ describe('maxAllowedPercent is genuinely reachable', () => {
     const unreachable: string[] = [];
     for (const price of PRICES) {
       for (const cap of CAPS) {
-        for (const floors of [{}, { [PRODUCT]: Math.ceil(price * 0.8) }, { [PRODUCT]: 1 }]) {
+        const floorCases: Record<string, number>[] = [
+          {},
+          { [PRODUCT]: Math.ceil(price * 0.8) },
+          { [PRODUCT]: 1 },
+        ];
+        for (const floors of floorCases) {
           const policy = rawPolicy(cap, floors);
           const view = clientView(policy);
           const stop = maxAllowedPercent(view, PRODUCT, price, STEP);
