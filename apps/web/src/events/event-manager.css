@@ -393,7 +393,6 @@
 
 .event-lineup-view,
 .event-settings-view,
-.event-rehearse-view,
 .event-manager-create-view {
   display: grid;
   min-width: 0;
@@ -401,12 +400,10 @@
 }
 
 .event-lineup-view,
-.event-settings-view,
-.event-rehearse-view { margin-top: 1rem; }
+.event-settings-view { margin-top: 1rem; }
 
 .event-manager-create-view > .event-creation-panel,
-.event-settings-view > *,
-.event-rehearse-view > * { min-width: 0; }
+.event-settings-view > * { min-width: 0; }
 
 .event-detail-heading h3 {
   margin: .45rem 0 .35rem;

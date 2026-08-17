@@ -573,6 +573,7 @@ export function EventManager({
                         `${quantity} × ${item.title} offered to ${buyerId}.`,
                       )}
                     />
+                    <RunOfShowPlannerPanel eventId={selectedEventId} apiBaseUrl={apiBaseUrl} />
                   </>
                 ) : loaded && !pickerOpen ? (
                   <div className="event-detail-empty">

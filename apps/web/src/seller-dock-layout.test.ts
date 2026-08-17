@@ -57,7 +57,7 @@ describe('Studio dock board seeds', () => {
     expect(placed).not.toContain('transcript');
   });
 
-  it('seeds only Event Manager while Settings and Rehearse live inside the selected event', () => {
+  it('seeds only Event Manager while Settings and the run-of-show planner live inside the selected event (folded into Lineup)', () => {
     const layout = sellerEventManagerDockDefaultLayout();
     const root = layout.root as AnyNode;
 

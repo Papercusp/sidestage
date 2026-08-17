@@ -106,10 +106,13 @@ describe('EventManager', () => {
     expect(markup).toContain('Add inventory');
     expect(markup).toContain('Lineup');
     expect(markup).toContain('Settings');
-    expect(markup).toContain('Rehearse');
+    expect(markup).not.toContain('Rehearse');
     expect(markup.indexOf('>Lineup</a>')).toBeLessThan(markup.indexOf('>Settings</a>'));
-    expect(markup.indexOf('>Settings</a>')).toBeLessThan(markup.indexOf('>Rehearse</a>'));
     expect(markup).not.toContain('Event settings &amp; readiness');
+    // Rehearse -> Lineup merge: the run-of-show planner is folded into the default Lineup tab.
+    expect(markup).toContain('Plan the show');
+    expect(markup).toContain('Order the lineup, budget minutes per product');
+    expect(markup).toContain('Save show plan');
   });
 
   it('renders an empty selected event with an inventory call to action', () => {
@@ -209,7 +212,7 @@ describe('EventManager', () => {
     expect(markup).not.toContain('data-rg-screen-grid="true"');
   });
 
-  it('embeds the existing Run-of-show planner in the selected event Rehearse tab', () => {
+  it('resolves the retired ?section=rehearse URL to the merged Lineup tab', () => {
     window.history.replaceState({}, '', '/?tab=seller&studio=event-manager&manager=events&event=sunday-drop&section=rehearse');
     const markup = renderToStaticMarkup(
       <EventManager
@@ -221,10 +224,14 @@ describe('EventManager', () => {
       />,
     );
 
+    // A bookmarked/shared ?section=rehearse link still lands on real content: the
+    // merged Lineup tab (guarded RichGrid lineup + the run-of-show planner), not
+    // a dedicated Rehearse tab or an empty/dead route.
+    expect(markup).toContain('data-rg-screen-grid="true"');
     expect(markup).toContain('Plan the show');
     expect(markup).toContain('Order the lineup, budget minutes per product');
     expect(markup).toContain('Save show plan');
-    expect(markup).not.toContain('data-rg-screen-grid="true"');
+    expect(markup).not.toContain('Rehearse');
     expect(markup).not.toContain('Event settings &amp; readiness');
   });
 

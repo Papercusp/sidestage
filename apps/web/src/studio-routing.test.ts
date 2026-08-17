@@ -26,9 +26,10 @@ describe('Studio URL routing', () => {
     expect(getEventManagerRouteFromUrl(
       '/?tab=seller&studio=event-manager&manager=events&event=drop-7&section=settings',
     )).toEqual({ view: 'events', eventId: 'drop-7', section: 'settings' });
+    // Retired URL value: a bookmarked ?section=rehearse resolves to the merged Lineup section.
     expect(getEventManagerRouteFromUrl(
       '/?tab=seller&studio=event-manager&manager=events&event=drop-7&section=rehearse',
-    )).toEqual({ view: 'events', eventId: 'drop-7', section: 'rehearse' });
+    )).toEqual({ view: 'events', eventId: 'drop-7', section: 'lineup' });
     expect(getEventManagerRouteFromUrl('/?manager=create&event=stale&section=settings')).toEqual({
       view: 'create',
       eventId: 'stale',
@@ -39,9 +40,9 @@ describe('Studio URL routing', () => {
       '/?tab=buyer#stage',
     )).toBe('/?tab=seller&studio=event-manager&manager=events&event=drop-7&section=settings#stage');
     expect(eventManagerHref(
-      { view: 'events', eventId: 'drop-7', section: 'rehearse' },
+      { view: 'events', eventId: 'drop-7', section: 'lineup' },
       '/?tab=buyer#stage',
-    )).toBe('/?tab=seller&studio=event-manager&manager=events&event=drop-7&section=rehearse#stage');
+    )).toBe('/?tab=seller&studio=event-manager&manager=events&event=drop-7&section=lineup#stage');
     expect(eventManagerHref(
       { view: 'create', section: 'lineup' },
       '/?tab=seller&studio=event-manager&event=drop-7&section=settings',
