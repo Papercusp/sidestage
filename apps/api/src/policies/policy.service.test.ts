@@ -10,6 +10,7 @@ import {
   validatePolicyBody,
 } from './policy-rules';
 import {
+  IDEMPOTENCY_RETENTION_MS,
   InMemoryPolicyStore,
   PolicyError,
   PolicyService,
@@ -314,5 +315,55 @@ describe('PolicyService lifecycle', () => {
       confidenceFloor: 0.85,
       maxOrderValueCents: 500_000,
     });
+  });
+});
+
+describe('idempotency retention (P-006 / WI-39262)', () => {
+  const put = (store: InMemoryPolicyStore, key: string) =>
+    store.idempotencyPut('seller-1', 'publish', key, `hash-${key}`, { ok: key });
+
+  it('drops entries older than the cutoff and keeps newer ones', async () => {
+    const store = new InMemoryPolicyStore();
+    await put(store, 'stale');
+    const cutoff = new Date(Date.now() + 1); // everything written so far is "old"
+    await put(store, 'fresh');
+
+    expect(await store.pruneIdempotency(cutoff)).toBe(1);
+
+    // Positive control: the sweep must not be vacuous. If BOTH lookups came back
+    // undefined the assertion above would still pass while the store was simply
+    // empty, so assert the survivor is genuinely still readable.
+    expect(await store.idempotencyGet('seller-1', 'publish', 'fresh')).toEqual({
+      requestHash: 'hash-fresh',
+      response: { ok: 'fresh' },
+    });
+    expect(await store.idempotencyGet('seller-1', 'publish', 'stale')).toBeUndefined();
+  });
+
+  it('is a no-op when nothing has aged out', async () => {
+    const store = new InMemoryPolicyStore();
+    await put(store, 'a');
+    await put(store, 'b');
+
+    expect(await store.pruneIdempotency(new Date(Date.now() - 60_000))).toBe(0);
+    expect(await store.idempotencyGet('seller-1', 'publish', 'a')).toBeDefined();
+    expect(await store.idempotencyGet('seller-1', 'publish', 'b')).toBeDefined();
+  });
+
+  it('does not leak the retention timestamp into the replay payload', async () => {
+    // idempotencyGet feeds the replay response; createdAt is retention
+    // bookkeeping and must stay out of what a caller sees.
+    const store = new InMemoryPolicyStore();
+    await put(store, 'k');
+    const got = await store.idempotencyGet('seller-1', 'publish', 'k');
+    expect(got).toBeDefined();
+    expect(Object.keys(got!).sort()).toEqual(['requestHash', 'response']);
+  });
+
+  it('keeps a retention window long enough to outlast any client retry budget', () => {
+    // The window is what makes dropping a row safe: past it, a replayed key is
+    // correctly treated as a fresh request. A short window would silently turn
+    // legitimate retries into duplicate writes.
+    expect(IDEMPOTENCY_RETENTION_MS).toBeGreaterThanOrEqual(60 * 60 * 1000);
   });
 });

@@ -175,3 +175,89 @@
     outline-offset: 2px;
   }
 }
+
+/*
+ * Active Event lifecycle cue (WI-39718).
+ *
+ * The console's failure mode was a headline with no status under it, so this
+ * sits immediately below the title and is never conditionally hidden: a
+ * surface that shows the badge only when something is wrong teaches the seller
+ * to read its ABSENCE as "fine", which is exactly the inference that ran a live
+ * show nobody could find. Every state renders, and only the tone changes.
+ *
+ * Tones use --warning / --success / --muted rather than the brand ramp: this is
+ * a status readout, not a call to action, and --warning is the palette's dark
+ * amber precisely so it cannot be mistaken for brand yellow.
+ */
+.stage-event-status {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.5rem;
+  margin: 0 0 0.6rem;
+  font-size: 0.8rem;
+  line-height: 1.5;
+}
+
+.stage-event-status-badge {
+  flex: 0 0 auto;
+  border: 1px solid var(--border-strong);
+  border-radius: 0.4rem;
+  padding: 0.15rem 0.45rem;
+  color: var(--muted);
+  background: var(--surface-sunken);
+  font-size: 0.7rem;
+  font-weight: 750;
+  letter-spacing: 0.01em;
+}
+
+.stage-event-status-detail {
+  flex: 1 1 14rem;
+  min-width: 0;
+  color: var(--muted);
+}
+
+.stage-event-status.is-draft .stage-event-status-badge,
+.stage-event-status.is-unlisted .stage-event-status-badge {
+  border-color: color-mix(in srgb, var(--warning) 45%, var(--border-strong));
+  color: var(--warning);
+  background: color-mix(in srgb, var(--warning) 9%, var(--surface));
+}
+
+.stage-event-status.is-live .stage-event-status-badge {
+  border-color: color-mix(in srgb, var(--success) 45%, var(--border-strong));
+  color: var(--success);
+  background: color-mix(in srgb, var(--success) 9%, var(--surface));
+}
+
+.stage-start-hint {
+  margin: 0.5rem 0 0;
+}
+
+/*
+ * The publish-on-start failure (WI-39718).
+ *
+ * Loud on purpose. It renders only in the state where the camera is live and
+ * no buyer can reach the room, which the seller has no other way to notice —
+ * the video preview looks identical either way.
+ */
+.stage-publish-warning {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem;
+  margin: 0.75rem 0 0;
+  border: 1px solid color-mix(in srgb, var(--warning) 45%, var(--border-strong));
+  border-radius: 0.6rem;
+  padding: 0.7rem 0.85rem;
+  background: color-mix(in srgb, var(--warning) 8%, var(--surface));
+}
+
+.stage-publish-warning p {
+  flex: 1 1 16rem;
+  min-width: 0;
+  margin: 0;
+  color: var(--text);
+  font-size: 0.8rem;
+  line-height: 1.55;
+}
