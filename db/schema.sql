@@ -748,6 +748,57 @@ CREATE TABLE IF NOT EXISTS policy_idempotency (
   PRIMARY KEY (seller_id, route, key)
 );
 
+-- Policy-audit integrity (P-006 / WI-39262, scoped by D-009 to the policy side).
+--
+-- policy_audit_entry was created with none of the integrity its guarded-action
+-- twin carries: action_audit_entry (below) constrains its `kind` to a known set,
+-- foreign-keys its references, and rejects blank identifiers, while the policy
+-- audit accepted any action string, any policy_revision_id, and a blank seller.
+-- The audit trail is the durable evidence P-006 is about, so a typo'd action or
+-- an audit row pointing at a revision that never existed is silent corruption of
+-- the exact record a reviewer would be reading.
+--
+-- These are added here rather than in the CREATE TABLE above because that block
+-- is CREATE TABLE IF NOT EXISTS: on a database that already has the table it is
+-- a no-op, so a constraint written inline would reach fresh installs ONLY. This
+-- DO block is the same idempotent pattern the ownership boundary below uses, and
+-- scripts/db-apply.sh runs it against existing databases on every deploy.
+--
+-- NOT VALID is deliberate: it enforces every INSERT and UPDATE from now on, but
+-- skips the scan of pre-existing rows, so a legacy row cannot fail the deploy
+-- (scripts/db-apply.sh runs under ON_ERROR_STOP=1 BEFORE the image build, so a
+-- constraint that fails to add takes the whole rollout down). Each may later be
+-- promoted with ALTER TABLE policy_audit_entry VALIDATE CONSTRAINT <name> once
+-- the existing rows are known clean; validation takes no exclusive lock.
+DO $$
+BEGIN
+  -- The six actions policy.service.ts writes: draft_created (:384),
+  -- draft_updated (:426), validated (:446), rejected (:472), superseded (:492),
+  -- published (:497). Mirrors action_audit_kind_known on the guarded-action side.
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'policy_audit_action_known') THEN
+    ALTER TABLE policy_audit_entry
+      ADD CONSTRAINT policy_audit_action_known CHECK (action IN (
+        'draft_created', 'draft_updated', 'validated', 'rejected', 'superseded', 'published'
+      )) NOT VALID;
+  END IF;
+
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'policy_audit_seller_nonempty') THEN
+    ALTER TABLE policy_audit_entry
+      ADD CONSTRAINT policy_audit_seller_nonempty CHECK (btrim(seller_id) <> '') NOT VALID;
+  END IF;
+
+  -- policy_revision_id stays NULLABLE: an audit row is not required to name a
+  -- revision, and a NULL never violates a foreign key. RESTRICT (not CASCADE)
+  -- because deleting a revision out from under its own audit trail would erase
+  -- the evidence — immutable audits outlive the thing they describe.
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'policy_audit_revision_fk') THEN
+    ALTER TABLE policy_audit_entry
+      ADD CONSTRAINT policy_audit_revision_fk FOREIGN KEY (policy_revision_id)
+      REFERENCES seller_policy_revision (id) ON UPDATE CASCADE ON DELETE RESTRICT NOT VALID;
+  END IF;
+END;
+$$;
+
 -- ── The event directory (P-118 / D-019) ──────────────────────────────────────
 -- The buyer "What's on" Channel Guide lists events across ALL sellers, so the
 -- directory is its own table rather than a projection of event_config: config
