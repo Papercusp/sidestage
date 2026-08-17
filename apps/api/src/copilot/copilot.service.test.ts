@@ -76,6 +76,7 @@ function passingJudge(): AutoResponderJudgeService {
 function setup(options: {
   action?: ActionResult;
   actions?: GuardedActionService;
+  judge?: AutoResponderJudgeService;
   store?: CopilotProposalStore;
 } = {}) {
   let freshContext = context;
@@ -95,7 +96,7 @@ function setup(options: {
     retriever,
     chat,
     actions,
-    passingJudge(),
+    options.judge ?? passingJudge(),
     invalidations,
   );
   return {
@@ -340,6 +341,76 @@ describe('CopilotProposalService', () => {
 
     expect(approved).toMatchObject({ status: 'approved' });
     expect(await runtime.chat.getMessages('event-1')).toHaveLength(1);
+  });
+
+  // The approve→send window. Grounded review is a model call, so the gap
+  // between "the seller clicked approve" and "the buyer sees the reply" is a
+  // network round-trip wide. Both tests below drive that gap by mutating the
+  // retriever from INSIDE the judge — the only way to express "it changed
+  // while the judge was running" rather than "it was already wrong at approve".
+  it('blocks a send when stock sells while grounded review is still running', async () => {
+    let runtime!: ReturnType<typeof setup>;
+    const judge = {
+      run: vi.fn(async () => {
+        runtime.setFreshContext({
+          ...context,
+          eventItems: [{ ...context.eventItems[0]!, availableQty: 0 }],
+        });
+        return { passed: true, cases: [] };
+      }),
+    } as unknown as AutoResponderJudgeService;
+    runtime = setup({ judge });
+    const proposal = await runtime.service.createFromChat(question);
+
+    // The lead sentence is the whole point of the late block: the seller's
+    // draft was fine and stayed fine — the world moved underneath it.
+    await expect(runtime.service.approve(proposal.id, { actorId: 'seller-1' }))
+      .rejects.toThrow('Your reply was still accurate when you approved it, but this changed while it was being reviewed. Blue mug live event listing changed after this reply was written.');
+
+    // The judge PASSED and the approve-time staleness gate PASSED; without the
+    // second read this reply reaches the buyer as a promise of stock that is gone.
+    expect(judge.run).toHaveBeenCalledTimes(1);
+    const blocked = await runtime.store.get(proposal.id);
+    expect(blocked).toMatchObject({ status: 'blocked' });
+    expect(blocked?.decision?.sentMessageId).toBeUndefined();
+    expect(await runtime.chat.getMessages('event-1')).toEqual([]);
+  });
+
+  it('still sends when what moved during review is not what the reply cited', async () => {
+    let runtime!: ReturnType<typeof setup>;
+    const judge = {
+      run: vi.fn(async () => {
+        // A different product sells out mid-review. The reply cites only the
+        // mug, so this must not block — otherwise the guard above is
+        // indistinguishable from one that simply fails everything.
+        runtime.setFreshContext({
+          ...context,
+          eventItems: [
+            context.eventItems[0]!,
+            {
+              eventItemId: 'event-1:tote',
+              productId: 'tote',
+              title: 'Canvas tote',
+              priceCents: 2_400,
+              availableQty: 0,
+              attributes: {},
+            },
+          ],
+        });
+        return { passed: true, cases: [] };
+      }),
+    } as unknown as AutoResponderJudgeService;
+    runtime = setup({ judge });
+    const proposal = await runtime.service.createFromChat(question);
+
+    const approved = await runtime.service.approve(proposal.id, { actorId: 'seller-1' });
+
+    expect(approved).toMatchObject({ status: 'approved' });
+    expect(await runtime.chat.getMessages('event-1')).toHaveLength(1);
+    // The proposal is persisted against the AT-SEND snapshot, not the stale
+    // approve-time one, so the record says what the world looked like when the
+    // buyer was actually told.
+    expect(approved.context.eventItems).toHaveLength(2);
   });
 
   it('executes a confirmed action once and still allows its reply to be approved', async () => {
