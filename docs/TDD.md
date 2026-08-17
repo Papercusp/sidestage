@@ -80,17 +80,39 @@ unavailable, so search degrades gracefully instead of failing.
 ### Sync transport ladder
 
 `SyncProvider` mounts one transport and degrades through three, so a blocked
-network path costs freshness rather than function:
+network path costs freshness rather than function. The table below is the
+DESIGNED ladder; which rung actually carries traffic is decided at runtime by
+the probe described under it.
 
 | Rung | Mechanism | Selected when |
 | --- | --- | --- |
-| 1. WebSockets | Rocicorp Zero client against zero-cache | default (`syncType="WEBSOCKETS"`) |
-| 2. SSE | `@Sse('sse')` invalidation stream, heartbeats, Last-Event-ID-ready | Zero connection stays down past `fallbackDelayMs` (10s) |
+| 1. WebSockets | Rocicorp Zero client against zero-cache | the up-front WS handshake probe reaches the zero origin (`wsHealthy === true`) |
+| 2. SSE | `@Sse('sse')` invalidation stream, heartbeats, Last-Event-ID-ready | the WS probe fails, or Zero stays down past `fallbackDelayMs` (10s) |
 | 3. Polling | batched REST fetch on an interval (10s) | the SSE stream itself errors |
 
-`useTransportFallback` owns the descent, driven by observed Zero connection
-state rather than a pre-flight upgrade probe — an earlier probe keyed on a
-non-public API produced false positives and was removed.
+**Today every client runs on rung 2.** Rung 1 is reachable only when a
+zero-cache is actually listening at the configured origin — in a deployed build
+`${window.location.origin}/zero` (`apps/web/src/catalog.ts:76-81`). Nothing
+serves that origin in the current deployment, so the handshake probe fails
+within `WS_PROBE_MS` (1.5s) and the provider steps straight to SSE
+(`libs/sync/src/SyncProvider.tsx:296-299`). `syncType="WEBSOCKETS"` at
+`apps/web/src/main.tsx:41` states the PREFERENCE; it does not assert that the
+WebSocket rung carries traffic.
+
+Selection runs in two stages. An up-front WebSocket handshake probe
+(`probeWebSocket`, budget `WS_PROBE_MS` = 1500ms, cached once per
+browser+server pair for the session) resolves `wsHealthy`: `null` while the
+probe is in flight — children render under an empty passthrough rather than
+starting REST polls — `true` mounts the Zero client, `false` steps down. A
+failed probe is a definitive verdict on rung 1, so it bypasses the debounce and
+renders SSE immediately rather than serving ~10s of REST polling first.
+Thereafter `useTransportFallback` owns the descent
+(`WEBSOCKETS → SSE → POLLING`, debounced by `fallbackDelayMs`) from errors the
+adapters report under the rung they are actually rendering. An earlier
+mechanism polled `zero.connection.state` every 3s; that property is not a
+stable public API and produced false positives, so it was removed
+(`libs/sync/src/transports/websocket/WebSocketAdapter.tsx:171-177`) and Zero's
+own reconnection handling is trusted instead.
 
 **zero-cache does not read Postgres directly.** It subscribes to the
 `zero_publication` logical-replication publication and maintains its own SQLite

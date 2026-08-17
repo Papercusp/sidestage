@@ -48,6 +48,33 @@ describe('ArchitectureTab', () => {
     expect(markup).toContain('On this page');
   });
 
+  // Plan decision sidestage-websocket-sync-cutover-2026-08-17#D-006: this page describes the sync
+  // transport as DESIGNED behavior. The WebSocket rung does not win today (no zero-cache origin
+  // answers the probe), so copy asserting realtime already runs over WebSockets is false, and the
+  // mid-cutover "SSE remains the live transport until rollout completes" caveat is stale.
+  // When the WS rung really does start serving, the "rung serving today" assertion below is MEANT
+  // to fail — that forces a deliberate copy update instead of letting the page quietly go wrong.
+  it('describes the sync transport as a designed ladder without claiming WebSockets serve today', () => {
+    const markup = renderToStaticMarkup(<ArchitectureTab />);
+
+    // The whole ladder is stated, floor included — not just its top rung.
+    expect(markup).toContain('zero-cache');
+    expect(markup).toContain('@papercusp/sidestage-zero');
+    expect(markup).toMatch(/bounded polling/i);
+    expect(markup).toMatch(/SSE is the rung serving today/i);
+
+    // The stale mid-cutover caveat must not return.
+    expect(markup).not.toMatch(/Cutover in progress/i);
+
+    // The SSE-only realtime claims P-006 replaced must not return.
+    // The precise former label — not a loose 'SSE · WebRTC' fragment, which the current
+    // 'HTTPS · WebSocket → SSE · WebRTC' ladder legitimately contains.
+    expect(markup).not.toContain('HTTPS · SSE · WebRTC');
+    expect(markup).not.toContain('WHEP video + SSE state');
+    expect(markup).not.toContain('SSE reconnects and refreshes affected queries');
+    expect(markup).not.toContain('Query registry, batched reads, mutations, SSE invalidation');
+  });
+
   it('uses a sticky section sidebar and keeps the page responsive without hiding content', () => {
     expect(css).toMatch(/\.architecture-layout\s*\{[^}]*grid-template-columns:\s*minmax\(9\.5rem, 12rem\) minmax\(0, 1fr\)/);
     expect(css).toMatch(/\.architecture-jump-nav\s*\{[^}]*position:\s*sticky[^}]*top:\s*var\(--architecture-sticky-top\)[^}]*display:\s*grid/);
