@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useSyncQuery } from '@papercusp/sync';
 import type { CatalogRow } from './event-creation/catalog';
 import type { BuyerProduct } from './buyer';
+import { productDescriptionText } from './product-description-text';
 
 /**
  * The web side of the ONE product source (sidestage-code-quality P-102).
@@ -236,7 +237,9 @@ export function variantToBuyerProduct(variant: CatalogVariant): BuyerProduct {
     id: variant.id,
     title: variant.title,
     subtitle: subtitleParts.join(' · ') || variant.sku,
-    description: variant.description,
+    // Merchant HTML is projected to text here, at the row->product boundary, so
+    // every surface rendering this copy is covered (EI-20491379430268439).
+    description: productDescriptionText(variant.description),
     brand: variant.brand,
     productType: variant.productType,
     color: variant.color,

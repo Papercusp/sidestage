@@ -5,6 +5,7 @@ import {
   type HttpChatTransportOptions,
 } from '@papercusp/scout-chat';
 import type { BuyerProduct } from './buyer';
+import { productDescriptionText } from './product-description-text';
 
 export const SCOUT_BUYER_COOKIE = 'ss_buyer_id';
 const SCOUT_COOKIE_MAX_AGE_SEC = 365 * 24 * 60 * 60;
@@ -85,27 +86,9 @@ function nonEmptyString(value: unknown): string | undefined {
   return typeof value === 'string' && value.trim() ? value.trim() : undefined;
 }
 
-/**
- * Imported catalog descriptions sometimes contain merchant HTML. Product-card
- * copy is text-only, so parse it at the transport boundary and carry clean
- * prose through the rest of the buyer UI. Joining text nodes also preserves a
- * readable separator between adjacent block tags without rendering markup.
- */
-function scoutDescriptionText(value: unknown): string | undefined {
-  const raw = nonEmptyString(value);
-  if (!raw || typeof document === 'undefined' || !/[<&]/.test(raw)) return raw;
-
-  const template = document.createElement('template');
-  template.innerHTML = raw;
-  template.content.querySelectorAll('script, style, template, noscript').forEach((node) => node.remove());
-  const parts: string[] = [];
-  const collect = (node: Node): void => {
-    if (node.nodeType === 3 && node.textContent) parts.push(node.textContent);
-    node.childNodes.forEach(collect);
-  };
-  collect(template.content);
-  return nonEmptyString(parts.join(' ').replace(/\s+/g, ' '));
-}
+// Merchant HTML in catalog descriptions is projected to text by the shared
+// boundary helper, so the Scout card path and the catalog browse path cannot
+// drift apart on it (EI-20491379430268439).
 
 /** Promote only SideStage's existing cart/event inputs; identity stays server-resolved. */
 export const buildSideStageScoutBody: NonNullable<HttpChatTransportOptions['buildBody']> = (turn, resume) => {
@@ -188,7 +171,7 @@ export function scoutProductToBuyerProduct(value: unknown): BuyerProduct | null 
   return {
     id: product.productId!.trim(),
     title: product.title!.trim(),
-    subtitle: scoutDescriptionText(product.description) ?? 'Verified SideStage catalog item',
+    subtitle: productDescriptionText(product.description) ?? 'Verified SideStage catalog item',
     priceCents: Math.max(0, Math.round(product.priceCents!)),
     availableQty: Math.max(0, Math.floor(product.availableQty!)),
     ...(nonEmptyString(product.imageUrl) ? { imageUrl: product.imageUrl!.trim() } : {}),

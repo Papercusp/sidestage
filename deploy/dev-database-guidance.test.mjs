@@ -129,11 +129,22 @@ describe('the documented way to start the dev database is the stack that actuall
     for (const [name, text] of Object.entries(surfaces)) {
       expect(text, `${name} must name ${DATA_STACK} as the database stack`).toContain(DATA_STACK);
 
-      // A bare `docker compose up -d` with no service list is the defective advice:
-      // it starts the root postgres. Naming services (`... up -d typesense redis`)
-      // is fine — those really do live in the root stack.
-      const bare = text.match(/docker compose up -d\s*$/gm) ?? [];
-      expect(bare, `${name} still tells the reader to run a bare \`docker compose up -d\``).toEqual([]);
+      // A `docker compose up -d` carrying no `-f` and no service list is the
+      // defective advice: it starts the ROOT postgres. Naming services
+      // (`... up -d typesense redis mediamtx`) is fine — those really do live in
+      // the root stack.
+      //
+      // Deliberately NOT anchored to end-of-line. The worst instance of this bug
+      // was inside a template literal (`...Run: docker compose up -d`);`), where a
+      // `$`-anchored match silently finds nothing — a detector that passes on the
+      // very site the incident happened at is worse than no detector.
+      const bare = [...text.matchAll(/docker compose up -d([^\n]*)/g)]
+        .map((match) => match[1].replace(/[`'"();,.]/g, '').trim())
+        .filter((tail) => tail === '');
+      expect(
+        bare.length,
+        `${name} tells the reader to run \`docker compose up -d\` with no -f and no service list`,
+      ).toBe(0);
     }
   });
 });
