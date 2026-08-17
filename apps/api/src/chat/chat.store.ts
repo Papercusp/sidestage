@@ -28,6 +28,19 @@ export interface ChatStore {
   listPresence(eventId: string, cutoffIso: string): Promise<ChatPresence[]>;
   touchPresence(eventId: string, presence: ChatPresence): Promise<ChatPresence>;
   removePresence(eventId: string, userId: string): Promise<boolean>;
+  /**
+   * Delete every presence row last seen before `cutoffIso`, across all events,
+   * and return the distinct event ids that lost at least one row.
+   *
+   * Presence liveness must be a property of the STORE, not of whoever happens
+   * to read it. The REST read path used to prune stale rows as a side effect of
+   * `listPresence`, which is invisible to a client that reads the replicated
+   * `chat_presence` table directly (Zero/WebSocket sync) — those readers would
+   * see ghost participants forever and the table would grow without bound. The
+   * sweeper (chat-presence.sweeper.ts) drives this on a timer so Postgres stays
+   * the sole authority for who is in the room.
+   */
+  expireStalePresence(cutoffIso: string): Promise<string[]>;
   countMessages(eventId: string): Promise<number>;
   moderateMessage(eventId: string, messageId: string, moderatorId: string, reason: string): Promise<boolean>;
 }
@@ -114,11 +127,26 @@ export class InMemoryChatStore implements ChatStore {
   }
 
   async listPresence(eventId: string, cutoffIso: string): Promise<ChatPresence[]> {
-    const state = this.event(eventId);
-    for (const [userId, presence] of state.presence) {
-      if (presence.lastSeenAt < cutoffIso) state.presence.delete(userId);
+    // A pure read: expiry belongs to expireStalePresence, so every reader —
+    // REST or a direct reader of the replicated table — sees the same set.
+    return [...this.event(eventId).presence.values()]
+      .filter((presence) => presence.lastSeenAt >= cutoffIso)
+      .map((presence) => ({ ...presence }));
+  }
+
+  async expireStalePresence(cutoffIso: string): Promise<string[]> {
+    const expired: string[] = [];
+    for (const [eventId, state] of this.events) {
+      let removed = false;
+      for (const [userId, presence] of state.presence) {
+        if (presence.lastSeenAt < cutoffIso) {
+          state.presence.delete(userId);
+          removed = true;
+        }
+      }
+      if (removed) expired.push(eventId);
     }
-    return [...state.presence.values()].map((presence) => ({ ...presence }));
+    return expired;
   }
 
   async touchPresence(eventId: string, presence: ChatPresence): Promise<ChatPresence> {

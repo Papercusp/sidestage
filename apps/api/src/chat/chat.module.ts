@@ -8,6 +8,7 @@ import { EventVisibilityGuard } from '../events/event-visibility.guard';
 import { SyncModule } from '../sync/sync.module';
 import { SyncQueryRegistry, type SyncQueryArgs } from '../sync/sync-query.registry';
 import { ChatController } from './chat.controller';
+import { ChatPresenceSweeper } from './chat-presence.sweeper';
 import { ChatService } from './chat.service';
 import { CHAT_STORE, InMemoryChatStore, type ChatStore } from './chat.store';
 import { ConfiguredProductFocusClassifier } from './product-focus.classifier';
@@ -43,6 +44,9 @@ export class ChatSyncQueries implements OnModuleInit {
     ChatService,
     ChatSyncQueries,
     ConfiguredProductFocusClassifier,
+    // Constructed by factory so the optional interval argument is never treated
+    // as an injectable dependency; Nest still drives its lifecycle hooks.
+    { provide: ChatPresenceSweeper, inject: [ChatService], useFactory: (chat: ChatService): ChatPresenceSweeper => new ChatPresenceSweeper(chat) },
   ],
   exports: [ChatService, CHAT_STORE],
 })

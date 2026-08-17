@@ -150,13 +150,24 @@ export class PgChatStore implements ChatStore {
   }
 
   async listPresence(eventId: string, cutoffIso: string): Promise<ChatPresence[]> {
-    await this.pool.query('DELETE FROM chat_presence WHERE event_id = $1 AND last_seen_at < $2', [eventId, cutoffIso]);
+    // A pure read. Expiry is the sweeper's job (expireStalePresence) so that a
+    // client reading the replicated chat_presence table directly sees the same
+    // live set this endpoint returns, instead of rows that only a REST read
+    // would have pruned.
     const result = await this.pool.query<PresenceRow>(
       `SELECT user_id, display_name, role, last_seen_at
-         FROM chat_presence WHERE event_id = $1 ORDER BY user_id`,
-      [eventId],
+         FROM chat_presence WHERE event_id = $1 AND last_seen_at >= $2 ORDER BY user_id`,
+      [eventId, cutoffIso],
     );
     return result.rows.map(toPresence);
+  }
+
+  async expireStalePresence(cutoffIso: string): Promise<string[]> {
+    const result = await this.pool.query<{ event_id: string }>(
+      'DELETE FROM chat_presence WHERE last_seen_at < $1 RETURNING event_id',
+      [cutoffIso],
+    );
+    return [...new Set(result.rows.map((row) => row.event_id))];
   }
 
   async touchPresence(eventId: string, presence: ChatPresence): Promise<ChatPresence> {

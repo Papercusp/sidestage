@@ -48,7 +48,7 @@ export interface CopilotQuestionStateInput {
 }
 export interface PresenceInput { userId?: unknown; displayName?: unknown; role?: unknown; }
 export interface ChatSseEvent { id: string; type: 'heartbeat' | 'invalidate'; data: string; }
-export interface ChatOperationalMetrics { messagesCreated: number; idempotentReplays: number; rejectedWrites: number; transcriptMomentsCreated: number; presenceTouches: number; moderationActions: number; moderationMisses: number; lastPersistedAt?: string; }
+export interface ChatOperationalMetrics { messagesCreated: number; idempotentReplays: number; rejectedWrites: number; transcriptMomentsCreated: number; presenceTouches: number; presenceExpirySweeps: number; presenceRowsExpired: number; moderationActions: number; moderationMisses: number; lastPersistedAt?: string; }
 
 const EVENT_ID_RE = /^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$/;
 const PRESENCE_TTL_MS = 35_000;
@@ -73,7 +73,8 @@ export class ChatService {
   private readonly store: ChatStore;
   private readonly metrics: ChatOperationalMetrics = {
     messagesCreated: 0, idempotentReplays: 0, rejectedWrites: 0, transcriptMomentsCreated: 0,
-    presenceTouches: 0, moderationActions: 0, moderationMisses: 0,
+    presenceTouches: 0, presenceExpirySweeps: 0, presenceRowsExpired: 0,
+    moderationActions: 0, moderationMisses: 0,
   };
   private sequence = 0;
 
@@ -219,6 +220,25 @@ export class ChatService {
     this.assertEventId(eventId);
     const presence = await this.store.touchPresence(eventId, { userId: this.readBoundedString(input.userId, 'userId', MAX_USER_ID_LENGTH), displayName: this.readBoundedString(input.displayName, 'displayName', MAX_DISPLAY_NAME_LENGTH), role: this.readRole(input.role), lastSeenAt: new Date().toISOString() });
     this.metrics.presenceTouches += 1; this.emitInvalidation(eventId, 'event.chat.presence'); this.emitInvalidation(eventId, 'event.chat.stats'); return presence;
+  }
+
+  /**
+   * Expire every presence row older than the presence TTL, across all events,
+   * and invalidate the surfaces that read them. Driven by ChatPresenceSweeper
+   * so liveness is a property of the durable table rather than of whoever last
+   * issued a REST presence read — the property a Zero/WebSocket client reading
+   * `chat_presence` directly depends on.
+   */
+  async expireStalePresence(nowMs: number = Date.now()): Promise<string[]> {
+    const cutoff = new Date(nowMs - PRESENCE_TTL_MS).toISOString();
+    const eventIds = await this.store.expireStalePresence(cutoff);
+    this.metrics.presenceExpirySweeps += 1;
+    this.metrics.presenceRowsExpired += eventIds.length;
+    for (const eventId of eventIds) {
+      this.emitInvalidation(eventId, 'event.chat.presence');
+      this.emitInvalidation(eventId, 'event.chat.stats');
+    }
+    return eventIds;
   }
 
   async removePresence(eventId: string, userId: string): Promise<void> {
