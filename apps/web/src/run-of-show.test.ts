@@ -144,6 +144,11 @@ describe('formatting', () => {
 
   it('formatPace names the direction only past a minute', () => {
     expect(formatPace(null, 3)).toBe('No time budgets yet');
+    // WI-39722: with budgets set but nothing on stage yet, state the plan
+    // instead of denying the budgets the seller just typed.
+    expect(formatPace(null, 3, 420)).toBe('7:00 planned · 3 to go');
+    // Still the honest message when there really are no budgets.
+    expect(formatPace(null, 3, 0)).toBe('No time budgets yet');
     expect(formatPace(30, 3)).toBe('On pace · 3 to go');
     expect(formatPace(-45, 2)).toBe('On pace · 2 to go');
     expect(formatPace(180, 4)).toBe('3m behind plan · 4 to go');
