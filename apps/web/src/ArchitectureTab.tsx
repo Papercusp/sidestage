@@ -105,7 +105,9 @@ export function ArchitectureTab() {
           <a href="#checkout">Checkout</a>
           <a href="#data-model">Data model</a>
           <a href="#application-layers">Application layers</a>
+          <a href="#mobile-apps">Mobile apps</a>
           <a href="#data-safety">Data &amp; safety</a>
+          <a href="#testing">Testing</a>
           <a href="#operations">Operations</a>
         </nav>
 
@@ -271,32 +273,32 @@ export function ArchitectureTab() {
         <div className="architecture-section-heading">
           <p className="eyebrow">05 · State</p>
           <h2 id="data-sync-title">How data syncing works</h2>
-          <p>Every screen reads named queries; every write announces what it changed. Nothing polls, and no client ever computes state the server didn't send.</p>
+          <p>Every screen subscribes to named queries over one WebSocket; every write is a server-authoritative mutator. Postgres stays the source of truth—clients render replicated state, they never invent it. <em>Cutover in progress: the SSE invalidation stream remains the live transport until the WebSocket rollout completes.</em></p>
         </div>
-        <div className="architecture-delivery-diagram" role="img" aria-label="Named sync queries are read as batched snapshots, domain writes publish scoped invalidations, and one SSE stream tells each client which queries to refresh">
-          <ArchitectureNode eyebrow="1 · Declare" title="Named queries" copy="Twenty registered read surfaces—events.guide, event.chat.messages, event.runOfShow, catalog.page, cart.byId, orders.byBuyer and friends—declared in one registry" tone="cyan" />
-          <FlowArrow label="REST batch" />
-          <ArchitectureNode eyebrow="2 · Read" title="Batched snapshots" copy="The client requests queries by name; the API maps each to a domain read and returns whole snapshots, not diffs" tone="blue" />
-          <FlowArrow label="domain write" />
-          <ArchitectureNode eyebrow="3 · Invalidate" title="Scoped events" copy="Every mutation publishes which query scopes it touched the moment the write commits" tone="violet" />
-          <FlowArrow label="SSE push" />
-          <ArchitectureNode eyebrow="4 · Reconcile" title="Targeted refresh" copy="One /api/sync/sse stream per client (15-second heartbeat) names the stale queries; only those re-fetch" tone="green" />
+        <div className="architecture-delivery-diagram" role="img" aria-label="The shared Zero contract declares schema and queries, zero-cache replicates Postgres over logical replication, clients subscribe over one WebSocket, and writes flow through server-authoritative mutators back into Postgres">
+          <ArchitectureNode eyebrow="1 · Declare" title="Zero contract package" copy="Schema, relationships and typed queries live in @papercusp/sidestage-zero—one shared contract the client, the server and the parity tests all import" tone="cyan" />
+          <FlowArrow label="logical replication" />
+          <ArchitectureNode eyebrow="2 · Replicate" title="zero-cache" copy="A dedicated cache tails Postgres over logical replication and materializes each client's subscribed queries—hot-path reads never queue behind the API" tone="blue" />
+          <FlowArrow label="one WebSocket" />
+          <ArchitectureNode eyebrow="3 · Subscribe" title="Live queries" copy="Clients subscribe by query name and receive incremental deltas—first paint from local cache, updates stream in as rows change" tone="violet" />
+          <FlowArrow label="custom mutators" />
+          <ArchitectureNode eyebrow="4 · Mutate" title="Server-authoritative writes" copy="Writes go through API-side mutators that enforce policy and guardrails—Postgres commits, replication fans the change to every subscriber" tone="green" />
         </div>
         <div className="architecture-operations-grid">
           <section><h3>Transport</h3><dl>
-            <div><dt>SSE everywhere</dt><dd>The client pins Server-Sent Events in every runtime—browser and native shells run the same transport as production</dd></div>
-            <div><dt>Resilience</dt><dd>A reconnecting event-source with backoff; a dropped stream re-syncs affected queries on reattach</dd></div>
-            <div><dt>Fallback</dt><dd>Polling exists only as the degraded mode; auction ordering rides dedicated streams that preserve server sequence</dd></div>
+            <div><dt>WebSockets first</dt><dd>One multiplexed WebSocket per client carries every query subscription—incremental deltas replace whole-snapshot re-fetches</dd></div>
+            <div><dt>Fallback ladder</dt><dd>The SSE invalidation stream stays wired as the degraded mode, with bounded polling as the floor—sync gets simpler, never dark</dd></div>
+            <div><dt>Resilience</dt><dd>Reconnect resumes subscriptions from the local cache and catches up on deltas—an offline gap is a catch-up, not a reload</dd></div>
           </dl></section>
           <section><h3>The contract</h3><dl>
-            <div><dt>Registry</dt><dd>A query name is a server-side contract—the census test enumerates every data surface so an unregistered read can't ship</dd></div>
-            <div><dt>Write discipline</dt><dd>A mutation that forgets to invalidate is a bug by definition, caught where the write is defined</dd></div>
-            <div><dt>Snapshots</dt><dd>Whole-state responses make reconnect trivial: re-fetch and replace, no client-side merge logic to corrupt</dd></div>
+            <div><dt>Shared contract</dt><dd>@papercusp/sidestage-zero defines the schema and typed queries; the parity suite pins it against the SSE-era resolvers so the two transports cannot drift apart</dd></div>
+            <div><dt>Write discipline</dt><dd>Mutators are ordinary authenticated API calls—policy and guardrails run server-side before any commit, so a client can only propose</dd></div>
+            <div><dt>Durable authority</dt><dd>Every client-visible domain—chat, actions, offers, audits, rehearsal state—lands in durable Postgres tables with stable keys and versions before it syncs anywhere</dd></div>
           </dl></section>
-          <section><h3>Why not WebSockets</h3><dl>
-            <div><dt>One direction suffices</dt><dd>All writes are ordinary authenticated REST calls—the stream only needs server-to-client</dd></div>
-            <div><dt>Operational simplicity</dt><dd>SSE is plain HTTP: every proxy, load balancer and auth layer already understands it</dd></div>
-            <div><dt>Deliberately dormant</dt><dd>A WebSocket sync engine is installed but unwired—an evaluated option, not an accident</dd></div>
+          <section><h3>Why WebSockets</h3><dl>
+            <div><dt>Latency where it counts</dt><dd>Live bidding, chat and stage state want sub-second push—deltas over an open socket beat invalidate-then-refetch round trips</dd></div>
+            <div><dt>Less to re-send</dt><dd>Row-level deltas replace whole-snapshot re-fetches, so a busy auction doesn't re-ship the product rail on every bid</dd></div>
+            <div><dt>Built on shared rails</dt><dd>The shared sync library carries the Rocicorp Zero engine used across Papercusp products—SideStage flips it on rather than building its own</dd></div>
           </dl></section>
         </div>
         <p className="architecture-caption"><strong>State split:</strong> user-meaningful state (tab, event, selection) lives in the URL; server state flows through sync queries. A shared link reproduces the same view because the two never mix.</p>
@@ -401,10 +403,50 @@ export function ArchitectureTab() {
         </div>
       </section>
 
+      <section className="architecture-section" id="mobile-apps" aria-labelledby="mobile-apps-title">
+        <div className="architecture-section-heading">
+          <p className="eyebrow">09 · Native apps</p>
+          <h2 id="mobile-apps-title">How the mobile apps are built</h2>
+          <p>One Rust core carries the domain logic for both platforms; each OS gets a thin native shell. The apps speak the same API and sync contracts as the web client.</p>
+        </div>
+        <div className="architecture-delivery-diagram" role="img" aria-label="A shared Rust core is compiled per platform, UniFFI generates Kotlin and Swift bindings, and thin native shells render on Android and iOS against the production API">
+          <ArchitectureNode eyebrow="1 · Core" title="Shared Rust core" copy="Domain logic, API client and sync live in one set of crates—both platforms ship the same behavior because they ship the same code" tone="cyan" />
+          <FlowArrow label="UniFFI bindgen" />
+          <ArchitectureNode eyebrow="2 · Bindings" title="Generated Kotlin + Swift" copy="UniFFI generates the language bindings over the core; checksum symbols are verified at build time so bindings and binary cannot drift" tone="blue" />
+          <FlowArrow label="native shells" />
+          <ArchitectureNode eyebrow="3 · Android" title="Kotlin app" copy="Single-activity Kotlin UI; cargo-ndk cross-compiles the core for all four ABIs with 16 KB-aligned libraries; min SDK 33, target SDK 36" tone="green" />
+          <FlowArrow label="same core" />
+          <ArchitectureNode
+            eyebrow="4 · iOS"
+            title="SwiftUI shell"
+            copy="A SwiftUI shell over the identical core—no signed iOS build is published yet, and nothing here claims otherwise"
+            tone="violet"
+            links={[
+              { label: 'Android v1.0.0 (APK + AAB)', href: 'https://github.com/Papercusp/sidestage-mobile/releases/tag/v1.0.0' },
+              { label: 'Source: sidestage-mobile', href: 'https://github.com/Papercusp/sidestage-mobile' },
+            ]}
+          />
+        </div>
+        <div className="architecture-operations-grid">
+          <section><h3>Distribution</h3><dl>
+            <div><dt>Signed release</dt><dd>Android v1.0.0 ships as a signed APK (sideload) and AAB (Play bundle) with a provenance manifest recording the source commit and artifact hashes</dd></div>
+            <div><dt>Reviewer-reachable</dt><dd>Builds live on the public companion repo's GitHub release page—the same place the app badges on this site point</dd></div>
+          </dl></section>
+          <section><h3>Backend</h3><dl>
+            <div><dt>Production targets baked</dt><dd>The release build pins the live API and media hostnames at compile time—no in-app environment switcher to misconfigure</dd></div>
+            <div><dt>Same contracts</dt><dd>The Rust API client speaks the same authenticated REST and sync surface as the web app—one server contract, three clients</dd></div>
+          </dl></section>
+          <section><h3>Why this shape</h3><dl>
+            <div><dt>One core, two shells</dt><dd>Domain behavior is written and tested once in Rust; the platform layers stay thin enough to review in an afternoon</dd></div>
+            <div><dt>Drift is a build failure</dt><dd>Binding checksums and packaged-ABI verification run inside the build—an inconsistent artifact fails instead of shipping</dd></div>
+          </dl></section>
+        </div>
+      </section>
+
       <section className="architecture-section architecture-two-column" id="data-safety" aria-labelledby="data-safety-title">
         <div>
           <div className="architecture-section-heading">
-            <p className="eyebrow">09 · Persistence</p>
+            <p className="eyebrow">10 · Persistence</p>
             <h2 id="data-safety-title">Data is organized around ownership and invariants</h2>
             <p>PostgreSQL is authoritative. Typesense accelerates discovery; Redis is disposable cache infrastructure.</p>
           </div>
@@ -440,9 +482,40 @@ export function ArchitectureTab() {
         </aside>
       </section>
 
+      <section className="architecture-section" id="testing" aria-labelledby="testing-title">
+        <div className="architecture-section-heading">
+          <p className="eyebrow">11 · Verification</p>
+          <h2 id="testing-title">How the test framework works</h2>
+          <p>Four layers, all deterministic: focused unit specs, contract parity, in-app rehearsal, and a rule-based judge. No LLM sits in any gate—every verdict is reproducible.</p>
+        </div>
+        <div className="architecture-delivery-diagram" role="img" aria-label="Focused Vitest specs feed contract parity checks, in-app rehearsals simulate load, and a deterministic judge grades replies before anything ships">
+          <ArchitectureNode eyebrow="1 · Unit" title="Focused Vitest specs" copy="Colocated *.test.ts specs across the web, API and deploy workspaces—npm test runs the deploy project first, then the app suites" tone="cyan" />
+          <FlowArrow label="shared contracts" />
+          <ArchitectureNode eyebrow="2 · Contract" title="Parity + census suites" copy="The sync census enumerates every registered read surface, and the Zero parity suite pins the WebSocket contract against the SSE-era resolvers" tone="blue" />
+          <FlowArrow label="in-app Tests tab" />
+          <ArchitectureNode eyebrow="3 · Rehearsal" title="Load + injection rehearsal" copy="The Tests surface runs scripted load—price, shipping, policy, variant, stock, offer and bid prompts—plus prompt-injection rehearsal against the copilot" tone="violet" />
+          <FlowArrow label="graded output" />
+          <ArchitectureNode eyebrow="4 · Judge" title="Deterministic reply judge" copy="A rule-based judge grades grounding, citations and tone with reproducible verdicts—the same input always gets the same grade" tone="green" />
+        </div>
+        <div className="architecture-operations-grid">
+          <section><h3>Where tests live</h3><dl>
+            <div><dt>Beside the code</dt><dd>Every module keeps its spec next to the source—guardrail.test.ts beside guardrail.ts—so a change and its proof travel in one diff</dd></div>
+            <div><dt>Deploy scripts too</dt><dd>The deploy tooling is itself under test: rollback, deploy-lock, release positive-controls and probe hygiene each have focused suites</dd></div>
+          </dl></section>
+          <section><h3>What gates a ship</h3><dl>
+            <div><dt>One command</dt><dd>npm run check runs the workspace typecheck and the full Vitest matrix—the same gate a clean clone runs for reviewers</dd></div>
+            <div><dt>Health-checked deploys</dt><dd>Production deploys verify the public health contract after cutover and roll back automatically on failure</dd></div>
+          </dl></section>
+          <section><h3>Determinism</h3><dl>
+            <div><dt>No model in the loop</dt><dd>Gates never ask an LLM for a verdict—the judge is rules, fixtures are seeded, and rehearsal prompts are scripted</dd></div>
+            <div><dt>Focused-fail workflow</dt><dd>A red run is isolated into a focused spec, fixed, then re-run through the suite—the workflow that caught the malformed tone regex before ship</dd></div>
+          </dl></section>
+        </div>
+      </section>
+
       <section className="architecture-section" id="operations" aria-labelledby="operations-title">
         <div className="architecture-section-heading">
-          <p className="eyebrow">10 · Operations</p>
+          <p className="eyebrow">12 · Operations</p>
           <h2 id="operations-title">From source tree to production</h2>
           <p>The repository, verification gate and deployment topology are part of the architecture—not afterthoughts.</p>
         </div>
