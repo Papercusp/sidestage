@@ -50,8 +50,17 @@
 .auction-feed-row.is-won b { color: var(--success); }
 .auction-feed-who { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
-/* crimson, OUTLINED — never a fill (D-003) */
-.auction-stamp { position: absolute; left: 50%; top: 46%; z-index: 2; transform: translate(-50%,-50%) rotate(-11deg); padding: .06rem .7rem .16rem; border: 5px solid var(--danger); border-radius: .7rem; background: color-mix(in srgb, var(--surface) 84%, transparent); color: var(--danger); font-size: clamp(1.9rem,6.5vw,2.9rem); font-weight: 800; letter-spacing: -.05em; pointer-events: none; }
+/* Bounded result block in NORMAL FLOW (approved `.sold-visual`: 9rem, contained,
+   rounded). The stamp used to be absolutely centred on `.auction-card` itself, so
+   it floated across the whole card and covered the bid feed — the sale's own
+   history — which is what the mockup-fidelity audit flagged as the "oversized SOLD
+   stamp over the bid feed". Containing it means the stamp can never occlude a
+   sibling again, whatever the card grows to. */
+.auction-sold-visual { position: relative; min-height: 9rem; margin-top: .75rem; overflow: hidden; border-radius: .75rem; background: linear-gradient(180deg, color-mix(in srgb, var(--text) 5%, transparent), color-mix(in srgb, var(--text) 13%, transparent)), var(--surface-glass); }
+/* crimson, OUTLINED — never a fill (D-003). Size is FIXED at the approved 1.8rem:
+   the old clamp(1.9rem,6.5vw,2.9rem) scaled with the VIEWPORT, so on a wide stage
+   it grew far past the card it was stamping. */
+.auction-stamp { position: absolute; left: 50%; top: 50%; z-index: 2; transform: translate(-50%,-50%) rotate(-8deg); padding: .1rem .58rem .2rem; border: 4px solid var(--danger); border-radius: .55rem; background: color-mix(in srgb, var(--surface) 84%, transparent); color: var(--danger); font-size: 1.8rem; font-weight: 900; letter-spacing: -.06em; text-transform: uppercase; pointer-events: none; }
 .auction-leader { min-height: 2.6rem; padding: .65rem .8rem; border-left: 3px solid var(--yellow-text); border-radius: .45rem; background: color-mix(in srgb, var(--brand-yellow) 10%, transparent); color: var(--text); font-weight: 650; }
 .auction-leader.is-you { border-left-color: var(--success); background: color-mix(in srgb, var(--success) 10%, transparent); color: var(--text); }
 .auction-bid-form { display: grid; gap: .45rem; }

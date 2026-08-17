@@ -179,6 +179,37 @@ describe('BuyerTab product preview', () => {
     expect(buyerCss).toMatch(/\.buyer-runway-footer\s*\{[^}]*flex-direction:\s*column;/s);
   });
 
+  // EI-20492708755111346 — mockup fidelity against the approved D-003/D-004 geometry
+  // (papercusp repo: design/sidestage-watch-live-auction-mockups-2026-08-14/index.html).
+  // These pin the two properties whose absence produced the audited 272x728 slot.
+  it('bounds the current-offer column in rem so a sibling cannot squeeze it', () => {
+    // Approved: `minmax(0, 1fr) minmax(19rem, 22rem)`. A FRACTIONAL max is the defect:
+    // it let the persistent channel guide shrink the offer slot to its floor.
+    expect(buyerCss).toMatch(
+      /\.buyer-stage-grid\s*\{[^}]*grid-template-columns:\s*minmax\(0,\s*1fr\)\s+minmax\(19rem,\s*22rem\);/s,
+    );
+
+    // The narrow breakpoint steps DOWN a size but stays a rem bound.
+    expect(buyerCss).toMatch(
+      /@media \(max-width: 900px\) \{[\s\S]*?\.buyer-stage-grid\s*\{[^}]*grid-template-columns:\s*minmax\(0,\s*1fr\)\s+minmax\(18rem,\s*20rem\);/s,
+    );
+
+    // Falsifier for the whole class: no stage-grid track may be a bare fraction on
+    // the offer side. Catches a reintroduced `0.62fr`/`0.65fr` even at a new breakpoint.
+    for (const [, columns] of buyerCss.matchAll(
+      /\.buyer-stage-grid\s*\{[^}]*grid-template-columns:\s*([^;]+);/gs,
+    )) {
+      expect(columns).not.toMatch(/minmax\([^)]*,\s*[\d.]+fr\s*\)/);
+    }
+  });
+
+  it('lets the current-offer card be sized by its content, never stretched to the stage', () => {
+    // `stretch` overrode `.buyer-stage-grid { align-items: start }` and pulled the card
+    // down the full video + room-panel height (the audited 728px against an approved 546px).
+    expect(buyerCss).toMatch(/\.buyer-current-offer-slot\s*\{[^}]*align-self:\s*start;/s);
+    expect(buyerCss).not.toMatch(/\.buyer-current-offer-slot\s*\{[^}]*align-self:\s*stretch;/s);
+  });
+
   it('keeps the Chat tab in the site theme instead of inheriting the dark video treatment', () => {
     expect(buyerCss).toMatch(/\.buyer-room-chat\s*\{[^}]*background:\s*var\(--surface-raised\);/s);
     expect(buyerCss).toMatch(/\.buyer-room-chat \.event-chat-audience-message\s*\{[^}]*border:\s*1px solid var\(--border\);[^}]*background:\s*var\(--surface-soft\);/s);

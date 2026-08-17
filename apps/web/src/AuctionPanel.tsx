@@ -449,8 +449,16 @@ export function AuctionPanel({
               {bidNotice}
             </p>
           ) : null}
-          {/* Decorative — the leader line above already announces the result. */}
-          {isClosed && leadingBid ? <span className="auction-stamp" aria-hidden="true">SOLD</span> : null}
+          {/* Decorative — the leader line above already announces the result.
+              The stamp lives inside a bounded visual in normal flow: as a bare
+              absolutely-positioned span it centred itself on `.auction-card` and
+              covered the bid feed. The approved mockup contains it in a
+              `.sold-visual` block instead, so the result never occludes history. */}
+          {isClosed && leadingBid ? (
+            <div className="auction-sold-visual" aria-hidden="true">
+              <span className="auction-stamp">SOLD</span>
+            </div>
+          ) : null}
         </>
           ) : null}
         </>
