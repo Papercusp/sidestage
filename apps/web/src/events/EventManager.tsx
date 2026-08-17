@@ -779,7 +779,12 @@ export function EventManager({
       </div>
 
       {route.view === 'create' ? (
-        <div id="event-manager-create" role="tabpanel" className="event-manager-create-view">
+        <div
+          id="event-manager-create"
+          role="tabpanel"
+          aria-labelledby="event-manager-view-tab-create"
+          className="event-manager-create-view"
+        >
           <EventCreationPanel
             title="Build the live lineup"
             copy="Name the event, reserve real catalog inventory, and set the guarded price and quantity for every item."
@@ -788,7 +793,12 @@ export function EventManager({
           />
         </div>
       ) : (
-        <div id="event-manager-events" role="tabpanel" className="event-manager-layout">
+        <div
+          id="event-manager-events"
+          role="tabpanel"
+          aria-labelledby="event-manager-view-tab-events"
+          className="event-manager-layout"
+        >
           <aside className="event-list-panel" aria-label="My events">
             <div className="event-list-heading">
               <div>
@@ -929,17 +939,21 @@ export function EventManager({
               ) : null}
             </div>
 
-            <nav className="event-detail-tabs" aria-label={`${name} detail`} role="tablist">
+            <nav ref={detailTabsRef} className="event-detail-tabs" aria-label={`${name} detail`} role="tablist">
               {EVENT_DETAIL_SECTIONS.map(({ id: section, label }) => {
                 const next = managerRoute(selectedEventId, section);
                 return (
                   <a
                     key={section}
+                    id={`event-manager-section-tab-${section}`}
                     className={route.section === section ? 'is-active' : undefined}
                     href={eventManagerHref(next, typeof window === 'undefined' ? '/' : window.location.href)}
                     role="tab"
                     aria-selected={route.section === section}
+                    aria-controls={`event-manager-section-${section}`}
+                    tabIndex={route.section === section ? 0 : -1}
                     onClick={openRoute(next)}
+                    onKeyDown={onDetailTabKeyDown}
                   >
                     {label}
                   </a>
@@ -948,7 +962,12 @@ export function EventManager({
             </nav>
 
             {route.section === 'settings' ? (
-              <div className="event-settings-view" role="tabpanel">
+              <div
+                id="event-manager-section-settings"
+                className="event-settings-view"
+                role="tabpanel"
+                aria-labelledby="event-manager-section-tab-settings"
+              >
                 <EventSettingsPanel
                   eventId={selectedEventId}
                   principal={demoPrincipal}
@@ -957,7 +976,12 @@ export function EventManager({
                 />
               </div>
             ) : (
-              <div className="event-lineup-view" role="tabpanel">
+              <div
+                id="event-manager-section-lineup"
+                className="event-lineup-view"
+                role="tabpanel"
+                aria-labelledby="event-manager-section-tab-lineup"
+              >
                 {!loaded ? <p className="event-manager-message" role="status">Loading verified event state…</p> : null}
                 {readError ? <p className="event-manager-message" role="status">{errorMessage(readError)}</p> : null}
 

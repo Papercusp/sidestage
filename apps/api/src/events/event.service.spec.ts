@@ -346,10 +346,9 @@ describe('seller-created events reach the guide (EI-20426845001666103 / P-014)',
    * persona is not a fixture, it is what a real person gets the first time they
    * open Studio (buyer-identity.ts resolves any minted persona to
    * `demo-seller`), so "keep it private" meant "no first-time seller can ever
-   * reach the guide". A newly created event is `draft` and so still invisible
-   * to buyers here — but for the honest reason, and publishing it now works.
+   * reach the guide".
    */
-  it('lets a generated demo seller reach the guide once the event is published', async () => {
+  it('lets a generated demo seller reach the guide, and stay there through go-live', async () => {
     const service = new EventService(new InMemoryEventStore([]), new ChatService());
 
     await expect(service.publishFromConfig(
@@ -362,11 +361,13 @@ describe('seller-created events reach the guide (EI-20426845001666103 / P-014)',
         eventId: 'generated-demo-event',
         sellerId: 'demo-seller',
         sellerName: 'seller-1dd66ef5',
-        // Nothing is hiding it; it is simply not published yet.
+        // Nothing is hiding it from buyers.
         withheldFromGuide: null,
       }),
     ]);
-    await expect(service.listForGuide()).resolves.toEqual([]);
+    await expect(service.listForGuide()).resolves.toEqual([
+      expect.objectContaining({ eventId: 'generated-demo-event', status: 'scheduled' }),
+    ]);
 
     const live = await service.transition('generated-demo-event', 'demo-seller', 'go-live');
     expect(live.outcome).toBe('applied');
