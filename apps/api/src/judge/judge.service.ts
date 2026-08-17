@@ -19,6 +19,16 @@ import {
 const DEFAULT_PASS_THRESHOLD = 0.75;
 const MAX_CASES = 20;
 
+/**
+ * Ownership stamped on a run when the caller supplies no principal.
+ *
+ * judge_run.actor_id is NOT NULL and rejects blanks, so the column always
+ * answers "who ran this" — an explicit shared operator identity is honest
+ * about an unattributed run, where an empty string would just look like data
+ * corruption to whoever reads the table later.
+ */
+export const DEFAULT_JUDGE_ACTOR = 'operator';
+
 function boundedScore(value: unknown): number {
   if (typeof value !== 'number' || !Number.isFinite(value)) return 0;
   return Math.min(1, Math.max(0, value));
