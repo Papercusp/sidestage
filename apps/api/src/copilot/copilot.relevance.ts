@@ -54,13 +54,16 @@ function addAttributes(target: Set<string>, attributes: Record<string, string | 
  */
 interface SourceFacts {
   readonly identity: Set<string>;
+  readonly intent: Set<string>;
   readonly all: Set<string>;
 }
 
 function factsOf(identity: Set<string>, intent: readonly string[][]): SourceFacts {
+  const intentWords = new Set<string>();
+  for (const words of intent) for (const word of words) intentWords.add(word);
   const all = new Set(identity);
-  for (const words of intent) for (const word of words) all.add(word);
-  return { identity, all };
+  for (const word of intentWords) all.add(word);
+  return { identity, intent: intentWords, all };
 }
 
 function withoutStopWords(tokens: Set<string>): Set<string> {
@@ -81,7 +84,7 @@ function requiredPropertyTokens(
 /**
  * Does this source support answering this question?
  *
- * TWO tests, and deliberately not a third:
+ * THREE tests, in order:
  *
  *  1. EXPLICIT DEMANDS ARE STRICT. Every token of `requiredProperties` must be
  *     in the source's vocabulary. This is the channel a caller uses to say "do
@@ -89,29 +92,50 @@ function requiredPropertyTokens(
  *     it is what makes a missing catalog property fall through to the research
  *     fallback instead of being answered from a catalog that lacks the fact.
  *
- *  2. THE QUESTION MUST NAME THIS SOURCE. At least one question token must hit
- *     the source's `identity` vocabulary, so a question about the Harbor Kettle
- *     cannot be grounded by the headphones listing.
+ *  2. THE QUESTION MUST NAME THIS SOURCE, whenever it names any product in the
+ *     context. At least one question token must hit the source's `identity`
+ *     vocabulary, so a question about the Harbor Kettle cannot be grounded by
+ *     the headphones listing.
  *
- * WHAT IS NOT TESTED, AND WHY. Until now this function additionally required
- * that EVERY non-stopword token of the buyer's message appear in the source's
- * vocabulary. That made grounding strength fall as the buyer wrote a longer,
- * more natural question: ordinary English ("right", "now", "many") was
- * indistinguishable from a real property demand ("warranty"), so it gated
- * exactly like one. A hand-maintained 30-word stopword list was the only thing
- * holding it up, and it covered the short phrasings the tests happened to use.
- * Measured on the running stack: "How much is the Harbor Kettle?" grounded,
- * while the same question with any prefix — or asked as "what is the event
- * price ... and how many are available right now?" — returned "no verified
- * citation" (EI-20488839136964773).
+ *  3. THE SOURCE MUST ACTUALLY ANSWER SOMETHING THE BUYER ASKED. A residual —
+ *     a question token the source's vocabulary does not contain — is allowed
+ *     ONLY when the buyer also asked something this record always knows: its
+ *     price, or its live quantity (`facts.intent`). With no such intent word
+ *     the residual is the whole substance of the question, and a price/stock
+ *     record cannot serve it.
  *
- * The intent behind that conjunction was real: an event-item citation about
- * price must not support a warranty or overnight-shipping claim. But a word in
- * the QUESTION is not a claim — only the reply can assert something false, and
- * whether an assertion is supported by its evidence is decided by the
- * claim/evidence contract (copilot.claims.ts) and enforced at send time against
- * a fresh fingerprint. That layer can evaluate what this one could only guess
- * at, so the check belongs there and the guess is removed rather than tuned.
+ * WHY (3) IS PHRASED THAT WAY. It replaces a plain "every token must appear in
+ * the source's vocabulary" conjunction, which made grounding strength FALL as
+ * the buyer wrote a longer, more natural question: ordinary English ("right",
+ * "now", "many") was indistinguishable from a real property demand
+ * ("warranty"), so it gated exactly like one, and a hand-maintained 30-word
+ * stopword list was the only thing holding it up. Measured on the running
+ * stack: "How much is the Harbor Kettle?" grounded, while the same question
+ * with any prefix — or "what is the event price ... and how many are available
+ * right now?" — returned "no verified citation" (EI-20488839136964773).
+ *
+ * The fix is not to classify those words. It is to notice that both failing
+ * questions DID ask something the record knows (price, availability), while
+ * "does the blue mug include a five-year warranty and free overnight
+ * shipping?" asks for nothing an event item holds. Filler rides along with a
+ * real ask; it can no longer BE the ask.
+ *
+ * WHAT THIS DELIBERATELY STILL REFUSES, and why it must. An event-item
+ * citation about price cannot support a warranty or overnight-shipping claim
+ * (copilot.pipeline.test.ts), and the deterministic no-model reply path must
+ * stay silent rather than answer a warranty question with a price
+ * (copilot.model.ts `generateDeterministic`). Neither path runs the
+ * claim/evidence contract — GroundedCopilotPipeline imports no claims layer,
+ * and the deterministic model has no intent gate of its own — so THIS
+ * predicate is the only guard they have. It is not safe to relocate that check
+ * to copilot.claims.ts while those two callers exist.
+ *
+ * KNOWN, DELIBERATE GAP. A MIXED question ("how much is it, and does it have a
+ * warranty?") satisfies (3) on its price half and grounds. Answering the half
+ * the record can serve is the product behaviour EI-20488839136964773 asks for;
+ * keeping the reply's warranty half honest is the claim/evidence contract's
+ * job (copilot.claims.ts, re-checked at send time against a fresh
+ * fingerprint), which is live on the service path.
  */
 function coversQuestion(
   request: Pick<CopilotRequest, 'message' | 'requiredProperties'>,
@@ -123,19 +147,29 @@ function coversQuestion(
   }
   const asked = withoutStopWords(relevanceTokens(request.message));
   if (asked.size === 0) return false;
-  if (namesAProduct) {
-    // The buyer named a product, so the remaining words are how they chose to
-    // phrase it. Ask only whether THIS source is the product they named.
-    for (const token of asked) {
-      if (facts.identity.has(token)) return true;
-    }
-    return false;
+
+  const fullyCovered = [...asked].every((token) => facts.all.has(token));
+
+  if (!namesAProduct) {
+    // The buyer named no product in this context ("What is the price?"), so
+    // there is no identity to match on and every word still has to be
+    // accounted for — otherwise "how much is the espresso machine?" would
+    // ground on the kettle merely because both know the word "much".
+    return fullyCovered;
   }
-  // The buyer named no product in this context ("What is the price?"), so
-  // there is no identity to match on and every word still has to be accounted
-  // for — otherwise "how much is the espresso machine?" would ground on the
-  // kettle merely because both know the word "much".
-  return [...asked].every((token) => facts.all.has(token));
+
+  let namesThisSource = false;
+  for (const token of asked) {
+    if (facts.identity.has(token)) {
+      namesThisSource = true;
+      break;
+    }
+  }
+  if (!namesThisSource) return false;
+  if (fullyCovered) return true;
+  // Words this source cannot account for remain. They are tolerable phrasing
+  // only if the buyer also asked for something this record always knows.
+  return [...asked].some((token) => facts.intent.has(token));
 }
 
 /**

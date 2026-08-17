@@ -127,6 +127,39 @@ describe('sourceSupportsQuestion — requiredProperties stay a strict conjunctio
   });
 });
 
+describe('sourceSupportsQuestion — a record must answer for something it holds', () => {
+  // The counterweight to the phrasing fix above, and the reason it is phrased as
+  // "did the buyer ask something this record knows" rather than "is this the
+  // product they named". Both callers below have NO other guard:
+  // GroundedCopilotPipeline imports no claims layer, and the deterministic
+  // no-model reply path (copilot.model.ts) has no intent gate of its own — so
+  // relaxing this predicate all the way would let an event item answer a
+  // warranty question with its price.
+  it('refuses a property question the record cannot speak to', () => {
+    expect(supports('Does the Harbor Kettle include a five-year warranty and free overnight shipping?')).toBe(false);
+  });
+
+  it('refuses a property question even though the question names the product', () => {
+    // Identity alone must not admit the source: "Harbor Kettle" hits identity
+    // here, and the answer is still no.
+    expect(supports('Does the Harbor Kettle come with a spare filter?')).toBe(false);
+  });
+
+  it('grounds an attribute question the record does carry', () => {
+    // No price or stock word anywhere, so this passes only because every
+    // content word is already in the source vocabulary.
+    expect(supports('What color is the Harbor Kettle?')).toBe(true);
+  });
+
+  it('grounds a mixed question on the half the record can serve', () => {
+    // DELIBERATE, DOCUMENTED GAP. Answering the answerable half is the product
+    // behaviour EI-20488839136964773 asks for; keeping the reply's warranty
+    // half honest belongs to the claim/evidence contract (copilot.claims.ts),
+    // re-checked at send time against a fresh fingerprint.
+    expect(supports('How much is the Harbor Kettle, and does it have a warranty?')).toBe(true);
+  });
+});
+
 describe('sourceSupportsQuestion — unknown sources', () => {
   it('refuses a source id that is not in context', () => {
     expect(
