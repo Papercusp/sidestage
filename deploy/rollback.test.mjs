@@ -304,7 +304,13 @@ describe('rollback.sh health check can actually pass', () => {
       rollbackSource.indexOf('health_probe() {'),
       rollbackSource.indexOf('\nhealthy=false'),
     );
-    expect(probe).toMatch(/curl -sf .*"\$HEALTH_URL"/);
+    // Was `curl -sf "$HEALTH_URL"` inline until WI-39708. The public leg now
+    // goes through public_health_body, which gates on a 2xx, so a 3xx can no
+    // longer be handed back as a health body. Asserting the OLD spelling here
+    // would pin the defect in place -- which is exactly what this line did.
+    expect(probe).toMatch(/if body="\$\(public_health_body\)"/);
+    expect(rollbackSource, 'the public leg must read the status, not trust curl --fail')
+      .toMatch(/%\{http_code\}/);
     expect(probe, 'no in-container fallback when public ingress is unavailable').toMatch(
       /\$COMPOSE exec -T api node -e/,
     );
@@ -544,7 +550,11 @@ describe('deploy.sh proves what it shipped before recording it', () => {
       deploySource.indexOf('health_probe() {'),
       deploySource.indexOf('\nSNAPSHOT_DIR='),
     );
-    expect(probe).toMatch(/curl -sf .*"\$HEALTH_URL"/);
+    // Was `curl -sf "$HEALTH_URL"` inline until WI-39708 -- see rollback.sh's
+    // copy of this guard. Pinning the old spelling pinned the defect.
+    expect(probe).toMatch(/if body="\$\(public_health_body\)"/);
+    expect(deploySource, 'the public leg must read the status, not trust curl --fail')
+      .toMatch(/%\{http_code\}/);
     expect(probe, 'no in-container fallback when public ingress is unavailable').toMatch(
       /\$COMPOSE exec -T api node -e/,
     );
