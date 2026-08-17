@@ -328,6 +328,25 @@ describe('AuctionPanel', () => {
     expect(closed).toContain('won at');
   });
 
+  // EI-20492708755111346 / D-003. Sold is a STATE of this module ("transform in
+  // place"), not the live layout with a stamp added on top — the approved sold
+  // panel has no bid affordance at all. The form used to render on a closed
+  // auction with merely-disabled inputs, which still reads as an offered action
+  // and cost 175px of the mobile slot's measured 813px against an approved 443.
+  // Asserted as a PAIR so the guard cannot pass by the form disappearing wholesale.
+  it('retires the bid form once the auction is closed, but keeps it while live', () => {
+    const live = render(auctionEndingIn(90_000));
+    expect(live).toContain('auction-bid-form');
+    expect(live).toContain('Place bid');
+
+    const closed = render(auctionEndingIn(-5_000, { status: 'closed' }), 'someone-else');
+    expect(closed).not.toContain('auction-bid-form');
+    expect(closed).not.toContain('Place bid');
+    expect(closed).not.toContain('Your bid');
+    // The outcome must still be legible after the form goes away.
+    expect(closed).toContain('SOLD');
+  });
+
   // WI-38726. When the stream drops, the snapshot in hand still says
   // `status:'active'` after `endsAt` has passed — so the panel used to keep
   // rendering a PRE-CLOSE reading it could already disprove from its own
