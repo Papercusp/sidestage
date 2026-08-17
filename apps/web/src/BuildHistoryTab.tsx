@@ -10,7 +10,7 @@ import {
   type MouseEvent as ReactMouseEvent,
   type RefObject,
 } from 'react';
-import { useSyncQuery } from '@papercusp/sync';
+import { useRestSyncQuery } from '@papercusp/sync';
 import { TabHeader } from './components/TabHeader';
 import './build-history.css';
 
@@ -923,7 +923,7 @@ export function BuildHistoryList({
 }
 
 export function BuildHistoryTab() {
-  const query = useSyncQuery<BuildHistoryPlan>({
+  const query = useRestSyncQuery<BuildHistoryPlan>({
     queryName: 'build.history',
     args: {},
     pollIntervalMs: 60_000,
