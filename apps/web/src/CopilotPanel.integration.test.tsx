@@ -46,6 +46,30 @@ afterEach(async () => {
   delete (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT;
 });
 
+function field(id: string): HTMLInputElement {
+  const match = container.querySelector<HTMLInputElement>(`input#${id}`);
+  if (!match) throw new Error(`Expected input #${id}`);
+  return match;
+}
+
+/**
+ * Type into a controlled input the way a person does.
+ *
+ * A direct `element.value = …` assignment is invisible to React: its value
+ * tracker owns the `value` property on the node, so the assignment updates the
+ * tracker's own record and the subsequent input event is deduped away as "no
+ * change" — the state never updates and a submit button gated on it stays
+ * disabled. Writing through the native prototype setter leaves the tracker
+ * stale, which is what makes React treat the event as a real edit.
+ */
+function type(id: string, value: string) {
+  const element = field(id);
+  const nativeSetter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set;
+  if (!nativeSetter) throw new Error('Expected a native HTMLInputElement value setter');
+  nativeSetter.call(element, value);
+  element.dispatchEvent(new Event('input', { bubbles: true }));
+}
+
 function button(label: string): HTMLButtonElement {
   const match = [...container.querySelectorAll('button')]
     .find((candidate) => candidate.textContent === label);
@@ -265,5 +289,92 @@ describe('CopilotPanel sync integration', () => {
     const [url, init] = fetchMock.mock.calls[0]!;
     expect(url).toBe('https://api.sidestage.test/copilot/proposals/proposal-1/approve');
     expect(new Headers(init?.headers).get('x-demo-principal')).toBe('demo-7');
+  });
+
+  it('carries the seller-named catalog properties into the createTurn mutation', async () => {
+    const runtime = await mount();
+
+    await act(async () => {
+      type('copilot-message', 'Does this kettle hold a litre?');
+      type('copilot-required-properties', 'capacity, , boil-time\n');
+    });
+    await act(async () => {
+      button('Prepare').click();
+      await Promise.resolve();
+    });
+
+    expect(runtime.createTurn).toHaveBeenCalledTimes(1);
+    expect(runtime.createTurn).toHaveBeenCalledWith({
+      eventId: 'event-live',
+      message: 'Does this kettle hold a litre?',
+      actorId: 'seller-7',
+      requiredProperties: ['capacity', 'boil-time'],
+    });
+    // Both inputs clear together: a stale property list left behind would silently
+    // attach the previous question's research contract to the next turn.
+    expect(field('copilot-message').value).toBe('');
+    expect(field('copilot-required-properties').value).toBe('');
+  });
+
+  it('omits requiredProperties entirely when the seller names none', async () => {
+    const runtime = await mount();
+
+    await act(async () => {
+      type('copilot-message', 'Is the blue mug still available?');
+    });
+    await act(async () => {
+      button('Prepare').click();
+      await Promise.resolve();
+    });
+
+    expect(runtime.createTurn).toHaveBeenCalledWith({
+      eventId: 'event-live',
+      message: 'Is the blue mug still available?',
+      actorId: 'seller-7',
+    });
+  });
+
+  it('posts the named catalog properties on the createTurn REST fallback', async () => {
+    const fetchMock = vi.fn(async (_input: RequestInfo | URL, _init?: RequestInit) => ({
+      ok: true,
+      status: 200,
+      json: async () => baseProposal,
+    }) as Response);
+    vi.stubGlobal('fetch', fetchMock);
+    const value = {
+      transport: 'POLLING' as const,
+      principal: 'demo-7',
+      useDataImpl: <T,>() => ({
+        data: [baseProposal] as unknown as T[], loading: false, fetching: false,
+        transport: 'POLLING' as const, invalidate: vi.fn(), error: null,
+      }),
+      prefetch: vi.fn(),
+      mutate: null,
+    };
+
+    await act(async () => {
+      root?.render(
+        <SyncContext.Provider value={value}>
+          <CopilotPanel eventId="event-live" actorId="seller-7" apiBaseUrl="https://api.sidestage.test" />
+        </SyncContext.Provider>,
+      );
+    });
+    await act(async () => {
+      type('copilot-message', 'Does this kettle hold a litre?');
+      type('copilot-required-properties', 'capacity');
+    });
+    await act(async () => {
+      button('Prepare').click();
+      await Promise.resolve();
+    });
+
+    expect(fetchMock).toHaveBeenCalledOnce();
+    const [url, init] = fetchMock.mock.calls[0]!;
+    expect(url).toBe('https://api.sidestage.test/copilot/events/event-live/turns');
+    expect(JSON.parse(String(init?.body))).toMatchObject({
+      message: 'Does this kettle hold a litre?',
+      buyerId: 'seller-7',
+      requiredProperties: ['capacity'],
+    });
   });
 });
