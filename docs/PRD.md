@@ -87,6 +87,67 @@ identity, which owns the demo catalog and the prefilled demo room. This makes
 multi-user flows testable from one browser: switch ids to act as different
 buyers, or clear back to the seed seller.
 
+## The first seller workflow
+
+The workflow SideStage ships first — run one live selling event end to end:
+
+1. **Prep** (Studio → Event manager): create the event, reserve real catalog
+   inventory into the lineup with event prices and quantity limits, set the
+   guardrails (reply tone; always-ask policies for price changes, inventory
+   claims, buyer-sensitive topics), plan the run of show.
+2. **Go live** (Studio → Current event): start the camera; the room path
+   publishes; buyers join from the channel guide.
+3. **Sell with the copilot**: the live transcript detects product mentions and
+   drives the on-deck slot; room chat streams into the copilot, which drafts
+   grounded replies into the review queue (approve / edit / skip); guarded
+   actions — push to stage, swap, markdown, stock adjustment, targeted offer,
+   auction launch — run through the audited executor.
+4. **Close**: end the event; holds settle or release; orders and product
+   moments land in Orders; the seller reviews what sold and what the copilot
+   handled.
+
+## The copilot-to-automation ladder
+
+Automation earns autonomy one rung at a time; every rung passes the same
+server-side guardrail gate, and the seller's policy chooses the rung per
+action class:
+
+| Rung | Behavior | Gate |
+| --- | --- | --- |
+| **0 — Observe** | Transcript + product-mention detection annotate the room; nothing is sent. | — |
+| **1 — Suggest** | Copilot drafts grounded replies into the review queue; seller approves, edits, or skips. | Grounding + policy checks decide what is even suggested. |
+| **2 — Auto-send within guardrails** | Replies that pass grounding, price, availability, and tone checks send automatically; uncertain replies fall back to rung 1. | Deterministic server-side gate on every reply. |
+| **3 — Guarded actions** | Listing/inventory writes (push, swap, markdown, stock, offer) execute through the audited executor with before/after records and rollback; always-ask policies force per-action confirmation. | Policy gate + audit + rollback. |
+| **4 — Unattended writes** | Rejected for this build: no write path exists that bypasses the policy gate and audit. | Structurally absent. |
+
+## Pilot plan — 3–5 sellers
+
+- **Cohort**: 3–5 active live-commerce sellers (existing audience, weekly
+  cadence, catalog of 50+ SKUs) recruited from wholesale/liquidation and
+  collectibles niches, where price/availability mistakes are costliest.
+- **Shape**: two weeks, each seller running their normal weekly events on
+  SideStage. Week 1 at rung 1 (suggest-only) to calibrate grounding and tone
+  against real rooms; week 2 graduates chat replies to rung 2 and enables
+  rung-3 guarded actions with always-ask on markdowns.
+- **Instrumentation**: every event already records the metrics below (judge
+  scores, reply latencies, action audit trail, order attribution); the pilot
+  adds a weekly seller debrief on trust: what they overrode, what they stopped
+  checking.
+- **Exit criteria**: sellers keep rung 2 enabled voluntarily in week 2+, and
+  the metrics hit the targets below on at least half the cohort's events.
+
+## Success metrics — GMV and operator load
+
+- **GMV**: gross merchandise value per event and items sold per live hour,
+  against each seller's trailing baseline; target **+15% GMV per event** by
+  pilot end. Attribution: orders created during copilot-assisted events, with
+  auction and hold conversion rates tracked separately.
+- **Operator load**: seller interventions per 100 chat messages (edits +
+  manual replies + overrides; target **≤ 25** by week 2), median
+  chat-to-answer latency (target **< 5s** with copilot vs. minutes unaided),
+  and share of replies auto-sent within guardrails (target **≥ 60%** at
+  rung 2 with judge pass rate ≥ threshold on all four dimensions).
+
 ## Non-goals (this build)
 
 - Multi-seller marketplaces, seller onboarding, or payments beyond Stripe

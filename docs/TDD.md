@@ -77,8 +77,8 @@ unavailable, so search degrades gracefully instead of failing.
 Every copilot reply and action passes a deterministic server-side gate before
 send: grounding present, price within policy (markdown cap, per-product price
 floors), availability claims backed by live inventory, tone constraints. The
-Config tab's saved guardrails DERIVE the enforced `CopilotPolicy` — the toggle
-is the policy. Guarded actions (markdown, price-adjust, targeted-offer, …) are
+guardrail settings saved in Studio DERIVE the enforced `CopilotPolicy` — the
+toggle is the policy. Guarded actions (markdown, price-adjust, targeted-offer, …) are
 auditable and reversible. Two rehearsal instruments prove the property:
 
 - **Reply judge** — deterministic four-dimension grading (grounding, policy,
@@ -86,6 +86,42 @@ auditable and reversible. Two rehearsal instruments prove the property:
 - **Load simulator** — deterministic N-user × M-msg/s scripted traffic across
   seven scenario kinds (price, shipping, policy, variant, stock, offer, bid),
   with coverage accounting.
+
+## Latency budgets
+
+- **On-demand product research: < 2s** end to end. The catalog API enforces
+  this budget structurally: the Typesense adapter requests ranking keys only
+  (`includeFields: ['id', 'groupId']`) because returning full search documents
+  blows the 2s research budget before hydration begins; Postgres hydration is
+  bounded by the GIN/trigram indexes.
+- **Reply suggestion**: chat-message-to-suggested-reply is measured by the
+  load rehearsal (N users × M msg/s across seven scenario kinds); the
+  deterministic judge grades every reply, so latency is never bought by
+  skipping the gate.
+- **Guardrail gate**: deterministic, in-process, no provider round-trip —
+  policy checks add no meaningful latency to a send.
+- **Realtime propagation**: SSE invalidation fan-out (chat, auction bids,
+  sync queries) with heartbeats; WebRTC media latency is MediaMTX
+  direct-UDP first, TURN/TLS fallback.
+
+## Marketplace integrations
+
+Integration follows the same seam pattern as storage (injection tokens, two
+implementations), so a marketplace is an adapter, not a rewrite:
+
+- **Shipped provider seams**: Stripe (payment intents + webhook settlement),
+  EasyPost (rates behind the box-packing estimator), Deepgram (short-lived
+  transcription JWTs), Typesense (search), MediaMTX/coturn (media).
+- **Chat ingestion is transport-agnostic**: the copilot pipeline consumes a
+  message stream + room context; the shipped source is SideStage room chat,
+  and an external platform chat (Whatnot, TikTok Shop Live, eBay Live)
+  plugs in at the same boundary as a reader adapter.
+- **Listing/inventory actions are marketplace-shaped**: guarded actions
+  (push, swap, markdown, stock adjust) operate on the catalog seam
+  (`CATALOG_SOURCE`), so pointing the executor at a marketplace listings API
+  means implementing that seam against their API while keeping the policy
+  gate, audit, and rollback unchanged — the safety property travels with the
+  executor, not the backend.
 
 ## Web architecture
 
