@@ -4,6 +4,7 @@ import { ChatModule } from '../chat/chat.module';
 import { DatabaseModule, PG_POOL, demoDataEnabled } from '../db/database.module';
 import { PgEventStore } from '../db/pg-event-store';
 import { SyncModule } from '../sync/sync.module';
+import { SyncInvalidationService } from '../sync/sync-invalidation.service';
 import { SyncQueryRegistry } from '../sync/sync-query.registry';
 import { rolePrincipal } from '../sync/sync-request-context';
 import { EventActivationSweeper } from './event-activation.sweeper';
