@@ -21,6 +21,50 @@ infra/zero/               zero-cache image + operational notes
 deploy/deploy.sh          immutable working-tree snapshot production deploy
 ```
 
+## System context
+
+One product surface, one public API boundary, and specialized infrastructure
+behind it.
+
+| Tier | Members | Notes |
+| --- | --- | --- |
+| People & clients | **Buyer** — web + native mobile (watch, chat, buy, bid, track orders); **Seller** — responsive Studio (run the room, stage products, approve actions); **Operator** — Tests + History (verify readiness, inspect delivery evidence) | Native Android + iOS share a Rust core (see *Native mobile apps*) |
+| SideStage | **Presentation** — React SPA, URL-routed surfaces over shared Papercusp UI packages; **Application** — NestJS modular API (domain services, policies, sync, provider adapters); **Media** — MediaMTX + coturn (WHIP publish, WHEP playback, direct ICE + TURN fallback) | Clients reach this tier over HTTPS · WebSocket→SSE · WebRTC |
+| Data & providers | PostgreSQL + Typesense (system of record and searchable product index); Stripe + EasyPost (payment intents, webhook settlement, shipping rates); Deepgram + model provider (short-lived transcription access, grounded generation) | Reached over the private service network |
+
+**Edge boundary.** Traefik terminates TLS. The web container serves static
+assets; only `/api` and `/healthz` reach the API. Media and TURN use dedicated
+hostnames and protocols.
+
+## Runtime flows
+
+SideStage keeps fast media, synchronized application state, and durable
+commerce on separate paths. Three flows define the runtime.
+
+**Live room — signal → context → guarded response**
+1. Seller publishes WHIP video
+2. Deepgram yields live transcript
+3. Product focus + room chat ground a turn
+4. Copilot proposes reply or action
+5. Policy guard + seller approval gate delivery
+6. Buyers receive WHEP video + synced room state
+
+**Commerce — intent → reservation → settlement**
+1. Catalog variant exposes derived availability
+2. Hold or auction creates an idempotent reservation
+3. Cart snapshots quantity and price
+4. API creates the Stripe payment intent
+5. Stripe webhook authoritatively settles the order
+6. Inventory commits or releases; EasyPost quotes shipping
+
+**Application state — subscribe → replicate → stream**
+1. React subscribes to named sync queries
+2. One shared Zero contract types every query
+3. zero-cache tails Postgres logical replication
+4. Subscribers receive incremental row deltas
+5. Server-authoritative mutators commit every write
+6. Dedicated auction streams preserve server ordering
+
 ## API architecture
 
 Domain modules, each `controller / service / types / tests`: catalog, cart,
