@@ -10,12 +10,14 @@ import { EventModule } from '../events/event.module';
 import { EventOwnershipGuard } from '../events/event-ownership.guard';
 import { DatabaseModule, PG_POOL } from '../db/database.module';
 import { JudgeModule } from '../judge/judge.module';
+import { createVertexAdapter } from '../llm/vertex-adapter';
 import { SyncModule } from '../sync/sync.module';
 import { SyncQueryRegistry } from '../sync/sync-query.registry';
 import { CopilotController } from './copilot.controller';
 import { SideStageGroundingRetriever } from './copilot.grounding';
 import { ConfiguredCopilotReplyModel } from './copilot.model';
 import { GroundedCopilotPipeline } from './copilot.pipeline';
+import { VertexCopilotReplyModel } from './copilot-vertex.model';
 import { COPILOT_PIPELINE, COPILOT_PROPOSAL_STORE, type CopilotProposalStore } from './copilot.runtime.types';
 import { CopilotProposalService } from './copilot.service';
 import { InMemoryCopilotProposalStore, PgCopilotProposalStore } from './copilot.store';
@@ -87,12 +89,19 @@ export class BuyerQuestionCopilotSubscriber implements OnModuleInit, OnModuleDes
     {
       provide: COPILOT_PIPELINE,
       inject: [SideStageGroundingRetriever, ConfiguredCopilotReplyModel],
-      useFactory: (retriever: SideStageGroundingRetriever, model: ConfiguredCopilotReplyModel) => (
+      useFactory: (retriever: SideStageGroundingRetriever, configured: ConfiguredCopilotReplyModel) => {
+        // Gemini drafts replies when Google credentials are present; the
+        // deterministic engine remains the fallback inside the Vertex model
+        // and the whole model when credentials are absent. The adapter is
+        // constructed lazily here — never at import time — so a clone without
+        // credentials still boots.
+        const adapter = createVertexAdapter(process.env.SIDESTAGE_COPILOT_VERTEX_MODEL);
+        const model = adapter ? new VertexCopilotReplyModel(adapter, configured) : configured;
         // This composition always creates a durable seller-review proposal.
         // Even an event configured for auto may execute only after the seller
         // confirms through CopilotProposalService's fresh-context boundary.
-        new GroundedCopilotPipeline({ retriever, model, automationCeiling: 'confirm' })
-      ),
+        return new GroundedCopilotPipeline({ retriever, model, automationCeiling: 'confirm' });
+      },
     },
   ],
   exports: [CopilotProposalService],
