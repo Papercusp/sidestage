@@ -67,8 +67,6 @@ const DEFERRED_REPLICATION: Readonly<Record<string, string>> = {
   judge_run: 'Operational judge-harness table; operator-only Test-tab surface (P-001c).',
   judge_case_result: 'Operational judge-harness table; operator-only Test-tab surface (P-001c).',
   rehearsal_run: 'Operational rehearsal-harness table; seller/operator preflight surface (P-001c).',
-  targeted_offer:
-    'Landed after the Zero contract was authored: libs/zero has no table definition, relationships, or permissions for it yet, so it cannot be published in this cutover. Replicate it once the contract lane adds it to REPLICATED_TABLES and db/zero-publication.sql together.',
 };
 
 /** Every leaf query in the registry, as its dot-path. */
