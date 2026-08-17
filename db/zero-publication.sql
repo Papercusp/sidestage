@@ -114,6 +114,24 @@ $$;
 -- product_catalog's primary key is (group_id, region) — both are in the list.
 DO $$
 BEGIN
+  -- An EMPTY publication of this name is a BROKEN state, not an existing one.
+  -- The guard below keys only on the NAME, so an empty `zero_publication` --
+  -- however it came to exist -- makes the CREATE skip forever: the publication
+  -- never gains a table, zero-cache subscribes to a stream that carries nothing,
+  -- and re-running this file cannot repair it because the name still matches.
+  -- That is not hypothetical; it is what failed the 2026-08-17 prod deploy and
+  -- tripped its auto-rollback. Dropping the empty one first makes this file
+  -- genuinely re-runnable, which the header promises. A publication that HAS
+  -- tables is left untouched -- dropping that would tear down a live
+  -- subscription mid-deploy.
+  IF EXISTS (
+    SELECT 1 FROM pg_publication WHERE pubname = 'zero_publication'
+  ) AND NOT EXISTS (
+    SELECT 1 FROM pg_publication_tables WHERE pubname = 'zero_publication'
+  ) THEN
+    DROP PUBLICATION zero_publication;
+  END IF;
+
   IF NOT EXISTS (
     SELECT 1 FROM pg_publication WHERE pubname = 'zero_publication'
   ) THEN
