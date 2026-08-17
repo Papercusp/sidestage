@@ -275,13 +275,25 @@ export const PROCESS_LOCAL_SURFACES: readonly SourceSurface[] = [
   // ── Mutable non-Map instance fields (WS cutover P-001c) ───────────────────
   // These were invisible to the census until its completeness guard stopped
   // requiring a readonly Map-typed declaration. A plain mutable field holds
-  // authority just as effectively — `judge.latestReport` below was a live
-  // server authority that no census row described.
+  // authority just as effectively — the judge service once held its latest
+  // report in a plain mutable field, a live server authority that no census
+  // row described. That field is gone; judge.latest now reads Postgres.
   //
   // NOTE: do not write that old detector's literal pattern in a comment here.
   // The guard scans this file's own source text, so the example matches itself
   // and injects a phantom surface named after the example's variable.
-  local('apps/api/src/judge/judge.service.ts', 'latestReport', 'judge', ['operational'], 'process-local authority for judge.latest — erased by restart, divergent across replicas', 'replicate', 'judge_run and judge_case_result', 'P-001c'),
+  //
+  // The six rows below are the in-memory DEV FALLBACK stores' fields. They are
+  // process-local by construction and are catalogued as such rather than left
+  // undeclared — the durable authority is Postgres (see the pg() rows), and the
+  // fallback exists only where no pool is configured. Same contract as
+  // chat.store.ts#events above.
+  local('apps/api/src/judge/judge.store.ts', 'latestRun', 'judge', ['operational'], 'development fallback authority', 'replicate', 'judge_run and judge_case_result in production', 'P-001c'),
+  local('apps/api/src/judge/judge.store.ts', 'runsByIdempotencyKey', 'judge-idempotency', ['operational'], 'development fallback authority', 'replicate', 'judge_run.idempotency_key uniqueness in production', 'P-001c'),
+  local('apps/api/src/rehearsals/rehearsal.store.ts', 'latestByKind', 'rehearsal', ['operational'], 'development fallback authority', 'replicate', 'rehearsal_run recency index by (kind, ran_at desc) in production', 'P-001c'),
+  local('apps/api/src/rehearsals/rehearsal.store.ts', 'latestDressRehearsal', 'rehearsal', ['operational'], 'development fallback authority', 'replicate', 'rehearsal_run dress-rehearsal verdict rows in production', 'P-001c'),
+  local('apps/api/src/rehearsals/rehearsal.store.ts', 'reportsByKey', 'rehearsal-idempotency', ['operational'], 'development fallback authority', 'replicate', 'rehearsal_run.idempotency_key retry-token dedupe in production', 'P-001c'),
+  local('apps/api/src/rehearsals/rehearsal.store.ts', 'verdictsByKey', 'rehearsal-idempotency', ['operational'], 'development fallback authority', 'replicate', 'rehearsal_run.idempotency_key retry-token dedupe in production', 'P-001c'),
   local('apps/api/src/rehearsals/checkout-rehearsal.ts', 'nextEvent', 'rehearsal-stripe-stub', ['operational'], 'in-test stub handoff slot', 'runtime-only', 'rehearsal-local stub state; never a server authority', 'P-001c'),
   local('apps/api/src/chat/chat.service.ts', 'sequence', 'chat-sequence', ['public', 'operational'], 'process-local monotonic counter', 'replicate', 'durable per-event chat sequence owned by the chat tables (P-001a lane)', 'P-001a'),
   local('apps/api/src/auction/auction.service.ts', 'updateSequence', 'auction-sequence', ['public', 'operational'], 'process-local monotonic counter', 'replicate', 'durable auction_state revision counter (P-001b lane)', 'P-001b'),
