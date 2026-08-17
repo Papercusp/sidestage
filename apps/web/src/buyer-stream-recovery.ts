@@ -81,10 +81,7 @@ export function publisherRetryDelayMs(attempt: number): number | null {
 
 /**
  * A peer connection state that means the media is gone and will not come back
- * on its own. `failed` is terminal for an established WebRTC session, so it is
- * the honest trigger for re-arming; `disconnected` is routinely transient (ICE
- * recovers from it) and re-connecting on it would tear down working streams.
+ * on its own. Re-exported from the transport layer so the buyer retry path and
+ * the publisher/viewer watchers cannot drift apart (WI-39747).
  */
-export function isLostConnectionState(state: RTCPeerConnectionState): boolean {
-  return state === 'failed';
-}
+export { isLostPeerConnectionState as isLostConnectionState } from './streaming';
