@@ -353,6 +353,10 @@ export const CONTROLLER_SURFACES: readonly ModuleSurface[] = [
   moduleSurface('apps/api/src/sync/sync.controller.ts', 'shared query and invalidation transport', 'sync', ['public', 'buyer-owned', 'seller-owned', 'operational'], 'runtime-only', 'P-012/P-014'),
   moduleSurface('apps/api/src/system-tests/system-tests.controller.ts', 'authorized system-test run command/read boundary', 'system-tests', ['operational'], 'command-with-synced-result', 'P-020'),
   moduleSurface('apps/api/src/transcription/transcription.controller.ts', 'ephemeral media token boundary', 'transcription', ['seller-owned', 'streaming'], 'purpose-built-transport', 'P-020'),
+  // The WS-era sibling of sync.controller.ts: same disposition (transport, not a
+  // data surface of its own) and same audience span, because zero-cache resolves
+  // every synced query for every principal through it. P-011.
+  moduleSurface('apps/api/src/sync/zero.controller.ts', 'universal Zero query and mutation transport', 'sync', ['public', 'buyer-owned', 'seller-owned', 'operational'], 'runtime-only', 'P-011'),
 ];
 
 /** Browser modules that still own direct fetch/EventSource access during migration. */

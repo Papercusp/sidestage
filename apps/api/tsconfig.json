@@ -8,7 +8,21 @@
     "experimentalDecorators": true,
     "emitDecoratorMetadata": true,
     "esModuleInterop": true,
-    "noEmit": false
+    "noEmit": false,
+    "baseUrl": ".",
+    // `moduleResolution: "Node"` (node10) predates package `exports` maps, so it
+    // cannot see @rocicorp/zero's "./server" / "./server/adapters/*" subpaths and
+    // reports TS2307 for them — even though Node resolves both fine at runtime
+    // (verified: `require('@rocicorp/zero/server')` returns PushProcessor et al).
+    // These two entries point the TYPE resolver at the same files the exports map
+    // names, so source keeps importing the public specifier rather than a deep
+    // out/ path. Remove them if this project ever moves to Bundler/NodeNext.
+    "paths": {
+      "@rocicorp/zero/server": ["../../node_modules/@rocicorp/zero/out/zero/src/server.d.ts"],
+      "@rocicorp/zero/server/adapters/pg": [
+        "../../node_modules/@rocicorp/zero/out/zero/src/adapters/pg.d.ts"
+      ]
+    }
   },
   "include": ["src"]
 }
