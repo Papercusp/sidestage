@@ -1,7 +1,7 @@
 import { BadRequestException, ConflictException, Inject, Injectable, NotFoundException, Optional } from '@nestjs/common';
 import { createHash, randomUUID } from 'node:crypto';
 import { Subject, type Observable } from 'rxjs';
-import type { CatalogSource } from '../catalog/catalog.types';
+import type { CatalogSource, CatalogVariant } from '../catalog/catalog.types';
 import { ORDER_STORE, type CheckoutOrder, type OrderStore } from '../checkout/order-store';
 import { SyncInvalidationService } from '../sync/sync-invalidation.service';
 
@@ -36,6 +36,16 @@ export interface InventoryHoldSource {
 export interface AuctionInventory {
   get(productId: string): Promise<AuctionInventorySnapshot | undefined>;
   getOwned(productId: string, sellerId: string): Promise<AuctionInventorySnapshot | undefined>;
+  /**
+   * Translates a PUBLIC catalog variant id onto the seller's own inventory row.
+   * Event items carry the catalog id because that is the buyer-facing identity,
+   * but holds are keyed by the derived listing id onboardOwned() creates — so a
+   * seller who onboarded a variant has no inventory under the id their event
+   * item names, and hold/release 404 (EI-20490482242092934). Returns the id
+   * unchanged when it is already the seller's own, and undefined when they hold
+   * no inventory for that identity at all.
+   */
+  resolveOwnedProductId(productId: string, sellerId: string): Promise<string | undefined>;
   seed(productId: string, qty: number, reservedQty?: number, sellerId?: string): Promise<AuctionInventorySnapshot>;
   save(productId: string, quantity: number, priceCents: number): Promise<AuctionInventorySnapshot | undefined>;
   saveOwned(productId: string, quantity: number, priceCents: number, sellerId: string): Promise<AuctionInventorySnapshot | undefined>;
@@ -132,7 +142,7 @@ export class InMemoryAuctionInventory implements AuctionInventory {
     if (!Number.isInteger(priceCents) || priceCents < 0) throw new BadRequestException('priceCents must be a non-negative integer');
     const source = await this.catalog?.variant(sourceId);
     if (!source) return undefined;
-    const targetId = sellerListingId(owner, `${source.groupId ?? source.id}\0${source.id}`);
+    const targetId = this.listingIdFor(owner, source);
     const existing = this.items.get(targetId);
     if (existing && quantity < existing.reservedQty) {
       throw new ConflictException(`Quantity cannot be lower than ${existing.reservedQty} reserved units for ${targetId}`);
@@ -220,6 +230,21 @@ export class InMemoryAuctionInventory implements AuctionInventory {
       }
       this.holds.delete(key);
     }
+  }
+
+  async resolveOwnedProductId(productId: string, sellerId: string): Promise<string | undefined> {
+    const id = this.readId(productId, 'productId');
+    const owner = this.readId(sellerId, 'sellerId');
+    if (await this.isOwned(id, owner)) return id;
+    const source = await this.catalog?.variant(id);
+    if (!source) return undefined;
+    const derived = this.listingIdFor(owner, source);
+    return this.items.has(derived) && this.owners.get(derived) === owner ? derived : undefined;
+  }
+
+  /** Must match onboardOwned's target so a hold finds the row onboarding created. */
+  private listingIdFor(sellerId: string, source: CatalogVariant): string {
+    return sellerListingId(sellerId, `${source.groupId ?? source.id}\0${source.id}`);
   }
 
   private holdKey(productId: string, source: InventoryHoldSource): string {

@@ -36,6 +36,14 @@ export interface EventItemContext {
   /** Current event price, in integer cents. */
   priceCents: number;
   availableQty: number;
+  /**
+   * True when this item is the one on stage. Optional because most grounding
+   * paths do not observe stage presence; `listingStateOf` (copilot.claims)
+   * reads it to derive a listing state rather than the domain storing one.
+   * ActionEventItem already carried this field — declaring it on the base is a
+   * de-duplication, not a new concept.
+   */
+  onStage?: boolean;
   attributes: Record<string, string | number | boolean>;
 }
 
@@ -106,6 +114,20 @@ export interface GroundingContext {
   transcriptMoments?: readonly TranscriptGroundingContext[];
   webFindings?: readonly WebResearchFinding[];
   policy: CopilotPolicy;
+  /**
+   * The seller's published shipping + returns policy for this turn.
+   *
+   * `policy` above is the AUTOMATION policy (floors, tone, what may auto-run);
+   * it says nothing about shipping or returns, so a reply that answers "do you
+   * take returns?" has no grounding without this. Optional because a turn that
+   * never touches those subjects does not need it — and its ABSENCE is the
+   * correct, checkable reason such a claim is unsupported (WI-39259/P-003),
+   * rather than something to paper over with a default.
+   */
+  sellerPolicy?: {
+    returns: import('../policies/policy.types').ReturnPolicy;
+    shipping: import('../policies/policy.types').ShippingPolicy;
+  };
   sources: readonly GroundingSource[];
 }
 

@@ -95,10 +95,7 @@ export class PgAuctionInventory implements AuctionInventory {
     );
     const identity = source.rows[0];
     if (!identity) return undefined;
-    const targetId = sellerListingId(
-      owner,
-      `${identity.groupId ?? identity.id}\0${identity.region}\0${identity.optionSignature}`,
-    );
+    const targetId = this.listingIdFor(owner, identity);
     // slug+region and region+SKU are global uniqueness boundaries, so the
     // qualifier must carry BOTH hashes from sellerListingId. Using only its
     // trailing source hash makes two sellers cloning the same public variant
@@ -157,6 +154,39 @@ export class PgAuctionInventory implements AuctionInventory {
       throw new ConflictException(`Quantity cannot be lower than ${current.rows[0].reservedQty} reserved units for ${targetId}`);
     }
     throw new ConflictException(`Catalog variant ${sourceId} could not be onboarded for this seller`);
+  }
+
+  async resolveOwnedProductId(productId: string, sellerId: string): Promise<string | undefined> {
+    const id = productId.trim();
+    const owner = sellerId.trim();
+    if (!id || !owner) return undefined;
+    if (await this.ownsRow(id, owner)) return id;
+    const source = await this.pool.query<ListingIdentityRow>(
+      `SELECT id, group_id AS "groupId", region, option_signature AS "optionSignature"
+         FROM storefront_product
+        WHERE id = $1 AND active`,
+      [id],
+    );
+    const identity = source.rows[0];
+    if (!identity) return undefined;
+    const derived = this.listingIdFor(owner, identity);
+    return await this.ownsRow(derived, owner) ? derived : undefined;
+  }
+
+  private async ownsRow(productId: string, sellerId: string): Promise<boolean> {
+    const owned = await this.pool.query(
+      'SELECT 1 FROM storefront_product WHERE id = $1 AND seller_id = $2',
+      [productId, sellerId],
+    );
+    return owned.rows.length > 0;
+  }
+
+  /** Must match onboardOwned's target so a hold finds the row onboarding created. */
+  private listingIdFor(sellerId: string, identity: ListingIdentityRow): string {
+    return sellerListingId(
+      sellerId,
+      `${identity.groupId ?? identity.id}\0${identity.region}\0${identity.optionSignature}`,
+    );
   }
 
   private async saveScoped(productId: string, quantity: number, priceCents: number, sellerId?: string): Promise<AuctionInventorySnapshot | undefined> {

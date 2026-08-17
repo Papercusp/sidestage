@@ -77,6 +77,38 @@ describe('AuctionService', () => {
     });
   });
 
+  // EI-20490482242092934: this parity is the whole bug. Event items carry the
+  // CATALOG id, holds are keyed by the derived listing id, and the two id
+  // derivations live in different methods — let them drift and the seller's
+  // Save silently 404s again. Assert the round trip, not either half.
+  it('resolves a catalog variant id onto the seller listing that onboarding created', async () => {
+    const catalog = new FixtureCatalogSource([{
+      id: 'event-demo-01-v2', groupId: 'kettles', title: 'Harbor Kettle', brand: 'Harbor', productType: 'HOME',
+      sku: 'KETTLE', condition: 'NEW', handlingDays: 1, priceCents: 4_200, qty: 6, reservedQty: 0, availableQty: 6,
+    }]);
+    const inventory = new InMemoryAuctionInventory(catalog);
+    const onboarded = await inventory.onboardOwned('event-demo-01-v2', 3, 4_500, 'seller-JHGLDS');
+
+    await expect(inventory.resolveOwnedProductId('event-demo-01-v2', 'seller-JHGLDS'))
+      .resolves.toBe(onboarded?.productId);
+    // A hold placed through the resolved id actually reserves the onboarded row.
+    await expect(inventory.reserveOwned(
+      onboarded!.productId, 1, { kind: 'event', id: 'avi-real-test' }, 'seller-JHGLDS',
+    )).resolves.toBe(true);
+    await expect(inventory.getOwned(onboarded!.productId, 'seller-JHGLDS'))
+      .resolves.toMatchObject({ reservedQty: 1, availableQty: 2 });
+
+    // Resolution is a translation, never a grant: it must not hand one seller
+    // another's listing, invent inventory, or leak the fixture owner's row.
+    await expect(inventory.resolveOwnedProductId('event-demo-01-v2', 'seller-other'))
+      .resolves.toBeUndefined();
+    await expect(inventory.resolveOwnedProductId('no-such-variant', 'seller-JHGLDS'))
+      .resolves.toBeUndefined();
+    // The fixture owner still reaches the public row directly, unchanged.
+    await expect(inventory.resolveOwnedProductId('event-demo-01-v2', 'demo-seller'))
+      .resolves.toBe('event-demo-01-v2');
+  });
+
   it('allows only one active auction per event and rejects an oversize hold', async () => {
     const inventory = new InMemoryAuctionInventory();
     await inventory.seed('product-1', 3);

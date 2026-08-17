@@ -169,6 +169,7 @@ describe('InventoryController seller boundary', () => {
 
   it('does not hold a product outside the selected event seller\'s inventory', async () => {
     const inventory = {
+      resolveOwnedProductId: vi.fn().mockResolvedValue(undefined),
       getOwned: vi.fn().mockResolvedValue(undefined),
       reserveOwned: vi.fn(),
     };
@@ -188,7 +189,47 @@ describe('InventoryController seller boundary', () => {
     )).rejects.toThrow('Inventory item other-seller-product was not found');
 
     expect(ownership.requireOwned).toHaveBeenCalledWith('event-avi', 'demo-avi');
-    expect(inventory.getOwned).toHaveBeenCalledWith('other-seller-product', 'seller-avi');
+    expect(inventory.resolveOwnedProductId).toHaveBeenCalledWith('other-seller-product', 'seller-avi');
     expect(inventory.reserveOwned).not.toHaveBeenCalled();
+  });
+
+  // EI-20490482242092934: the event item names the public catalog variant, but a
+  // seller who onboarded it holds stock under a derived listing id. Every seller
+  // surface must reach the derived row, and none of them may quote it back.
+  it('holds and releases an onboarded event item under its derived listing id, not the catalog id', async () => {
+    const derived = 'seller-listing-9f2-abc';
+    const snapshot = { productId: derived, qty: 3, reservedQty: 1, availableQty: 2 };
+    const inventory = {
+      resolveOwnedProductId: vi.fn(async (productId: string) => (
+        productId === 'event-demo-01-v2' ? derived : undefined
+      )),
+      getOwned: vi.fn(async (productId: string) => (productId === derived ? snapshot : undefined)),
+      reserveOwned: vi.fn().mockResolvedValue(true),
+      releaseOwned: vi.fn().mockResolvedValue(true),
+    };
+    const invalidations = { invalidate: vi.fn() };
+    const controller = new InventoryController(
+      inventory as never,
+      invalidations as never,
+      { requireOwned: vi.fn().mockResolvedValue({ sellerId: 'seller-JHGLDS' }) } as never,
+    );
+    const body = { sourceKind: 'event', sourceId: 'avi-real-test' } as const;
+
+    await expect(controller.hold('event-demo-01-v2', { ...body, quantity: 1 }, 'demo-avi'))
+      .resolves.toMatchObject({ held: true, snapshot });
+    await expect(controller.release('event-demo-01-v2', { ...body, quantity: 1 }, 'demo-avi'))
+      .resolves.toMatchObject({ released: true, snapshot });
+
+    expect(inventory.reserveOwned).toHaveBeenCalledWith(
+      derived, 1, { kind: 'event', id: 'avi-real-test' }, 'seller-JHGLDS', undefined,
+    );
+    expect(inventory.releaseOwned).toHaveBeenCalledWith(
+      derived, 1, { kind: 'event', id: 'avi-real-test' }, 'seller-JHGLDS',
+    );
+    // The private listing id is what carries the stock, so it is what must be
+    // invalidated — invalidating the catalog id leaves the panel showing stale qty.
+    expect(invalidations.invalidate).toHaveBeenCalledWith(
+      'inventory.snapshot', { productId: derived }, { principal: 'demo-avi' },
+    );
   });
 });

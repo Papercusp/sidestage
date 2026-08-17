@@ -161,6 +161,56 @@ describe('seller event API orchestration', () => {
     expect(new Headers(executeCall?.[1]?.headers).get(DEMO_PRINCIPAL_HEADER)).toBe('demo-27');
   });
 
+  /**
+   * EI-20490482242092934 recurrence guard: drives the exact reported path,
+   * actions.items -> adjustStock, with the reported ids. The seller's Inventory
+   * Save 404'd because the event item names the PUBLIC catalog variant while the
+   * inventory route is keyed by the seller's derived listing id. That is resolved
+   * API-side (InventoryController.ownedInventoryId), so the invariant HERE is
+   * that the client keeps posting the actions.items productId verbatim —
+   * `productId` is also the buyer-facing event identity carried by stock-adjust
+   * and priceFloorCentsByProduct, so a future "fix" that rewrites it to a
+   * seller-listing id leaks a private id into buyer surfaces. Fail loudly here.
+   */
+  it('posts the actions.items product id verbatim when releasing an onboarded event item', async () => {
+    const urls: string[] = [];
+    const eventItem: SellerEventItem = {
+      eventId: 'avi-real-test',
+      eventItemId: 'avi-real-test:event-demo-01-v2',
+      productId: 'event-demo-01-v2',
+      title: 'Harbor Kettle',
+      priceCents: 4_200,
+      availableQty: 1,
+      quantity: 1,
+      attributes: {},
+    };
+    vi.stubGlobal('fetch', vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
+      const url = String(input);
+      urls.push(url);
+      if (url.endsWith('/events/avi-real-test/config')) {
+        return json({ eventId: 'avi-real-test', name: 'Avi real test', policy: {} });
+      }
+      if (url.endsWith('/actions/events/avi-real-test/items')) return json({ items: [eventItem] });
+      // Decrease to 0 takes the release leg — the exact call that returned 404.
+      if (url.endsWith('/inventory/event-demo-01-v2/release')) return json({ released: true });
+      if (url.endsWith('/actions/events/avi-real-test/execute')) {
+        return json({ auditId: 'a-1', status: 'executed', state: { ...eventItem, quantity: 0 } });
+      }
+      throw new Error(`Unexpected URL ${url}`);
+    }));
+
+    const setup = await fetchSellerEvent('avi-real-test', undefined, 'demo-avi');
+    const [loaded] = setup.items;
+    const result = await adjustSellerEventStock(
+      'avi-real-test', 'seller-JHGLDS', loaded, 0, undefined, 'demo-avi',
+    );
+
+    expect(result.state.quantity).toBe(0);
+    expect(urls).toContain('http://localhost:3100/inventory/event-demo-01-v2/release');
+    // No variant id is invented or substituted anywhere on the way through.
+    expect(urls.some((url) => url.includes('seller-listing-'))).toBe(false);
+  });
+
   it('keeps seller-entered quantity and duration in auction and targeted-offer requests', async () => {
     vi.stubGlobal('fetch', vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
       const url = String(input);

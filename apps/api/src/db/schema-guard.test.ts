@@ -139,6 +139,75 @@ describe('findMissingTables', () => {
   });
 });
 
+describe('policy-audit integrity constraints (P-006 / WI-39262)', () => {
+  const POLICY_SERVICE_SQL = readFileSync(join(__dirname, '../policies/policy.service.ts'), 'utf8');
+
+  // The whitelist is only as good as its agreement with the writer. If the
+  // service starts writing a seventh action and nobody widens the CHECK, the
+  // constraint rejects that write in production; this fails the build instead.
+  it('whitelists exactly the actions policy.service.ts actually writes', () => {
+    const written = new Set(
+      [...POLICY_SERVICE_SQL.matchAll(/\baction:\s*'([a-z_]+)'/g)].map((match) => match[1]),
+    );
+    // Positive control: if this regex ever stops matching, the comparison below
+    // would pass vacuously against two empty sets.
+    expect(written.size).toBeGreaterThan(3);
+
+    const checkClause = SCHEMA_SQL.match(
+      /ADD CONSTRAINT policy_audit_action_known CHECK \(action IN \(([^)]*)\)\)/,
+    );
+    expect(checkClause, 'policy_audit_action_known not found in schema.sql').not.toBeNull();
+    const allowed = new Set(
+      [...(checkClause?.[1] ?? '').matchAll(/'([a-z_]+)'/g)].map((match) => match[1]),
+    );
+
+    expect([...allowed].sort()).toEqual([...written].sort());
+  });
+
+  it('foreign-keys the audit to its revision and refuses to erase evidence on delete', () => {
+    expect(SCHEMA_SQL).toMatch(
+      /ADD CONSTRAINT policy_audit_revision_fk FOREIGN KEY \(policy_revision_id\)\s+REFERENCES seller_policy_revision \(id\) ON UPDATE CASCADE ON DELETE RESTRICT/,
+    );
+    // CASCADE would delete the audit trail along with the revision it documents.
+    expect(SCHEMA_SQL).not.toMatch(/policy_audit_revision_fk[\s\S]{0,160}ON DELETE CASCADE/);
+  });
+
+  it('rejects a blank seller on the audit trail', () => {
+    expect(SCHEMA_SQL).toMatch(
+      /ADD CONSTRAINT policy_audit_seller_nonempty CHECK \(btrim\(seller_id\) <> ''\)/,
+    );
+  });
+
+  // The load-bearing property: policy_audit_entry is created with
+  // CREATE TABLE IF NOT EXISTS, so an inline constraint would reach FRESH
+  // installs only. These have to be guarded ALTERs so scripts/db-apply.sh
+  // lands them on databases that already exist.
+  it('adds each constraint idempotently so existing databases get them too', () => {
+    for (const name of [
+      'policy_audit_action_known',
+      'policy_audit_seller_nonempty',
+      'policy_audit_revision_fk',
+    ]) {
+      expect(SCHEMA_SQL).toContain(`WHERE conname = '${name}'`);
+      expect(SCHEMA_SQL).toMatch(
+        new RegExp(`IF NOT EXISTS \\(SELECT 1 FROM pg_constraint WHERE conname = '${name}'\\) THEN`),
+      );
+      // NOT VALID keeps a legacy row from failing db-apply, which runs under
+      // ON_ERROR_STOP=1 ahead of the image build.
+      expect(SCHEMA_SQL).toMatch(new RegExp(`ADD CONSTRAINT ${name}[\\s\\S]{0,400}?NOT VALID;`));
+    }
+  });
+
+  it('does not put the constraints inline, where an existing table would never see them', () => {
+    const createTable = SCHEMA_SQL.match(
+      /CREATE TABLE IF NOT EXISTS policy_audit_entry \(([\s\S]*?)\n\);/,
+    );
+    expect(createTable, 'policy_audit_entry CREATE TABLE not found').not.toBeNull();
+    expect(createTable?.[1]).not.toContain('policy_audit_action_known');
+    expect(createTable?.[1]).not.toContain('policy_audit_revision_fk');
+  });
+});
+
 describe('ownership schema guard', () => {
   it('makes catalog signatures unique per seller rather than globally', () => {
     expect(SCHEMA_SQL).toContain('DROP INDEX IF EXISTS storefront_product_group_signature_unique');

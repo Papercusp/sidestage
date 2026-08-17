@@ -106,14 +106,12 @@ export class InventoryController {
     if (!Number.isInteger(quantity) || quantity <= 0) throw new BadRequestException('quantity must be a positive integer');
     const source = readSource(body);
     const { sellerId } = await this.ownership.requireOwned(source.id, principal);
-    if (!(await this.inventory.getOwned(productId, sellerId))) {
-      throw new NotFoundException(`Inventory item ${productId} was not found`);
-    }
+    const inventoryId = await this.ownedInventoryId(productId, sellerId);
     const expiresAt = source.kind === 'cart' ? buyerHoldExpiresAt() : undefined;
-    const held = await this.inventory.reserveOwned(productId, quantity, source, sellerId, expiresAt);
+    const held = await this.inventory.reserveOwned(inventoryId, quantity, source, sellerId, expiresAt);
     if (!held) throw new ConflictException(`Insufficient available quantity for ${productId}`);
-    const snapshot = await this.inventory.getOwned(productId, sellerId);
-    this.publishInventoryChange(productId, principal);
+    const snapshot = await this.inventory.getOwned(inventoryId, sellerId);
+    this.publishInventoryChange(inventoryId, principal);
     return { held: true, quantity, source, expiresAt, snapshot };
   }
 
@@ -125,13 +123,26 @@ export class InventoryController {
   ) {
     const source = readSource(body);
     const { sellerId } = await this.ownership.requireOwned(source.id, principal);
-    if (!(await this.inventory.getOwned(productId, sellerId))) {
+    const inventoryId = await this.ownedInventoryId(productId, sellerId);
+    const released = await this.inventory.releaseOwned(inventoryId, body.quantity ?? 1, source, sellerId);
+    const snapshot = await this.inventory.getOwned(inventoryId, sellerId);
+    if (released) this.publishInventoryChange(inventoryId, principal);
+    return { released, source, snapshot };
+  }
+
+  /**
+   * Event items name the PUBLIC catalog variant, but a seller who onboarded that
+   * variant holds stock under a derived listing id — so translate before looking
+   * inventory up, or every hold/release on an onboarded item 404s
+   * (EI-20490482242092934). The message keeps the caller's id: that is the
+   * identity they asked about, and the seller panel surfaces it verbatim.
+   */
+  private async ownedInventoryId(productId: string, sellerId: string): Promise<string> {
+    const resolved = await this.inventory.resolveOwnedProductId(productId, sellerId);
+    if (!resolved || !(await this.inventory.getOwned(resolved, sellerId))) {
       throw new NotFoundException(`Inventory item ${productId} was not found`);
     }
-    const released = await this.inventory.releaseOwned(productId, body.quantity ?? 1, source, sellerId);
-    const snapshot = await this.inventory.getOwned(productId, sellerId);
-    if (released) this.publishInventoryChange(productId, principal);
-    return { released, source, snapshot };
+    return resolved;
   }
 
   @Put(':productId')

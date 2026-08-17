@@ -397,9 +397,23 @@ function canonicalize(value: unknown): unknown {
   return value;
 }
 
+/**
+ * Hash of ANY value's canonical form — stable across key order, so two
+ * structurally-equal values fingerprint identically however they were built.
+ *
+ * Extracted from policyFingerprint (WI-39259/P-003) so the claim/evidence
+ * contract can fingerprint a grounding fact with the SAME function the policy
+ * revision is fingerprinted with, rather than hand-rolling a seventh
+ * sha256-over-JSON in this repo. The output is byte-identical to what
+ * policyFingerprint produced before the extraction.
+ */
+export function canonicalFingerprint(value: unknown): string {
+  return createHash('sha256').update(JSON.stringify(canonicalize(value))).digest('hex').slice(0, 32);
+}
+
 /** Hash of the canonical normalized payload — stable across key order. */
 export function policyFingerprint(body: PolicyBody): string {
-  return createHash('sha256').update(JSON.stringify(canonicalize(body))).digest('hex').slice(0, 32);
+  return canonicalFingerprint(body);
 }
 
 const LEVEL_RANK: Record<AutomationLevel, number> = { suggest: 0, confirm: 1, auto: 2 };
