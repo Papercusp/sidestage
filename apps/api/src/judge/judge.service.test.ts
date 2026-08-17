@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { CopilotPolicy, GroundingContext } from '../copilot/copilot.types';
 import { AutoResponderJudgeService, DeterministicReplyJudgeModel } from './judge.service';
+import { InMemoryJudgeStore } from './judge.store';
 
 const policy: CopilotPolicy = {
   automationLevel: 'suggest',

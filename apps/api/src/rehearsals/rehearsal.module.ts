@@ -1,7 +1,9 @@
 import { Inject, Injectable, Module, type OnModuleInit } from '@nestjs/common';
+import type { Pool } from 'pg';
 import { ActionModule } from '../actions/action.module';
 import { EventConfigModule } from '../config/event-config.module';
-import { DatabaseModule } from '../db/database.module';
+import { DatabaseModule, PG_POOL } from '../db/database.module';
+import { PgRehearsalStore } from '../db/pg-rehearsal-store';
 import { EventModule } from '../events/event.module';
 import { EventOwnershipGuard } from '../events/event-ownership.guard';
 import { SyncModule } from '../sync/sync.module';
@@ -9,6 +11,16 @@ import { SyncQueryRegistry } from '../sync/sync-query.registry';
 import { RehearsalPreflightService } from './rehearsal-preflight.service';
 import { RehearsalController } from './rehearsal.controller';
 import { RehearsalService } from './rehearsal.service';
+import { InMemoryRehearsalStore, REHEARSAL_STORE, type RehearsalStore } from './rehearsal.store';
+
+/**
+ * Postgres is the authority whenever a pool exists. The in-memory store is a
+ * development fallback only — it is process-local, so a deployment that lands
+ * on it silently loses the durability this lane exists to provide.
+ */
+export function rehearsalStoreForPool(pool: Pool | null): RehearsalStore {
+  return pool ? new PgRehearsalStore(pool) : new InMemoryRehearsalStore();
+}
 
 @Injectable()
 export class RehearsalSyncQueries implements OnModuleInit {
@@ -39,7 +51,16 @@ export class RehearsalSyncQueries implements OnModuleInit {
 @Module({
   imports: [ActionModule, DatabaseModule, EventConfigModule, EventModule, SyncModule],
   controllers: [RehearsalController],
-  providers: [RehearsalService, RehearsalPreflightService, RehearsalSyncQueries],
+  providers: [
+    RehearsalService,
+    RehearsalPreflightService,
+    RehearsalSyncQueries,
+    {
+      provide: REHEARSAL_STORE,
+      inject: [PG_POOL],
+      useFactory: rehearsalStoreForPool,
+    },
+  ],
   exports: [RehearsalService],
 })
 export class RehearsalModule {}

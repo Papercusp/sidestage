@@ -1,8 +1,14 @@
-import { Injectable } from '@nestjs/common';
+import { Inject, Injectable } from '@nestjs/common';
 import { runActionRehearsal } from './action-rehearsal';
 import { runAuctionRehearsal } from './auction-rehearsal';
 import { runCheckoutRehearsal } from './checkout-rehearsal';
 import { runInjectionRehearsal } from './injection-rehearsal';
+import {
+  DEFAULT_REHEARSAL_ACTOR,
+  REHEARSAL_STORE,
+  type RehearsalSaveContext,
+  type RehearsalStore,
+} from './rehearsal.store';
 import type { DressRehearsalVerdict, RehearsalKind, RehearsalReport } from './rehearsal.types';
 
 type RehearsalRunner = (options?: { now?: () => number }) => Promise<RehearsalReport>;
@@ -43,8 +49,14 @@ export function summarizeDressRehearsal(reports: readonly RehearsalReport[], now
 
 @Injectable()
 export class RehearsalService {
-  run(kind: RehearsalKind): Promise<RehearsalReport> {
-    return REHEARSAL_RUNNERS[kind]();
+  constructor(@Inject(REHEARSAL_STORE) private readonly store: RehearsalStore) {}
+
+  async run(kind: RehearsalKind, context: Partial<RehearsalSaveContext> = {}): Promise<RehearsalReport> {
+    const report = await REHEARSAL_RUNNERS[kind]();
+    // Postgres decides what the canonical run is. The stored run is what the
+    // Test tab and any later audit read; returning the in-memory report here
+    // would leave the caller holding a run that a restart erases.
+    return this.store.saveReport(report, withDefaults(context));
   }
 
   /**
@@ -54,11 +66,47 @@ export class RehearsalService {
    * survive — a rehearsal that is flaky under its own concurrency teaches the
    * host nothing.
    */
-  async runAll(): Promise<DressRehearsalVerdict> {
+  async runAll(context: Partial<RehearsalSaveContext> = {}): Promise<DressRehearsalVerdict> {
     const reports: RehearsalReport[] = [];
     for (const kind of Object.keys(REHEARSAL_RUNNERS) as RehearsalKind[]) {
       reports.push(await REHEARSAL_RUNNERS[kind]());
     }
-    return summarizeDressRehearsal(reports);
+    const verdict = summarizeDressRehearsal(reports);
+
+    // Each constituent run is persisted in its OWN right, not just inside the
+    // folded verdict's jsonb: `rehearsal.latest(kind)` must see the run that
+    // happened here, and a per-kind history that only exists nested inside a
+    // dress-rehearsal blob is not queryable by the recency index the table
+    // carries for exactly that read.
+    for (const report of reports) {
+      await this.store.saveReport(report, withDefaults(context));
+    }
+    return this.store.saveVerdict(verdict, withDefaults(context));
   }
+
+  /** The last stored run of one kind — survives restart, identical on every replica. */
+  latest(kind: RehearsalKind): Promise<RehearsalReport | null> {
+    return this.store.latestReport(kind);
+  }
+
+  /** The last stored dress rehearsal — survives restart, identical on every replica. */
+  latestDressRehearsal(): Promise<DressRehearsalVerdict | null> {
+    return this.store.latestVerdict();
+  }
+}
+
+/**
+ * A save context always carries an actor: rehearsal_run.actor_id is NOT NULL
+ * and rejects blanks, so an unattributed run is stamped with the shared
+ * operator identity rather than failing the insert at the database boundary.
+ *
+ * `idempotencyKey` is deliberately left undefined when the caller omits it —
+ * the store then mints a fresh key so two genuine runs stay two rows.
+ */
+function withDefaults(context: Partial<RehearsalSaveContext>): RehearsalSaveContext {
+  return {
+    actorId: context.actorId?.trim() || DEFAULT_REHEARSAL_ACTOR,
+    eventId: context.eventId ?? null,
+    idempotencyKey: context.idempotencyKey,
+  };
 }
