@@ -185,6 +185,9 @@ describe('CopilotPanel sync integration', () => {
 
     await mount([first, second]);
     const badge = container.querySelector('.live-badge');
+    // Pin non-null explicitly: if the region were missing, `badge` would be
+    // null and the node-identity check below would pass vacuously (null === null).
+    expect(badge).not.toBeNull();
     expect(badge?.textContent).toContain('2 PENDING');
 
     // A third pending proposal arrives on the live query.
