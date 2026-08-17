@@ -18,7 +18,16 @@ function createSync() {
 
 describe('SyncController', () => {
   it('injects the registry and invalidation stream when Nest boots under tsx', async () => {
-    const context = await NestFactory.createApplicationContext(SyncModule, { logger: false });
+    // abortOnError:false is LOAD-BEARING, not tidiness. NestFactory's default is
+    // abortOnError:true, and handleInitializationError then calls process.abort()
+    // (nest-factory.js:123) instead of rejecting. Under the fork pool that aborts the
+    // WORKER: vitest reports "99 passed (100)" + one unattributed "Worker exited
+    // unexpectedly" and the suite exits 1 with no file named — so a real boot failure
+    // reads as a no-fault flake. That is exactly how EI-20689489448966446 hid a broken
+    // SyncModule (ZeroController -> @rocicorp/zero/server/adapters/pg) for hours.
+    // With abortOnError:false the same failure surfaces here as a NAMED test failure.
+    // Keep the logger on for the same reason: { logger: false } silences the cause.
+    const context = await NestFactory.createApplicationContext(SyncModule, { abortOnError: false });
     try {
       const controller = context.get(SyncController);
       await expect(firstValueFrom(controller.syncEvents().pipe(take(1)))).resolves.toMatchObject({
