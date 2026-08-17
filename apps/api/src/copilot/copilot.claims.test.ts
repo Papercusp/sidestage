@@ -199,6 +199,79 @@ describe('P-003 clause: edited replies', () => {
   });
 });
 
+/**
+ * P-004 / plan D-010 — staleness is EVIDENCE-scoped, not context-scoped.
+ *
+ * The send path used to compare a hash of the WHOLE grounding context, so a
+ * reply about one product was blocked because a different product's stock
+ * moved — destructively (status 'blocked', regenerate). These pin the narrower
+ * rule, and the first test is the one that matters: the non-block.
+ */
+describe('P-004 clause: only the evidence a reply CITES can make it stale', () => {
+  const item = (productId: string, priceCents: number, availableQty = 5) => ({
+    eventItemId: `evt:${productId}`,
+    productId,
+    title: `${productId} title`,
+    priceCents,
+    availableQty,
+    attributes: {},
+  });
+
+  const ctx = (items: ReturnType<typeof item>[]): GroundingContext => ({
+    eventItems: items,
+    catalogProducts: [],
+    policy: {
+      automationLevel: 'confirm',
+      allowAutoActions: false,
+      priceFloorCentsByProduct: {},
+      maxMarkdownPercent: 20,
+      blockedActionKinds: [],
+      tone: 'warm',
+    },
+    sources: items.map((entry) => ({
+      id: `event-item:${entry.eventItemId}`,
+      kind: 'event-item' as const,
+      label: entry.title,
+    })),
+  });
+
+  it('does NOT report drift when an UNCITED item changes', () => {
+    const before = ctx([item('cup', 2_800), item('mug', 1_500)]);
+    const after = ctx([item('cup', 2_800), item('mug', 900)]);
+    // The reply is about the cup. The mug halving in price is none of its business.
+    expect(citedEvidenceDrift(['event-item:evt:cup'], before, after)).toEqual([]);
+  });
+
+  it('reports drift when a CITED item changes, and names it readably', () => {
+    const before = ctx([item('cup', 2_800), item('mug', 1_500)]);
+    const after = ctx([item('cup', 2_400), item('mug', 1_500)]);
+    const drift = citedEvidenceDrift(['event-item:evt:cup'], before, after);
+    expect(drift).toHaveLength(1);
+    expect(drift[0].code).toBe('evidence-stale');
+    expect(drift[0].explanation).toContain('cup title');
+    expect(drift[0].explanation).not.toMatch(/evidence-|fingerprint|hash/);
+  });
+
+  it('reports a cited source that vanished as missing, not stale', () => {
+    const before = ctx([item('cup', 2_800)]);
+    const after = ctx([]);
+    const drift = citedEvidenceDrift(['event-item:evt:cup'], before, after);
+    expect(drift.map((entry) => entry.code)).toEqual(['evidence-missing']);
+  });
+
+  it('ignores a citation that was never in the original context', () => {
+    // Unsupported from the start is verifyClaims' verdict to give, not drift's:
+    // reporting it here would blame a change that never happened.
+    const before = ctx([item('cup', 2_800)]);
+    expect(citedEvidenceDrift(['event-item:evt:ghost'], before, before)).toEqual([]);
+  });
+
+  it('treats an unchanged context as no drift at all', () => {
+    const before = ctx([item('cup', 2_800), item('mug', 1_500)]);
+    expect(citedEvidenceDrift(['event-item:evt:cup', 'event-item:evt:mug'], before, before)).toEqual([]);
+  });
+});
+
 describe('P-003 clause: typed missing / stale / conflicting evidence reasons', () => {
   it('gives every defect a seller-readable explanation, never a bare code', () => {
     for (const testCase of CLAIM_ADVERSARIAL_CASES) {

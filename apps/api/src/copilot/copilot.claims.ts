@@ -472,7 +472,9 @@ export function citedEvidenceDrift(
     ?? after.sources.find((source) => source.id === sourceId)?.label
     ?? sourceId;
 
-  return citations.flatMap((sourceId) => {
+  // Return type annotated explicitly: without it TS infers each branch's `code`
+  // as its own narrow literal and then cannot union the two array types.
+  return citations.flatMap((sourceId): EvidenceDrift[] => {
     const boundTo = fingerprintSource(sourceId, before);
     // Cited something that was not in the original context either — not drift.
     // The reply was unsupported from the start, which is verifyClaims' job to
