@@ -1,6 +1,12 @@
 {
   "extends": "../../tsconfig.json",
   "compilerOptions": {
+    // A web test imports a NestJS service from apps/api for cross-tier parity
+    // (src/seller/markdown-guard.test.ts -> api/src/config/event-config.service).
+    // That file's constructor parameter decorators are only legal under this
+    // flag — which apps/api sets, but this project did not, so tsc parsed a
+    // valid file as TS1206 "Decorators are not valid here".
+    "experimentalDecorators": true,
     "jsx": "react-jsx",
     "lib": ["ES2022", "DOM", "DOM.Iterable"],
     "module": "ESNext",

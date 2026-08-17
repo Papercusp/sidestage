@@ -272,7 +272,7 @@ describe('GuardedActionService', () => {
     await actions.cancelOffer(first.id, 'buyer-9');
     await actions.cancelOffer(first.id, 'buyer-9');
     expect((await actions.listItems('event-1'))[0]?.availableQty).toBe(5);
-    expect(actions.findOffer(first.id)?.status).toBe('cancelled');
+    expect((await actions.findOffer(first.id))?.status).toBe('cancelled');
   });
 
   it('invalidates only the targeted buyer when an offer is created or rolled back', async () => {

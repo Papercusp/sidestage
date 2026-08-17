@@ -80,7 +80,11 @@ describe('deploy wiring', () => {
   });
 
   it('auto-rolls back a healthy release that fails the positive control', () => {
-    expect(deploySource).toMatch(/if ! node "\$SCRIPT_DIR\/release-positive-control\.mjs"/);
+    // The probe moved from a direct `node "$SCRIPT_DIR/..."` call to the
+    // run_release_probe helper when probes were shifted to the prod vantage
+    // (a14ce45). What this test guards is unchanged: the probe runs, and a
+    // non-zero result falls into auto_rollback rather than being ignored.
+    expect(deploySource).toMatch(/if ! run_release_probe release-positive-control\.mjs "\$SHA"/);
     expect(deploySource).toMatch(/auto_rollback_failed_release "release positive control" 6/);
   });
 });
