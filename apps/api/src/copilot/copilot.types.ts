@@ -175,6 +175,14 @@ export interface RetrievalRequest {
   query: string;
   limit: number;
   requiredProperties?: readonly string[];
+  /**
+   * Shared cancellation for every research provider serving this request. A
+   * provider that honours it stops work as soon as the reply no longer needs
+   * it — whether the shared deadline expired or the caller went away. Results
+   * that arrive after this aborts are discarded rather than merged, which is
+   * what keeps a late finding out of a reply that has already been composed.
+   */
+  signal?: AbortSignal;
 }
 
 export interface GroundingRetriever {
