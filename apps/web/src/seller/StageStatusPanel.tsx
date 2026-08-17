@@ -3,7 +3,7 @@ import { streamLabel, type StreamState } from '../hooks';
 import { liveTranscriptPresentation } from '../LiveTranscriptOverlay';
 import type { LiveTranscriptController } from '../use-live-transcript';
 import { VideoEngagementOverlay } from '../VideoEngagementOverlay';
-import type { ActiveEventStatus } from './active-event-status';
+import { stageStartHint, stageStartLabel, type ActiveEventStatus } from './active-event-status';
 
 export interface StageStatusPanelProps {
   /** Headline for the live console — the event currently on stage. */
@@ -111,10 +111,13 @@ export function StageStatusPanel({
           <button className="button secondary" type="button" onClick={onEndEvent}>End event</button>
         ) : (
           <button className="button primary" type="button" onClick={onStartEvent} disabled={streamState === 'connecting'}>
-            {streamState === 'connecting' ? 'Starting…' : 'Start event'}
+            {streamState === 'connecting' ? 'Starting…' : stageStartLabel(eventStatus)}
           </button>
         )}
       </div>
+      {!isSessionActive && stageStartHint(eventStatus) ? (
+        <p className="field-help stage-start-hint">{stageStartHint(eventStatus)}</p>
+      ) : null}
       {/* The loud half of the WI-39718 fix. "Start event" publishes first, so
           this renders only when that publish FAILED — the exact state in which
           the room is streaming and no buyer can find it. `role="alert"` because

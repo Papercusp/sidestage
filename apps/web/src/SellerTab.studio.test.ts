@@ -4,7 +4,8 @@ import { act, createElement } from 'react';
 import { createRoot } from 'react-dom/client';
 import { describe, expect, it, vi } from 'vitest';
 import {
-  initialSellerEventIdentity,
+  initialPinnedSellerEvent,
+  resolveSellerEventIdentity,
   shouldUseMobileStudio,
   sellerEventIdentity,
   sellerEventTitleBindings,
@@ -13,6 +14,7 @@ import {
   useSellerDeepgramTokenProvider,
   useTranscriptMomentRecorder,
 } from './SellerTab';
+import type { SellerEventRecord } from './events/api';
 import {
   isMobileStudioViewport,
   nextStudioMobileMode,

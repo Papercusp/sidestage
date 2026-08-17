@@ -121,6 +121,37 @@ export function activeEventStatus(
 }
 
 /**
+ * What the stage's primary control says when no publisher session is open.
+ *
+ * The owner reported the third face of this same trap: after taking an event
+ * live, the Active Event board still offered "Start event" for an event that
+ * had already started. The cause is the console reading only its LOCAL media
+ * session (`Boolean(stream.session)`) and never the event's lifecycle — the
+ * identical omission that let a draft wear a live console's chrome.
+ *
+ * These are genuinely two different things and the fix keeps them two: a live
+ * event with no camera attached in THIS tab still needs a camera, so the
+ * control stays, but it stops claiming to start something already started and
+ * names what it will actually do.
+ */
+export function stageStartLabel(status: ActiveEventStatus): string {
+  return status.status === 'live' ? 'Go on camera' : 'Start event';
+}
+
+/**
+ * The sentence under that control, or null when the label alone is honest.
+ *
+ * Only the already-live case earns one: "Go on camera" is a new label, and the
+ * seller's first question about it is whether pressing it re-announces the
+ * event to buyers. It does not.
+ */
+export function stageStartHint(status: ActiveEventStatus): string | null {
+  return status.status === 'live'
+    ? 'This event is already live for buyers. Going on camera reconnects your video to the room; it does not restart the event.'
+    : null;
+}
+
+/**
  * The seller-facing warning for a publish-on-start that did NOT succeed.
  *
  * "Start event" now takes the event live before it starts the media room
