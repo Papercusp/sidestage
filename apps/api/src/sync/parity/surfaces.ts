@@ -110,8 +110,11 @@ export function censusPrincipalMismatches(surface: ParitySurface): string[] {
  * Every query the contract scopes to `surface` must be either a live census
  * registration (an actual `SyncQueryRegistry` entry today) or explicit
  * forward scope (`CONTRACT_AHEAD_OF_REGISTRY`) — never neither, which would
- * mean a client call site using it 404s at `/zero/query` once P-004 flips
- * the transport. Empty = consistent.
+ * mean a client call site using it fails at `/zero/query`. That is now a LIVE
+ * risk, not a future one: P-004 flipped the transport and P-011 landed the
+ * handler (`apps/api/src/sync/zero.controller.ts`), which THROWS on an
+ * unknown query name rather than returning `[]` — so an unaccounted query
+ * surfaces as a loud error at runtime. Empty = consistent.
  */
 export function unaccountedSurfaceQueries(surface: ParitySurface): string[] {
   const liveNames = new Set(censusQuerySurfacesFor(surface).map((s) => s.name));

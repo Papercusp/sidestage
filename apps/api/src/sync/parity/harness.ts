@@ -24,20 +24,33 @@
  * same request answered by the SSE-era resolver (`SyncQueryRegistry`, real
  * Postgres) and by the Zero query (real `/zero/query` handler, same
  * Postgres) must return the same rows, and a query scoped to one principal
- * must never leak another's. That needs the `/zero/query` handler P-004
- * builds — this lane is explicitly NOT that (WI-39617: "Do NOT flip the app
- * transport"). Two things are pinned here so wiring it in is a button-press,
- * not a re-investigation:
+ * must never leak another's. This lane is explicitly NOT that (WI-39617:
+ * "Do NOT flip the app transport"). Two things are pinned here so wiring it
+ * in is a button-press, not a re-investigation:
  *
- *   - **Execution mechanism, confirmed present at `@rocicorp/zero@^1.8.0`**
- *     (this repo's pinned version): `zeroPostgresJS(schema, pg)` from
- *     `@rocicorp/zero/server/adapters/postgresjs` wraps a `postgres.js`
- *     connection into a `ZQLDatabase`, whose `.run(query)` executes a ZQL
+ *   - **The handler now EXISTS** — `apps/api/src/sync/zero.controller.ts`
+ *     (P-011 / WI-39663), registered in `SyncModule`, serving `POST
+ *     /zero/query` + `POST /zero/mutate`. It was built by P-011, not P-004;
+ *     P-004 only flipped the app transport. Note the two endpoints are NOT
+ *     symmetric: `/zero/query` is a PURE TRANSFORM (it resolves a named query
+ *     against the shared `queries` registry and returns the ZQL AST for
+ *     zero-cache to execute against its own replica), so it touches no
+ *     database; `/zero/mutate` is the one that writes.
+ *   - **Execution mechanism for THIS harness's Phase 2 seam** — confirmed
+ *     present at `@rocicorp/zero@^1.8.0` (this repo's pinned version). The
+ *     adapters map ships `./server/adapters/{drizzle,kysely,prisma,pg,postgresjs}`.
+ *     Use `zeroNodePg(schema, pool)` from `@rocicorp/zero/server/adapters/pg`
+ *     — the same adapter `zero.controller.ts` uses, and the reason is
+ *     load-bearing: `zeroNodePg` accepts the `node-postgres` `Pool` the app
+ *     ALREADY provides via `PG_POOL`, whereas `zeroPostgresJS` would open a
+ *     SECOND, unsupervised `postgres.js` pool against the same database,
+ *     bypassing the app's probe/schema-guard and its `max:10` limit (plan
+ *     decision on sidestage-websocket-sync-cutover-2026-08-17). Either wraps
+ *     the connection into a `ZQLDatabase` whose `.run(query)` executes a ZQL
  *     `Query` — exactly what `queries.event.lineup.items({eventId})` builds —
- *     directly against Postgres, with NO zero-cache replica required. This is
- *     the same mechanism the real `/zero/query` handler will use, so a
- *     comparison built on it exercises production code, not a
- *     reimplementation that could itself drift from what ships.
+ *     directly against Postgres, with NO zero-cache replica required. Built
+ *     on the adapter production uses, a comparison exercises shipping code
+ *     rather than a reimplementation that could itself drift.
  *   - **SSE-side execution**: bootstrap the real Nest `AppModule` (the way
  *     `sync.controller.spec.ts` already bootstraps `SyncModule`) and call the
  *     live `SyncQueryRegistry.resolve(name, args, context)` — the actual
@@ -124,10 +137,18 @@ export function diffRows(sseRows: readonly unknown[], zeroRows: readonly unknown
 }
 
 /**
- * PHASE 2 SEAM — deliberately unimplemented (needs the P-004 `/zero/query`
- * handler wired to a live Postgres). Throws rather than returning `[]` so a
- * suite that calls it fails loudly instead of reporting a false pass.
- * Wire it to: `zeroPostgresJS(schema, pg).run(resolveQueryLeaf(queryPath)!(args))`.
+ * PHASE 2 SEAM — deliberately unimplemented (needs a live Postgres to compare
+ * rows against). Throws rather than returning `[]` so a suite that calls it
+ * fails loudly instead of reporting a false pass.
+ *
+ * NOTE this seam does NOT call the `/zero/query` HTTP handler, which exists as
+ * of P-011 but is a pure AST transform and returns no rows. Data-level parity
+ * needs ZQL *executed* against Postgres, so wire it to the same adapter the
+ * controller uses:
+ *   `zeroNodePg(schema, pool).run(resolveQueryLeaf(queryPath)!(args))`
+ * (`@rocicorp/zero/server/adapters/pg`, given the app's `PG_POOL` — NOT
+ * `zeroPostgresJS`, which would open a second unsupervised pool; see the
+ * header and the plan decision).
  */
 export async function runZeroQuery(queryPath: string, _args: Record<string, unknown>): Promise<unknown[]> {
   throw new Error(
