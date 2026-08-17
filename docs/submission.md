@@ -2,11 +2,67 @@
 
 SideStage is a live-selling copilot for event sellers and buyers. This packet is
 the reviewer-facing answer sheet for the contest submission: it records the
-clean-clone commands, the shortest product walkthrough, the implementation
-evidence, and the required AI-use disclosure.
+filled-in reply template, the clean-clone commands, the shortest product
+walkthrough, the implementation evidence, and the required AI-use disclosure.
 
 Read first: [`PRD.md`](PRD.md) (product requirements) and [`TDD.md`](TDD.md)
-(technical design) — then verify against the prototype and source.
+(technical design) — then verify against the prototype and source. That is the
+review order the brief states, and both documents are kept in sync with
+[`challenge-brief.md`](challenge-brief.md).
+
+## Submission reply template (filled in)
+
+Copy-ready answers for each required line of the brief's reply template:
+
+- **PRD:** [`docs/PRD.md`](PRD.md) — first seller workflow, copilot-to-automation
+  ladder, 3–5-seller pilot plan, GMV and operator-load success metrics.
+- **TDD:** [`docs/TDD.md`](TDD.md) — streaming ingestion, catalog grounding,
+  reply guardrails, action auditability and rollback, latency budgets,
+  marketplace integrations.
+- **Prototype:** <https://sidestage.papercusp.com> (live public instance), or
+  `npm run dev` from a clean clone (details below).
+- **Source code:** <https://github.com/Papercusp/sidestage> — public, full
+  incremental commit history retained (never squashed).
+- **Access notes / credentials:** None required. The repo is public, the live
+  demo is unauthenticated, and the clean-clone demo runs from
+  `.env.example` placeholders. Provider keys are optional seams; nothing
+  requires a private credential to review.
+- **What I personally built:** The product direction and every ratifying
+  decision: the Restart reuse strategy, the surface layout (Watch / Orders /
+  Studio / History / Tests / Architecture), the suggestion-first automation
+  ladder, the server-side guardrail gate, the audit-and-rollback boundary, and
+  the clean-clone/public-repo requirements. Continuous review and steering of
+  the agent-written increments, including rejecting autonomous writes without
+  policy and audit.
+- **What I reused:** The Restart-compatible shared libraries pinned as
+  submodules (catalog and variations data model, sync + SSE transport, grid,
+  drawer and UI primitives) — see
+  [`docs/data-model.md`](data-model.md) and
+  [`docs/variations-schema.md`](variations-schema.md); MediaMTX and coturn for
+  WHIP/WHEP media; Stripe, EasyPost, Deepgram and Typesense as provider seams.
+- **What the AI wrote, and what I rewrote or rejected:** AI agents wrote the
+  workspace scaffold and the majority of the implementation (API modules, React
+  surfaces, deterministic tests, fixtures, this packet). Human review rewrote
+  the product shape decisions above and rejected autonomous writes that lacked
+  the configured policy gate and audited executor. The public commit history
+  keeps those increments visible instead of flattening them.
+- **What broke and how I debugged it:** During the judge integration, the
+  professional-tone check carried an invalid surrogate-style emoji regex; the
+  focused judge test path exposed the malformed expression, and it was replaced
+  with a Unicode `Extended_Pictographic` check kept behind the deterministic
+  judge tests. The same focused-test workflow (fail → isolate in a focused
+  spec → fix → re-run the suite) is used for guardrails, actions, auctions,
+  chat, checkout, streaming, and load rehearsal.
+
+## Part 2 — AI interview logistics
+
+The interview starts **within 30 minutes of sending the submission** — plan the
+submission and the 60-minute voice interview as one sitting. The
+candidate-specific DeepInterview assignment **expires 72 hours** after the
+challenge email (24 hours after the 48-hour build deadline). Keep this repo
+open during the interview: it asks for exact files, functions, and commands,
+which are reconciled against the repo afterward. Useful anchors are listed in
+"What is implemented" below.
 
 ## Submission fields
 
@@ -18,7 +74,7 @@ Read first: [`PRD.md`](PRD.md) (product requirements) and [`TDD.md`](TDD.md)
 | Run command | `npm run dev` |
 | Test command | `npm test` |
 | Full local gate | `npm run check` followed by `npm run build` |
-| Primary product surface | `apps/web` — the Buyer, Seller, Config, and Test tabs |
+| Primary product surface | `apps/web` — the Watch, Orders, Studio, History, Tests, and Architecture surfaces |
 | API surface | `apps/api` — NestJS on port `3100`, with `/healthz` for readiness |
 | Optional local infrastructure | `docker compose up -d` for Postgres, Typesense, Redis, and MediaMTX |
 
@@ -56,33 +112,38 @@ npm run build
 
 ## Reviewer walkthrough
 
-1. Open the default Buyer tab. Inspect the seeded live catalog, product prices
-   and availability, the room chat, and the event share link. Use **Hold item**
-   to exercise the local buyer state; use the auction panel when the auction
-   fixture is visible.
-2. Open **Seller**. Keep the default `sunday-drop` room id, click **Start
-   event**, and grant camera/microphone access when MediaMTX is running. The
-   Seller view exposes the WHIP publisher, transcript/product mention seam,
-   verified catalog copilot, event chat, and event manager in one workflow.
-3. In **Config**, review the event name, reply tone, and the visible price,
-   inventory, and buyer-sensitive-topic guardrails. These controls document the
-   seller policy contract used by the copilot; the current preview save control
-   is intentionally not presented as durable persistence.
-4. In **Test**, review the preflight statuses, then run **Run load rehearsal**
+1. Open the default **Watch** surface. Inspect the seeded live catalog with
+   prices and availability in the product rail, the room chat, and the buyer
+   Scout drawer. Use **Hold item** to exercise a reservation; use the auction
+   panel when the auction fixture is visible, and the cart drawer for the
+   checkout seam.
+2. Open **Studio**. Click **Start event** and grant camera/microphone access
+   when MediaMTX is running. Studio is the full seller workflow in one place:
+   the WHIP publisher, the live transcript and product-mention seam, the
+   copilot **review queue** (grounded reply and action proposals awaiting
+   approval), the run-of-show pane, event chat, and the event manager for
+   lineup and staging.
+3. Still in **Studio**, open the guardrail settings. The visible price,
+   inventory, tone, and buyer-sensitive-topic guardrails document the seller
+   policy contract used by the copilot, including the per-action automation
+   ladder (suggest → confirm → auto). Settings save through the API and report
+   their save state explicitly.
+4. In **Tests**, review the preflight statuses, then run **Run load rehearsal**
    with the defaults (3 users, 2 messages per user per second, 4 seconds). The
    result reports scheduled messages, simulated clients, duration, and coverage
    across the scripted price, shipping, policy, variant, stock, offer, and bid
    prompts.
-5. For API-backed flows, keep the API process from `npm run dev` running and
-   use the copilot/catalog, chat, auction, and checkout seams from the UI. The
-   guarded action and shipping packer contracts are available through the API
-   and are directly covered by the API tests listed below.
+5. Open **Architecture** for the source-backed system map — including "How the
+   LLM pipeline works" — and **History** for shipped plans and delivery
+   evidence. For API-backed flows, keep the API process from `npm run dev`
+   running; the guarded action and shipping packer contracts are available
+   through the API and are directly covered by the API tests listed below.
 
 ## What is implemented
 
 | Capability | Source and verification evidence |
 | --- | --- |
-| Four-tab seller/buyer shell and URL state | `apps/web/src/App.tsx`, `apps/web/src/App.test.tsx` |
+| Six-surface shell (Watch, Orders, Studio, History, Tests, Architecture) with URL-routed state | `apps/web/src/App.tsx`, `apps/web/src/app-routing.ts`, `apps/web/src/App.test.tsx` |
 | Catalog grounding, cart, and sandbox checkout seam | `apps/api/src/scout`, `apps/api/src/cart`, `apps/api/src/checkout`, `apps/web/src/CopilotPanel.tsx` |
 | Seller event creation, active item focus, chat, and transcript | `apps/web/src/events`, `apps/web/src/EventChat.tsx`, `apps/web/src/TranscriptPane.tsx` |
 | WHIP/WHEP seller and buyer streaming | `apps/web/src/streaming.ts`, `apps/web/src/streaming.test.ts` |
@@ -117,7 +178,7 @@ reviewable in one clean clone. The mapping and data policy are documented in
   The public commit history keeps those increments visible instead of
   flattening them into one generated snapshot.
 - **What the human rewrote or rejected:** Human review selected the Restart
-  reuse strategy, set the four-tab product shape, and ratified the
+  reuse strategy, set the product surface shape, and ratified the
   suggestion-first automation ladder, server-side guardrail gate, audit and
   rollback boundary, and clean-clone/public-repo requirements. Autonomous
   writes without the configured policy and audited executor were rejected.
@@ -138,7 +199,9 @@ reviewable in one clean clone. The mapping and data policy are documented in
   check rolls the deploy back automatically.
 - The default demo can be explored without Docker, but persistence, search, and
   WHIP/WHEP media require the corresponding local services.
-- The Config surface currently demonstrates the policy controls; its preview
-  save button is not a claim that settings are persisted across sessions.
+- Realtime application state currently syncs over SSE with a bounded polling
+  fallback; the shared sync library also carries a WebSocket (Rocicorp Zero)
+  transport that is built but not yet enabled — the cutover is planned and
+  tracked, and no document in this packet claims it is live.
 - Provider credentials are optional seams. Never commit a real token; use the
   ignored `.env` file for local experiments.
