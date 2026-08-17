@@ -1,6 +1,23 @@
-import { readFileSync } from 'node:fs';
-import { fileURLToPath } from 'node:url';
+// @vitest-environment jsdom
+
+import { existsSync, readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
+
+// Read as text so the assertions run against the stylesheet that actually
+// ships, not a copy of the selector that could drift away from it. Two things
+// rule out the tidier alternatives: a `?raw` import is stubbed out to an empty
+// module by Vitest's default `css: false`, query string included; and under
+// jsdom the global URL is jsdom's own class, which node:fs rejects. Resolving
+// from cwd with a fallback works from either invocation root — same approach as
+// LiveTranscriptOverlay.test.tsx.
+function readWebStyle(name: string): string {
+  const workspacePath = resolve(process.cwd(), 'src', name);
+  const rootPath = resolve(process.cwd(), 'apps/web/src', name);
+  return readFileSync(existsSync(workspacePath) ? workspacePath : rootPath, 'utf8');
+}
+
+const checkoutCss = readWebStyle('buyer-checkout.css');
 
 /**
  * Stripe's body-level "developer tools" frame intercepts clicks aimed at the
@@ -14,8 +31,6 @@ import { afterEach, describe, expect, it } from 'vitest';
  * and evaluates it with the DOM's own selector engine — that tests what the rule
  * actually MATCHES, and it fails if someone widens the selector later.
  */
-
-const cssPath = fileURLToPath(new URL('./buyer-checkout.css', import.meta.url));
 
 /** Selectors of every rule in the stylesheet whose block disables pointer events. */
 function pointerEventsNoneSelectors(css: string): string[] {
@@ -39,8 +54,7 @@ describe('Stripe overlay frames are neutralised without breaking payment frames'
     document.body.innerHTML = '';
   });
 
-  const css = readFileSync(cssPath, 'utf8');
-  const selectors = pointerEventsNoneSelectors(css);
+  const selectors = pointerEventsNoneSelectors(checkoutCss);
   const selector = selectors.join(', ');
 
   it('ships exactly one pointer-events:none rule for the checkout surface', () => {
