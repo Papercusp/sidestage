@@ -4,6 +4,7 @@ import {
   EXERCISED_DEFECT_CODES,
 } from './copilot.claims.fixtures';
 import {
+  citedEvidenceDrift,
   fingerprintEvidence,
   listingStateOf,
   rebindClaim,
@@ -11,6 +12,7 @@ import {
   type Claim,
   type ClaimDefectCode,
 } from './copilot.claims';
+import type { GroundingContext } from './copilot.types';
 import { policyFingerprint } from '../policies/policy-rules';
 import { baselinePolicyBody } from '../policies/policy-rules';
 
