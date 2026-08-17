@@ -8,7 +8,12 @@ import { BuildHistoryTab } from './BuildHistoryTab';
 import { BuyerTab } from './BuyerTab';
 import { BuyerCheckoutProvider, useBuyerCheckout } from './BuyerCheckout';
 import { useDemoIdentity } from './buyer-identity';
-import { DEFAULT_EVENT_ID, DEFAULT_EVENT_TITLE, mediaBaseUrl, urlEventId } from './event-identity';
+import {
+  DEFAULT_EVENT_TITLE,
+  mediaBaseUrl,
+  resolveActiveEventId,
+  urlEventId,
+} from './event-identity';
 import type { GuideEvent } from './events/api';
 import { ChannelGuide } from './events/ChannelGuide';
 import { OrdersTab } from './OrdersTab';
@@ -72,11 +77,8 @@ export function App() {
 
   /* D-001: with no ?event= in the URL, the landing room is the guide's FIRST
      row — literally the top of the sidebar the buyer is looking at, since both
-     read this one already-ordered directory (live by viewers, then soonest
-     scheduled, then most recently ended). A hardcoded id here was the reported
-     defect: it survives as the pre-directory seed ONLY, and never outranks a
-     row the guide actually has. */
-  const activeEventId = pinnedEventId ?? guideEvents[0]?.eventId ?? DEFAULT_EVENT_ID;
+     read this one already-ordered directory. */
+  const activeEventId = resolveActiveEventId(pinnedEventId, guideEvents);
 
   const selectEvent = useCallback((nextEventId: string) => {
     setPinnedEventId(nextEventId);
