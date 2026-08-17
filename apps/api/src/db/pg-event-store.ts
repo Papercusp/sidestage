@@ -1,6 +1,7 @@
 import type { Pool } from 'pg';
 import {
   isEventStatus,
+  type EventLifecycleState,
   type EventPublication,
   type EventRecord,
   type EventStore,
@@ -133,6 +134,61 @@ export class PgEventStore implements EventStore {
       [eventId, sellerId],
     );
     return result.rows.length > 0;
+  }
+
+  /**
+   * Write a resolved lifecycle state (D-002). Legality was decided by
+   * `resolveLifecycleTransition`; this statement's only added authority is the
+   * `seller_id` predicate, so a foreign id updates nothing and comes back
+   * undefined rather than reporting whose it is.
+   */
+  async applyLifecycle(
+    eventId: string,
+    sellerId: string,
+    next: EventLifecycleState,
+  ): Promise<EventRecord | undefined> {
+    const result = await this.pool.query<EventRow>(
+      `UPDATE event
+          SET status = $3,
+              starts_at = $4,
+              ended_at = $5,
+              updated_at = now()
+        WHERE event_id = $1
+          AND seller_id = $2
+      RETURNING event_id, title, seller_id, seller_name, status,
+                starts_at, ended_at, thumbnail_url`,
+      [eventId, sellerId, next.status, next.startsAt, next.endedAt],
+    );
+    return result.rows.flatMap((row) => mapRow(row))[0];
+  }
+
+  /**
+   * Take every due scheduled event live in ONE statement (D-003).
+   *
+   * The `status = 'scheduled' AND starts_at <= $1` predicate is also the
+   * concurrency guard: two API processes sweeping at once both issue this
+   * UPDATE, and whichever lands second matches zero rows because the first
+   * already moved them off `scheduled`. So a row is reported as newly-live to
+   * exactly one sweeper, and the RETURNING set is safe to fan out as
+   * invalidations without double-notifying.
+   *
+   * `ended_at = NULL` is set rather than left alone so a re-scheduled event
+   * that previously ended does not carry a finished timestamp into a live run.
+   */
+  async activateDueScheduled(now: Date): Promise<EventRecord[]> {
+    const result = await this.pool.query<EventRow>(
+      `UPDATE event
+          SET status = 'live',
+              ended_at = NULL,
+              updated_at = now()
+        WHERE status = 'scheduled'
+          AND starts_at IS NOT NULL
+          AND starts_at <= $1
+      RETURNING event_id, title, seller_id, seller_name, status,
+                starts_at, ended_at, thumbnail_url`,
+      [now.toISOString()],
+    );
+    return result.rows.flatMap((row) => mapRow(row));
   }
 }
 

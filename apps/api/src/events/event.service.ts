@@ -34,6 +34,109 @@ export function isEventStatus(value: unknown): value is EventStatus {
   return value === 'draft' || value === 'scheduled' || value === 'live' || value === 'ended';
 }
 
+/* ── The seller lifecycle: schedule / go live / end (D-002, D-003) ─────────── */
+
+/**
+ * What a seller can DO to an event's lifecycle.
+ *
+ * Withdrawing an event is deliberately absent: that is `unpublish`, which
+ * already exists as DELETE /events/:eventId and means something different
+ * (leave every event-scoped record intact, drop out of buyer reads).
+ */
+export type EventLifecycleAction = 'schedule' | 'go-live' | 'end';
+
+export function isEventLifecycleAction(value: unknown): value is EventLifecycleAction {
+  return value === 'schedule' || value === 'go-live' || value === 'end';
+}
+
+/** The three columns a transition may move, and nothing else. */
+export interface EventLifecycleState {
+  status: EventStatus;
+  startsAt: string | null;
+  endedAt: string | null;
+}
+
+export type EventLifecycleOutcome =
+  | { ok: true; next: EventLifecycleState }
+  | { ok: false; reason: string };
+
+/** Accept any parseable instant; normalize to ISO-8601 UTC, else null. */
+function normalizedInstant(value: unknown): string | null {
+  if (typeof value !== 'string') return null;
+  const ms = Date.parse(value.trim());
+  return Number.isNaN(ms) ? null : new Date(ms).toISOString();
+}
+
+/**
+ * The single authority on which lifecycle transitions are legal, and on what
+ * each one does to `status` / `starts_at` / `ended_at` (D-002).
+ *
+ * PURE, and deliberately not a method on either store. Both the in-memory and
+ * the Postgres backend apply a state this function already resolved, instead
+ * of each re-deciding the same table: two implementations of one rule is how
+ * the backends drift, and such drift surfaces only on whichever backend the
+ * tests do not exercise. It also means the refusal messages — the only thing
+ * the seller actually reads when a button will not work — are written once.
+ *
+ * `now` is injectable so the timestamps a transition stamps are assertable
+ * rather than merely "recent".
+ */
+export function resolveLifecycleTransition(
+  current: EventLifecycleState,
+  action: EventLifecycleAction,
+  input: { startsAt?: unknown; now?: Date } = {},
+): EventLifecycleOutcome {
+  const nowIso = (input.now ?? new Date()).toISOString();
+
+  if (action === 'schedule') {
+    // Rescheduling a room that is ON AIR would move the clock under an
+    // audience already watching it. Ending it first is one extra click and an
+    // unambiguous one.
+    if (current.status === 'live') {
+      return { ok: false, reason: 'End the live event before rescheduling it.' };
+    }
+    const startsAt = normalizedInstant(input.startsAt);
+    if (!startsAt) {
+      return { ok: false, reason: 'A valid ISO-8601 start time is required to schedule an event.' };
+    }
+    // A past start time is allowed on purpose: with the auto-go-live sweep
+    // (D-003) that reads as "start it now", which is a real thing to want.
+    return { ok: true, next: { status: 'scheduled', startsAt, endedAt: null } };
+  }
+
+  if (action === 'go-live') {
+    // Idempotent, because a seller double-clicking "Go live" on a room that is
+    // already live must not be an error — and must not restamp its start time.
+    if (current.status === 'live') return { ok: true, next: { ...current } };
+    return {
+      ok: true,
+      next: {
+        status: 'live',
+        // Re-running an ENDED show is a NEW run: carrying the finished run's
+        // start time forward would report the room as hours old at the instant
+        // it opens. Otherwise honour a start time already scheduled, so the
+        // guide's countdown and the room's clock agree.
+        startsAt: current.status === 'ended' ? nowIso : current.startsAt ?? nowIso,
+        endedAt: null,
+      },
+    };
+  }
+
+  if (current.status === 'ended') return { ok: true, next: { ...current } };
+  if (current.status !== 'live') {
+    return {
+      ok: false,
+      reason: 'Only a live event can be ended. Unpublish it instead to withdraw it before it airs.',
+    };
+  }
+  return { ok: true, next: { status: 'ended', startsAt: current.startsAt, endedAt: nowIso } };
+}
+
+/** The lifecycle fields of a stored record, for the resolver above. */
+export function lifecycleStateOf(record: EventLifecycleState): EventLifecycleState {
+  return { status: record.status, startsAt: record.startsAt, endedAt: record.endedAt };
+}
+
 /** A directory row as stored — no viewer count, which is never persisted. */
 export interface EventRecord {
   eventId: string;
@@ -102,6 +205,29 @@ export interface EventStore {
    * indistinguishable from a missing one.
    */
   unpublish(eventId: string, sellerId: string): Promise<boolean>;
+
+  /**
+   * Write an ALREADY-RESOLVED lifecycle state onto one seller-owned row, and
+   * return the row as stored.
+   *
+   * The store does not decide legality — `resolveLifecycleTransition` does, and
+   * the caller has already run it. Ownership is still enforced here: a foreign
+   * or absent id returns undefined, the same non-enumerating collapse the rest
+   * of this contract uses.
+   */
+  applyLifecycle(
+    eventId: string,
+    sellerId: string,
+    next: EventLifecycleState,
+  ): Promise<EventRecord | undefined>;
+
+  /**
+   * Flip every `scheduled` row whose start time has already passed to `live`
+   * (D-003), returning the rows that moved. Runs as one statement per sweep,
+   * for every seller at once — the sweep has no seller principal because no
+   * seller is present when a scheduled show is due.
+   */
+  activateDueScheduled(now: Date): Promise<EventRecord[]>;
 }
 
 export const EVENT_STORE = Symbol('EVENT_STORE');
@@ -264,6 +390,34 @@ export class InMemoryEventStore implements EventStore {
     existing.endedAt = null;
     return true;
   }
+
+  async applyLifecycle(
+    eventId: string,
+    sellerId: string,
+    next: EventLifecycleState,
+  ): Promise<EventRecord | undefined> {
+    const existing = this.records.find(
+      (record) => record.eventId === eventId && record.sellerId === sellerId,
+    );
+    if (!existing) return undefined;
+    existing.status = next.status;
+    existing.startsAt = next.startsAt;
+    existing.endedAt = next.endedAt;
+    return { ...existing };
+  }
+
+  async activateDueScheduled(now: Date): Promise<EventRecord[]> {
+    const due = this.records.filter((record) => (
+      record.status === 'scheduled'
+        && record.startsAt !== null
+        && Date.parse(record.startsAt) <= now.getTime()
+    ));
+    for (const record of due) {
+      record.status = 'live';
+      record.endedAt = null;
+    }
+    return due.map((record) => ({ ...record }));
+  }
 }
 
 /** Production no-source state: fail honestly instead of publishing demo events. */
@@ -293,6 +447,14 @@ export class UnavailableEventStore implements EventStore {
   }
 
   async unpublish(): Promise<boolean> {
+    return this.unavailable();
+  }
+
+  async applyLifecycle(): Promise<EventRecord | undefined> {
+    return this.unavailable();
+  }
+
+  async activateDueScheduled(): Promise<EventRecord[]> {
     return this.unavailable();
   }
 }
@@ -437,6 +599,52 @@ export class EventService {
    */
   async unpublish(eventId: string, sellerId: string): Promise<boolean> {
     return this.store.unpublish(eventId.trim(), sellerId.trim());
+  }
+
+  /**
+   * Apply one seller lifecycle transition (D-002).
+   *
+   * Three outcomes the caller must tell apart, which is why this returns a
+   * discriminated result rather than a record-or-undefined: the event is not
+   * this seller's (404), the transition is illegal from the current state (409,
+   * with the reason the seller reads), or it applied (200 with the new row).
+   */
+  async transition(
+    eventId: string,
+    sellerId: string,
+    action: EventLifecycleAction,
+    input: { startsAt?: unknown; now?: Date } = {},
+  ): Promise<
+    | { outcome: 'not-found' }
+    | { outcome: 'refused'; reason: string }
+    | { outcome: 'applied'; event: EventRecord }
+  > {
+    const id = eventId.trim();
+    const seller = sellerId.trim();
+    const current = await this.store.findOwned(id, seller);
+    if (!current) return { outcome: 'not-found' };
+
+    const resolved = resolveLifecycleTransition(lifecycleStateOf(current), action, input);
+    if (!resolved.ok) return { outcome: 'refused', reason: resolved.reason };
+
+    const applied = await this.store.applyLifecycle(id, seller, resolved.next);
+    // The row was owned a moment ago, so a miss here means it was withdrawn
+    // concurrently rather than that the seller was wrong about owning it.
+    if (!applied) return { outcome: 'not-found' };
+    return { outcome: 'applied', event: applied };
+  }
+
+  /**
+   * Take every scheduled event whose start time has passed live (D-003).
+   *
+   * Server-side by design: a browser-side flip would fire only for whoever
+   * happened to have a tab open, would not fire at all with nobody watching,
+   * and would be a lifecycle write originating from an unauthenticated buyer
+   * surface. Returns the rows that moved so the caller can invalidate exactly
+   * the affected event surfaces.
+   */
+  async activateDueScheduled(now: Date = new Date()): Promise<EventRecord[]> {
+    return this.store.activateDueScheduled(now);
   }
 
   /** The event table is the sole owner oracle for every event-anchored row. */

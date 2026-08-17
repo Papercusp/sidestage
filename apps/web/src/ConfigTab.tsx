@@ -247,7 +247,7 @@ export function ConfigEditor({
                   aria-describedby={validationVisible && !readiness.ready ? eventNameErrorId : eventNameHelpId}
                   onChange={(event) => update({ ...config, name: event.target.value })}
                 />
-                <small id={eventNameHelpId}>Shown in the room, event guide, and event-readiness evidence.</small>
+                <small id={eventNameHelpId}>Shown in the room and in the event guide.</small>
                 {validationVisible && !readiness.ready ? <small className="config-field-error" id={eventNameErrorId}>Enter an event name before saving.</small> : null}
               </label>
             </div>
