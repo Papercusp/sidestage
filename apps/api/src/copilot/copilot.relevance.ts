@@ -116,15 +116,46 @@ function requiredPropertyTokens(
 function coversQuestion(
   request: Pick<CopilotRequest, 'message' | 'requiredProperties'>,
   facts: SourceFacts,
+  namesAProduct: boolean,
 ): boolean {
   for (const token of requiredPropertyTokens(request)) {
     if (!facts.all.has(token)) return false;
   }
   const asked = withoutStopWords(relevanceTokens(request.message));
-  for (const token of asked) {
-    if (facts.identity.has(token)) return true;
+  if (asked.size === 0) return false;
+  if (namesAProduct) {
+    // The buyer named a product, so the remaining words are how they chose to
+    // phrase it. Ask only whether THIS source is the product they named.
+    for (const token of asked) {
+      if (facts.identity.has(token)) return true;
+    }
+    return false;
   }
-  return false;
+  // The buyer named no product in this context ("What is the price?"), so
+  // there is no identity to match on and every word still has to be accounted
+  // for — otherwise "how much is the espresso machine?" would ground on the
+  // kettle merely because both know the word "much".
+  return [...asked].every((token) => facts.all.has(token));
+}
+
+/**
+ * Does the question name any product present in this context?
+ *
+ * This is what decides which of the two tests above applies, and it is a
+ * property of the QUESTION AND THE CONTEXT TOGETHER — not of any one source —
+ * which is why it is computed once here rather than inside coversQuestion.
+ */
+function questionNamesAProduct(
+  request: Pick<CopilotRequest, 'message'>,
+  context: GroundingContext,
+): boolean {
+  const asked = withoutStopWords(relevanceTokens(request.message));
+  if (asked.size === 0) return false;
+  const identities = [
+    ...context.eventItems.map((item) => eventItemFacts(item).identity),
+    ...context.catalogProducts.map((product) => catalogProductFacts(product).identity),
+  ];
+  return identities.some((identity) => [...asked].some((token) => identity.has(token)));
 }
 
 function eventItemFacts(item: GroundingContext['eventItems'][number]): SourceFacts {
@@ -156,15 +187,16 @@ export function sourceSupportsQuestion(
   request: Pick<CopilotRequest, 'message' | 'requiredProperties'>,
   context: GroundingContext,
 ): boolean {
+  const named = questionNamesAProduct(request, context);
   if (sourceId.startsWith('event-item:')) {
     const id = sourceId.slice('event-item:'.length);
     const item = context.eventItems.find((candidate) => candidate.eventItemId === id);
-    return Boolean(item && coversQuestion(request, eventItemFacts(item)));
+    return Boolean(item && coversQuestion(request, eventItemFacts(item), named));
   }
   if (sourceId.startsWith('catalog-product:')) {
     const id = sourceId.slice('catalog-product:'.length);
     const product = context.catalogProducts.find((candidate) => candidate.productId === id);
-    return Boolean(product && coversQuestion(request, catalogProductFacts(product)));
+    return Boolean(product && coversQuestion(request, catalogProductFacts(product), named));
   }
   if (sourceId.startsWith('transcript:')) {
     const id = sourceId.slice('transcript:'.length);
@@ -172,12 +204,13 @@ export function sourceSupportsQuestion(
     return Boolean(moment && coversQuestion(
       request,
       factsOf(relevanceTokens(`${moment.productTitle ?? ''} ${moment.text}`), []),
+      named,
     ));
   }
   if (sourceId.startsWith('web-research:')) {
     const id = sourceId.slice('web-research:'.length);
     const finding = context.webFindings?.find((candidate) => candidate.findingId === id);
-    return Boolean(finding && coversQuestion(request, webFindingFacts(finding)));
+    return Boolean(finding && coversQuestion(request, webFindingFacts(finding), named));
   }
   return false;
 }
