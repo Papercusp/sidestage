@@ -4,8 +4,16 @@ import { useDemoIdentity } from './buyer-identity';
 import { requestChatJson } from './chat-api';
 import { TabHeader } from './components/TabHeader';
 import { EventChat, resolveApiOrigin } from './EventChat';
-import { browserEventId, chatEventId, DEFAULT_EVENT_TITLE, mediaBaseUrl } from './event-identity';
-import { sellerPrivateRequestHeaders, type GuideEvent, type SellerEventItem } from './events/api';
+import { chatEventId, DEFAULT_EVENT_TITLE, mediaBaseUrl, resolveActiveEventId, urlEventId } from './event-identity';
+import {
+  sellerPrivateRequestHeaders,
+  transitionSellerEvent,
+  type GuideEvent,
+  type SellerEventItem,
+  type SellerEventRecord,
+} from './events/api';
+import type { EventLifecycleAction } from './events/event-lifecycle';
+import { activeEventStatus, publishOnStartWarning } from './seller/active-event-status';
 import { useStreamSession } from './hooks';
 import { studioViewHref, useUrlStudioView, type StudioView } from './app-routing';
 import { InventoryPanel } from './InventoryPanel';
@@ -72,9 +80,52 @@ export function sellerEventIdentity(eventId: string, eventTitle?: string): Selle
   };
 }
 
-/** Restore the selected event after a reload, remount, or desktop/mobile host swap. */
-export function initialSellerEventIdentity(): SellerEventIdentity {
-  return sellerEventIdentity(browserEventId(), DEFAULT_EVENT_TITLE);
+/**
+ * The event the URL explicitly names, or null when it names none (WI-39718).
+ *
+ * This used to be `initialSellerEventIdentity()`, which seeded the Studio from
+ * `browserEventId()` — `urlEventId() ?? DEFAULT_EVENT_ID`. That `??` is the
+ * defect: with no `?event=` in the URL it MANUFACTURED the hard-coded
+ * `sunday-drop` literal and the Studio presented it as the Active Event,
+ * whatever the directory actually held — a draft, or in production no row at
+ * all. The buyer shell removed exactly this seed-outranks-directory bug (D-001,
+ * `resolveActiveEventId`); the seller half kept the raw seed until now.
+ *
+ * Returning the honest `null` is what lets `resolveSellerEventIdentity` follow
+ * the directory instead, with the seed surviving only as the pre-directory
+ * fallback it was always meant to be.
+ */
+export function initialPinnedSellerEvent(): SellerEventIdentity | null {
+  const pinned = urlEventId();
+  return pinned === null ? null : sellerEventIdentity(pinned);
+}
+
+/**
+ * Which event the Studio is pointed at — the seller mirror of the buyer shell's
+ * D-001 precedence, deliberately delegating to that same
+ * `resolveActiveEventId` rather than restating its `??` chain: two copies of
+ * "explicit pin, then the directory, then the seed" is how the two shells drift
+ * back apart.
+ *
+ * The directory here is the seller's OWN (`events.mine`), not the buyer guide,
+ * because the seller's first row may legitimately be a draft — and the server
+ * already orders that directory live-first, then scheduled, then draft
+ * (`compareForSeller`), so its head is the event the seller most likely means.
+ *
+ * The title travels with the id from the same directory row, so a resolved
+ * event can no longer wear DEFAULT_EVENT_TITLE ("Sunday vintage drop") over
+ * some other seller's event — the second, quieter half of the same trap.
+ */
+export function resolveSellerEventIdentity(
+  pinnedEvent: SellerEventIdentity | null,
+  ownedEvents: readonly SellerEventRecord[],
+): SellerEventIdentity {
+  const eventId = resolveActiveEventId(pinnedEvent?.eventId ?? null, ownedEvents);
+  const record = ownedEvents.find((event) => event.eventId === eventId);
+  return sellerEventIdentity(
+    eventId,
+    record?.title ?? (pinnedEvent?.eventId === eventId ? pinnedEvent.eventTitle : undefined),
+  );
 }
 
 export interface SellerEventTitleBindings {
@@ -177,7 +228,7 @@ export function SellerTab({
   transcriptProducts: readonly TranscriptProductOption[];
   onActiveProductChange: (productId: string | null) => void;
 }) {
-  const [{ eventId, eventTitle }, setEventIdentity] = useState(initialSellerEventIdentity);
+  const [pinnedEvent, setPinnedEvent] = useState<SellerEventIdentity | null>(initialPinnedSellerEvent);
   const [room, setRoom] = useState<EventRoom | null>(null);
   const stream = useStreamSession<PublisherSession>();
   const { userId, impersonate } = useDemoIdentity('seller');
@@ -189,9 +240,36 @@ export function SellerTab({
     args: {},
     pollIntervalMs: 15_000,
   });
+  /*
+   * The seller's OWN event directory (WI-39718).
+   *
+   * The guide above cannot stand in for it: GET /events filters drafts out by
+   * design, so the guide answers "is it absent?" identically for a draft and
+   * for an id that names nothing — and telling those two apart is the whole
+   * point of the Active Event badge. Event Manager already reads this exact
+   * query with these exact args, so the two seller boards resolve status from
+   * one source rather than two that can disagree.
+   */
+  const directoryQuery = useSyncQuery<SellerEventRecord>({
+    queryName: 'events.mine',
+    args: { sellerId: userId },
+    pollIntervalMs: 15_000,
+  });
+  const ownedEvents = useMemo(() => directoryQuery.data ?? [], [directoryQuery.data]);
+  const { eventId, eventTitle } = useMemo(
+    () => resolveSellerEventIdentity(pinnedEvent, ownedEvents),
+    [ownedEvents, pinnedEvent],
+  );
+  const eventStatus = useMemo(
+    () => activeEventStatus(eventId, ownedEvents, directoryQuery.loading),
+    [directoryQuery.loading, eventId, ownedEvents],
+  );
+  // The seller's own rows come FIRST: they carry drafts, which the buyer guide
+  // never will, so a draft's real title reaches every panel instead of the
+  // DEFAULT_EVENT_TITLE placeholder the identity falls back to.
   const eventTitles = useMemo(
-    () => sellerEventTitleBindings({ eventId, eventTitle }, guideQuery.data ?? []),
-    [eventId, eventTitle, guideQuery.data],
+    () => sellerEventTitleBindings({ eventId, eventTitle }, [...ownedEvents, ...(guideQuery.data ?? [])]),
+    [eventId, eventTitle, guideQuery.data, ownedEvents],
   );
 
   /*
@@ -250,6 +328,52 @@ export function SellerTab({
     classifyProductFocus,
   });
 
+  /*
+   * Publishing is part of starting (WI-39718).
+   *
+   * The Studio has two start affordances and the owner reasonably took the
+   * nearer one: the Live console's "Start event" opened the MEDIA room, while
+   * only Event Manager's "Go live" moved the EVENT. Starting the room therefore
+   * left a draft a draft, GET /events kept filtering it out, and a live show ran
+   * that no buyer could discover — a failure that presents as a broken sync
+   * transport and is in fact a lifecycle gap.
+   *
+   * `go-live` is legal from every state and idempotent from `live`
+   * (`resolveLifecycleTransition`), so this needs no client-side legality check
+   * and cannot be wrong about one — D-002 keeps that authority server-side. An
+   * unknown room 404s, which is exactly the case that deserves the loud warning
+   * rather than a silent no-op.
+   */
+  const publishFallback = useCallback(
+    ({ eventId: resolvedEventId, action }: { eventId: string; action: EventLifecycleAction }) => (
+      transitionSellerEvent(resolvedEventId, action, {}, import.meta.env.VITE_API_URL, principal)
+    ),
+    [principal],
+  );
+  const mutateLifecycle = useSyncMutate<
+    { eventId: string; action: EventLifecycleAction },
+    SellerEventRecord
+  >('event.lifecycle', publishFallback);
+
+  const [publishWarning, setPublishWarning] = useState<string | null>(null);
+  const [publishing, setPublishing] = useState(false);
+  const publishActiveEvent = useCallback(async (): Promise<boolean> => {
+    setPublishing(true);
+    try {
+      await mutateLifecycle({ eventId, action: 'go-live' });
+      setPublishWarning(null);
+      // The badge reads the directory, so it must refetch or it would keep
+      // saying "Draft" about an event this call just took live.
+      directoryQuery.invalidate();
+      return true;
+    } catch (error) {
+      setPublishWarning(publishOnStartWarning(error));
+      return false;
+    } finally {
+      setPublishing(false);
+    }
+  }, [directoryQuery, eventId, mutateLifecycle]);
+
   const startEvent = async () => {
     let nextRoom: EventRoom;
     try {
@@ -259,6 +383,12 @@ export function SellerTab({
       stream.setStreamError(error instanceof Error ? error.message : 'Choose a valid event room id.');
       return;
     }
+    // Publish BEFORE the camera connects: a failed publish must be visible
+    // while the seller is still looking at this panel, not discovered later by
+    // an empty room. A failure does not abort the start — the seller asked to
+    // go on camera and gets to — it raises the alert and leaves the one-click
+    // retry beside it.
+    await publishActiveEvent();
     setRoom(nextRoom);
     await stream.start(
       () => connectPublisher({ room: nextRoom, mediaBaseUrl: mediaBaseUrl() }),
@@ -307,15 +437,21 @@ export function SellerTab({
     'stage-status': {
       eventTitle: eventTitles.stageStatus,
       eventId,
-      onEventIdChange: (nextEventId) => setEventIdentity((current) => (
+      // Typing a room id is an EXPLICIT choice, so it pins — the directory only
+      // decides which event is active when the seller has not said.
+      onEventIdChange: (nextEventId) => setPinnedEvent((current) => (
         sellerEventIdentity(
           nextEventId,
-          nextEventId === current.eventId ? current.eventTitle : DEFAULT_EVENT_TITLE,
+          nextEventId === current?.eventId ? current.eventTitle : DEFAULT_EVENT_TITLE,
         )
       )),
+      eventStatus,
       roomEventId: room?.eventId ?? null,
       streamState: stream.streamState,
       streamError: stream.streamError,
+      publishWarning,
+      onPublishEvent: () => void publishActiveEvent(),
+      publishing,
       videoRef: stream.videoRef,
       isSessionActive: Boolean(stream.session),
       onStartEvent: () => void startEvent(),
@@ -337,7 +473,7 @@ export function SellerTab({
       eventName: eventTitles.eventManager,
       apiBaseUrl: import.meta.env.VITE_API_URL,
       onEventReady: (nextEventId: string, nextEventTitle: string) => {
-        setEventIdentity(sellerEventIdentity(nextEventId, nextEventTitle));
+        setPinnedEvent(sellerEventIdentity(nextEventId, nextEventTitle));
       },
     },
     inventory: {
