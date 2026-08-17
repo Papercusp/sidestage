@@ -138,15 +138,22 @@ EOF
   # already guarantees contract == file. Checking file == live here CHAINS onto
   # that to give contract == live, without re-deriving the contract in bash or
   # needing a TS runtime at launch time.
+  # The `|| true` on both is load-bearing under `set -Eeuo pipefail` (line 38):
+  # `grep` exits 1 when it matches nothing and psql exits non-zero when the
+  # upstream is unreachable, and with pipefail a failing command substitution in
+  # an assignment ABORTS THE SCRIPT. Without it, the two "skipping the
+  # publication preflight" branches below are unreachable and an unparsable file
+  # or a not-yet-up database kills the launcher instead of degrading. (Same
+  # reason the wal_level probe above ends in `|| true`.)
   declared_tables="$(
     sed -n '/CREATE PUBLICATION zero_publication FOR TABLE/,/^      );/p' \
       "$ROOT_DIR/db/zero-publication.sql" 2>/dev/null |
-      grep -oE 'public\.[a-z_]+' | sed 's/^public\.//' | sort -u
+      grep -oE 'public\.[a-z_]+' | sed 's/^public\.//' | sort -u || true
   )"
   live_tables="$(
     psql "$ZERO_UPSTREAM_DB" -tAc \
       "select tablename from pg_publication_tables where pubname='$ZERO_APP_PUBLICATIONS'" \
-      2>/dev/null | sed '/^$/d' | sort -u
+      2>/dev/null | sed '/^$/d' | sort -u || true
   )"
   if [[ -z "$declared_tables" ]]; then
     echo "[zero-cache-start] NOTE: could not parse the declared table list from db/zero-publication.sql; skipping the publication preflight" >&2
