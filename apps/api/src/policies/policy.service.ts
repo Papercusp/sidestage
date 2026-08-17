@@ -28,6 +28,16 @@ export const PROVIDER_CAPABILITIES = Symbol('PROVIDER_CAPABILITIES');
 /** Demo principal: real deployments derive the seller from the request principal. */
 export const DEFAULT_SELLER_ID = 'demo-seller';
 
+/**
+ * Retention window for `policy_idempotency` (P-006 retention element).
+ *
+ * Replay protection is a WINDOW, not a permanent record: past this age a
+ * repeated idempotency key is treated as a fresh request, which is the whole
+ * reason the row can be dropped. It must comfortably exceed any client retry
+ * horizon, so it is deliberately generous rather than tight.
+ */
+export const IDEMPOTENCY_RETENTION_MS = 24 * 60 * 60 * 1000;
+
 export interface PolicyErrorBody {
   code: string;
   message: string;
@@ -61,6 +71,20 @@ export interface PolicyStore {
   appendAudit(entry: PolicyAuditEntry): Promise<void>;
   idempotencyGet(sellerId: string, route: string, key: string): Promise<{ requestHash: string; response: unknown } | undefined>;
   idempotencyPut(sellerId: string, route: string, key: string, requestHash: string, response: unknown): Promise<void>;
+  /**
+   * Retention for `policy_idempotency` (P-006): drop cached responses written
+   * before `olderThan`, returning how many rows went. Replay protection is a
+   * WINDOW, not a permanent record — without this the table grows one jsonb row
+   * per unique key forever. `idempotencyPut` sweeps its own partition on write,
+   * so this is also the explicit entry point for an operator or a future
+   * scheduled sweep; the API has no periodic-task surface today.
+   *
+   * Deliberately NOT offered for `policy_audit_entry`: auto-expiring immutable
+   * audit evidence would destroy the durability P-006 exists to create. Also not
+   * offered for `policy_outbox_event`, which cannot have a correct predicate
+   * until it is actually drained — see WI-39729.
+   */
+  pruneIdempotency(olderThan: Date): Promise<number>;
 }
 
 @Injectable()
@@ -68,7 +92,7 @@ export class InMemoryPolicyStore implements PolicyStore {
   private readonly revisions = new Map<string, SellerPolicyRevision>();
   private readonly audits: PolicyAuditEntry[] = [];
   readonly outbox: PolicyOutboxEvent[] = [];
-  private readonly idem = new Map<string, { requestHash: string; response: unknown }>();
+  private readonly idem = new Map<string, { requestHash: string; response: unknown; createdAt: number }>();
 
   async get(id: string): Promise<SellerPolicyRevision | undefined> {
     const rev = this.revisions.get(id);

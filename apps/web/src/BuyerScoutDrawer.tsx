@@ -57,6 +57,7 @@ export const SIDE_STAGE_SCOUT_STRINGS: ScoutChatStrings = {
   emptyFallback: "Scout couldn't put together a response just now. Please try again.",
   errorPrefix: 'Scout could not continue: ',
   workingStatus: 'Checking SideStage…',
+  turnFailedFallback: "Scout couldn't check that just now — ask the seller in the event chat, or try again.",
 };
 
 const TOOL_STATUS: Record<string, string> = {

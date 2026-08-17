@@ -121,10 +121,20 @@ export const buildSideStageScoutBody: NonNullable<HttpChatTransportOptions['buil
   };
 };
 
+/**
+ * Fail a Scout turn after this much server silence. The API streams a heartbeat
+ * on open and every 10s, so 25s tolerates two missed beats before giving up —
+ * long enough never to cut a healthy slow turn, short enough that a stalled one
+ * hands the composer back instead of locking it until a reload (WI-39716).
+ */
+export const SCOUT_IDLE_TIMEOUT_MS = 25_000;
+
 export interface CreateSideStageScoutTransportOptions {
   buyerId?: string | null;
   fetchImpl?: typeof fetch;
   cookieDocument?: ScoutCookieDocument | null;
+  /** Override the idle deadline (tests). Defaults to SCOUT_IDLE_TIMEOUT_MS. */
+  idleTimeoutMs?: number;
 }
 
 export function createSideStageScoutTransport(
@@ -139,6 +149,7 @@ export function createSideStageScoutTransport(
     chatUrl: '/api/scout/chat/stream',
     transcriptUrl: (sessionId) => `/api/scout/session/${encodeURIComponent(sessionId)}`,
     buildBody: buildSideStageScoutBody,
+    idleTimeoutMs: options.idleTimeoutMs ?? SCOUT_IDLE_TIMEOUT_MS,
     ...(options.fetchImpl ? { fetchImpl: options.fetchImpl } : {}),
   });
   return {

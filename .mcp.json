@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "papercusp": {
+      "type": "http",
+      "url": "http://127.0.0.1:9071/api/mcp?harness=sidestage&workspace=papercusp-workspace&role=judge&run=1786989409-judge&spawn=3c22da02-69e6-4663-95c3-a6728e4b11de&client=role-d5327bbe-7811-4726-b108-d800ff860348&exp=0&sig=VEt7G8j2jpNV0lipG20eMoP_Mvu3dt996IezcD2XyZo"
+    }
+  }
+}
