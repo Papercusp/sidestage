@@ -67,7 +67,7 @@ export interface PublisherOptions extends StreamingConfig {
   readonly peerConnectionFactory?: PeerConnectionFactory;
   /** Deadline for the camera/mic permission grant (default 20s). */
   readonly mediaAcquireTimeoutMs?: number;
-  /** Budget for ICE gathering before the offer is sent as-is (default 3s). */
+  /** Budget for ICE gathering before the offer is sent as-is (default 10s). */
   readonly iceGatheringTimeoutMs?: number;
   /**
    * Called when an ESTABLISHED publish falls over (see `isLostConnectionState`).
@@ -84,7 +84,7 @@ export interface ViewerOptions extends StreamingConfig {
   readonly peerConnectionFactory?: PeerConnectionFactory;
   readonly mediaStreamFactory?: MediaStreamFactory;
   readonly onTrack?: (stream: MediaStream, event: RTCTrackEvent) => void;
-  /** Budget for ICE gathering before the offer is sent as-is (default 3s). */
+  /** Budget for ICE gathering before the offer is sent as-is (default 10s). */
   readonly iceGatheringTimeoutMs?: number;
   /**
    * Called when an ESTABLISHED subscription falls over. The WHEP 404 retry only
@@ -228,13 +228,18 @@ export function buildMediaEndpoint(
 
 /**
  * How long negotiation waits for ICE gathering before offering the candidates
- * it already has. Host candidates arrive in milliseconds; what stalls gathering
- * is a relay allocation against an unreachable TURN server, and MediaMTX
- * advertises exactly one (`turns:...?transport=tcp`) in production. Waiting the
- * full browser allocation timeout for an OPTIONAL candidate would hold a
- * user-facing "go live" action hostage to a network we do not need.
+ * it already has.
+ *
+ * Deliberately generous, and deliberately NOT shortened: WHIP/WHEP is vanilla
+ * ICE, so candidates that arrive after the POST are never delivered to the
+ * server. Production advertises a single TURN relay reached over TCP/TLS on
+ * 443, which can legitimately take several seconds to allocate on a slow
+ * network — cutting the budget would silently drop that relay candidate from
+ * the offer and break exactly the constrained networks that need it most.
+ * Expiry is cheap because it is no longer fatal (see below); truncating the
+ * wait is not.
  */
-export const DEFAULT_ICE_GATHERING_TIMEOUT_MS = 3_000;
+export const DEFAULT_ICE_GATHERING_TIMEOUT_MS = 10_000;
 
 /**
  * Whether gathering finished, or the budget expired with candidates still
