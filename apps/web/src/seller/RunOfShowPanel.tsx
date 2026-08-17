@@ -4,6 +4,7 @@ import {
   buildRunOfShowView,
   formatClock,
   formatPace,
+  seededEntries,
   type RunOfShowPlan,
   type RunOfShowView,
 } from '../run-of-show';
@@ -16,7 +17,11 @@ import {
   type SellerEventItem,
 } from '../events/api';
 import type { CatalogProduct } from '../seller-products';
+import type { EventConfigView } from '../ConfigTab';
 import { PricingHistoryPanel } from './PricingHistoryPanel';
+import { MarkdownControl } from './MarkdownControl';
+import { OfferComposer, emptyOfferDraft } from './OfferComposer';
+import { buyerCandidates, type PresenceRowView } from './offer-guard';
 import '../run-of-show.css';
 
 /**
@@ -156,6 +161,7 @@ export function RunOfShowPanelView({
   onStageNext,
   activeProduct = null,
   pricingHistory = null,
+  stageCommerce = null,
   nextAuctionLauncher = null,
   stageBusy = false,
   stageError = null,
@@ -166,6 +172,12 @@ export function RunOfShowPanelView({
   onStageNext: (productId: string) => void;
   activeProduct?: CatalogProduct | null;
   pricingHistory?: ReactNode;
+  /**
+   * The guarded markdown + targeted-offer controls for whatever is ON STAGE.
+   * Injected rather than built here so this view stays a pure markup function
+   * with no fetch and no timers, exactly as its tests assume.
+   */
+  stageCommerce?: ReactNode;
   nextAuctionLauncher?: ReactNode;
   /** True while the guarded push is in flight, so the button cannot double-fire. */
   stageBusy?: boolean;
@@ -253,6 +265,7 @@ export function RunOfShowPanelView({
                   <p className="run-of-show-notes muted">No notes for this product.</p>
                 )}
                 {pricingHistory}
+                {stageCommerce}
               </div>
             </article>
           ) : null}
@@ -340,12 +353,58 @@ export function RunOfShowPanel({
     args: { eventId },
     staleTime: 0,
   });
-  const entries = useMemo(() => planQuery.data?.[0]?.entries ?? [], [planQuery.data]);
+  /*
+   * The SAME two reads the Lineup surface makes, by the same query names, so
+   * the guardrail this dock draws and the one the Lineup draws are the same
+   * policy — P-006's "cannot drift" is a claim about the INPUTS as much as the
+   * controls. The 10s presence poll matches EventChat and EventManager, so the
+   * three surfaces cannot disagree about who is in the room.
+   */
+  const configQuery = useSyncQuery<EventConfigView>({ queryName: 'event.config', args: { eventId } });
+  const presenceQuery = useSyncQuery<PresenceRowView>({
+    queryName: 'event.chat.presence',
+    args: { eventId },
+    pollIntervalMs: 10_000,
+  });
   const lineupItems = useMemo(() => itemsQuery.data ?? [], [itemsQuery.data]);
+  /*
+   * The SAME show the Lineup renders (D-010), through the same helper — an
+   * event nobody planned still has a show, seeded from lineup order. Reading
+   * `entries` raw here would make the two surfaces disagree about what the show
+   * IS: the Lineup would show every reserved product as a slot while this dock
+   * showed "No show plan yet", which is the drift P-006 exists to close.
+   */
+  const entries = useMemo(
+    () => seededEntries(planQuery.data?.[0], lineupItems.map((item) => item.productId)),
+    [planQuery.data, lineupItems],
+  );
   const titles = useMemo(
     () => Object.fromEntries(lineupItems.map((item) => [item.productId, item.title])),
     [lineupItems],
   );
+  const offerBuyers = useMemo(
+    () => buyerCandidates({
+      presence: presenceQuery.data,
+      auction: auctionQuery.data?.[0] ?? null,
+      excludeUserId: actorId,
+    }),
+    [actorId, auctionQuery.data, presenceQuery.data],
+  );
+  const policy = configQuery.data?.[0]?.policy;
+  /*
+   * The item ON STAGE, by the server's own flag (D-005) — the same truth the
+   * clock advances on. The commerce controls below act on whatever is live, so
+   * reading local selection here would let the seller mark down one product
+   * while the room is looking at another.
+   */
+  const stagedItem = useMemo(
+    () => lineupItems.find((item) => item.onStage) ?? null,
+    [lineupItems],
+  );
+  const [markdownPercent, setMarkdownPercent] = useState('');
+  const [offerDraft, setOfferDraft] = useState(emptyOfferDraft);
+  const [commerceBusy, setCommerceBusy] = useState(false);
+  const [commerceNote, setCommerceNote] = useState<{ tone: 'success' | 'error'; text: string } | null>(null);
   const [startingPrice, setStartingPrice] = useState('');
   const [durationSec, setDurationSec] = useState(90);
   const [auctionBusy, setAuctionBusy] = useState(false);
@@ -485,6 +544,51 @@ export function RunOfShowPanel({
     }
   };
 
+  /*
+   * Markdown and targeted offer both ride the ONE guarded action seam this
+   * panel already uses for the push, so the dock gains no transport of its own.
+   * The reason string names the surface, because the audit log is read later by
+   * someone asking WHERE a price move came from.
+   */
+  /*
+   * The action shape comes FROM the client that sends it, so a field the server
+   * would reject cannot be assembled here. `ActionProposal` is not exported, and
+   * widening to a Record + cast would have thrown away exactly the checking that
+   * caught a malformed action while this was being written.
+   */
+  type SellerAction = Parameters<typeof executeSellerAction>[2];
+  type CommerceMutation = { eventId: string; actorId: string; action: SellerAction };
+  const commerceFallback = useCallback(
+    ({ eventId: actionEventId, actorId: commerceActorId, action }: CommerceMutation) => executeSellerAction(
+      actionEventId,
+      commerceActorId,
+      action,
+      apiBaseUrl,
+      principal,
+    ),
+    [apiBaseUrl, principal],
+  );
+  const mutateCommerce = useSyncMutate<CommerceMutation, SellerActionResult>('event.executeAction', commerceFallback);
+
+  const runCommerce = async (action: Record<string, unknown>, success: string) => {
+    if (commerceBusy) return;
+    setCommerceBusy(true);
+    setCommerceNote(null);
+    try {
+      await mutateCommerce({ eventId, actorId, action });
+      itemsQuery.invalidate();
+      setCommerceNote({ tone: 'success', text: success });
+    } catch (caught) {
+      // The server's refusal, verbatim — it is the authority, not our mirror.
+      setCommerceNote({
+        tone: 'error',
+        text: caught instanceof Error ? caught.message : 'That change was not applied.',
+      });
+    } finally {
+      setCommerceBusy(false);
+    }
+  };
+
   const startNextAuction = async () => {
     if (!nextItem || auctionDisabledReason || auctionBusy) return;
     const startingPriceCents = moneyInputToCents(startingPrice);
@@ -515,6 +619,69 @@ export function RunOfShowPanel({
       stageError={stageError}
       activeProduct={activeProduct}
       pricingHistory={activeProduct ? <PricingHistoryPanel eventId={eventId} productId={activeProduct.id} /> : null}
+      stageCommerce={stagedItem ? (
+        <div className="run-of-show-commerce">
+          {/*
+            The SHARED controls (P-006), not dock-local copies: the same
+            MarkdownControl the Lineup drawer renders, so the floor drawn here
+            and the floor drawn there are one implementation reading one policy.
+            D-006 — the previewed price IS the sent price, so `onApply` forwards
+            the cents the control showed rather than recomputing them.
+          */}
+          <MarkdownControl
+            productId={stagedItem.productId}
+            title={stagedItem.title}
+            currentPriceCents={stagedItem.priceCents}
+            policy={policy}
+            percent={markdownPercent}
+            onPercentChange={setMarkdownPercent}
+            disabled={commerceBusy}
+            applyLabel="Mark down live"
+            onApply={(percent, priceCents) => void runCommerce(
+              {
+                kind: 'markdown',
+                productId: stagedItem.productId,
+                priceCents,
+                reason: `Seller applied a ${percent}% markdown from the run of show`,
+              },
+              `${stagedItem.title} markdown passed the event guardrail.`,
+            )}
+          />
+          <OfferComposer
+            className="run-of-show-offer"
+            productId={stagedItem.productId}
+            title={stagedItem.title}
+            currentPriceCents={stagedItem.priceCents}
+            availableQty={stagedItem.availableQty}
+            policy={policy}
+            blockedActionKinds={policy?.blockedActionKinds}
+            candidates={offerBuyers}
+            buyersLoading={presenceQuery.loading}
+            disabled={commerceBusy}
+            draft={offerDraft}
+            onDraftChange={(patch) => setOfferDraft((current) => ({ ...current, ...patch }))}
+            onSend={(buyer, quantity, priceCents) => void runCommerce(
+              {
+                kind: 'targeted-offer',
+                productId: stagedItem.productId,
+                buyerId: buyer.buyerId,
+                quantity,
+                priceCents,
+                reason: `Seller offered ${stagedItem.title} to ${buyer.displayName} from the run of show`,
+              },
+              `Offer sent to ${buyer.displayName}.`,
+            )}
+          />
+          {commerceNote ? (
+            <p
+              className={`run-of-show-commerce-note is-${commerceNote.tone}`}
+              role={commerceNote.tone === 'error' ? 'alert' : 'status'}
+            >
+              {commerceNote.text}
+            </p>
+          ) : null}
+        </div>
+      ) : null}
       nextAuctionLauncher={nextItem ? (
         <NextAuctionLauncher
           item={nextItem}

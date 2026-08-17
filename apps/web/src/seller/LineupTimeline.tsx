@@ -50,7 +50,7 @@ import type { SellerEventItem } from '../events/api';
 import type { EventLineupGridProps } from '../events/EventLineupGrid';
 import { formatClock, formatPace, type RunOfShowSlotView, type RunOfShowView } from '../run-of-show';
 import { MarkdownControl } from './MarkdownControl';
-import { BuyerPicker } from './BuyerPicker';
+import { OfferComposer } from './OfferComposer';
 import './lineup-timeline.css';
 
 /** The minutes range the run-of-show save accepts; mirrored here for an inline hint only. */
@@ -202,7 +202,6 @@ export function LineupTimelineView({
 
   const itemsByProduct = new Map(items.map((item) => [item.productId, item]));
   const candidates = buyers ?? [];
-  const offersBlocked = (blockedActionKinds ?? []).includes('targeted-offer');
   const busy = busyProductId ?? null;
 
   const handleDrop = (event: DragEvent<HTMLLIElement>, toIndex: number) => {
@@ -458,64 +457,36 @@ export function LineupTimelineView({
                       the control would have been, rather than showing a control
                       whose action the server will refuse.
                     */}
-                    {offersBlocked ? (
-                      <p className="lineup-drawer-note">
-                        This event does not allow targeted offers.
-                      </p>
-                    ) : (
-                      <div className="lineup-drawer-row">
-                        <BuyerPicker
-                          productId={item.productId}
-                          title={item.title}
-                          candidates={candidates}
-                          value={draft.offerBuyerId}
-                          onChange={(buyerId) => onDraftChange(item.productId, { offerBuyerId: buyerId })}
-                          disabled={rowBusy}
-                          loading={buyersLoading}
-                        />
-                        <label className="lineup-drawer-field">
-                          <span>Offer qty</span>
-                          <input
-                            type="text"
-                            inputMode="numeric"
-                            value={draft.offerQuantity}
-                            onChange={(event) =>
-                              onDraftChange(item.productId, { offerQuantity: event.target.value })
-                            }
-                          />
-                        </label>
-                        <label className="lineup-drawer-field">
-                          <span>Offer price</span>
-                          <input
-                            type="text"
-                            inputMode="decimal"
-                            value={draft.offerPriceCents}
-                            placeholder="0.00"
-                            onChange={(event) =>
-                              onDraftChange(item.productId, { offerPriceCents: event.target.value })
-                            }
-                          />
-                        </label>
-                        <button
-                          type="button"
-                          className="button"
-                          disabled={
-                            rowBusy ||
-                            draft.offerBuyerId === '' ||
-                            priceToCents(draft.offerPriceCents) === null
-                          }
-                          onClick={() => {
-                            const buyer = candidates.find((c) => c.buyerId === draft.offerBuyerId);
-                            const cents = priceToCents(draft.offerPriceCents);
-                            if (buyer && cents !== null) {
-                              onSendOffer(item, buyer, positiveInt(draft.offerQuantity, 1), cents);
-                            }
-                          }}
-                        >
-                          Send offer
-                        </button>
-                      </div>
-                    )}
+                    {/*
+                      The SHARED composer (P-006/D-007), not an inline copy. The
+                      copy that stood here guarded only "a buyer is chosen" and
+                      "the price parses", so it enabled Send for below-floor
+                      offers the server refuses; the composer runs the same
+                      `evaluateOffer` mirror the dock does.
+                    */}
+                    <OfferComposer
+                      className="lineup-drawer-row"
+                      productId={item.productId}
+                      title={item.title}
+                      currentPriceCents={item.priceCents}
+                      availableQty={item.availableQty}
+                      policy={policy}
+                      blockedActionKinds={blockedActionKinds}
+                      candidates={candidates}
+                      buyersLoading={buyersLoading}
+                      disabled={rowBusy}
+                      draft={{
+                        buyerId: draft.offerBuyerId,
+                        quantity: draft.offerQuantity,
+                        price: draft.offerPriceCents,
+                      }}
+                      onDraftChange={(patch) => onDraftChange(item.productId, {
+                        ...(patch.buyerId !== undefined ? { offerBuyerId: patch.buyerId } : {}),
+                        ...(patch.quantity !== undefined ? { offerQuantity: patch.quantity } : {}),
+                        ...(patch.price !== undefined ? { offerPriceCents: patch.price } : {}),
+                      })}
+                      onSend={(buyer, quantity, priceCents) => onSendOffer(item, buyer, quantity, priceCents)}
+                    />
                   </div>
                 ) : null}
               </li>
