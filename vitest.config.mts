@@ -41,6 +41,28 @@ export default defineConfig({
           environment: 'node',
           include: ['apps/api/src/**/*.{test,spec}.ts'],
           exclude: sourceExclude,
+          /**
+           * HERMETIC BY DEFAULT. A test that boots a real Nest module (via
+           * `Test.createTestingModule({ imports: [...] })`) transitively pulls in the
+           * @Global DatabaseModule, whose PG_POOL factory calls createPoolOrNull() at
+           * bootstrap. In 'auto' mode that DIALS the developer's Postgres on
+           * 127.0.0.1:55434 and asserts its live schema — so a unit suite's verdict
+           * silently depended on a shared, externally-mutated container. Recreating
+           * that volume anywhere on the box turned the release gate red on unrelated
+           * code (green-checkpoint candidate d6fee86480b0: `schema drift — 39 table(s)
+           * missing`, from a candidate whose diff was apps/web test files only).
+           *
+           * 'memory' is the affordance database.module.ts documents for exactly this
+           * ("forces in-memory even with a reachable database (useful in tests)"), and
+           * it matches this project's existing convention that real-Postgres coverage
+           * is opt-in behind SIDESTAGE_PG_INTEGRATION=1. Those integration tests
+           * construct their own `new Pool(...)` rather than going through
+           * createPoolOrNull(), so they are unaffected by this setting.
+           *
+           * Guarded by apps/api/src/db/database.module.test.ts — removing this line
+           * fails that test rather than silently re-arming the flake.
+           */
+          env: { DATA_BACKEND: 'memory' },
         },
       },
       mergeConfig(webViteConfig, {
