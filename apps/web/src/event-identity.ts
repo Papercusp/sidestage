@@ -25,9 +25,14 @@ export function chatEventId(value: string): string {
  * reported defect, not a hypothetical — production's directory holds no
  * `sunday-drop` row at all, so the pinned default opened a room the Channel
  * Guide could not even list, while the guide's own first row sat unopened.
- * Callers that can consult the directory should follow it and use this;
- * `browserEventId()` remains for seller surfaces that need a seed before any
- * directory read.
+ * Callers that can consult the directory should follow it and use this.
+ *
+ * The seller Studio joined them (WI-39718). It had kept the raw
+ * `browserEventId()` seed, so with no `?event=` its "Active Event" board
+ * presented the manufactured `sunday-drop` as the event being run — a draft, or
+ * in production no row at all — and a status-free board made that read as live.
+ * `browserEventId()` now remains only for the smaller surfaces that read a room
+ * id once and never consult a directory (CopilotPanel, ConfigTab, TestTab).
  *
  * `search` is injectable for the same reason `app-routing`'s readers take a
  * URL: the parse is then verifiable without a DOM, so a node-environment test
