@@ -1,0 +1,199 @@
+import { describe, expect, it } from 'vitest';
+import {
+  CLAIM_ADVERSARIAL_CASES,
+  EXERCISED_DEFECT_CODES,
+} from './copilot.claims.fixtures';
+import {
+  fingerprintEvidence,
+  listingStateOf,
+  rebindClaim,
+  verifyClaims,
+  type Claim,
+  type ClaimDefectCode,
+} from './copilot.claims';
+import { policyFingerprint } from '../policies/policy-rules';
+import { baselinePolicyBody } from '../policies/policy-rules';
+
+/**
+ * WI-39259 / plan P-003 — the claim/evidence contract.
+ *
+ * Structured so each acceptance-bearing clause of P-003 has an EXACT test to
+ * point at, which is the bar D-008 closed P-007 on ("every acceptance-bearing
+ * clause has an exact test"). The clause each block covers is named in its
+ * describe title.
+ */
+
+function codesOf(defects: readonly { code: ClaimDefectCode }[]): ClaimDefectCode[] {
+  return [...new Set(defects.map((defect) => defect.code))].sort();
+}
+
+describe('P-003 adversarial fixtures — every case behaves as specified', () => {
+  it.each(CLAIM_ADVERSARIAL_CASES.map((entry) => [entry.caseId, entry] as const))(
+    '%s',
+    (_caseId, testCase) => {
+      const verdict = verifyClaims(testCase.claims, testCase.request, testCase.atSend);
+      expect(verdict.supported, testCase.expectation).toBe(testCase.expected.supported);
+      expect(codesOf(verdict.defects)).toEqual([...testCase.expected.codes].sort());
+    },
+  );
+
+  // Without this, every case above could be green because the verifier rejects
+  // EVERYTHING — a guard that never passes is broken, not strict.
+  it('includes a control case that must pass, and it passes', () => {
+    const control = CLAIM_ADVERSARIAL_CASES.filter((entry) => entry.expected.supported);
+    expect(control.length).toBeGreaterThan(0);
+    for (const entry of control) {
+      expect(verifyClaims(entry.claims, entry.request, entry.atSend).supported).toBe(true);
+    }
+  });
+
+  it('exercises all four typed defect codes', () => {
+    expect([...EXERCISED_DEFECT_CODES].sort()).toEqual([
+      'evidence-conflicting',
+      'evidence-irrelevant',
+      'evidence-missing',
+      'evidence-stale',
+    ]);
+  });
+});
+
+describe('P-003 clause: price, availability, listing state, shipping/returns, catalog properties', () => {
+  const subjects = CLAIM_ADVERSARIAL_CASES.flatMap((entry) =>
+    entry.claims.claims.map((claim) => claim.asserted.subject),
+  );
+
+  it('covers every one of the five named subject areas', () => {
+    expect([...new Set(subjects)].sort()).toEqual([
+      'availability',
+      'catalog-property',
+      'listing-state',
+      'price',
+      'returns-policy',
+      'shipping-policy',
+    ]);
+  });
+
+  it('derives listing state from stock and stage presence rather than storing one', () => {
+    expect(listingStateOf({ availableQty: 0 })).toBe('sold-out');
+    expect(listingStateOf({ availableQty: 0, onStage: true })).toBe('sold-out');
+    expect(listingStateOf({ availableQty: 4 })).toBe('listed');
+    expect(listingStateOf({ availableQty: 4, onStage: true })).toBe('on-stage');
+  });
+});
+
+describe('P-003 clause: context fingerprints', () => {
+  it('is stable across key order, so an equal fact never reads as changed', () => {
+    const a = fingerprintEvidence({ priceCents: 2_800, productId: 'x' }, 1);
+    const b = fingerprintEvidence({ productId: 'x', priceCents: 2_800 }, 2);
+    expect(a.value).toBe(b.value);
+  });
+
+  it('changes when the fact changes', () => {
+    expect(fingerprintEvidence(2_800, 1).value).not.toBe(fingerprintEvidence(2_400, 1).value);
+  });
+
+  it('does not let the reading TIME affect the comparison', () => {
+    // Staleness must mean "the fact moved", never "the reading is old": an
+    // unchanged price is still true an hour later, and a changed one is wrong
+    // a second later.
+    const old = fingerprintEvidence(2_800, 0);
+    const fresh = fingerprintEvidence(2_800, Date.now());
+    expect(old.value).toBe(fresh.value);
+    expect(old.observedAtMs).not.toBe(fresh.observedAtMs);
+  });
+
+  it('shares ONE canonical-hash implementation with the policy fingerprint', () => {
+    // Reuse check, not a behaviour check: policyFingerprint is now defined in
+    // terms of canonicalFingerprint, so a policy body hashes identically
+    // whichever door it comes through. A second hash implementation would let
+    // the two drift and make a policy claim un-revalidatable.
+    const body = baselinePolicyBody();
+    expect(fingerprintEvidence(body, 0).value).toBe(policyFingerprint(body));
+  });
+});
+
+describe('P-003 clause: edited replies', () => {
+  const edited = CLAIM_ADVERSARIAL_CASES.find(
+    (entry) => entry.caseId === 'seller-edit-adds-an-unsupported-promise',
+  );
+
+  it('judges the edited revision on its own claims, not the original verdict', () => {
+    expect(edited).toBeDefined();
+    if (!edited) return;
+    expect(edited.claims.replyRevision).toBe(2);
+
+    // The model's own claim still stands on its own...
+    const modelOnly = { replyRevision: 1, claims: [edited.claims.claims[0]] };
+    expect(verifyClaims(modelOnly, edited.request, edited.atSend).supported).toBe(true);
+
+    // ...and the edited text as a whole does not.
+    expect(verifyClaims(edited.claims, edited.request, edited.atSend).supported).toBe(false);
+  });
+
+  it('rebinds surviving evidence and drops evidence the context no longer has', () => {
+    const stale = CLAIM_ADVERSARIAL_CASES.find((entry) => entry.caseId === 'price-moved-after-binding');
+    expect(stale).toBeDefined();
+    if (!stale) return;
+
+    const claim = stale.claims.claims[0] as Claim;
+    const rebound = rebindClaim(claim, stale.atSend, 999);
+    // Same evidence, re-read against the CURRENT price...
+    expect(rebound.evidence).toHaveLength(claim.evidence.length);
+    expect(rebound.evidence[0].fingerprint.value).not.toBe(claim.evidence[0].fingerprint.value);
+
+    // ...and rebinding alone does NOT make a wrong claim right. This is the
+    // trap a rebind-on-edit path invites: refreshing the fingerprint could
+    // otherwise launder a stale number into a fresh-looking one.
+    //
+    // Note the defect CHANGES rather than disappearing, and the new one is the
+    // truer description: before the rebind the complaint was "the price moved
+    // after you wrote this"; after it, the fingerprint is current and the
+    // remaining problem is that the reply states a price no source says.
+    const verdict = verifyClaims({ replyRevision: 2, claims: [rebound] }, stale.request, stale.atSend);
+    expect(verdict.supported).toBe(false);
+    expect(codesOf(verdict.defects)).toEqual(['evidence-missing']);
+  });
+});
+
+describe('P-003 clause: typed missing / stale / conflicting evidence reasons', () => {
+  it('gives every defect a seller-readable explanation, never a bare code', () => {
+    for (const testCase of CLAIM_ADVERSARIAL_CASES) {
+      const verdict = verifyClaims(testCase.claims, testCase.request, testCase.atSend);
+      for (const defect of verdict.defects) {
+        expect(defect.explanation.length, `${testCase.caseId}/${defect.code}`).toBeGreaterThan(20);
+        expect(defect.explanation).not.toMatch(/evidence-(missing|stale|irrelevant|conflicting)/);
+        expect(defect.claimId).toBeTruthy();
+      }
+    }
+  });
+
+  it('separates "never gathered" from "wrong source", because they need different fixes', () => {
+    const notGathered = CLAIM_ADVERSARIAL_CASES.find(
+      (entry) => entry.caseId === 'returns-claim-with-no-policy-gathered',
+    );
+    const wrongSource = CLAIM_ADVERSARIAL_CASES.find(
+      (entry) => entry.caseId === 'shipping-claim-cites-a-transcript',
+    );
+    expect(notGathered).toBeDefined();
+    expect(wrongSource).toBeDefined();
+    if (!notGathered || !wrongSource) return;
+
+    expect(codesOf(verifyClaims(notGathered.claims, notGathered.request, notGathered.atSend).defects))
+      .toEqual(['evidence-missing']);
+    expect(codesOf(verifyClaims(wrongSource.claims, wrongSource.request, wrongSource.atSend).defects))
+      .toEqual(['evidence-irrelevant']);
+  });
+
+  it('reports a conflict even when the claim matches one of the disagreeing sources', () => {
+    const conflict = CLAIM_ADVERSARIAL_CASES.find(
+      (entry) => entry.caseId === 'event-and-catalog-prices-disagree',
+    );
+    expect(conflict).toBeDefined();
+    if (!conflict) return;
+    // Picking the convenient source is how a defensible-looking wrong answer
+    // reaches a buyer, so matching one source is not a defence.
+    const verdict = verifyClaims(conflict.claims, conflict.request, conflict.atSend);
+    expect(verdict.supported).toBe(false);
+    expect(codesOf(verdict.defects)).toContain('evidence-conflicting');
+  });
+});

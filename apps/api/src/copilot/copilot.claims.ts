@@ -350,20 +350,14 @@ export function verifyClaim(
 
     observations.push(observed);
 
+    // The fact MOVED since it was read. This is the only thing 'stale' means —
+    // keeping it that narrow is what makes it actionable ("re-draft, the price
+    // changed") instead of a catch-all for every mismatch.
     if (canonicalFingerprint(observed) !== ref.fingerprint.value) {
       defects.push({
         claimId: claim.claimId,
         code: 'evidence-stale',
         explanation: `${subject} changed after the reply was written — the draft is out of date.`,
-      });
-      continue;
-    }
-
-    if (canonicalFingerprint(observed) !== canonicalFingerprint(assertedValue(claim.asserted))) {
-      defects.push({
-        claimId: claim.claimId,
-        code: 'evidence-stale',
-        explanation: `The reply states ${subject} as something the source does not say.`,
       });
     }
   }
@@ -371,12 +365,31 @@ export function verifyClaim(
   // Two sources that both cover the subject and disagree. Reported even when
   // the claim matches one of them: picking the convenient source is exactly
   // how a defensible-looking wrong answer reaches a buyer.
+  //
+  // A disagreement SUBSUMES the asserted-value check below. Running both
+  // reported one situation twice under two names — 'conflicting' AND
+  // 'stale' — and 'stale' was the wrong one of the two: nothing had moved, the
+  // sources simply never agreed. A seller told "out of date" goes looking at
+  // the clock instead of at the two prices.
   const distinct = new Set(observations.map((value) => canonicalFingerprint(value)));
   if (distinct.size > 1) {
     defects.push({
       claimId: claim.claimId,
       code: 'evidence-conflicting',
       explanation: `The sources disagree about ${subject}, so the reply cannot state it as settled.`,
+    });
+    return defects;
+  }
+
+  // Fresh, relevant, agreed evidence — that says something else. Nothing is
+  // out of date here; there is simply no evidence FOR the stated value, which
+  // is what 'missing' means.
+  const asserted = canonicalFingerprint(assertedValue(claim.asserted));
+  if (observations.length > 0 && !distinct.has(asserted)) {
+    defects.push({
+      claimId: claim.claimId,
+      code: 'evidence-missing',
+      explanation: `The reply states ${subject} as something no gathered source says.`,
     });
   }
 

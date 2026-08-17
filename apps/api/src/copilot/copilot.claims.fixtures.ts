@@ -373,7 +373,9 @@ export const CLAIM_ADVERSARIAL_CASES: readonly ClaimAdversarialCase[] = (() => {
     cases.push({
       caseId: 'returns-window-misstated',
       title: 'A returns window the policy does not say',
-      expectation: 'The reply is held: it states a window the published policy does not contain.',
+      // NOT "stale": the policy did not move, the reply simply invented a
+      // number. Calling that stale would send the seller to check the clock.
+      expectation: 'The reply is held: it states a window no gathered source contains.',
       request: { message: 'How long do I have to return it?' },
       bound,
       atSend: bound,
@@ -389,7 +391,7 @@ export const CLAIM_ADVERSARIAL_CASES: readonly ClaimAdversarialCase[] = (() => {
           }],
         }],
       },
-      expected: { supported: false, codes: ['evidence-stale'] },
+      expected: { supported: false, codes: ['evidence-missing'] },
     });
   }
 
