@@ -1,4 +1,7 @@
 import {
+  BadRequestException,
+  Body,
+  ConflictException,
   Controller,
   Delete,
   Get,
@@ -6,6 +9,7 @@ import {
   Inject,
   NotFoundException,
   Param,
+  Patch,
   UnauthorizedException,
 } from '@nestjs/common';
 import { SyncInvalidationService } from '../sync/sync-invalidation.service';
@@ -13,7 +17,12 @@ import {
   DEMO_PRINCIPAL_HEADER,
   rolePrincipal,
 } from '../sync/sync-request-context';
-import { EventService, type EventRecord, type EventSummary } from './event.service';
+import {
+  EventService,
+  isEventLifecycleAction,
+  type EventRecord,
+  type EventSummary,
+} from './event.service';
 
 export interface EventListResponse {
   events: EventSummary[];

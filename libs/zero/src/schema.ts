@@ -231,6 +231,36 @@ export const actionAuditEntry = table('actionAuditEntry')
   })
   .primaryKey('id');
 
+/**
+ * db/schema.sql: `targeted_offer` — a seller's guarded offer aimed at one buyer.
+ *
+ * Timestamps map to `number()` for the same reason `actionAuditEntry` does: the
+ * columns are `timestamptz`, and Zero carries them as epoch millis client-side.
+ * `version` backs the compare-and-set in PgTargetedOfferStore.setStatus, so it
+ * is replicated rather than hidden — a client that renders an offer needs the
+ * same version it would send back.
+ */
+export const targetedOffer = table('targetedOffer')
+  .from('targeted_offer')
+  .columns({
+    offerId: string().from('offer_id'),
+    eventId: string().from('event_id'),
+    eventItemId: string().from('event_item_id'),
+    productId: string().from('product_id'),
+    buyerId: string().from('buyer_id'),
+    priceCents: number().from('price_cents'),
+    quantity: number(),
+    status: string(), // 'pending' | 'accepted' | 'cancelled'
+    auditId: string().optional().from('audit_id'),
+    clientRequestId: string().optional().from('client_request_id'),
+    version: number(),
+    createdAt: number().from('created_at'),
+    updatedAt: number().from('updated_at'),
+    acceptedAt: number().optional().from('accepted_at'),
+    cancelledAt: number().optional().from('cancelled_at'),
+  })
+  .primaryKey('offerId');
+
 // ── Buyer: cart, orders, reservations ───────────────────────────────────────
 
 /** db/schema.sql: `cart` — single-writer buyer cart document. */
@@ -439,6 +469,13 @@ export const actionAuditEntryRelationships = relationships(actionAuditEntry, ({ 
   product: one({ sourceField: ['productId'], destSchema: storefrontProduct, destField: ['id'] }),
 }));
 
+export const targetedOfferRelationships = relationships(targetedOffer, ({ one }) => ({
+  event: one({ sourceField: ['eventId'], destSchema: event, destField: ['eventId'] }),
+  item: one({ sourceField: ['eventItemId'], destSchema: eventLineupItem, destField: ['eventItemId'] }),
+  product: one({ sourceField: ['productId'], destSchema: storefrontProduct, destField: ['id'] }),
+  audit: one({ sourceField: ['auditId'], destSchema: actionAuditEntry, destField: ['id'] }),
+}));
+
 export const checkoutOrderRelationships = relationships(checkoutOrder, ({ one }) => ({
   cart: one({ sourceField: ['cartId'], destSchema: cart, destField: ['id'] }),
 }));
@@ -502,6 +539,7 @@ export const schema = createSchema({
     copilotProposal,
     sellerPolicyRevision,
     actionAuditEntry,
+    targetedOffer,
     cart,
     checkoutOrder,
     inventoryReservation,
@@ -519,6 +557,7 @@ export const schema = createSchema({
     chatTranscriptMomentRelationships,
     copilotProposalRelationships,
     actionAuditEntryRelationships,
+    targetedOfferRelationships,
     checkoutOrderRelationships,
     storefrontProductRelationships,
     productCatalogRelationships,

@@ -129,6 +129,7 @@ BEGIN
       public.copilot_proposal,
       public.seller_policy_revision,
       public.action_audit_entry,
+      public.targeted_offer,
       public.cart,
       public.checkout_order,
       public.inventory_reservation,
