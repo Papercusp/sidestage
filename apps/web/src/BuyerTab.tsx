@@ -179,6 +179,11 @@ export function BuyerTab({
   const [waitingForPublisher, setWaitingForPublisher] = useState(false);
   const [holdOverrides, setHoldOverrides] = useState<Record<string, number>>({});
   const [showAllProducts, setShowAllProducts] = useState(false);
+  // Which product the live auction is on. Lifted out of AuctionPanel (it owns
+  // the `event.auction.active` query) because the mobile sticky CTA renders
+  // OUTSIDE that slot and must name the same item as the module above it.
+  // Derived server state, not user-meaningful — so useState, not nuqs.
+  const [auctionedProductId, setAuctionedProductId] = useState<string | null>(null);
   const stream = useStreamSession<ViewerSession>();
   const {
     streamState,
@@ -382,7 +387,13 @@ export function BuyerTab({
     return liveQty === undefined ? product : { ...product, availableQty: liveQty };
   }), [heldProductIdSet, holdOverrides, products]);
   const visibleProducts = availableBuyerProducts(productsWithLiveQuantity);
-  const currentProduct = visibleProducts[0] ?? productsWithLiveQuantity[0] ?? null;
+  // A running auction IS the current offer, so it — not catalog order — decides
+  // which product the room is on. Without this the sticky mobile CTA names
+  // whatever happens to sort first, contradicting the module directly above it.
+  const auctionedProduct = auctionedProductId
+    ? productsWithLiveQuantity.find((product) => product.id === auctionedProductId) ?? null
+    : null;
+  const currentProduct = auctionedProduct ?? visibleProducts[0] ?? productsWithLiveQuantity[0] ?? null;
   const currentProductPosition = currentProduct
     ? productsWithLiveQuantity.findIndex((product) => product.id === currentProduct.id) + 1
     : 0;
@@ -491,6 +502,7 @@ export function BuyerTab({
           bidderId={userId}
           displayName={userId}
           apiBaseUrl={import.meta.env.VITE_API_URL}
+          onActiveAuctionProductChange={setAuctionedProductId}
           idleContent={(
             <article
               className="buyer-current-offer"
