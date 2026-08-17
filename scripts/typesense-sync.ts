@@ -49,6 +49,7 @@ interface Row {
   qty: number;
   available_qty: number;
   group_key: string;
+  color: string | null;
   title: string | null;
   description: string | null;
   brand: string | null;
@@ -57,11 +58,14 @@ interface Row {
   tiers: (number | null)[] | null;
 }
 
-function docFrom(rows: Row[]): StorefrontDoc {
+export function docFrom(rows: Row[]): StorefrontDoc {
   const first = rows[0];
   const images = first.images ?? [];
   const prices = rows.map((row) => row.price_cents ?? 0);
   const conditions = [...new Set(rows.map((row) => (row.condition ?? '').trim().toUpperCase()).filter(Boolean))];
+  // Colour labels keep their original casing — they are shown to buyers as
+  // facet values, unlike condition CODES which are upper-cased above.
+  const colors = [...new Set(rows.map((row) => (row.color ?? '').trim()).filter(Boolean))];
   const qty = rows.reduce((sum, row) => sum + Math.max(0, row.available_qty ?? 0), 0);
   const [tier1, tier2, tier3, tier4, tier5, tier1Discount, tier2Discount, tier3Discount, tier4Discount, tier5Discount] = first.tiers ?? [];
   return {
@@ -78,6 +82,10 @@ function docFrom(rows: Row[]): StorefrontDoc {
     minPriceCents: Math.min(...prices),
     maxPriceCents: Math.max(...prices),
     conditions,
+    // Omitted entirely when the group has no colour options, rather than
+    // shipping `colors: []` on every one of the ~1.1M imported rows that
+    // predate the colour axis. The field is `optional` in COLLECTION_SCHEMA.
+    ...(colors.length > 0 ? { colors } : {}),
     qty,
     ...(tier1 != null ? { tier1, tier2: tier2 ?? undefined, tier3: tier3 ?? undefined, tier4: tier4 ?? undefined, tier5: tier5 ?? undefined, tier1Discount: tier1Discount ?? undefined, tier2Discount: tier2Discount ?? undefined, tier3Discount: tier3Discount ?? undefined, tier4Discount: tier4Discount ?? undefined, tier5Discount: tier5Discount ?? undefined } : {}),
   } as StorefrontDoc;
@@ -107,6 +115,19 @@ async function main() {
       `SELECT v.id, v.slug, v.price_cents, v.group_id, v.condition, v.qty,
               v."availableQty" AS available_qty,
               COALESCE(v.group_id, v.id) AS group_key,
+              -- Colour is the SideStage variant axis (WI-38716) but lives in the
+              -- normalized option model, not on storefront_product — so it has to
+              -- be pulled the same way apps/api/src/catalog/catalog.sources.ts
+              -- (VARIANT_COLUMNS) pulls it, or the index cannot facet on the one
+              -- axis the storefront actually sells on.
+              (SELECT value.label
+                 FROM storefront_product_option selected
+                 JOIN product_option_axes axis
+                   ON axis.id = selected.axis_id AND axis.slug = 'color'
+                 JOIN product_option_values value
+                   ON value.id = selected.value_id AND value.axis_id = axis.id
+                WHERE selected.variant_id = v.id
+                LIMIT 1) AS color,
               c.title, c.description, c.brand, c.product_type,
               c.images,
               ARRAY[c.tier_1, c.tier_2, c.tier_3, c.tier_4, c.tier_5,
@@ -139,7 +160,22 @@ async function main() {
   await pool.end();
 }
 
-main().catch((err) => {
-  console.error(err);
-  process.exit(1);
-});
+/**
+ * Only run the sync when this file is EXECUTED, not when it is imported.
+ * Without the guard, importing `docFrom` from a test would run the whole
+ * indexing pass against whatever DATABASE_URL happens to be set.
+ *
+ * Deliberately NOT `import.meta.url` — this file is compiled under a tsconfig
+ * whose `module` setting forbids the import.meta meta-property (TS1343), and an
+ * unparseable file here is swept into the esbuild bundle that fronts the staging
+ * services. Matching argv[1] needs no meta-property and works under `npx tsx`.
+ */
+const isDirectRun = process.argv[1] !== undefined
+  && /[\\/]typesense-sync\.(?:ts|mts|mjs|js)$/.test(process.argv[1]);
+
+if (isDirectRun) {
+  main().catch((err) => {
+    console.error(err);
+    process.exit(1);
+  });
+}

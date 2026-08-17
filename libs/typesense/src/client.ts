@@ -24,6 +24,25 @@ export interface StorefrontDoc {
    * queries can express "match any group that has variants in X, Y, or Z".
    */
   conditions?: string[];
+  /**
+   * Set of all distinct colour LABELS (`Walnut`, `Matte Black`, …) offered
+   * across the group's variants, sourced from the normalized option model
+   * (storefront_product_option → product_option_axes WHERE slug='color' →
+   * product_option_values.label). Group-level, so it mirrors how `conditions`
+   * is shaped: the SET of colours the group sells, not one variant's colour.
+   *
+   * Colour became the SideStage variant axis in WI-38716, but the index kept
+   * faceting only on `conditions` — so on the Typesense path a colour-only
+   * query could neither match nor facet, and degraded to a SQL fallback that
+   * caught colour only incidentally (the `v.slug ILIKE` branch, which by
+   * design runs ONLY when the primary tsvector query returns zero rows).
+   *
+   * Labels keep their original casing because they are shown to buyers as
+   * facet values; `conditions` upper-cases because those are codes, not
+   * display labels. Typesense filter matching is case-sensitive, so callers
+   * must filter with the label as indexed.
+   */
+  colors?: string[];
   qty?: number;
   /**
    * Per-groupId volume discount tiers (tier1..tier5) + their discount
@@ -125,6 +144,7 @@ export interface CatalogFilterParams {
   category?: string;
   categories?: string[];
   conditions?: string[];
+  colors?: string[];
   priceMinCents?: number;
   priceMaxCents?: number;
   inStockOnly?: boolean;
@@ -134,6 +154,9 @@ export interface CatalogFilterParams {
  * Build the Typesense `filter_by` clause list for a catalog search. Always gated
  * to `active:true`. `categories` (array) is backtick-quoted (names may contain
  * spaces); `conditions` (string[] field) uses array-contains-any `field:[a,b]`;
+ * `colors` (string[] field) does the same but backtick-quotes each label,
+ * because colour labels are display strings that may contain spaces
+ * (`Matte Black`) — unlike condition codes, which never do;
  * a non-finite priceMax is simply omitted (no upper bound).
  */
 export function buildFilterBy(params: CatalogFilterParams): string[] {
@@ -145,6 +168,10 @@ export function buildFilterBy(params: CatalogFilterParams): string[] {
   }
   if (params.conditions && params.conditions.length > 0) {
     filters.push(`conditions:[${params.conditions.join(',')}]`);
+  }
+  if (params.colors && params.colors.length > 0) {
+    const joined = params.colors.map((c) => `\`${c}\``).join(',');
+    filters.push(`colors:[${joined}]`);
   }
   if (typeof params.priceMinCents === 'number') filters.push(`priceCents:>=${params.priceMinCents}`);
   if (typeof params.priceMaxCents === 'number' && isFinite(params.priceMaxCents)) {
@@ -251,6 +278,11 @@ const COLLECTION_SCHEMA = {
     { name: 'brand', type: 'string' as const, facet: true, optional: true },
     { name: 'condition', type: 'string' as const, facet: true, optional: true },
     { name: 'conditions', type: 'string[]' as const, facet: true, optional: true },
+    // Colour labels offered across the group's variants (WI-38716 made colour
+    // the variant axis; the index had kept faceting only on `conditions`).
+    // ensureCollection() patches this onto an existing collection additively,
+    // but existing docs stay colourless until scripts/typesense-sync.ts reruns.
+    { name: 'colors', type: 'string[]' as const, facet: true, optional: true },
     { name: 'qty', type: 'int32' as const, optional: true },
     // Volume discount tiers (mirrored from product_catalog.tier* columns).
     // Enables the wholesale grid to render tiers from the Typesense snapshot

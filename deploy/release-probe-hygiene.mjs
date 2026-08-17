@@ -34,9 +34,18 @@ export function releaseProbeReasons(event) {
   const reasons = [];
   const eventId = typeof event?.eventId === 'string' ? event.eventId : '';
   if (PROBE_ID_PATTERNS.some((pattern) => pattern.test(eventId))) reasons.push('probe event id');
-  if (typeof event?.sellerId === 'string' && event.sellerId.trim().toLowerCase() === 'demo-seller') {
-    reasons.push('synthetic seller id');
-  }
+  // WI-39750: deliberately does NOT flag `sellerId === 'demo-seller'` as a
+  // probe fingerprint, and must not be "restored" to -- same trap as
+  // guideWithholdReason (apps/api/src/events/event.service.ts, WI-39723).
+  // `demo-seller` is the DEFAULT identity every anonymous or minted Studio
+  // session resolves to (apps/api/src/sync/sync-request-context.ts
+  // rolePrincipal), not a synthetic probe marker -- it is the owner's own
+  // identity every time they test without a distinct seller login. Gating
+  // on it made "the owner is testing" indistinguishable from "CI probe
+  // residue is still public", so every deploy failed while the owner had a
+  // live demo-seller event up. Probe residue from an automated rehearsal is
+  // still caught by its event-id convention (PROBE_ID_PATTERNS above) or by
+  // a placehold.co thumbnail below; sellerId is no longer a signal here.
   if (typeof event?.sellerName === 'string' && event.sellerName.trim().toLowerCase() === 'sidestage seller') {
     reasons.push('placeholder seller name');
   }

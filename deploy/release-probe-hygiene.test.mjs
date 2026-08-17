@@ -55,9 +55,24 @@ describe('release probe residue classification', () => {
     ]);
     expect(residue[0].reasons).toEqual([
       'probe event id',
-      'synthetic seller id',
       'placeholder seller name',
     ]);
+  });
+
+  it('WI-39750: does not flag a live demo-seller event with no other probe fingerprint', () => {
+    // demo-seller is the DEFAULT identity every anonymous/minted Studio
+    // session resolves to (sync-request-context.ts rolePrincipal) -- the
+    // owner's own routine testing, not synthetic probe residue. Gating on
+    // it made shipping and testing mutually exclusive.
+    const residue = findReleaseProbeResidue([
+      {
+        eventId: 'asfsaf',
+        sellerId: 'demo-seller',
+        sellerName: 'Demo Seller',
+        thumbnailUrl: 'https://cdn.example.com/real-upload.jpg',
+      },
+    ]);
+    expect(residue).toEqual([]);
   });
 });
 
