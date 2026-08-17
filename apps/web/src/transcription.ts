@@ -109,6 +109,34 @@ export const DEFAULT_DEEPGRAM_MODEL = 'nova-3';
 export const DEFAULT_TRANSCRIPTION_LANGUAGE = 'en-US';
 const OPEN_SOCKET = 1;
 
+export const PUBLISHER_STREAM_REQUIRED_MESSAGE = 'Deepgram transcription requires the publisher media stream.';
+
+/**
+ * The recoverable message an ENDED publisher stream must produce (WI-39726).
+ *
+ * Chrome answers `.start()` on a stream with no live audio track with
+ * "Failed to execute 'start' on 'MediaRecorder': There was an error starting
+ * the MediaRecorder." — a raw platform string that tells a seller nothing and
+ * reads as a Studio crash. Transcription is restartable from here: going live
+ * again publishes a fresh stream, so this states the recovery.
+ */
+export const PUBLISHER_STREAM_ENDED_MESSAGE =
+  'The microphone for this event is no longer live, so captions could not start. Start the event again to resume transcription.';
+
+/**
+ * Whether a stream can still feed the audio recorder.
+ *
+ * A publisher teardown calls `track.stop()` on the tracks but leaves the
+ * MediaStream OBJECT intact, so holding a non-null stream proves nothing about
+ * whether it can be recorded — only track `readyState` does.
+ */
+export function hasLiveAudioTrack(stream: MediaStream): boolean {
+  const tracks = typeof stream.getAudioTracks === 'function'
+    ? stream.getAudioTracks()
+    : stream.getTracks?.().filter((track) => track.kind === 'audio') ?? [];
+  return tracks.some((track) => track.readyState === 'live');
+}
+
 function browserWebSocketFactory(url: string, protocols?: string | string[]): WebSocketLike {
   if (typeof WebSocket === 'undefined') throw new Error('WebSocket is unavailable in this browser.');
   return new WebSocket(url, protocols) as unknown as WebSocketLike;
@@ -117,6 +145,24 @@ function browserWebSocketFactory(url: string, protocols?: string | string[]): We
 function browserMediaRecorderFactory(stream: MediaStream): MediaRecorderLike {
   if (typeof MediaRecorder === 'undefined') throw new Error('MediaRecorder is unavailable in this browser.');
   return new MediaRecorder(stream, { mimeType: 'audio/webm;codecs=opus' }) as unknown as MediaRecorderLike;
+}
+
+/**
+ * Translate a recorder start failure into something the Studio can act on.
+ *
+ * Chrome reports an unrecordable stream as "Failed to execute 'start' on
+ * 'MediaRecorder': There was an error starting the MediaRecorder." — true of a
+ * dead stream, an unsupported mimeType and a seized device alike. When the
+ * tracks are provably gone we can name the cause and the recovery; otherwise
+ * the platform text is preserved as the cause rather than guessed at.
+ */
+function recorderStartError(error: unknown, stream: MediaStream): Error {
+  if (!hasLiveAudioTrack(stream)) {
+    const ended = new Error(PUBLISHER_STREAM_ENDED_MESSAGE);
+    if (error !== undefined) (ended as Error & { cause?: unknown }).cause = error;
+    return ended;
+  }
+  return error instanceof Error ? error : new Error(String(error));
 }
 
 function browserSpeechRecognitionFactory(): SpeechRecognitionLike {
@@ -253,38 +299,79 @@ class DeepgramSession extends BaseSession {
   private socket: WebSocketLike | null = null;
   private recorder: MediaRecorderLike | null = null;
   private stopping = false;
+  /**
+   * Bumped by every start and every stop so an in-flight attempt can tell it
+   * has been superseded. `start` awaits a token grant and then a socket open;
+   * without this, a stop landing inside either gap still ran to completion —
+   * attaching a recorder and reporting `listening` for an event the seller had
+   * already ended, and leaking the capture that fed it (WI-39726).
+   */
+  private generation = 0;
 
   constructor(private readonly options: TranscriptionOptions) {
     super();
   }
 
+  private superseded(generation: number): boolean {
+    return this.stopping || generation !== this.generation;
+  }
+
   async start(): Promise<void> {
     if (this.currentState === 'listening' || this.currentState === 'connecting') return;
-    if (!this.options.mediaStream) throw new Error('Deepgram transcription requires the publisher media stream.');
+    const stream = this.options.mediaStream;
+    if (!stream) throw new Error(PUBLISHER_STREAM_REQUIRED_MESSAGE);
+    /*
+     * Liveness is re-checked HERE, not trusted from construction (WI-39726).
+     *
+     * Switching events tears down the previous room's publisher, which stops
+     * the tracks but keeps the same MediaStream object, so a session built for
+     * the old event still holds a non-null — and unrecordable — stream. Failing
+     * before the token spend keeps a dead stream from reaching MediaRecorder,
+     * where Chrome answers with a raw platform string instead of anything a
+     * seller can act on.
+     */
+    if (!hasLiveAudioTrack(stream)) throw new Error(PUBLISHER_STREAM_ENDED_MESSAGE);
+    const generation = ++this.generation;
     this.stopping = false;
     this.setState('connecting');
     try {
       const token = (this.options.deepgramToken ?? await this.options.deepgramTokenProvider?.())?.trim();
+      if (this.superseded(generation)) return;
       if (!token) throw new Error('A short-lived Deepgram token is required.');
       const factory = this.options.webSocketFactory ?? browserWebSocketFactory;
       const recorderFactory = this.options.mediaRecorderFactory ?? browserMediaRecorderFactory;
       const socket = factory(buildDeepgramUrl(this.options), ['bearer', token]);
+      if (this.superseded(generation)) {
+        try { socket.close(1000, 'transcription superseded'); } catch { /* already closing */ }
+        return;
+      }
       this.socket = socket;
       const opened = new Promise<void>((resolve, reject) => {
         socket.onopen = () => {
+          if (this.superseded(generation)) {
+            try { socket.close(1000, 'transcription superseded'); } catch { /* already closing */ }
+            resolve();
+            return;
+          }
+          let recorder: MediaRecorderLike;
           try {
-            const recorder = recorderFactory(this.options.mediaStream!);
+            // The stream can end between the guard above and the socket open —
+            // the whole window this bug lives in — so it is re-checked once more
+            // against the recorder that is about to consume it.
+            if (!hasLiveAudioTrack(stream)) throw new Error(PUBLISHER_STREAM_ENDED_MESSAGE);
+            recorder = recorderFactory(stream);
             recorder.ondataavailable = (event) => {
               if (event.data.size > 0 && socket.readyState === OPEN_SOCKET) socket.send(event.data);
             };
             recorder.onerror = (event) => this.emitError(event);
-            this.recorder = recorder;
             recorder.start(250);
-            this.setState('listening');
-            resolve();
           } catch (error) {
-            reject(error);
+            reject(recorderStartError(error, stream));
+            return;
           }
+          this.recorder = recorder;
+          this.setState('listening');
+          resolve();
         };
         socket.onmessage = (event) => this.handleMessage(event.data);
         socket.onerror = (event) => this.emitError(event);
@@ -303,8 +390,12 @@ class DeepgramSession extends BaseSession {
   }
 
   async stop(): Promise<void> {
-    if (this.currentState === 'stopped' || this.currentState === 'idle') return;
+    // Supersede an in-flight start even from idle/stopped: the attempt that is
+    // mid-await has not reached `listening` yet, so the state guard below would
+    // otherwise let it finish and re-open capture after the seller stopped.
+    this.generation += 1;
     this.stopping = true;
+    if (this.currentState === 'stopped' || this.currentState === 'idle') return;
     this.cleanup();
     this.setState('stopped');
   }
@@ -326,6 +417,10 @@ class DeepgramSession extends BaseSession {
   }
 
   private cleanup(): void {
+    // Our own close must not re-enter `onclose` as a connection error. Without
+    // this, tearing down after a failed start reported "seller stopped
+    // transcription" as an error the seller never caused, ahead of the real one.
+    this.stopping = true;
     try { this.recorder?.stop(); } catch { /* recorder may already be stopped */ }
     this.recorder = null;
     this.socket?.close(1000, 'seller stopped transcription');

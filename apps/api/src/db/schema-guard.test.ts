@@ -139,6 +139,32 @@ describe('findMissingTables', () => {
   });
 });
 
+describe('policy retention (P-006 / WI-39262)', () => {
+  // Asserted on the DDL statement, not on a mention of the index name: the
+  // surrounding schema.sql comment names the index too, so a looser match could
+  // be satisfied by the comment that merely DESCRIBES the index while the index
+  // itself was deleted.
+  it('indexes policy_idempotency.created_at so the retention sweep is not a seq scan', () => {
+    expect(SCHEMA_SQL).toMatch(
+      /CREATE INDEX IF NOT EXISTS policy_idempotency_created_idx\s+ON policy_idempotency \(created_at\)/,
+    );
+  });
+
+  // Retention is deliberately scoped to the one table where expiry is correct.
+  // These two assertions are the guard against a well-meaning follow-up quietly
+  // adding retention to a table that must not have it.
+  it('does not auto-expire the immutable audit trail', () => {
+    expect(SCHEMA_SQL).not.toMatch(/DELETE\s+FROM\s+policy_audit_entry/i);
+  });
+
+  it('does not prune the outbox while nothing drains it (WI-39729)', () => {
+    // Pruning by delivered_at would prune nothing (nothing sets it); pruning by
+    // created_at would delete undelivered pending work. Retention here must
+    // follow the drain.
+    expect(SCHEMA_SQL).not.toMatch(/DELETE\s+FROM\s+policy_outbox_event/i);
+  });
+});
+
 describe('policy-audit integrity constraints (P-006 / WI-39262)', () => {
   const POLICY_SERVICE_SQL = readFileSync(join(__dirname, '../policies/policy.service.ts'), 'utf8');
 

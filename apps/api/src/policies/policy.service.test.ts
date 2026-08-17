@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import {
   GUARDRAIL_VERSION,
   PolicyParseError,
@@ -323,10 +323,20 @@ describe('idempotency retention (P-006 / WI-39262)', () => {
     store.idempotencyPut('seller-1', 'publish', key, `hash-${key}`, { ok: key });
 
   it('drops entries older than the cutoff and keeps newer ones', async () => {
+    // Deterministic clock on purpose: two puts in the same millisecond are
+    // indistinguishable by age, so a wall-clock version of this test passes or
+    // fails on scheduling luck.
     const store = new InMemoryPolicyStore();
-    await put(store, 'stale');
-    const cutoff = new Date(Date.now() + 1); // everything written so far is "old"
-    await put(store, 'fresh');
+    vi.useFakeTimers();
+    try {
+      vi.setSystemTime(new Date('2026-01-01T00:00:00Z'));
+      await put(store, 'stale');
+      vi.setSystemTime(new Date('2026-01-03T00:00:00Z'));
+      await put(store, 'fresh');
+    } finally {
+      vi.useRealTimers();
+    }
+    const cutoff = new Date('2026-01-02T00:00:00Z');
 
     expect(await store.pruneIdempotency(cutoff)).toBe(1);
 

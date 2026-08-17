@@ -52,9 +52,16 @@ export class DeterministicScoutReplyModel implements ScoutReplyModel {
   async generate(request: {
     message: string;
     products: readonly ProductCard[];
+    cart?: Cart;
     memories?: readonly ScoutMemory[];
   }): Promise<string> {
     const callback = recallCallback(request.memories);
+    // A question about what the buyer is holding is answered from the cart the
+    // request names — never from catalog matches on the question's own words,
+    // which is how "what do I have held?" used to come back as a product list.
+    if (isCartStateQuestion(request.message)) {
+      return heldItemsReply(request.cart, callback);
+    }
     if (request.products.length === 0) {
       return `I couldn't find a verified match for “${request.message}”.${callback} Try a brand, product type, or budget.`;
     }
