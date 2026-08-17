@@ -8,6 +8,9 @@ import {
   saveRunOfShowPlan,
   setupSellerEvent,
   startSellerAuction,
+  transitionSellerEvent,
+  unpublishSellerEvent,
+  EventApiError,
   type SellerEventItem,
 } from './api';
 
@@ -269,3 +272,110 @@ const ITEM: SellerEventItem = {
   quantity: 3,
   attributes: {},
 };
+
+/**
+ * The lifecycle transport (plan sidestage-event-lifecycle-and-home-default,
+ * P-005). The UI's legality mirror is covered differentially in
+ * event-lifecycle.test.ts; what is asserted HERE is the wire itself — verb,
+ * path, owner header and body — because those are what a refactor silently
+ * gets wrong while every rendering test still passes.
+ */
+const EVENT_ROW = {
+  eventId: 'sunday-drop',
+  title: 'Sunday drop',
+  sellerId: 'seller-27',
+  sellerName: 'Studio 27',
+  status: 'scheduled' as const,
+  startsAt: '2026-08-17T15:00:00.000Z',
+  endedAt: null,
+};
+
+describe('event lifecycle transport', () => {
+  it('PATCHes the one lifecycle endpoint with the action and the owner header', async () => {
+    const calls: Array<{ url: string; init?: RequestInit }> = [];
+    vi.stubGlobal('fetch', vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
+      calls.push({ url: String(input), init });
+      return json({ event: EVENT_ROW });
+    }));
+
+    const event = await transitionSellerEvent(
+      'sunday-drop',
+      'schedule',
+      { startsAt: '2026-08-17T15:00:00.000Z' },
+      undefined,
+      'demo-27',
+    );
+
+    expect(calls).toHaveLength(1);
+    expect(calls[0].url).toContain('/events/sunday-drop/lifecycle');
+    expect(calls[0].init?.method).toBe('PATCH');
+    expect((calls[0].init?.headers as Record<string, string>)[DEMO_PRINCIPAL_HEADER]).toBe('demo-27');
+    expect(JSON.parse(String(calls[0].init?.body))).toEqual({
+      action: 'schedule',
+      startsAt: '2026-08-17T15:00:00.000Z',
+    });
+    // The endpoint answers `{ event }`; callers get the row, not the envelope.
+    expect(event).toEqual(EVENT_ROW);
+  });
+
+  it('omits startsAt for the actions that do not carry one', async () => {
+    const bodies: unknown[] = [];
+    vi.stubGlobal('fetch', vi.fn(async (_input: string | URL | Request, init?: RequestInit) => {
+      bodies.push(JSON.parse(String(init?.body)));
+      return json({ event: { ...EVENT_ROW, status: 'live' } });
+    }));
+
+    await transitionSellerEvent('sunday-drop', 'go-live');
+    await transitionSellerEvent('sunday-drop', 'end');
+
+    // A `startsAt: undefined` would drop out of JSON anyway, but an empty
+    // string would NOT — and the server refuses one, so it must never be sent.
+    expect(bodies).toEqual([{ action: 'go-live' }, { action: 'end' }]);
+  });
+
+  it('surfaces a refused transition as the server\'s own reason, with its status', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => json(
+      { message: 'End the live event before rescheduling it.' },
+      409,
+    )));
+
+    // This is the message the seller reads when a control they could still
+    // reach turns out to be illegal — it must be the server's, not a generic
+    // "request failed" the client invented.
+    await expect(transitionSellerEvent('sunday-drop', 'schedule', { startsAt: '2026-08-17T15:00:00.000Z' }))
+      .rejects.toMatchObject({
+        message: 'End the live event before rescheduling it.',
+        status: 409,
+      });
+    await expect(transitionSellerEvent('sunday-drop', 'schedule', { startsAt: '2026-08-17T15:00:00.000Z' }))
+      .rejects.toBeInstanceOf(EventApiError);
+  });
+
+  it('unpublishes through DELETE on the event resource', async () => {
+    const calls: Array<{ url: string; init?: RequestInit }> = [];
+    vi.stubGlobal('fetch', vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
+      calls.push({ url: String(input), init });
+      return json({ eventId: 'sunday-drop', status: 'draft' });
+    }));
+
+    const result = await unpublishSellerEvent('sunday-drop', undefined, 'demo-27');
+
+    expect(calls[0].url).toContain('/events/sunday-drop');
+    expect(calls[0].url).not.toContain('/lifecycle');
+    expect(calls[0].init?.method).toBe('DELETE');
+    expect((calls[0].init?.headers as Record<string, string>)[DEMO_PRINCIPAL_HEADER]).toBe('demo-27');
+    expect(result).toEqual({ eventId: 'sunday-drop', status: 'draft' });
+  });
+
+  it('percent-encodes an event id rather than splicing it into the path', async () => {
+    const calls: string[] = [];
+    vi.stubGlobal('fetch', vi.fn(async (input: string | URL | Request) => {
+      calls.push(String(input));
+      return json({ event: EVENT_ROW });
+    }));
+
+    await transitionSellerEvent('sunday drop/2026', 'go-live');
+
+    expect(calls[0]).toContain('/events/sunday%20drop%2F2026/lifecycle');
+  });
+});
