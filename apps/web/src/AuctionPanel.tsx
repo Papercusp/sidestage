@@ -211,6 +211,14 @@ export function AuctionPanel({
     auctionQuery.invalidate();
   }, [auction, auctionQuery.invalidate, phase]);
 
+  // Depend on the ID, not the auction object: the 2s poll hands back a fresh
+  // object every tick, so notifying on `auction` would fire the parent's setter
+  // twice a second for an unchanged product.
+  const activeAuctionProductId = auction?.productId ?? null;
+  useEffect(() => {
+    onActiveAuctionProductChange?.(activeAuctionProductId);
+  }, [activeAuctionProductId, onActiveAuctionProductChange]);
+
   const product = useMemo(() => products.find((candidate) => candidate.id === auction?.productId), [auction?.productId, products]);
   const leadingBid = auction?.bids[0];
   const effectiveBidderId = viewerBidderId ?? auction?.viewerBidderId ?? bidderId;
