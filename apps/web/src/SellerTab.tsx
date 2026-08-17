@@ -4,7 +4,7 @@ import { useDemoIdentity } from './buyer-identity';
 import { requestChatJson } from './chat-api';
 import { TabHeader } from './components/TabHeader';
 import { EventChat, resolveApiOrigin } from './EventChat';
-import { chatEventId, DEFAULT_EVENT_TITLE, mediaBaseUrl, resolveActiveEventId, urlEventId } from './event-identity';
+import { chatEventId, DEFAULT_EVENT_TITLE, mediaBaseUrl, normalizedEventId, resolveActiveEventId, urlEventId } from './event-identity';
 import {
   sellerPrivateRequestHeaders,
   transitionSellerEvent,
@@ -230,6 +230,28 @@ export function SellerTab({
   onActiveProductChange: (productId: string | null) => void;
 }) {
   const [pinnedEvent, setPinnedEvent] = useState<SellerEventIdentity | null>(initialPinnedSellerEvent);
+  /*
+   * What the seller has TYPED into the Event room id field, when that differs
+   * from the room the Studio is actually on (WI-39272).
+   *
+   * The field used to be controlled directly by the pin, so every keystroke
+   * became the Studio's resolved identity — a pin outranks the directory — and
+   * every board keyed off it fetched. Typing whitespace therefore issued
+   * GET /events/%20/config and GET /actions/events/%20/items, both 400, before
+   * any Start validation ran; the 10s stage-items poll then repeated it.
+   *
+   * The two roles are separated rather than the nine consumers being rerouted:
+   * the PIN only ever holds a normalized room id, so `eventId` below is always
+   * fetchable and every consumer of it is correct unchanged. The raw draft
+   * lives here, and only the two places that must see the seller's literal
+   * keystrokes read it — the field itself, and Start.
+   *
+   * Start is the reason this is a draft and not simply a discarded value: it
+   * must still reject what the seller actually typed. Were the invalid text
+   * dropped here, Start would silently go live in the last valid room instead
+   * of refusing, which is a worse failure than the 400s this fixes.
+   */
+  const [eventIdDraft, setEventIdDraft] = useState<string | null>(null);
   const [room, setRoom] = useState<EventRoom | null>(null);
   const stream = useStreamSession<PublisherSession>();
   const { userId, impersonate } = useDemoIdentity('seller');
@@ -432,7 +454,10 @@ export function SellerTab({
   const startEvent = async () => {
     let nextRoom: EventRoom;
     try {
-      nextRoom = createEventRoom(eventId);
+      // The seller's literal keystrokes, not the pinned room (WI-39272): an
+      // invalid draft moves no board, but Start must still REFUSE it. Reading
+      // the pin here would silently go live in the last valid room.
+      nextRoom = createEventRoom(eventIdDraft ?? eventId);
     } catch (error) {
       stream.setStreamState('error');
       stream.setStreamError(error instanceof Error ? error.message : 'Choose a valid event room id.');
@@ -506,15 +531,25 @@ export function SellerTab({
   const panels: SellerDockPanelContextValue = {
     'stage-status': {
       eventTitle: eventTitles.stageStatus,
-      eventId,
+      eventId: eventIdDraft ?? eventId,
       // Typing a room id is an EXPLICIT choice, so it pins — the directory only
       // decides which event is active when the seller has not said.
-      onEventIdChange: (nextEventId) => setPinnedEvent((current) => (
-        sellerEventIdentity(
-          nextEventId,
-          nextEventId === current?.eventId ? current.eventTitle : DEFAULT_EVENT_TITLE,
-        )
-      )),
+      //
+      // Only a room id that NORMALIZES pins, though (WI-39272): a half-typed
+      // draft is kept as text for the field and Start, and moves no board. The
+      // pin stores the normalized form, so `Sunday-Drop` fetches `sunday-drop`
+      // rather than a path that 404s.
+      onEventIdChange: (nextEventId) => {
+        setEventIdDraft(nextEventId);
+        const fetchable = normalizedEventId(nextEventId);
+        if (!fetchable) return;
+        setPinnedEvent((current) => (
+          sellerEventIdentity(
+            fetchable,
+            fetchable === current?.eventId ? current.eventTitle : DEFAULT_EVENT_TITLE,
+          )
+        ));
+      },
       eventStatus,
       roomEventId: room?.eventId ?? null,
       streamState: stream.streamState,
@@ -546,6 +581,10 @@ export function SellerTab({
       eventName: eventTitles.eventManager,
       apiBaseUrl: import.meta.env.VITE_API_URL,
       onEventReady: (nextEventId: string, nextEventTitle: string) => {
+        // Navigating from the Event Manager is an external move, so it wins
+        // over anything half-typed in the field (WI-39272) — otherwise a stale
+        // draft would keep displaying a room the Studio has already left.
+        setEventIdDraft(null);
         setPinnedEvent(sellerEventIdentity(nextEventId, nextEventTitle));
       },
     },

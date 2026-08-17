@@ -5,8 +5,24 @@ export function mediaBaseUrl(): string | undefined {
   return import.meta.env.VITE_MEDIAMTX_URL;
 }
 
-/** The room-id grammar the chat/media transports accept. */
-function normalizedEventId(value: string): string | null {
+/**
+ * The room-id grammar the chat/media transports accept, or null when the value
+ * names no room at all.
+ *
+ * Exported for the seller Studio (WI-39272). The Studio needs the honest
+ * null — not `chatEventId`'s DEFAULT_EVENT_ID substitute — to tell "the seller
+ * is mid-keystroke" from "this is a room id", so its boards can decline to
+ * fetch rather than issue a request that can only 400. It returns the
+ * NORMALIZED form rather than a boolean for the same reason: `Sunday-Drop`
+ * passes the grammar but must be fetched as `sunday-drop`, since the request
+ * path is `encodeURIComponent(eventId)` and the raw casing 404s.
+ *
+ * `streaming.ts`'s EVENT_ID_PATTERN enforces this identical grammar on the
+ * Start path. That is what makes it safe to gate fetches here: a draft this
+ * function admits is one `createEventRoom` also accepts, so gating can never
+ * hide a value Start would have rejected.
+ */
+export function normalizedEventId(value: string): string | null {
   const normalized = value.trim().toLowerCase();
   return /^[a-z0-9][a-z0-9-]{0,63}$/.test(normalized) ? normalized : null;
 }
