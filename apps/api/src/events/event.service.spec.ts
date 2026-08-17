@@ -327,6 +327,43 @@ describe('event source selection', () => {
   });
 });
 
+/**
+ * Smoke: the no-infrastructure `npm run dev` path must actually SERVE the
+ * documented demo event (WI-39266).
+ *
+ * This is deliberately end-to-end through the REAL wiring — the store the
+ * factory picks when no pool exists, driven through the real EventService —
+ * rather than a StubStore. Every prior regression here survived the unit
+ * tests precisely because they asserted against a stub: the store selection
+ * was green, `guideWithholdReason` was green, and `sunday-drop` was still
+ * absent from the buyer guide in the running app.
+ *
+ * The documented reviewer path is `npm run dev` with no Docker, so a reviewer
+ * cloning the repo sees whatever THIS store hands the guide.
+ */
+describe('documented demo event survives the no-infrastructure dev path (WI-39266)', () => {
+  it('serves sunday-drop as a live guide entry when no pg pool exists', async () => {
+    const store = eventStoreForPool(null, { NODE_ENV: 'development' });
+    const service = new EventService(store, new ChatService());
+
+    const guide = await service.listForGuide();
+    const sundayDrop = guide.find((event) => event.eventId === 'sunday-drop');
+
+    expect(sundayDrop).toBeDefined();
+    expect(sundayDrop?.status).toBe('live');
+  });
+
+  it('does not withhold the demo seller, because its name is not the retired placeholder', () => {
+    const sundayDrop = demoEventRecords().find((event) => event.eventId === 'sunday-drop');
+
+    // The retired placeholder is the DISPLAY NAME 'sidestage seller', never the
+    // `demo-seller` id — an anonymous Studio visitor legitimately resolves to
+    // that id, so withholding on identity hid real sellers' live events.
+    expect(sundayDrop).toBeDefined();
+    expect(guideWithholdReason(sundayDrop as EventRecord)).toBeNull();
+  });
+});
+
 describe('seller-created events reach the guide (EI-20426845001666103 / P-014)', () => {
   it('rejects the legacy placeholder identity instead of publishing dummy seller data', async () => {
     const service = new EventService(new InMemoryEventStore([]), new ChatService());
