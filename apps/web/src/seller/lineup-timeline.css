@@ -249,10 +249,32 @@
   flex: 0 0 auto;
 }
 
+/*
+ * WIDTH IS PART OF THE SHARED FIELD RULE, not a per-field afterthought.
+ *
+ * Every label above is `display: grid`, so the input is a GRID ITEM, and a grid
+ * item's `min-width: auto` resolves to its min-content size. For a bare
+ * `<input>` that comes from the default `size=20` attribute — ~249px here — so
+ * an unconstrained input REFUSES to shrink to the fixed-width labels
+ * (.lineup-slot-minutes 5.5rem, .lineup-drawer-field 7rem) and overflows them.
+ * Nothing clips or wraps: the flex/grid siblings are laid out from the LABEL's
+ * declared width, so they paint on top of the overflow. That is what put the
+ * red "Take live" button over the Minutes box, the "Set quantity" button over
+ * "Live quantity", and "Start price" over "Auction qty" — one missing pair of
+ * declarations, four visible collisions.
+ *
+ * `min-width: 0` defuses the automatic-minimum-size rule; `width: 100%` then
+ * says what the field should actually be — as wide as the label that owns it.
+ * Both are kept: `width` alone happens to be sufficient today only because the
+ * label widths are definite, and a later `flex`/`auto` label width would
+ * silently reopen the bug. Guarded by lineup-field-width.test.ts.
+ */
 .lineup-slot-minutes input,
 .lineup-slot-notes input,
 .lineup-drawer-field input {
   min-height: var(--ss-control-h);
+  width: 100%;
+  min-width: 0;
   padding: 0 .5rem;
   font: inherit;
   color: var(--text);
@@ -270,9 +292,13 @@
   border-color: var(--danger);
 }
 
-.lineup-slot-notes input {
-  width: 100%;
-}
+/*
+ * `.lineup-slot-notes input { width: 100% }` used to live here. It is folded
+ * into the shared rule above — the notes field was the ONE field that had the
+ * declaration, which is precisely why it was the one field that never
+ * collided. Restating it here would leave two sources of truth for the same
+ * property.
+ */
 
 .lineup-slot-actions {
   display: flex;
