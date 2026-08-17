@@ -45,8 +45,7 @@ import { describe, expect, it } from 'vitest';
  * DETECTED — including the exact pre-fix text of the rule the bug lived in.
  */
 
-const seller = path.dirname(fileURLToPath(import.meta.url));
-const webSrc = path.resolve(seller, '..');
+const webSrc = path.dirname(fileURLToPath(import.meta.url));
 
 function stylesheets(dir: string): string[] {
   const out: string[] = [];
