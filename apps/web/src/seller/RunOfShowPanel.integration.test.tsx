@@ -41,6 +41,7 @@ vi.mock('@papercusp/sync', () => ({
     if (queryName === 'event.actions.items') {
       return {
         ...state,
+        invalidate: mocks.itemsInvalidate,
         data: [
           {
             eventId: 'demo-room', eventItemId: 'demo-room:planned-a', productId: 'planned-a',
@@ -55,9 +56,6 @@ vi.mock('@papercusp/sync', () => ({
     }
     if (queryName === 'event.auction.active') {
       return { ...state, data: [], invalidate: mocks.auctionInvalidate };
-    }
-    if (queryName === 'event.actions.items.invalidate-probe') {
-      return { ...state, data: [] };
     }
     return { ...state, data: [] };
   },
@@ -76,6 +74,92 @@ describe('RunOfShowPanel integration', () => {
   beforeEach(() => {
     mocks.auctionInvalidate.mockClear();
     mocks.startSellerAuction.mockClear();
+    mocks.itemsInvalidate.mockClear();
+    mocks.executeSellerAction.mockClear();
+    mocks.executeSellerAction.mockImplementation(async () => ({ ok: true }));
+  });
+
+  /** Mount the panel and hand back the "Take live" button (P-010). */
+  async function mountAndFindTakeLive(onActiveProductChange: (id: string | null) => void) {
+    (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
+    const container = document.createElement('div');
+    const root = createRoot(container);
+    await act(async () => {
+      const stageLog = stageLogOnProductChange(emptyStageLog(), 'planned-a', Date.now());
+      root.render(
+        <RunOfShowPanel
+          eventId="demo-room"
+          actorId="seller-1"
+          stageLog={stageLog}
+          activeProduct={null}
+          onActiveProductChange={onActiveProductChange}
+        />,
+      );
+    });
+    const button = [...container.querySelectorAll('button')]
+      .find((candidate) => candidate.textContent === 'Take live');
+    return { container, root, button };
+  }
+
+  it('"Take live" performs the GUARDED SERVER PUSH, not just a local selection change', async () => {
+    const onActiveProductChange = vi.fn();
+    const { container, root, button } = await mountAndFindTakeLive(onActiveProductChange);
+    try {
+      expect(button).toBeDefined();
+
+      await act(async () => {
+        button?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+      });
+
+      // The push must reach the server, and must be a WELL-FORMED push: the
+      // guard rejects a push carrying a quantity, a price, or a swap target
+      // (guardrail.ts:101-118), and rejects any action with no reason (:70).
+      expect(mocks.executeSellerAction).toHaveBeenCalledOnce();
+      const [pushedEventId, pushedActorId, action] = mocks.executeSellerAction.mock.calls[0] as unknown as [
+        string, string, Record<string, unknown>,
+      ];
+      expect(pushedEventId).toBe('demo-room');
+      expect(pushedActorId).toBe('seller-1');
+      expect(action.kind).toBe('push');
+      expect(action.productId).toBe('planned-b');
+      expect(String(action.reason)).not.toHaveLength(0);
+      expect(action).not.toHaveProperty('quantity');
+      expect(action).not.toHaveProperty('priceCents');
+      expect(action).not.toHaveProperty('swapToProductId');
+
+      // Server truth is re-read, and only THEN does local selection follow.
+      expect(mocks.itemsInvalidate).toHaveBeenCalled();
+      expect(onActiveProductChange).toHaveBeenCalledWith('planned-b');
+      expect(container.textContent).not.toContain('could not be taken live');
+    } finally {
+      await act(async () => root.unmount());
+      delete (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT;
+    }
+  });
+
+  it('does NOT advance local selection when the server refuses the push', async () => {
+    // The regression this pins: advancing selection on a refused push puts the
+    // dock and the D-005 server-truth clock into disagreement — the seller sees
+    // a card that is not on stage and a clock that never starts.
+    mocks.executeSellerAction.mockImplementation(async () => {
+      throw new Error('The event policy does not allow push actions.');
+    });
+    const onActiveProductChange = vi.fn();
+    const { container, root, button } = await mountAndFindTakeLive(onActiveProductChange);
+    try {
+      await act(async () => {
+        button?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+      });
+
+      expect(mocks.executeSellerAction).toHaveBeenCalledOnce();
+      expect(onActiveProductChange).not.toHaveBeenCalled();
+      expect(mocks.itemsInvalidate).not.toHaveBeenCalled();
+      // The server's own refusal is surfaced verbatim rather than restated.
+      expect(container.textContent).toContain('The event policy does not allow push actions.');
+    } finally {
+      await act(async () => root.unmount());
+      delete (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT;
+    }
   });
 
   it('stages a planned id even when its commerce detail is outside the catalog window', async () => {
