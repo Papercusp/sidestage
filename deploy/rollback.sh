@@ -220,13 +220,33 @@ health_body_reports_sha() {
   [[ "$compact" == *"\"sha\":\"$2\""* ]]
 }
 
+# public_health_body -- the PUBLIC /healthz body, ONLY on a real 2xx. Kept
+# byte-identical to deploy.sh's copy. `curl -sf` alone is NOT enough: --fail
+# fails on >= 400, so a 3xx succeeds and returns the REDIRECT body, which was
+# then compared against the expected sha (WI-39708). Deliberately not `curl
+# -L`: following it would report a DIFFERENT host's health as ours.
+public_health_body() {
+  local response code
+  response="$(curl -s --max-time 6 -w '\n%{http_code}' "$HEALTH_URL" 2>/dev/null)" || return 1
+  code="${response##*$'\n'}"
+  if [[ ! "$code" =~ ^2[0-9][0-9]$ ]]; then
+    echo "WARN: $HEALTH_URL answered HTTP ${code:-<none>}, not 2xx -- that body is not a health report." >&2
+    if [[ "$code" =~ ^3[0-9][0-9]$ ]]; then
+      echo "      A 3xx means PUBLIC_HOSTNAME names a host that redirects elsewhere." >&2
+      echo "      Set PUBLIC_HOSTNAME (or fix $PROD_DIR/.env.production) to the host prod serves." >&2
+    fi
+    return 1
+  fi
+  printf '%s' "${response%$'\n'*}"
+}
+
 health_probe() {
   local body
   # Call this function directly. Command substitution would run it in a
   # subshell and discard the leg/body assignments that make fallback visible.
   HEALTH_LEG=none
   HEALTH_BODY=""
-  if body="$(curl -sf --max-time 6 "$HEALTH_URL" 2>/dev/null)"; then
+  if body="$(public_health_body)"; then
     HEALTH_LEG=public
     HEALTH_BODY="$body"
     health_body_reports_sha "$body" "$TARGET" && return 0
