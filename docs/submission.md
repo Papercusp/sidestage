@@ -35,8 +35,9 @@ Copy-ready answers for each required line of the brief's reply template:
   the agent-written increments, including rejecting autonomous writes without
   policy and audit.
 - **What I reused:** The Restart-compatible shared libraries pinned as
-  submodules (catalog and variations data model, sync + SSE transport, grid,
-  drawer and UI primitives) — see
+  submodules (catalog and variations data model, the sync transport ladder —
+  WebSocket/Rocicorp Zero, SSE, and bounded polling — grid, drawer and UI
+  primitives) — see
   [`docs/data-model.md`](data-model.md) and
   [`docs/variations-schema.md`](variations-schema.md); MediaMTX and coturn for
   WHIP/WHEP media; Stripe, EasyPost, Deepgram and Typesense as provider seams.
@@ -189,7 +190,7 @@ Developer certificate.
 
 The public repo reuses the Restart-compatible shared libraries as pinned
 submodules and keeps app-specific composition under `apps/`. This preserves the
-catalog, variation, sync, SSE, and UI primitives that are useful to a live
+catalog, variation, sync-transport, and UI primitives that are useful to a live
 commerce prototype while keeping the SideStage API and browser contract
 reviewable in one clean clone. The mapping and data policy are documented in
 [`docs/data-model.md`](data-model.md),
@@ -225,9 +226,16 @@ reviewable in one clean clone. The mapping and data policy are documented in
   check rolls the deploy back automatically.
 - The default demo can be explored without Docker, but persistence, search, and
   WHIP/WHEP media require the corresponding local services.
-- Realtime application state currently syncs over SSE with a bounded polling
-  fallback; the shared sync library also carries a WebSocket (Rocicorp Zero)
-  transport that is built but not yet enabled — the cutover is planned and
-  tracked, and no document in this packet claims it is live.
+- Realtime application state runs on the shared sync library's WebSocket-first
+  ladder: the app opens a WebSocket (Rocicorp Zero) session and steps down to
+  SSE, then to bounded polling, on reachability failure only. The browser client
+  is wired WebSocket-first in this build. The `zero-cache` sync server it
+  connects to is provisioned in the Compose stack and documented in
+  [`infra/zero/README.md`](../infra/zero/README.md), but it is **not yet running
+  on the public instance**, so realtime state at
+  <https://sidestage.papercusp.com> is served by the SSE rung today and the
+  WebSocket rung steps down on connect. Reviewers should expect SSE on the
+  public instance: no document in this packet claims WebSocket sync is serving
+  it.
 - Provider credentials are optional seams. Never commit a real token; use the
   ignored `.env` file for local experiments.
