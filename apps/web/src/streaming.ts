@@ -67,6 +67,8 @@ export interface PublisherOptions extends StreamingConfig {
   readonly peerConnectionFactory?: PeerConnectionFactory;
   /** Deadline for the camera/mic permission grant (default 20s). */
   readonly mediaAcquireTimeoutMs?: number;
+  /** Budget for ICE gathering before the offer is sent as-is (default 3s). */
+  readonly iceGatheringTimeoutMs?: number;
   /**
    * Called when an ESTABLISHED publish falls over (see `isLostConnectionState`).
    * Without this the seller keeps "broadcasting" to an empty path: the
@@ -82,6 +84,8 @@ export interface ViewerOptions extends StreamingConfig {
   readonly peerConnectionFactory?: PeerConnectionFactory;
   readonly mediaStreamFactory?: MediaStreamFactory;
   readonly onTrack?: (stream: MediaStream, event: RTCTrackEvent) => void;
+  /** Budget for ICE gathering before the offer is sent as-is (default 3s). */
+  readonly iceGatheringTimeoutMs?: number;
   /**
    * Called when an ESTABLISHED subscription falls over. The WHEP 404 retry only
    * covers "the publisher has not started yet"; a stream that arrives and then
@@ -292,10 +296,11 @@ async function negotiate(
   peerConnection: RTCPeerConnection,
   endpoint: string,
   fetchImpl: typeof fetch,
+  iceGatheringTimeoutMs = DEFAULT_ICE_GATHERING_TIMEOUT_MS,
 ): Promise<string | null> {
   const offer = await peerConnection.createOffer();
   await peerConnection.setLocalDescription(offer);
-  const gathering = await waitForIceGatheringComplete(peerConnection);
+  const gathering = await waitForIceGatheringComplete(peerConnection, iceGatheringTimeoutMs);
 
   const localDescription = peerConnection.localDescription;
   if (!localDescription?.sdp) {
@@ -436,6 +441,7 @@ export async function connectPublisher(options: PublisherOptions): Promise<Publi
       peerConnection,
       endpoint,
       fetchImpl,
+      options.iceGatheringTimeoutMs,
     );
   } catch (error) {
     stopTracks(localStream);
@@ -483,6 +489,7 @@ export async function connectViewer(options: ViewerOptions): Promise<ViewerSessi
       peerConnection,
       endpoint,
       fetchImpl,
+      options.iceGatheringTimeoutMs,
     );
   } catch (error) {
     peerConnection.close();

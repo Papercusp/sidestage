@@ -6,6 +6,7 @@ import {
   createEventRoom,
   MediaTransportError,
   parseIceServerLinks,
+  waitForIceGatheringComplete,
 } from './streaming';
 
 const TURN_LINK = '<turns:media.sidestage.example:443?transport=tcp>; rel="ice-server"; '
@@ -69,6 +70,27 @@ class FakePeerConnection {
 
   close() {
     this.closed = true;
+  }
+}
+
+/**
+ * A peer connection whose ICE gathering never completes — the shape a browser
+ * takes when its only advertised ice-server is an unreachable TURN relay. The
+ * local description still carries whatever candidates were gathered first.
+ */
+class StallingGatheringPeerConnection extends FakePeerConnection {
+  constructor(private readonly offerSdp: string) {
+    super();
+  }
+
+  override async createOffer() {
+    return { type: 'offer' as const, sdp: this.offerSdp };
+  }
+
+  override async setLocalDescription(description: RTCSessionDescriptionInit) {
+    this.localDescription = description as RTCSessionDescription;
+    this.iceGatheringState = 'gathering';
+    this.onicegatheringstatechange?.(new Event('icegatheringstatechange'));
   }
 }
 
@@ -248,6 +270,78 @@ describe('SideStage event streaming', () => {
     grant(new FakeMediaStream([camera]) as unknown as MediaStream);
     await new Promise((resolve) => setTimeout(resolve, 0));
     expect(camera.stopped).toBe(true);
+  });
+
+  // Production advertises exactly ONE ice-server — a TCP/TLS TURN relay — so a
+  // network that cannot reach it leaves gathering open until the browser's own
+  // allocation timeout. Blocking the POST on that OPTIONAL candidate used to
+  // abort the stream outright, which is invisible server-side: MediaMTX never
+  // sees a session because the offer is never sent.
+  it('sends the offer it already has when a stalled relay keeps ICE gathering open', async () => {
+    const camera = new FakeTrack();
+    const peerConnection = new StallingGatheringPeerConnection(
+      'v=0\no=fake-offer\na=candidate:1 1 udp 2130706431 192.168.1.9 51000 typ host',
+    );
+    const requests: Array<{ method?: string; body?: BodyInit | null }> = [];
+
+    const session = await connectPublisher({
+      room: createEventRoom('demo-event'),
+      iceGatheringTimeoutMs: 20,
+      mediaDevices: {
+        getUserMedia: async () => new FakeMediaStream([camera]) as unknown as MediaStream,
+      },
+      peerConnectionFactory: () => peerConnection as unknown as RTCPeerConnection,
+      fetchImpl: async (_url, init) => {
+        requests.push({ method: init?.method, body: init?.body });
+        return init?.method === 'OPTIONS' ? optionsResponse() : response();
+      },
+    });
+
+    // The whole point: the POST happens, carrying the host candidate.
+    const post = requests.find((request) => request.method === 'POST');
+    expect(post?.body).toContain('a=candidate:');
+    expect(peerConnection.remoteDescription?.type).toBe('answer');
+    expect(peerConnection.iceGatheringState).toBe('gathering');
+    await session.stop();
+  });
+
+  it('still reports a gathering timeout when the browser produced no candidates at all', async () => {
+    const camera = new FakeTrack();
+    const peerConnection = new StallingGatheringPeerConnection('v=0\no=fake-offer');
+    const methods: Array<string | undefined> = [];
+
+    await expect(connectPublisher({
+      room: createEventRoom('demo-event'),
+      iceGatheringTimeoutMs: 20,
+      mediaDevices: {
+        getUserMedia: async () => new FakeMediaStream([camera]) as unknown as MediaStream,
+      },
+      peerConnectionFactory: () => peerConnection as unknown as RTCPeerConnection,
+      fetchImpl: async (_url, init) => {
+        methods.push(init?.method);
+        return init?.method === 'OPTIONS' ? optionsResponse() : response();
+      },
+    })).rejects.toMatchObject({
+      name: 'MediaTransportError',
+      message: expect.stringContaining('gathering media ICE candidates'),
+    });
+
+    // An offer with nothing to connect with is not worth sending.
+    expect(methods).not.toContain('POST');
+    expect(camera.stopped).toBe(true);
+    expect(peerConnection.closed).toBe(true);
+  });
+
+  it('resolves as soon as gathering completes rather than burning the whole budget', async () => {
+    const peerConnection = new FakePeerConnection();
+    await peerConnection.setLocalDescription({ type: 'offer', sdp: 'v=0' });
+
+    const started = Date.now();
+    await expect(waitForIceGatheringComplete(
+      peerConnection as unknown as RTCPeerConnection,
+      5_000,
+    )).resolves.toBe('complete');
+    expect(Date.now() - started).toBeLessThan(1_000);
   });
 
   it('maps a denied camera permission to a clear message', async () => {
