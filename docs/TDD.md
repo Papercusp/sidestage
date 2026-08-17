@@ -10,9 +10,14 @@ apps/api    NestJS (:3100)  — domain modules, one per commerce concern
 apps/web    Vite/React SPA (:5173 dev; nginx static in prod)
 libs/*      pinned shared libraries (grid-core/papergrid, sync, sse,
             ui-primitives, token-kit, typesense, …)
-db/         schema.sql (ported production-grade commerce schema) + demo seed
-docker-compose.yml        dev data plane: Postgres, Typesense, Redis, MediaMTX
+libs/zero   the Zero contract package — table/column/relationship schema
+            shared by the client, zero-cache, and the replication publication
+db/         schema.sql (ported production-grade commerce schema) + demo seed,
+            zero-publication.sql (the logical-replication publication)
+docker-compose.yml        dev data plane: Postgres (logical replication on),
+                          Typesense, Redis, MediaMTX, zero-cache
 docker-compose.prod.yml   production stack + Traefik routing labels
+infra/zero/               zero-cache image + operational notes
 deploy/deploy.sh          immutable working-tree snapshot production deploy
 ```
 
@@ -62,10 +67,42 @@ unavailable, so search degrades gracefully instead of failing.
 
 ## Realtime
 
-- **Chat** — API-backed room chat over the shared `@papercusp/sync` layer
-  (SSE), with presence and message triage; buyer and seller render the same
-  `EventChat` component.
-- **Auctions** — server-ordered bids; SSE stream per event with heartbeats.
+- **Chat** — room chat over the shared `@papercusp/sync` layer, with presence
+  and message triage; buyer and seller render the same `EventChat` component.
+  Postgres is the sole authority for chat state: messages, presence, and
+  moderation are durable rows, and moderation is a soft delete (`moderated_at`)
+  so the audit trail and the idempotency index both survive. Presence expiry is
+  a property of the store, swept on a timer — not a side effect of a read —
+  because a client reading the replicated table directly never issues that read.
+- **Auctions** — server-ordered bids; the server remains the ordering authority
+  regardless of which transport carries the fan-out.
+
+### Sync transport ladder
+
+`SyncProvider` mounts one transport and degrades through three, so a blocked
+network path costs freshness rather than function:
+
+| Rung | Mechanism | Selected when |
+| --- | --- | --- |
+| 1. WebSockets | Rocicorp Zero client against zero-cache | default (`syncType="WEBSOCKETS"`) |
+| 2. SSE | `@Sse('sse')` invalidation stream, heartbeats, Last-Event-ID-ready | Zero connection stays down past `fallbackDelayMs` (10s) |
+| 3. Polling | batched REST fetch on an interval (10s) | the SSE stream itself errors |
+
+`useTransportFallback` owns the descent, driven by observed Zero connection
+state rather than a pre-flight upgrade probe — an earlier probe keyed on a
+non-public API produced false positives and was removed.
+
+**zero-cache does not read Postgres directly.** It subscribes to the
+`zero_publication` logical-replication publication and maintains its own SQLite
+replica from the change stream. The publication's table list must equal the set
+declared in the Zero contract package (`libs/zero/src/schema.ts`, each table's
+`.from('<pg_name>')`); parity tests hold the two in sync, since a table present
+in one and absent from the other fails silently — queries simply return nothing.
+
+**Writes do not ride the read path.** The Zero custom-mutator dispatcher is
+WebSocket-only; when it is absent every write takes the REST fallback to the
+API, so the guardrail gate below stays on the write path at every rung of the
+ladder.
 - **Streaming** — MediaMTX WHIP/WHEP WebRTC: seller publishes, buyers view;
   the API exchanges its server-only Deepgram project key for a short-lived JWT
   after seller authentication, and the publisher browser uses that JWT for one
@@ -100,9 +137,16 @@ auditable and reversible. Two rehearsal instruments prove the property:
   skipping the gate.
 - **Guardrail gate**: deterministic, in-process, no provider round-trip —
   policy checks add no meaningful latency to a send.
-- **Realtime propagation**: SSE invalidation fan-out (chat, auction bids,
-  sync queries) with heartbeats; WebRTC media latency is MediaMTX
-  direct-UDP first, TURN/TLS fallback.
+- **Realtime propagation**: Zero WebSocket sync (chat, auction bids, sync
+  queries) against zero-cache's local replica, so a query is answered from
+  SQLite rather than a round-trip to Postgres. The budget is set by the
+  *slowest rung the client can land on*, not the fastest: a client that has
+  fallen back absorbs up to `fallbackDelayMs` (10s) of WS retry before the SSE
+  stream takes over, and a further poll interval (10s) if SSE also fails.
+  Freshness therefore degrades in bounded steps rather than failing, and
+  replication lag from the `zero_publication` change stream is an additional
+  term on the WS rung that the SSE rung does not carry. WebRTC media latency
+  is unchanged: MediaMTX direct-UDP first, TURN/TLS fallback.
 
 ## Marketplace integrations
 
@@ -141,6 +185,13 @@ comes from the judge + load-simulator rehearsals and live smokes against the
 running stack. CI runs the exact reviewer commands from a clean clone.
 
 ## Deployment
+
+The stack carries one service the earlier SSE-only topology did not need:
+**zero-cache** (`infra/zero/`), which holds the SQLite replica the WebSocket
+rung serves queries from. It requires Postgres to run with logical replication
+enabled — set in `docker-compose.yml` as the base the acceptance overlay
+inherits, so an acceptance run cannot pass vacuously against a publication that
+could never stream.
 
 Production is a single-box Docker Compose stack behind Traefik:
 `deploy/deploy.sh` uses temporary Git indexes to export one immutable snapshot
