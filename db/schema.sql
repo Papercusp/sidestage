@@ -873,6 +873,75 @@ CREATE UNIQUE INDEX IF NOT EXISTS action_audit_rollback_unique
   ON action_audit_entry (rollback_of)
   WHERE rollback_of IS NOT NULL;
 
+-- One restart-safe authority for targeted offers, the last piece of the
+-- guarded-action domain that used to live only in an API process's memory.
+-- A seller offer is a durable promise to ONE buyer against ONE lineup item,
+-- so it carries its own identity, ownership, version and lifecycle stamps
+-- rather than being derivable from the audit trail: `action_audit_entry`
+-- records what an action DID (immutable evidence), while this table records
+-- what is CURRENTLY outstanding (mutable state a second API process and the
+-- Zero replica both have to agree on).
+--
+-- Ownership: buyer_id is the buyer side; the seller side resolves through
+-- event, matching the event-is-the-owner-oracle rule the boundary section
+-- below establishes. Idempotency: client_request_id is the originating
+-- action's mutation key, so a retry that races past the audit dedupe cannot
+-- mint a second offer for the same command.
+CREATE TABLE IF NOT EXISTS targeted_offer (
+  offer_id text PRIMARY KEY,
+  event_id text NOT NULL,
+  event_item_id text NOT NULL,
+  product_id text NOT NULL,
+  buyer_id text NOT NULL,
+  price_cents integer NOT NULL,
+  quantity integer NOT NULL,
+  status text NOT NULL DEFAULT 'pending',
+  audit_id text,
+  client_request_id text,
+  version bigint NOT NULL DEFAULT 1,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now(),
+  accepted_at timestamptz,
+  cancelled_at timestamptz,
+  CONSTRAINT targeted_offer_event_fk FOREIGN KEY (event_id)
+    REFERENCES event (event_id) ON UPDATE CASCADE ON DELETE CASCADE,
+  CONSTRAINT targeted_offer_item_fk FOREIGN KEY (event_item_id)
+    REFERENCES event_lineup_item (event_item_id) ON UPDATE CASCADE ON DELETE CASCADE,
+  CONSTRAINT targeted_offer_audit_fk FOREIGN KEY (audit_id)
+    REFERENCES action_audit_entry (id) ON UPDATE CASCADE ON DELETE SET NULL,
+  CONSTRAINT targeted_offer_status_known
+    CHECK (status IN ('pending', 'accepted', 'expired', 'cancelled')),
+  CONSTRAINT targeted_offer_buyer_nonempty CHECK (btrim(buyer_id) <> ''),
+  CONSTRAINT targeted_offer_product_nonempty CHECK (btrim(product_id) <> ''),
+  CONSTRAINT targeted_offer_price_nonnegative CHECK (price_cents >= 0),
+  CONSTRAINT targeted_offer_quantity_positive CHECK (quantity > 0),
+  CONSTRAINT targeted_offer_version_positive CHECK (version > 0),
+  CONSTRAINT targeted_offer_request_nonempty
+    CHECK (client_request_id IS NULL OR btrim(client_request_id) <> ''),
+  -- An offer may be cancelled AFTER it was accepted, so accepted_at outliving
+  -- the accepted status is legitimate; only the forward implication holds.
+  CONSTRAINT targeted_offer_accepted_stamped
+    CHECK (status <> 'accepted' OR accepted_at IS NOT NULL),
+  CONSTRAINT targeted_offer_cancelled_stamped
+    CHECK (status <> 'cancelled' OR cancelled_at IS NOT NULL),
+  CONSTRAINT targeted_offer_accepted_time
+    CHECK (accepted_at IS NULL OR accepted_at >= created_at),
+  CONSTRAINT targeted_offer_cancelled_time
+    CHECK (cancelled_at IS NULL OR cancelled_at >= created_at)
+);
+
+-- The buyer inbox read (`offers.byBuyer`) is newest-first for one buyer.
+CREATE INDEX IF NOT EXISTS targeted_offer_buyer_created_idx
+  ON targeted_offer (buyer_id, created_at DESC, offer_id);
+-- The audit snapshot read walks every offer on one event item.
+CREATE INDEX IF NOT EXISTS targeted_offer_event_product_idx
+  ON targeted_offer (event_id, product_id, offer_id);
+-- One offer per originating guarded-action command, so a retry that races the
+-- audit dedupe converges on the first offer instead of minting a second.
+CREATE UNIQUE INDEX IF NOT EXISTS targeted_offer_request_unique
+  ON targeted_offer (event_id, client_request_id)
+  WHERE client_request_id IS NOT NULL;
+
 -- ── Demo-principal ownership boundary (demo-user-isolation P-002) ──────────
 -- Event-anchored rows deliberately do NOT duplicate seller_id: event is the
 -- owner oracle, and the foreign keys below make every dependent event id
@@ -1618,3 +1687,101 @@ CREATE TABLE IF NOT EXISTS chat_presence (
 
 CREATE INDEX IF NOT EXISTS chat_presence_freshness_idx
   ON chat_presence (event_id, last_seen_at);
+
+-- ── Judge + rehearsal durable authority (WS cutover P-001c / auction P-011) ──
+-- Postgres becomes the SOLE server authority for judge results and rehearsal
+-- runs. Before this, AutoResponderJudgeService kept the latest report in a
+-- process field (`private latestReport`), so every API restart erased it and
+-- two replicas answered `judge.latest` differently. Neither surface had any
+-- durable table at all.
+--
+-- Scores are integer BASIS POINTS (0..10000), never floats. schema.sql has no
+-- float column anywhere, and the reason bites hardest here: the verdict is
+-- `score >= pass_threshold`, so a float round-tripping through Postgres and
+-- the Zero wire is exactly where a run flips to the wrong side of its own
+-- pass boundary. Basis points make the comparison exact and replayable.
+
+CREATE TABLE IF NOT EXISTS judge_run (
+  run_id text PRIMARY KEY,
+  -- Idempotent transaction boundary: a retried judge.run with the same request
+  -- resolves to the SAME row instead of minting a second graded run.
+  idempotency_key text NOT NULL UNIQUE,
+  contract_version integer NOT NULL DEFAULT 1,
+  actor_id text NOT NULL,
+  total_cases integer NOT NULL,
+  passed_cases integer NOT NULL,
+  overall_score_bp integer NOT NULL,
+  pass_threshold_bp integer NOT NULL,
+  passed boolean NOT NULL,
+  latency_ms integer NOT NULL,
+  -- Per-dimension aggregate scores; the hot verdict columns above are lifted
+  -- out so a reader never has to parse jsonb to answer "did this run pass".
+  dimensions jsonb NOT NULL DEFAULT '{}'::jsonb,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now(),
+  CONSTRAINT judge_run_contract_version_positive CHECK (contract_version > 0),
+  CONSTRAINT judge_run_actor_present CHECK (btrim(actor_id) <> ''),
+  CONSTRAINT judge_run_case_counts
+    CHECK (total_cases > 0 AND passed_cases >= 0 AND passed_cases <= total_cases),
+  CONSTRAINT judge_run_overall_score_bounded
+    CHECK (overall_score_bp >= 0 AND overall_score_bp <= 10000),
+  CONSTRAINT judge_run_pass_threshold_bounded
+    CHECK (pass_threshold_bp >= 0 AND pass_threshold_bp <= 10000),
+  CONSTRAINT judge_run_latency_non_negative CHECK (latency_ms >= 0)
+);
+
+-- `judge.latest` reads the newest run; without this index that read degrades
+-- to a full scan as run history accumulates.
+CREATE INDEX IF NOT EXISTS judge_run_recency_idx
+  ON judge_run (created_at DESC);
+
+CREATE TABLE IF NOT EXISTS judge_case_result (
+  run_id text NOT NULL
+    REFERENCES judge_run (run_id) ON UPDATE CASCADE ON DELETE CASCADE,
+  case_id text NOT NULL,
+  -- Preserves the caller's case ordering; the report is rendered in submitted
+  -- order, which a (run_id, case_id) primary key alone does not guarantee.
+  position integer NOT NULL,
+  question text NOT NULL,
+  reply text NOT NULL,
+  overall_score_bp integer NOT NULL,
+  passed boolean NOT NULL,
+  dimensions jsonb NOT NULL DEFAULT '{}'::jsonb,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  PRIMARY KEY (run_id, case_id),
+  CONSTRAINT judge_case_result_position_non_negative CHECK (position >= 0),
+  CONSTRAINT judge_case_result_score_bounded
+    CHECK (overall_score_bp >= 0 AND overall_score_bp <= 10000)
+);
+
+CREATE INDEX IF NOT EXISTS judge_case_result_run_order_idx
+  ON judge_case_result (run_id, position);
+
+CREATE TABLE IF NOT EXISTS rehearsal_run (
+  run_id text PRIMARY KEY,
+  idempotency_key text NOT NULL UNIQUE,
+  contract_version integer NOT NULL DEFAULT 1,
+  actor_id text NOT NULL,
+  -- Null for the whole-suite dress rehearsal, which is not scoped to one event.
+  event_id text,
+  kind text NOT NULL,
+  ran_at timestamptz NOT NULL DEFAULT now(),
+  total_cases integer NOT NULL,
+  passed_cases integer NOT NULL,
+  ready boolean NOT NULL,
+  blockers jsonb NOT NULL DEFAULT '[]'::jsonb,
+  caveats jsonb NOT NULL DEFAULT '[]'::jsonb,
+  report jsonb NOT NULL DEFAULT '{}'::jsonb,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now(),
+  CONSTRAINT rehearsal_run_contract_version_positive CHECK (contract_version > 0),
+  CONSTRAINT rehearsal_run_actor_present CHECK (btrim(actor_id) <> ''),
+  -- 'all' is the folded dress-rehearsal verdict across every runner.
+  CONSTRAINT rehearsal_run_kind_known
+    CHECK (kind IN ('actions', 'auction', 'checkout', 'injection', 'all')),
+  CONSTRAINT rehearsal_run_case_counts
+    CHECK (total_cases >= 0 AND passed_cases >= 0 AND passed_cases <= total_cases)
+);
+
+CREATE INDEX IF NOT EXISTS rehearsal_run_recency_idx
+  ON rehearsal_run (kind, ran_at DESC);
