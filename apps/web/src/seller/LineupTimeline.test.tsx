@@ -121,6 +121,39 @@ describe('LineupTimelineView', () => {
     expect(html).toContain('1:00 over');
   });
 
+  /*
+   * WI-39722 (owner live repro): budgets were typed on every slot and the header
+   * still read "0:00 · No time budgets yet", because pace stays null until a
+   * budgeted slot has been on stage. The falsifier is the literal denial.
+   */
+  it('before the show, the header states the planned total instead of denying the budgets', () => {
+    const html = render({
+      view: buildRunOfShowView({
+        entries: ENTRIES,
+        titles: TITLES,
+        log: emptyStageLog(),
+        nowMs: T0,
+        lineupProductIds: ['p-kettle', 'p-mug', 'p-tray'],
+      }),
+    });
+    // 5:00 + 2:00 of budget exist, and nothing has been on stage.
+    expect(html).toContain('7:00 planned');
+    expect(html).not.toContain('No time budgets yet');
+  });
+
+  it('still says there are no budgets when the seller has set none', () => {
+    const html = render({
+      view: buildRunOfShowView({
+        entries: ENTRIES.map((entry) => ({ ...entry, plannedDurationSec: null })),
+        titles: TITLES,
+        log: emptyStageLog(),
+        nowMs: T0,
+        lineupProductIds: ['p-kettle', 'p-mug', 'p-tray'],
+      }),
+    });
+    expect(html).toContain('No time budgets yet');
+  });
+
   it('D-003: with no shared clock it renders NO time at all, not a zero', () => {
     const html = render({ showPace: false });
     expect(html).toContain('Show clock unavailable');
