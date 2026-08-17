@@ -89,8 +89,9 @@ auditable and reversible. Two rehearsal instruments prove the property:
 
 ## Web architecture
 
-Small files by design: the app shell (`App.tsx`, ~80 lines) routes four tabs
-held in the URL; each tab is its own component; shared behavior lives in hooks
+Small files by design: the app shell (`App.tsx`) routes the pages (Watch,
+Orders, Studio, History, Tests, Architecture) held in the URL; each page is
+its own component; shared behavior lives in hooks
 (`useStreamSession`, `useCopyState`, `useCatalog`). Product surfaces render
 from the one catalog source; grids use the shared `RichGrid`
 (`@papercusp/grid-core`). A density token system (compact / console / roomy)
