@@ -125,10 +125,10 @@ export function ArchitectureTab() {
             <ArchitectureNode
               eyebrow="Buyer"
               title="Web + native mobile"
-              copy="Watch, chat, buy, bid, track orders. Native Android app: shared Rust core, UniFFI Kotlin bindings, Kotlin UI"
+              copy="Watch, chat, buy, bid, track orders. Native Android + iOS apps: shared Rust core, UniFFI Kotlin/Swift bindings, thin native UIs"
               tone="cyan"
               links={[
-                { label: 'Android v1.0.0 (APK + AAB)', href: 'https://github.com/Papercusp/sidestage-mobile/releases/tag/v1.0.0' },
+                { label: 'Mobile v1.0.0 (APK + AAB + unsigned IPA)', href: 'https://github.com/Papercusp/sidestage-mobile/releases/tag/v1.0.0' },
                 { label: 'Mobile source', href: 'https://github.com/Papercusp/sidestage-mobile' },
               ]}
             />
@@ -419,17 +419,17 @@ export function ArchitectureTab() {
           <ArchitectureNode
             eyebrow="4 · iOS"
             title="SwiftUI shell"
-            copy="A SwiftUI shell over the identical core—no signed iOS build is published yet, and nothing here claims otherwise"
+            copy="A SwiftUI shell over the identical core—v1.0.0 ships an unsigned IPA built with Xcode 16.4 (a build artifact, not installable without re-signing under an Apple Developer certificate)"
             tone="violet"
             links={[
-              { label: 'Android v1.0.0 (APK + AAB)', href: 'https://github.com/Papercusp/sidestage-mobile/releases/tag/v1.0.0' },
+              { label: 'Mobile v1.0.0 (APK + AAB + unsigned IPA)', href: 'https://github.com/Papercusp/sidestage-mobile/releases/tag/v1.0.0' },
               { label: 'Source: sidestage-mobile', href: 'https://github.com/Papercusp/sidestage-mobile' },
             ]}
           />
         </div>
         <div className="architecture-operations-grid">
           <section><h3>Distribution</h3><dl>
-            <div><dt>Signed release</dt><dd>Android v1.0.0 ships as a signed APK (sideload) and AAB (Play bundle) with a provenance manifest recording the source commit and artifact hashes</dd></div>
+            <div><dt>Release artifacts</dt><dd>Android v1.0.0 ships as a signed APK (sideload) and AAB (Play bundle); iOS ships as an unsigned IPA awaiting an Apple Developer certificate—all with a provenance manifest recording the source commit and artifact hashes</dd></div>
             <div><dt>Reviewer-reachable</dt><dd>Builds live on the public companion repo's GitHub release page—the same place the app badges on this site point</dd></div>
           </dl></section>
           <section><h3>Backend</h3><dl>

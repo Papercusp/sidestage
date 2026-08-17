@@ -75,7 +75,7 @@ which are reconciled against the repo afterward. Useful anchors are listed in
 | Test command | `npm test` |
 | Full local gate | `npm run check` followed by `npm run build` |
 | Primary product surface | `apps/web` — the Watch, Orders, Studio, History, Tests, and Architecture surfaces |
-| Native mobile app (buyer) | <https://github.com/Papercusp/sidestage-mobile> — signed Android v1.0.0 builds (APK + AAB + provenance): <https://github.com/Papercusp/sidestage-mobile/releases/tag/v1.0.0> |
+| Native mobile app (buyer) | <https://github.com/Papercusp/sidestage-mobile> — v1.0.0 builds (signed Android APK + AAB, unsigned iOS IPA, provenance): <https://github.com/Papercusp/sidestage-mobile/releases/tag/v1.0.0> |
 | API surface | `apps/api` — NestJS on port `3100`, with `/healthz` for readiness |
 | Optional local infrastructure | `docker compose up -d` for Postgres, Typesense, Redis, and MediaMTX |
 
@@ -153,7 +153,7 @@ npm run build
 | Auctions, quantity holds, bids, close, and buyer panel | `apps/api/src/auction`, `apps/web/src/AuctionPanel.tsx`, `apps/web/src/auction.test.tsx` |
 | Deterministic reply judge and load rehearsal | `apps/api/src/judge`, `apps/web/src/judge.ts`, `apps/web/src/load-simulator.ts` and their focused tests |
 | Restart-compatible catalog and variations data | `docs/data-model.md`, `docs/variations-schema.md`, `db/schema.sql`, `db/seed/demo.sql` |
-| Native Android buyer app (shared Rust core, UniFFI Kotlin bindings, Kotlin UI) | [`Papercusp/sidestage-mobile`](https://github.com/Papercusp/sidestage-mobile) — `crates/`, `android/`; signed [v1.0.0 APK + AAB release](https://github.com/Papercusp/sidestage-mobile/releases/tag/v1.0.0) with build-provenance manifest |
+| Native mobile buyer apps (shared Rust core; UniFFI Kotlin/Swift bindings; Kotlin + Swift UIs) | [`Papercusp/sidestage-mobile`](https://github.com/Papercusp/sidestage-mobile) — `crates/`, `android/`, `ios/`; [v1.0.0 release](https://github.com/Papercusp/sidestage-mobile/releases/tag/v1.0.0) with signed APK + AAB, unsigned iOS IPA, and build-provenance manifest |
 
 The copilot pipeline sends only verified event/catalog/policy context to the
 provider seam, requires citations for grounded replies, and returns a safe
@@ -163,22 +163,27 @@ awaits confirmation, or can execute through the audited executor.
 
 ## Native mobile app (buyer)
 
-The buyer surface also ships as a native Android app from the public companion
-repo [`Papercusp/sidestage-mobile`](https://github.com/Papercusp/sidestage-mobile).
-Reviewer-installable builds are on the
+The buyer surface also ships as native Android and iOS apps from the public
+companion repo [`Papercusp/sidestage-mobile`](https://github.com/Papercusp/sidestage-mobile).
+Builds are on the
 [v1.0.0 release page](https://github.com/Papercusp/sidestage-mobile/releases/tag/v1.0.0):
-a signed APK (direct sideload), a signed AAB (Play bundle), and a
-`release-provenance.json` recording the source commit and artifact SHA-256
-hashes. The builds target the live backend at
-<https://sidestage.papercusp.com/api>.
+a signed APK (direct sideload, reviewer-installable), a signed AAB (Play
+bundle), an **unsigned** iOS IPA (`SideStage-unsigned-v1.0.0.ipa` — a build
+artifact, not end-user installable; installing it requires re-signing with an
+Apple Developer certificate), and a `release-provenance.json` recording the
+source commit and artifact SHA-256 hashes. The builds target the live backend
+at <https://sidestage.papercusp.com/api>.
 
 Tech stack: the domain logic, API client, and sync live in a shared **Rust**
 core (`crates/`), cross-compiled for all four Android ABIs (arm64-v8a,
 armeabi-v7a, x86, x86_64) with `cargo-ndk`; **UniFFI** generates the Kotlin
 bindings over that core (checksum-verified at build time); the UI is
 **Kotlin** under `android/`, built with Gradle/AGP (min SDK 33, target
-SDK 36, 16 KB-page-aligned native libraries). An iOS SwiftUI shell over the
-same Rust core lives under `ios/`; no signed iOS build is published.
+SDK 36, 16 KB-page-aligned native libraries). The iOS app under `ios/` is a
+SwiftUI shell over the same Rust core (`aarch64-apple-ios` +
+`SideStageCore.xcframework`, UniFFI Swift bindings, XcodeGen project, Xcode
+16.4); its published v1.0.0 IPA is unsigned — signing requires an Apple
+Developer certificate.
 
 ## Why the Restart stack is reused
 
