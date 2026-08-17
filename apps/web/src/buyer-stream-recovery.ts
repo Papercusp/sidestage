@@ -45,19 +45,38 @@ export function isPublisherNotReady(error: unknown): boolean {
 }
 
 /**
- * Backoff for re-offering while waiting for a publisher.
+ * Backoff for re-offering while waiting for a publisher — and the reason it is
+ * a FINITE schedule rather than a steady poll.
  *
  * Fast at first because the common case is a buyer already in the room when the
- * seller hits `Start event` — the gap is one camera prompt, a second or two —
- * then settling to a steady poll so a room left open overnight is not hammering
- * the media server. WHEP re-offers are cheap (one POST that 404s immediately),
- * so the floor is chosen for perceived latency, not for load.
+ * seller hits `Start event`: the gap is one camera prompt, a second or two.
+ * It then widens, and it ENDS. A `live` event is not proof that a seller is
+ * ever coming: `End event` today only stops the camera and leaves the row
+ * `live` in the directory (WI-39737), so dead rooms sit at the top of the
+ * What's-On rail indefinitely. An unbounded poll would have every buyer who
+ * opens one re-offering against MediaMTX forever. After the schedule is spent
+ * the viewer gives up and hands the buyer an explicit retry instead.
+ *
+ * The total is ~96s across 10 offers, which comfortably covers a seller
+ * fumbling a permission prompt while staying cheap for a room nobody is
+ * running.
  */
-export const PUBLISHER_RETRY_DELAYS_MS: readonly number[] = [1_000, 2_000, 3_000, 5_000];
+export const PUBLISHER_RETRY_DELAYS_MS: readonly number[] = [
+  1_000, 2_000, 3_000, 5_000, 5_000, 10_000, 10_000, 15_000, 15_000, 30_000,
+];
 
-export function publisherRetryDelayMs(attempt: number): number {
-  const index = Math.min(Math.max(attempt, 0), PUBLISHER_RETRY_DELAYS_MS.length - 1);
-  return PUBLISHER_RETRY_DELAYS_MS[index] ?? PUBLISHER_RETRY_DELAYS_MS[PUBLISHER_RETRY_DELAYS_MS.length - 1] ?? 5_000;
+/** Shown once the wait above is spent, replacing the raw transport status. */
+export const PUBLISHER_ABSENT_MESSAGE =
+  'The seller has not started their camera yet. Retry once they are on.';
+
+/**
+ * How long to wait before re-offering after `attempt` failed offers, or `null`
+ * once the bounded wait is spent and the viewer should stop and surface a
+ * retry. `attempt` is 0-based: 0 is the delay after the first failure.
+ */
+export function publisherRetryDelayMs(attempt: number): number | null {
+  if (attempt < 0) return PUBLISHER_RETRY_DELAYS_MS[0] ?? null;
+  return PUBLISHER_RETRY_DELAYS_MS[attempt] ?? null;
 }
 
 /**

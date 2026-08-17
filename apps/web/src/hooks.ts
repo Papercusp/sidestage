@@ -17,6 +17,22 @@ export interface StreamSessionLike {
 }
 
 /**
+ * What one `start` attempt did, so a caller can decide whether to try again
+ * (WI-39733). The hook still owns the state and the message — this only tells
+ * the caller which of the four things happened, because "the connect failed"
+ * and "the connect failed because the seller is not publishing yet" need
+ * different behaviour and the second is indistinguishable from the first once
+ * the error has been flattened into `streamError` text.
+ */
+export type StreamStartOutcome =
+  | { readonly status: 'connected' }
+  /** A session was already live or a connect was already in flight. */
+  | { readonly status: 'busy' }
+  /** A newer attempt replaced this one; this attempt's session was discarded. */
+  | { readonly status: 'superseded' }
+  | { readonly status: 'failed'; readonly error: unknown };
+
+/**
  * The publisher/viewer session lifecycle both tabs used to hand-roll (P-104):
  * connect-once guard, error capture, video element attachment, and teardown.
  * The caller supplies the connect function; `attach` returns the MediaStream
@@ -44,8 +60,8 @@ export function useStreamSession<T extends StreamSessionLike>() {
   const start = useCallback(async (
     connect: () => Promise<T>,
     options: { attach?: (session: T) => MediaStream | null; fallbackError: string },
-  ) => {
-    if (sessionRef.current || connectingRef.current) return;
+  ): Promise<StreamStartOutcome> => {
+    if (sessionRef.current || connectingRef.current) return { status: 'busy' };
     const attempt = connectionAttemptRef.current + 1;
     connectionAttemptRef.current = attempt;
     connectingRef.current = true;

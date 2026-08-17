@@ -158,6 +158,19 @@ export interface RunOfShowView {
   nextUp: RunOfShowSlotView | null;
   /** Σ (spent - budget) over touched budgeted slots; null with no budgets touched. */
   paceDeltaSec: number | null;
+  /**
+   * Σ budgets over every slot that HAS one, touched or not.
+   *
+   * `paceDeltaSec` deliberately says nothing until a budgeted slot has been on
+   * stage, which before the show is EVERY budgeted slot — so it cannot answer
+   * "did the seller set any budgets?", and a header that read the null as "no"
+   * told a seller who had just typed minutes that there were none (WI-39722).
+   * This is the plan-side total, so the pre-live header states the plan instead
+   * of denying it, while pacing stays a live-only claim.
+   */
+  plannedTotalSec: number;
+  /** Slots carrying a budget, so an all-zero plan is still "budgets exist". */
+  budgetedCount: number;
   /** Planned slots not yet visited (active excluded). */
   remainingCount: number;
   /** Lineup products the plan does not mention, in lineup order. */
