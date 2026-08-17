@@ -75,12 +75,15 @@ export class BuyerOrdersService {
 
   async listForBuyer(buyerIdInput: string): Promise<BuyerOrder[]> {
     const buyerId = this.readBuyerId(buyerIdInput);
-    const [checkoutOrders, auctionOrders, events] = await Promise.all([
+    // Offers became a durable Postgres read in the P-001b cutover, so they join
+    // the same parallel fan-in as the other three legs rather than being a free
+    // in-memory lookup afterwards.
+    const [checkoutOrders, auctionOrders, events, offers] = await Promise.all([
       this.orders.listByBuyer(buyerId),
       this.auctions.listWinnerOrdersForBuyer(buyerId),
       this.events.listForGuide(),
+      this.actions.listOffersForBuyer(buyerId),
     ]);
-    const offers = this.actions.listOffersForBuyer(buyerId);
     const eventIds = [...new Set([
       ...checkoutOrders.map((order) => order.eventId),
       ...auctionOrders.map((order) => order.eventId),

@@ -7,3 +7,4 @@ db/seed/restart-catalog.sql
 .env.*
 *.log
 coverage
+.zero

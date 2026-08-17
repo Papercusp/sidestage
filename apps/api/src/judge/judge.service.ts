@@ -1,5 +1,6 @@
 import { Inject, Injectable } from '@nestjs/common';
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
+import { JUDGE_STORE, type JudgeStore } from './judge.store';
 import { PolicyReplyGuard } from '../copilot/guardrail';
 import type { CopilotPolicy } from '../copilot/copilot.types';
 import {
@@ -141,20 +142,57 @@ function emptyDimension(dimension: JudgeDimension): JudgeDimensionScore {
   return { score: 0, rationale: `The judge did not return a ${dimension} score.` };
 }
 
+/**
+ * Stable identity for a judge submission.
+ *
+ * Two requests grading the same cases at the same threshold are the SAME run,
+ * so a retry must resolve to the stored run instead of grading again. The key
+ * covers everything that can change a verdict — threshold plus each case's
+ * graded inputs — and deliberately excludes wall-clock time, which would make
+ * every replay look unique and defeat the idempotency it is meant to provide.
+ */
+export function judgeIdempotencyKey(input: JudgeRunRequest, actorId: string): string {
+  const cases = (Array.isArray(input?.cases) ? input.cases : []).map((testCase) => ({
+    id: testCase.id,
+    question: testCase.question,
+    reply: testCase.reply,
+    citations: [...testCase.citations],
+    declaredTone: testCase.declaredTone ?? null,
+    expectedPriceCents: testCase.expectedPriceCents ?? null,
+  }));
+  const canonical = JSON.stringify({
+    actorId,
+    passThreshold: thresholdFor(input?.passThreshold),
+    cases,
+  });
+  return createHash('sha256').update(canonical).digest('hex');
+}
+
 @Injectable()
 export class AutoResponderJudgeService {
-  private latestReport: JudgeReport | null = null;
+  constructor(
+    @Inject(JUDGE_MODEL) private readonly model: ReplyJudgeModel,
+    @Inject(JUDGE_STORE) private readonly store: JudgeStore,
+  ) {}
 
-  constructor(@Inject(JUDGE_MODEL) private readonly model: ReplyJudgeModel) {}
-
-  latest(): JudgeReport | null {
-    return this.latestReport;
+  /**
+   * Postgres is the sole authority. This used to read a process field, so the
+   * newest report died with the process and two replicas disagreed about which
+   * run was "latest" (WS cutover P-001c).
+   */
+  latest(): Promise<JudgeReport | null> {
+    return this.store.latest();
   }
 
-  async run(input: JudgeRunRequest): Promise<JudgeReport> {
+  async run(input: JudgeRunRequest, actorId = DEFAULT_JUDGE_ACTOR): Promise<JudgeReport> {
     const cases = Array.isArray(input?.cases) ? input.cases : [];
     if (cases.length === 0) throw new Error('at least one judge case is required');
     if (cases.length > MAX_CASES) throw new Error(`at most ${MAX_CASES} judge cases may run at once`);
+
+    // Resolve the idempotency key BEFORE grading: a replayed submission must
+    // not pay for a second model call, which for the Vertex judge is a real
+    // billed request, not just wasted latency.
+    const idempotencyKey = judgeIdempotencyKey(input, actorId);
 
     const passThreshold = thresholdFor(input.passThreshold);
     const started = Date.now();
@@ -199,7 +237,10 @@ export class AutoResponderJudgeService {
       cases: results,
       latencyMs: Math.max(0, Date.now() - started),
     };
-    this.latestReport = report;
-    return report;
+    // Postgres decides what the canonical run is. On a replay the store
+    // returns the run already recorded under this key, so the caller sees the
+    // ORIGINAL verdict rather than this freshly graded duplicate — the report
+    // above is discarded in that case, by design.
+    return this.store.save(report, { idempotencyKey, actorId });
   }
 }

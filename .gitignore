@@ -15,3 +15,7 @@ apps/*/.vite/
 apps/*/.turbo/
 # Generated from node_modules/vditor by the web predev/prebuild hook.
 apps/web/public/vditor/
+# Local zero-cache SQLite replica (scripts/zero-cache-start.sh). This is a full
+# copy of the replicated publication — measured 3476 MB on 2026-08-17 — plus its
+# WAL. It must never be committed.
+.zero/
