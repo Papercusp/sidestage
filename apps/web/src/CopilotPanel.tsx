@@ -56,6 +56,30 @@ interface CreateTurnMutation {
   eventId: string;
   message: string;
   actorId: string;
+  /**
+   * Catalog properties the seller needs the answer to cover. Naming one is what
+   * arms the research fallback server-side: a property the catalog cannot answer
+   * runs a labelled web round, and an incomplete round blocks the draft instead
+   * of sending it. Absent means "no research contract was named".
+   */
+  requiredProperties?: readonly string[];
+}
+
+/**
+ * Split the seller's free-text property list into catalog property names.
+ *
+ * Blank entries are dropped rather than forwarded: the API can never satisfy an
+ * empty property name, so passing one through would permanently pin the
+ * incomplete-research block on for that turn. Duplicates collapse for the same
+ * reason a duplicate cannot add evidence.
+ */
+export function parseRequiredProperties(raw: string): string[] {
+  const named = new Set<string>();
+  for (const part of raw.split(/[,\n]/)) {
+    const property = part.trim();
+    if (property) named.add(property);
+  }
+  return [...named];
 }
 
 export interface CopilotPanelProps {
@@ -258,6 +282,7 @@ export function CopilotPanel({
     args: { eventId },
   });
   const [message, setMessage] = useState('');
+  const [requiredPropertiesInput, setRequiredPropertiesInput] = useState('');
   const [drafts, setDrafts] = useState<Record<string, string>>({});
   const [selectedProposalId, setSelectedProposalId] = useState<string>();
   const [busyId, setBusyId] = useState<string>();
@@ -266,7 +291,15 @@ export function CopilotPanel({
   const createFallback = useCallback((input: CreateTurnMutation) => mutateProposal<CopilotProposal>(
     apiOrigin,
     `/copilot/events/${encodeURIComponent(input.eventId)}/turns`,
-    { message: input.message, buyerId: input.actorId, buyerName: 'Seller research' },
+    {
+      message: input.message,
+      buyerId: input.actorId,
+      buyerName: 'Seller research',
+      // Omitted rather than sent empty: the API reads an absent list as "no
+      // properties were named", while `[]` would claim a contract that has no
+      // members and can never be checked against a source.
+      ...(input.requiredProperties?.length ? { requiredProperties: input.requiredProperties } : {}),
+    },
     principal,
   ), [apiOrigin, principal]);
   const approveFallback = useCallback((input: ProposalMutation) => mutateProposal<CopilotProposal>(
