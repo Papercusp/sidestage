@@ -90,6 +90,10 @@ export function ArchitectureTab() {
           <a href="#system-map">System map</a>
           <a href="#runtime-flows">Runtime flows</a>
           <a href="#llm-pipeline">LLM pipeline</a>
+          <a href="#search">Search</a>
+          <a href="#data-sync">Data syncing</a>
+          <a href="#checkout">Checkout</a>
+          <a href="#data-model">Data model</a>
           <a href="#application-layers">Application layers</a>
           <a href="#data-safety">Data &amp; safety</a>
           <a href="#operations">Operations</a>
@@ -209,9 +213,152 @@ export function ArchitectureTab() {
         <p className="architecture-caption"><strong>Provider seam:</strong> generation is provider-neutral—the API binds a hosted model through server-side configuration, secrets never reach the browser, and every stage degrades deterministically.</p>
       </section>
 
+      <section className="architecture-section" id="search" aria-labelledby="search-title">
+        <div className="architecture-section-heading">
+          <p className="eyebrow">04 · Discovery</p>
+          <h2 id="search-title">How search works</h2>
+          <p>One typo-tolerant, meaning-aware search stack serves buyers, sellers and Scout alike—and the same queries keep answering from Postgres when the index is away.</p>
+        </div>
+        <div className="architecture-delivery-diagram" role="img" aria-label="Catalog writes are mirrored into a region-scoped Typesense collection, queried with hybrid keyword and semantic ranking, faceted exactly, and served from Postgres when the index is unavailable">
+          <ArchitectureNode eyebrow="1 · Index" title="Region-scoped collection" copy="Typesense mirrors the Postgres catalog per region; documents carry name, description, brand, price, condition, stock and an embedding field" tone="cyan" />
+          <FlowArrow label="typed query" />
+          <ArchitectureNode eyebrow="2 · Match" title="Hybrid rank fusion" copy="Keyword match with a per-field typo budget (name and description 2, brand 1) fused with semantic vector recall for paraphrased intent" tone="blue" />
+          <FlowArrow label="multi_search" />
+          <ArchitectureNode eyebrow="3 · Facets" title="Exact disjunctive counts" copy="Category, condition, price-bucket and in-stock counts each computed with that facet's own filter excluded—counts answer what would I get if I toggled this" tone="violet" />
+          <FlowArrow label="index unavailable" />
+          <ArchitectureNode eyebrow="4 · Degrade" title="Postgres fallback" copy="The same queries serve from full-text (tsvector) and trigram indexes in Postgres—search never goes dark, it gets simpler" tone="green" />
+        </div>
+        <div className="architecture-operations-grid">
+          <section><h3>Where search runs</h3><dl>
+            <div><dt>Storefront</dt><dd>Buyer product search and type-ahead—semantic recall on, typo budget clamped for latency</dd></div>
+            <div><dt>Studio inventory</dt><dd>Seller-scoped owned-item search through the identical stack, so sellers get the same typo tolerance buyers do</dd></div>
+            <div><dt>Scout</dt><dd>The shopping assistant's product-search tool queries the same index with consumer-intent matching</dd></div>
+          </dl></section>
+          <section><h3>Semantic layer</h3><dl>
+            <div><dt>Embeddings</dt><dd>OpenAI text-embedding-3-small declared in the collection schema, with a local MiniLM model as the no-key fallback</dd></div>
+            <div><dt>When it's skipped</dt><dd>Professional exact-match surfaces (wholesale procurement, SKU lookup) skip the embedding round-trip—pure latency cost there</dd></div>
+            <div><dt>Rank fusion</dt><dd>Keyword and vector scores merge into one ranking, so a paraphrase and an exact title both find the product</dd></div>
+          </dl></section>
+          <section><h3>Correctness guarantees</h3><dl>
+            <div><dt>Filter honesty</dt><dd>Facet counts are computed against the full filtered corpus, so a category click never surfaces vector neighbours absent from results</dd></div>
+            <div><dt>Availability</dt><dd>In-stock filtering reads the same derived availability the cart enforces</dd></div>
+            <div><dt>Truth lives in Postgres</dt><dd>The index is derived state—writes land in the database first and are mirrored forward</dd></div>
+          </dl></section>
+        </div>
+        <p className="architecture-caption"><strong>Degradation contract:</strong> Typesense unavailability is logged and absorbed—the catalog API answers every query either way, so a search-index outage is a relevance regression, never an outage.</p>
+      </section>
+
+      <section className="architecture-section" id="data-sync" aria-labelledby="data-sync-title">
+        <div className="architecture-section-heading">
+          <p className="eyebrow">05 · State</p>
+          <h2 id="data-sync-title">How data syncing works</h2>
+          <p>Every screen reads named queries; every write announces what it changed. Nothing polls, and no client ever computes state the server didn't send.</p>
+        </div>
+        <div className="architecture-delivery-diagram" role="img" aria-label="Named sync queries are read as batched snapshots, domain writes publish scoped invalidations, and one SSE stream tells each client which queries to refresh">
+          <ArchitectureNode eyebrow="1 · Declare" title="Named queries" copy="Twenty registered read surfaces—events.guide, event.chat.messages, event.runOfShow, catalog.page, cart.byId, orders.byBuyer and friends—declared in one registry" tone="cyan" />
+          <FlowArrow label="REST batch" />
+          <ArchitectureNode eyebrow="2 · Read" title="Batched snapshots" copy="The client requests queries by name; the API maps each to a domain read and returns whole snapshots, not diffs" tone="blue" />
+          <FlowArrow label="domain write" />
+          <ArchitectureNode eyebrow="3 · Invalidate" title="Scoped events" copy="Every mutation publishes which query scopes it touched the moment the write commits" tone="violet" />
+          <FlowArrow label="SSE push" />
+          <ArchitectureNode eyebrow="4 · Reconcile" title="Targeted refresh" copy="One /api/sync/sse stream per client (15-second heartbeat) names the stale queries; only those re-fetch" tone="green" />
+        </div>
+        <div className="architecture-operations-grid">
+          <section><h3>Transport</h3><dl>
+            <div><dt>SSE everywhere</dt><dd>The client pins Server-Sent Events in every runtime—browser and native shells run the same transport as production</dd></div>
+            <div><dt>Resilience</dt><dd>A reconnecting event-source with backoff; a dropped stream re-syncs affected queries on reattach</dd></div>
+            <div><dt>Fallback</dt><dd>Polling exists only as the degraded mode; auction ordering rides dedicated streams that preserve server sequence</dd></div>
+          </dl></section>
+          <section><h3>The contract</h3><dl>
+            <div><dt>Registry</dt><dd>A query name is a server-side contract—the census test enumerates every data surface so an unregistered read can't ship</dd></div>
+            <div><dt>Write discipline</dt><dd>A mutation that forgets to invalidate is a bug by definition, caught where the write is defined</dd></div>
+            <div><dt>Snapshots</dt><dd>Whole-state responses make reconnect trivial: re-fetch and replace, no client-side merge logic to corrupt</dd></div>
+          </dl></section>
+          <section><h3>Why not WebSockets</h3><dl>
+            <div><dt>One direction suffices</dt><dd>All writes are ordinary authenticated REST calls—the stream only needs server-to-client</dd></div>
+            <div><dt>Operational simplicity</dt><dd>SSE is plain HTTP: every proxy, load balancer and auth layer already understands it</dd></div>
+            <div><dt>Deliberately dormant</dt><dd>A WebSocket sync engine is installed but unwired—an evaluated option, not an accident</dd></div>
+          </dl></section>
+        </div>
+        <p className="architecture-caption"><strong>State split:</strong> user-meaningful state (tab, event, selection) lives in the URL; server state flows through sync queries. A shared link reproduces the same view because the two never mix.</p>
+      </section>
+
+      <section className="architecture-section" id="checkout" aria-labelledby="checkout-title">
+        <div className="architecture-section-heading">
+          <p className="eyebrow">06 · Commerce</p>
+          <h2 id="checkout-title">How checkout works</h2>
+          <p>Reservation before payment, webhook before trust: the checkout path is built so no two buyers can buy the same unit and no order is marked paid on the client's word.</p>
+        </div>
+        <div className="architecture-delivery-diagram" role="img" aria-label="A hold reserves inventory, the API creates a Stripe payment intent, the signed webhook settles the order, and fulfilment quotes shipping while releasing or committing stock">
+          <ArchitectureNode eyebrow="1 · Reserve" title="Idempotent hold" copy="A hold or auction win writes an inventory_reservation keyed by source kind, source id and variant—retries can't double-reserve" tone="cyan" />
+          <FlowArrow label="cart snapshot" />
+          <ArchitectureNode eyebrow="2 · Intent" title="Stripe PaymentIntent" copy="The API creates the intent server-side and pins its id to the order; card details go to Stripe, never through SideStage" tone="blue" />
+          <FlowArrow label="buyer confirms" />
+          <ArchitectureNode eyebrow="3 · Settle" title="Webhook authority" copy="Only Stripe's signed webhook marks an order paid—signature verified, payment-intent id cross-checked, mismatches rejected and logged" tone="violet" />
+          <FlowArrow label="paid" />
+          <ArchitectureNode eyebrow="4 · Fulfil" title="Ship or release" copy="A paid order commits its reservation and gets EasyPost rates over a box-packed parcel; failure or expiry releases the stock" tone="green" />
+        </div>
+        <div className="architecture-operations-grid">
+          <section><h3>Order lifecycle</h3><dl>
+            <div><dt>States</dt><dd>checkout_order moves pending → paid or failed—a database CHECK constraint makes a fourth state unrepresentable</dd></div>
+            <div><dt>Availability</dt><dd>availableQty is a generated column (quantity minus reserved), so no code path can sell stock the database says is held</dd></div>
+            <div><dt>Idempotency</dt><dd>Webhook retries and duplicate confirmations converge on the same final state</dd></div>
+          </dl></section>
+          <section><h3>Auctions</h3><dl>
+            <div><dt>One aggregate</dt><dd>auction_state keeps bids, lifecycle, the inventory hold and the winner's order in a single transaction-owned document</dd></div>
+            <div><dt>Settlement</dt><dd>Closing an auction, holding the unit and creating the winner's order commit together or not at all</dd></div>
+            <div><dt>Control</dt><dd>Seller auction actions authenticate with signed tokens, separate from buyer identity</dd></div>
+          </dl></section>
+          <section><h3>Shipping</h3><dl>
+            <div><dt>Box packing</dt><dd>A packer fits ordered items into real parcel dimensions before asking for rates</dd></div>
+            <div><dt>Rates</dt><dd>EasyPost quotes carriers against the warehouse origin configured server-side</dd></div>
+            <div><dt>Provider seam</dt><dd>Stripe and EasyPost sit behind adapters—the domain logic never imports a vendor SDK directly</dd></div>
+          </dl></section>
+        </div>
+        <p className="architecture-caption"><strong>Money truth lives at Stripe:</strong> SideStage stores provider identifiers and derived state. Settlement is asynchronous by design—which is why webhook delivery health is monitored, not assumed.</p>
+      </section>
+
+      <section className="architecture-section" id="data-model" aria-labelledby="data-model-title">
+        <div className="architecture-section-heading">
+          <p className="eyebrow">07 · Schema</p>
+          <h2 id="data-model-title">The data model</h2>
+          <p>Thirty-six tables in one repeatable schema, organized around four anchors. Constraints live in the database, so invariants hold no matter which code path writes.</p>
+        </div>
+        <div className="architecture-delivery-diagram" role="img" aria-label="Catalog tables flow into commerce tables, event tables own live-room records, and automation tables audit every guarded action">
+          <ArchitectureNode eyebrow="Catalog" title="product_catalog → storefront_product" copy="Catalog truth feeds sellable variants; option axes and values model variant dimensions; a composite (group_id, region) key ties them" tone="blue" />
+          <FlowArrow label="reservation FK" />
+          <ArchitectureNode eyebrow="Commerce" title="cart → checkout_order · auction_state" copy="Reservation-backed carts settle into CHECK-constrained orders; auctions persist as whole aggregates with lifted hot columns" tone="green" />
+          <FlowArrow label="event_id FK" />
+          <ArchitectureNode eyebrow="Live event" title="event → lineup · run of show · chat" copy="The event row owns lineup items, config, run-of-show, chat messages, presence and transcript moments" tone="violet" />
+          <FlowArrow label="audited writes" />
+          <ArchitectureNode eyebrow="Automation" title="proposals · policy · Scout memory" copy="copilot_proposal, seller policy revisions, audit entries, an outbox and idempotency keys record every guarded effect" tone="cyan" />
+        </div>
+        <div className="architecture-operations-grid">
+          <section><h3>Column patterns</h3><dl>
+            <div><dt>Money</dt><dd>Integer cents everywhere—price_cents integer CHECK (&gt;= 0), never floats</dd></div>
+            <div><dt>Derived stock</dt><dd>"availableQty" integer GENERATED ALWAYS AS (GREATEST(0, qty − reserved_qty)) STORED—availability is computed by Postgres, not application code</dd></div>
+            <div><dt>Guarded documents</dt><dd>jsonb payload columns carry CHECK (jsonb_typeof = 'object'/'array') so a malformed document can't be inserted</dd></div>
+            <div><dt>Closed enums</dt><dd>Status and condition columns are text with CHECK constraints—pending/paid/failed is the entire order-state universe</dd></div>
+          </dl></section>
+          <section><h3>Integrity mechanics</h3><dl>
+            <div><dt>Composite keys</dt><dd>FOREIGN KEY (group_id, region) ON UPDATE CASCADE keeps regional catalogs consistent; UNIQUE (slug, region) makes URLs unambiguous</dd></div>
+            <div><dt>Reservations</dt><dd>State plus expiry columns with partial indexes—an abandoned hold expires instead of leaking stock</dd></div>
+            <div><dt>Exactly-once effects</dt><dd>policy_outbox_event and policy_idempotency make guarded automation deliverable exactly once, restart-safe</dd></div>
+            <div><dt>Search columns</dt><dd>A tsvector column with a GIN index and pg_trgm trigram indexes back the fallback search path</dd></div>
+          </dl></section>
+          <section><h3>Backing technology</h3><dl>
+            <div><dt>PostgreSQL 16</dt><dd>The system of record (postgres:16-alpine), with the pg_trgm extension enabled at schema apply</dd></div>
+            <div><dt>Typesense 27</dt><dd>Derived, rebuildable search index—never the source of truth</dd></div>
+            <div><dt>Redis 7</dt><dd>Disposable cache and coordination—losing it costs latency, not data</dd></div>
+            <div><dt>Graceful absence</dt><dd>Every store degrades to in-memory when Postgres is unreachable, so a clean clone boots and demos with zero infrastructure</dd></div>
+          </dl></section>
+        </div>
+        <p className="architecture-caption"><strong>Schema is code:</strong> one idempotent <code>db/schema.sql</code> (CREATE TABLE IF NOT EXISTS plus convergence blocks) is applied on deploy and reviewed like any other change—no hand-run migrations, no drift.</p>
+      </section>
+
       <section className="architecture-section" id="application-layers" aria-labelledby="application-layers-title">
         <div className="architecture-section-heading">
-          <p className="eyebrow">04 · Composition</p>
+          <p className="eyebrow">08 · Composition</p>
           <h2 id="application-layers-title">Application layers</h2>
           <p>Composition stays app-specific; reusable transport and interface behavior lives in pinned workspace libraries.</p>
         </div>
@@ -238,7 +385,7 @@ export function ArchitectureTab() {
       <section className="architecture-section architecture-two-column" id="data-safety" aria-labelledby="data-safety-title">
         <div>
           <div className="architecture-section-heading">
-            <p className="eyebrow">05 · Persistence</p>
+            <p className="eyebrow">09 · Persistence</p>
             <h2 id="data-safety-title">Data is organized around ownership and invariants</h2>
             <p>PostgreSQL is authoritative. Typesense accelerates discovery; Redis is disposable cache infrastructure.</p>
           </div>
@@ -276,7 +423,7 @@ export function ArchitectureTab() {
 
       <section className="architecture-section" id="operations" aria-labelledby="operations-title">
         <div className="architecture-section-heading">
-          <p className="eyebrow">06 · Operations</p>
+          <p className="eyebrow">10 · Operations</p>
           <h2 id="operations-title">From source tree to production</h2>
           <p>The repository, verification gate and deployment topology are part of the architecture—not afterthoughts.</p>
         </div>

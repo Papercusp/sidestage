@@ -12,10 +12,23 @@ describe('ArchitectureTab', () => {
     for (const heading of [
       'The whole system at a glance',
       'Three flows define the runtime',
+      'How search works',
+      'How data syncing works',
+      'How checkout works',
+      'The data model',
       'Application layers',
       'Data is organized around ownership and invariants',
       'From source tree to production',
     ]) expect(markup).toContain(heading);
+
+    // The four deep-dive sections each ship their flow diagram and jump-nav entry.
+    for (const anchor of ['#search', '#data-sync', '#checkout', '#data-model']) expect(markup).toContain(`href="${anchor}"`);
+    for (const claim of [
+      'Hybrid rank fusion',
+      'Targeted refresh',
+      'Webhook authority',
+      'GENERATED ALWAYS AS',
+    ]) expect(markup).toContain(claim);
 
     for (const system of [
       'React single-page app', 'NestJS modular API', 'PostgreSQL + Typesense',
