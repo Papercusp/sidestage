@@ -52,6 +52,10 @@ export class DeterministicScoutReplyModel implements ScoutReplyModel {
   async generate(request: {
     message: string;
     products: readonly ProductCard[];
+    // Read by `noMatchReply` below, so the entry point has to declare it — the
+    // field exists on ScoutReplyRequest but this shape is deliberately looser
+    // (an optional `cart`), so it is mirrored rather than reused (WI-39741).
+    alternatives?: readonly ProductCard[];
     cart?: Cart;
     memories?: readonly ScoutMemory[];
   }): Promise<string> {
