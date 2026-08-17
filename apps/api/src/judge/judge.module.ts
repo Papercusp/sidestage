@@ -28,20 +28,27 @@ export class JudgeSyncQueries implements OnModuleInit {
   ) {}
 
   onModuleInit(): void {
-    this.queries.register('judge.latest', () => {
-      const report = this.judge.latest();
+    // Reads Postgres now, so the answer survives a restart and is identical on
+    // every replica — it used to read one process's own last run.
+    this.queries.register('judge.latest', async () => {
+      const report = await this.judge.latest();
       return report ? [report] : [];
     });
   }
 }
 
 @Module({
-  imports: [SyncModule],
+  imports: [SyncModule, DatabaseModule],
   controllers: [JudgeController],
   providers: [
     AutoResponderJudgeService,
     DeterministicReplyJudgeModel,
     JudgeSyncQueries,
+    {
+      provide: JUDGE_STORE,
+      inject: [PG_POOL],
+      useFactory: judgeStoreForPool,
+    },
     {
       provide: JUDGE_MODEL,
       inject: [DeterministicReplyJudgeModel],
