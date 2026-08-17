@@ -56,6 +56,30 @@ export function resolveApiBaseUrl(explicit?: string): string {
   return (explicit ?? import.meta.env.VITE_API_URL ?? 'http://localhost:3100').replace(/\/$/, '');
 }
 
+/**
+ * Origin of the zero-cache server backing the WebSocket sync transport.
+ *
+ * Production serves zero-cache on the app's OWN host under `/zero`:
+ * docker-compose.prod.yml routes ``Host(`$PUBLIC_HOSTNAME`) && PathPrefix(`/zero`)``
+ * to the service on :4848, at a higher Traefik priority than the SPA catch-all
+ * specifically so the WebSocket upgrade is not swallowed by the SPA router.
+ * Deriving the origin from `window.location.origin` therefore keeps the client
+ * correct on every deployed hostname (and on preview hosts) with no build-time
+ * argument to forget — unlike VITE_API_URL, which must be baked per build.
+ *
+ * In development the app (:5173) and zero-cache (:4848) are separate origins,
+ * so fall back to the published local port. VITE_ZERO_URL overrides both.
+ *
+ * The value is passed to SyncProvider's `server` prop; the WS probe derives the
+ * socket URL from it by swapping the http(s) scheme for ws(s).
+ */
+export function resolveZeroServerUrl(explicit?: string): string {
+  const configured = explicit ?? import.meta.env.VITE_ZERO_URL;
+  if (configured) return String(configured).replace(/\/$/, '');
+  if (import.meta.env.DEV || typeof window === 'undefined') return 'http://localhost:4848';
+  return `${window.location.origin}/zero`;
+}
+
 /** Demo inventory is available only in an explicit development build. */
 export function catalogDemoDataEnabled(isDevelopment: boolean = import.meta.env.DEV): boolean {
   return isDevelopment;
