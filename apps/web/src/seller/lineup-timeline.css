@@ -1,0 +1,366 @@
+/*
+ * Lineup run-of-show timeline (plan sidestage-lineup-run-of-show-2026-08-16, P-004).
+ *
+ * D-004: shipped Ticket theme tokens ONLY. Every colour below resolves to a
+ * token already in styles.css — no new hexes, no new font, no re-skin. What this
+ * plan changes is information architecture, not brand. Sizing uses the existing
+ * seller/console density tier (--ss-font, --ss-control-h, --ss-pad, --ss-gap)
+ * rather than hardcoded pixels, which is also what fixes the small-target fault.
+ */
+
+.lineup-timeline {
+  display: grid;
+  gap: var(--ss-gap);
+  font-size: var(--ss-font);
+}
+
+/* ── Header + clock ───────────────────────────────────────────────────────── */
+
+.lineup-timeline-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--ss-gap);
+  flex-wrap: wrap;
+}
+
+.lineup-timeline-heading h3 {
+  margin: 0;
+}
+
+.lineup-timeline-sub {
+  margin: .25rem 0 0;
+  color: var(--muted);
+  max-width: 52ch;
+}
+
+.lineup-timeline-clock {
+  display: grid;
+  justify-items: end;
+  gap: .15rem;
+  padding: .5rem .8rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-control);
+  background: var(--panel-grad-yellow);
+  min-width: 11rem;
+}
+
+/*
+ * No clock: quiet, not alarming. An absent clock is a legible state (D-003), so
+ * it must not borrow the brand's attention colours.
+ */
+.lineup-timeline-clock.is-unavailable {
+  background: var(--surface-sunken);
+  border-style: dashed;
+}
+
+.lineup-timeline-elapsed {
+  font-variant-numeric: tabular-nums;
+  font-size: 1.45rem;
+  font-weight: 700;
+  line-height: 1.1;
+  color: var(--text);
+}
+
+.lineup-timeline-pace {
+  color: var(--muted);
+  text-align: right;
+}
+
+/* ── Off-plan detour ──────────────────────────────────────────────────────── */
+
+/*
+ * A detour is INFORMATION, never an error: outlined in brand yellow rather than
+ * danger, because nothing is wrong when a seller goes off plan.
+ */
+.lineup-timeline-offplan {
+  margin: 0;
+  padding: .55rem .8rem;
+  border-left: 3px solid var(--brand-yellow);
+  border-radius: var(--radius-control);
+  background: var(--surface-soft);
+  color: var(--text);
+}
+
+.lineup-timeline-empty {
+  margin: 0;
+  color: var(--muted);
+}
+
+/* ── Slots ────────────────────────────────────────────────────────────────── */
+
+.lineup-timeline-slots {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: .55rem;
+  counter-reset: none;
+}
+
+.lineup-slot {
+  display: grid;
+  gap: .5rem;
+  padding: var(--ss-pad);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-card);
+  background: var(--surface-raised);
+}
+
+.lineup-slot.is-done {
+  background: var(--surface-soft);
+}
+
+.lineup-slot.is-done .lineup-slot-title {
+  color: var(--muted);
+}
+
+/* On stage is the one row that earns the brand accent. */
+.lineup-slot.is-onstage {
+  border-color: var(--brand-red);
+  box-shadow: var(--shadow-card);
+  background: var(--panel-grad-brand);
+}
+
+.lineup-slot.is-dragging {
+  opacity: .55;
+}
+
+.lineup-slot-main {
+  display: flex;
+  align-items: center;
+  gap: var(--ss-gap);
+  flex-wrap: wrap;
+}
+
+.lineup-slot-handle {
+  display: flex;
+  align-items: center;
+  gap: .4rem;
+  min-height: var(--ss-control-h);
+  padding: 0 .5rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-control);
+  background: var(--surface-sunken);
+  color: var(--muted);
+  cursor: grab;
+}
+
+.lineup-slot-handle:focus-visible {
+  outline: 2px solid var(--brand-red);
+  outline-offset: 2px;
+}
+
+.lineup-slot-position {
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.lineup-slot-grip {
+  letter-spacing: -.15em;
+}
+
+.lineup-slot-identity {
+  flex: 1 1 14rem;
+  display: grid;
+  gap: .2rem;
+  min-width: 0;
+}
+
+.lineup-slot-titlerow {
+  display: flex;
+  align-items: center;
+  gap: .45rem;
+  flex-wrap: wrap;
+}
+
+.lineup-slot-title {
+  font-weight: 600;
+}
+
+.lineup-slot-state {
+  color: var(--muted);
+}
+
+.lineup-slot-times {
+  display: flex;
+  align-items: center;
+  gap: .45rem;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── Chips ────────────────────────────────────────────────────────────────── */
+
+.lineup-slot-chip {
+  padding: .1rem .45rem;
+  border-radius: 999px;
+  border: 1px solid var(--border-strong);
+  background: var(--surface-sunken);
+  font-size: .8em;
+  white-space: nowrap;
+}
+
+.lineup-slot-chip.is-onstage {
+  border-color: var(--brand-red);
+  color: var(--brand-red);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .03em;
+}
+
+.lineup-slot-chip.is-next {
+  border-color: var(--brand-yellow);
+  color: var(--warning);
+}
+
+.lineup-slot-chip.is-onplan {
+  border-color: var(--success);
+  color: var(--success);
+}
+
+/*
+ * Over budget uses --warning, NOT --danger: running long is pacing information
+ * the seller acts on, not a failure. D-002's advisory contract, in colour.
+ */
+.lineup-slot-chip.is-over {
+  border-color: var(--warning);
+  color: var(--warning);
+}
+
+.lineup-slot-chip.is-under {
+  border-color: var(--success);
+  color: var(--success);
+}
+
+/* ── Inline plan editing ──────────────────────────────────────────────────── */
+
+.lineup-slot-minutes,
+.lineup-slot-notes,
+.lineup-drawer-field {
+  display: grid;
+  gap: .2rem;
+  color: var(--muted);
+}
+
+.lineup-slot-minutes {
+  width: 5.5rem;
+  flex: 0 0 auto;
+}
+
+.lineup-slot-minutes input,
+.lineup-slot-notes input,
+.lineup-drawer-field input {
+  min-height: var(--ss-control-h);
+  padding: 0 .5rem;
+  font: inherit;
+  color: var(--text);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-control);
+}
+
+.lineup-slot-minutes input {
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+.lineup-slot-minutes input[aria-invalid='true'] {
+  border-color: var(--danger);
+}
+
+.lineup-slot-notes input {
+  width: 100%;
+}
+
+.lineup-slot-actions {
+  display: flex;
+  align-items: center;
+  gap: .4rem;
+  flex-wrap: wrap;
+}
+
+/* ── Commerce drawer ──────────────────────────────────────────────────────── */
+
+.lineup-slot-drawer {
+  display: grid;
+  gap: .6rem;
+  padding: var(--ss-pad);
+  border: 1px dashed var(--border-strong);
+  border-radius: var(--radius-control);
+  background: var(--surface-sunken);
+}
+
+.lineup-drawer-row {
+  display: flex;
+  align-items: flex-end;
+  gap: .5rem;
+  flex-wrap: wrap;
+}
+
+.lineup-drawer-field {
+  width: 7rem;
+}
+
+.lineup-drawer-note {
+  color: var(--muted);
+  align-self: center;
+}
+
+/* ── Save ─────────────────────────────────────────────────────────────────── */
+
+.lineup-timeline-save {
+  display: flex;
+  align-items: center;
+  gap: var(--ss-gap);
+  flex-wrap: wrap;
+}
+
+.lineup-timeline-savestatus {
+  color: var(--muted);
+}
+
+.lineup-timeline-error {
+  color: var(--danger);
+}
+
+/* ── Reserved tray ────────────────────────────────────────────────────────── */
+
+.lineup-timeline-tray {
+  display: grid;
+  gap: .45rem;
+  padding-top: .6rem;
+  border-top: 1px solid var(--border);
+}
+
+.lineup-timeline-tray h4 {
+  margin: 0;
+  color: var(--muted);
+  font-size: var(--ss-font);
+  text-transform: uppercase;
+  letter-spacing: .05em;
+}
+
+.lineup-tray-items {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  gap: .45rem;
+  flex-wrap: wrap;
+}
+
+.lineup-tray-item {
+  display: flex;
+  align-items: center;
+  gap: .5rem;
+  padding: .35rem .35rem .35rem .7rem;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface-soft);
+}
+
+.lineup-tray-title {
+  color: var(--text);
+}
