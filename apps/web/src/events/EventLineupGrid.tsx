@@ -220,7 +220,12 @@ export function EventLineupGrid({
         const maximum = Math.max(1, row.quantity);
         const auctionQuantity = positiveWholeNumber(draft.auctionQuantity, maximum);
         const auctionPriceCents = priceInCents(draft.auctionPrice);
-        const offerQuantity = positiveWholeNumber(draft.offerQuantity, maximum);
+        // Bounded by AVAILABILITY, not by the reserved count: the server checks
+        // `availableQty` (guardrail.ts:84), so bounding at `row.quantity` here
+        // false-blocked any offer between the two whenever availability was the
+        // larger of them — the control refusing something the server allows.
+        const offerMaximum = Math.max(1, row.availableQty);
+        const offerQuantity = positiveWholeNumber(draft.offerQuantity, offerMaximum);
         const offerPriceCents = priceInCents(draft.offerPrice);
         const disabled = busyProductId === row.productId;
         const candidates = buyers ?? [];
@@ -312,7 +317,7 @@ export function EventLineupGrid({
                   aria-label={`Offer quantity for ${row.title}`}
                   type="number"
                   min={1}
-                  max={maximum}
+                  max={offerMaximum}
                   step={1}
                   value={draft.offerQuantity}
                   onChange={(event) => updateCommerceDraft(row, { offerQuantity: event.target.value })}
