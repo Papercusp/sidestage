@@ -218,4 +218,48 @@ describe('SideStage event streaming', () => {
     expect(microphone.stopped).toBe(true);
     expect(peerConnection.closed).toBe(true);
   });
+
+  it('turns an unanswered camera permission prompt into an actionable error instead of hanging', async () => {
+    let factoryCalls = 0;
+    const camera = new FakeTrack();
+    // Simulates the browser leaving getUserMedia pending until the user
+    // grants LATE — after the deadline already rejected the connect.
+    let grant: (stream: MediaStream) => void = () => {};
+    const lateGrant = new Promise<MediaStream>((resolve) => { grant = resolve; });
+
+    await expect(connectPublisher({
+      room: createEventRoom('demo-event'),
+      mediaAcquireTimeoutMs: 20,
+      mediaDevices: { getUserMedia: () => lateGrant },
+      peerConnectionFactory: () => {
+        factoryCalls += 1;
+        return new FakePeerConnection() as unknown as RTCPeerConnection;
+      },
+      fetchImpl: async () => optionsResponse(),
+    })).rejects.toMatchObject({
+      name: 'MediaTransportError',
+      message: expect.stringContaining('permission prompt'),
+    });
+
+    // No RTCPeerConnection may leak from a failed acquisition.
+    expect(factoryCalls).toBe(0);
+
+    // A grant landing after the deadline must not leave the camera running.
+    grant(new FakeMediaStream([camera]) as unknown as MediaStream);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(camera.stopped).toBe(true);
+  });
+
+  it('maps a denied camera permission to a clear message', async () => {
+    const denied = Object.assign(new Error('Permission denied'), { name: 'NotAllowedError' });
+    await expect(connectPublisher({
+      room: createEventRoom('demo-event'),
+      mediaDevices: { getUserMedia: () => Promise.reject(denied) },
+      peerConnectionFactory: () => new FakePeerConnection() as unknown as RTCPeerConnection,
+      fetchImpl: async () => optionsResponse(),
+    })).rejects.toMatchObject({
+      name: 'MediaTransportError',
+      message: expect.stringContaining('blocked'),
+    });
+  });
 });

@@ -52,7 +52,7 @@ export function StageStatusPanel({
     <section className="stage-panel stage-primary" aria-labelledby="stage-status-title">
       <div className="panel-kicker"><span className="live-dot" /> Live console <span className="panel-status">{streamLabel(streamState)}</span></div>
       <h2 id="stage-status-title">{eventTitle}</h2>
-      <p>Start the event when your camera and catalog are ready. SideStage publishes one room path that buyers can join with a share link.</p>
+      <p>Start the event when your camera and catalog are ready. SideStage publishes one room path that buyers join from the channel guide.</p>
       <div className="seller-stream-preview">
         <video ref={videoRef} className="stream-video" autoPlay muted playsInline aria-label="Seller camera preview" />
         <div className="stream-video-overlay">
@@ -74,7 +74,7 @@ export function StageStatusPanel({
         disabled={streamState === 'connecting' || streamState === 'live'}
         aria-describedby="seller-event-help"
       />
-      <p className="field-help" id="seller-event-help">Lowercase letters, numbers, and hyphens become the buyer share-link slug.</p>
+      <p className="field-help" id="seller-event-help">Lowercase letters, numbers, and hyphens become the room id buyers join from the channel guide.</p>
       <div className="stage-actions">
         {isSessionActive ? (
           <button className="button secondary" type="button" onClick={onEndEvent}>End event</button>

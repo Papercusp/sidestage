@@ -9,6 +9,10 @@
 
 export const DEFAULT_MEDIAMTX_BASE_URL = 'http://localhost:8889';
 
+/** An undecided browser permission prompt keeps getUserMedia pending forever;
+ * this deadline turns that silence into an actionable error. */
+export const DEFAULT_MEDIA_ACQUIRE_TIMEOUT_MS = 20_000;
+
 const EVENT_ID_PATTERN = /^[a-z0-9][a-z0-9-]{0,63}$/;
 
 export type MediaEndpointKind = 'whip' | 'whep';
@@ -61,6 +65,8 @@ export interface PublisherOptions extends StreamingConfig {
   readonly fetchImpl?: typeof fetch;
   readonly mediaDevices?: MediaDevicesProvider;
   readonly peerConnectionFactory?: PeerConnectionFactory;
+  /** Deadline for the camera/mic permission grant (default 20s). */
+  readonly mediaAcquireTimeoutMs?: number;
 }
 
 export interface ViewerOptions extends StreamingConfig {
@@ -281,15 +287,65 @@ async function deleteResource(resourceUrl: string | null, fetchImpl: typeof fetc
   }
 }
 
+/**
+ * Camera/mic acquisition wrapped so an unanswered permission prompt cannot
+ * hang the connect forever — the browser keeps getUserMedia PENDING while its
+ * permission prompt is undecided, which left the seller console on
+ * "Starting…" indefinitely with no feedback. Permission/device failures are
+ * mapped to actionable messages instead of raw DOMException names.
+ */
+async function acquireLocalStream(
+  mediaDevices: MediaDevicesProvider,
+  timeoutMs: number,
+): Promise<MediaStream> {
+  const request = mediaDevices.getUserMedia({ video: true, audio: true });
+  let timeout: ReturnType<typeof globalThis.setTimeout> | undefined;
+  try {
+    return await Promise.race([
+      request,
+      new Promise<never>((_, reject) => {
+        timeout = globalThis.setTimeout(() => {
+          // A grant that lands after this deadline would orphan live tracks;
+          // release them so the camera light does not stay on.
+          request.then((stream) => stopTracks(stream)).catch(() => {});
+          reject(new MediaTransportError(
+            'Timed out waiting for camera and microphone access. Check the browser permission prompt, allow access for this site, then try again.',
+          ));
+        }, timeoutMs);
+      }),
+    ]);
+  } catch (error) {
+    if (error instanceof MediaTransportError) throw error;
+    const name = (error as DOMException | undefined)?.name;
+    if (name === 'NotAllowedError' || name === 'SecurityError') {
+      throw new MediaTransportError('Camera and microphone access is blocked for this site. Allow it from the browser address bar, then try again.');
+    }
+    if (name === 'NotFoundError' || name === 'OverconstrainedError') {
+      throw new MediaTransportError('No camera or microphone was found on this device.');
+    }
+    if (name === 'NotReadableError') {
+      throw new MediaTransportError('The camera or microphone is already in use by another application.');
+    }
+    throw error;
+  } finally {
+    globalThis.clearTimeout(timeout);
+  }
+}
+
 export async function connectPublisher(options: PublisherOptions): Promise<PublisherSession> {
   const fetchImpl = options.fetchImpl ?? fetch;
   const mediaDevices = options.mediaDevices ?? defaultMediaDevices();
   const endpoint = buildMediaEndpoint(options.room, 'whip', options);
   const iceServers = await discoverIceServers(endpoint, fetchImpl);
+  // Acquire media BEFORE creating the peer connection: a permission denial or
+  // timeout then cannot leak a never-closed RTCPeerConnection.
+  const localStream = await acquireLocalStream(
+    mediaDevices,
+    options.mediaAcquireTimeoutMs ?? DEFAULT_MEDIA_ACQUIRE_TIMEOUT_MS,
+  );
   const peerConnection = (options.peerConnectionFactory ?? defaultPeerConnectionFactory)(
     iceServers.length > 0 ? { iceServers } : undefined,
   );
-  const localStream = await mediaDevices.getUserMedia({ video: true, audio: true });
   for (const track of localStream.getTracks()) peerConnection.addTrack(track, localStream);
 
   let resourceUrl: string | null = null;
