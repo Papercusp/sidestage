@@ -24,6 +24,15 @@ export interface AuctionPanelProps {
   /** Rendered in this same authoritative slot when no auction is active. */
   idleContent?: ReactNode;
   className?: string;
+  /**
+   * The auction is discovered HERE (this panel owns `event.auction.active`), but
+   * the surrounding room also has to name the product under the current offer —
+   * the mobile sticky CTA sits outside this slot and must not name a different
+   * item than the module above it. This lifts just the identity out: the id of
+   * the auctioned product, or null when no auction is running. Fires only when
+   * that id changes, not on every 2s poll.
+   */
+  onActiveAuctionProductChange?: (productId: string | null) => void;
 }
 
 type SyncState = 'connecting' | 'live' | 'reconnecting' | 'polling';
