@@ -5,6 +5,8 @@ import { variantToSellerProduct } from '../seller-products';
 import { OnDeckPanel } from './OnDeckPanel';
 import { StageStatusPanel } from './StageStatusPanel';
 import type { StageStatusPanelProps } from './StageStatusPanel';
+import { activeEventStatus } from './active-event-status';
+import type { SellerEventRecord } from '../events/api';
 import type { LiveTranscriptController } from '../use-live-transcript';
 
 const noop = () => undefined;
@@ -25,9 +27,13 @@ function stageProps(overrides: Partial<StageStatusPanelProps> = {}): StageStatus
     eventTitle: 'Vintage drop night',
     eventId: 'demo-room',
     onEventIdChange: noop,
+    eventStatus: activeEventStatus('demo-room', [], true),
     roomEventId: null,
     streamState: 'idle',
     streamError: null,
+    publishWarning: null,
+    onPublishEvent: noop,
+    publishing: false,
     videoRef: null,
     isSessionActive: false,
     onStartEvent: noop,
@@ -36,6 +42,19 @@ function stageProps(overrides: Partial<StageStatusPanelProps> = {}): StageStatus
     transcript: TRANSCRIPT_FIXTURE,
     ...overrides,
   };
+}
+
+/** A seller-directory row, for driving the panel's lifecycle states. */
+function ownedEvent(status: SellerEventRecord['status']): SellerEventRecord[] {
+  return [{
+    eventId: 'demo-room',
+    title: 'Vintage drop night',
+    sellerId: 'seller-1',
+    sellerName: 'Avi',
+    status,
+    startsAt: null,
+    endedAt: null,
+  }];
 }
 
 /**
@@ -93,6 +112,89 @@ describe('StageStatusPanel', () => {
     expect(markup).toContain('<span class="live-badge">demo-room</span>');
     expect(markup).not.toContain('Share room');
     expect(markup).toContain('Your camera and microphone are live.');
+  });
+
+  /**
+   * WI-39718 — the console must never again let a seller infer buyer-visibility
+   * from chrome alone. Before this, the markup below was IDENTICAL for a draft,
+   * a live event, and a room id with no event behind it.
+   */
+  describe('lifecycle status cue', () => {
+    it('marks a draft as invisible to buyers on the surface the seller is looking at', () => {
+      const markup = renderToStaticMarkup(
+        <StageStatusPanel {...stageProps({ eventStatus: activeEventStatus('demo-room', ownedEvent('draft'), false) })} />,
+      );
+
+      expect(markup).toContain('Draft - not visible to buyers');
+      expect(markup).toContain('stage-event-status is-draft');
+      // role=status so the verdict is announced when the directory resolves,
+      // not only when someone happens to look.
+      expect(markup).toContain('role="status"');
+    });
+
+    it('warns when the studio is pointed at a room the seller does not own', () => {
+      const markup = renderToStaticMarkup(
+        <StageStatusPanel {...stageProps({ eventStatus: activeEventStatus('demo-room', [], false) })} />,
+      );
+
+      expect(markup).toContain('Not one of your events');
+      expect(markup).toContain('stage-event-status is-unlisted');
+    });
+
+    it('confirms buyer visibility once the event is live, and stops offering to start it', () => {
+      // The owner's repro: 'potato' was already live and the tab still said
+      // "Start event".
+      const markup = renderToStaticMarkup(
+        <StageStatusPanel {...stageProps({ eventStatus: activeEventStatus('demo-room', ownedEvent('live'), false) })} />,
+      );
+
+      expect(markup).toContain('Live - visible to buyers');
+      expect(markup).toContain('>Go on camera</button>');
+      expect(markup).not.toContain('>Start event</button>');
+      expect(markup).toContain('does not restart the event');
+    });
+
+    it('keeps the start hint off every state that has not gone live', () => {
+      const draft = renderToStaticMarkup(
+        <StageStatusPanel {...stageProps({ eventStatus: activeEventStatus('demo-room', ownedEvent('draft'), false) })} />,
+      );
+
+      expect(draft).toContain('>Start event</button>');
+      expect(draft).not.toContain('does not restart the event');
+    });
+  });
+
+  /**
+   * The loud half: "Start event" publishes first, so a failed publish is the
+   * one state in which the camera is live and no buyer can reach the room. The
+   * video preview looks identical either way, so the alert IS the signal.
+   */
+  describe('publish-on-start failure', () => {
+    it('raises an alert with a one-click retry, without leaving the console', () => {
+      const markup = renderToStaticMarkup(
+        <StageStatusPanel {...stageProps({ publishWarning: "Buyers cannot find this room in What's on." })} />,
+      );
+
+      expect(markup).toContain('role="alert"');
+      expect(markup).toContain("Buyers cannot find this room in What&#x27;s on.");
+      expect(markup).toContain('>Publish to buyers</button>');
+    });
+
+    it('shows nothing at all when the publish landed', () => {
+      const markup = renderToStaticMarkup(<StageStatusPanel {...stageProps()} />);
+
+      expect(markup).not.toContain('role="alert"');
+      expect(markup).not.toContain('Publish to buyers');
+    });
+
+    it('disables the retry while a publish is in flight', () => {
+      const markup = renderToStaticMarkup(
+        <StageStatusPanel {...stageProps({ publishWarning: 'Could not publish.', publishing: true })} />,
+      );
+
+      expect(markup).toContain('>Publishing…</button>');
+      expect(markup).toContain('disabled=""');
+    });
   });
 });
 

@@ -69,9 +69,72 @@ describe('Studio board selection', () => {
   it('restores the URL-selected event when the Studio host remounts', () => {
     window.history.replaceState({}, '', '/?tab=seller&studio=active-event&event=avi-real-test');
 
-    expect(initialSellerEventIdentity()).toEqual({
+    expect(initialPinnedSellerEvent()).toEqual({
       eventId: 'avi-real-test',
       eventTitle: 'Sunday vintage drop',
+    });
+  });
+
+  /**
+   * WI-39718. This case used to assert the OPPOSITE — that a URL naming no
+   * event still produced `sunday-drop` — because that was the shipped behavior.
+   * It was also the defect: DEFAULT_EVENT_ID is a hard-coded literal, so the
+   * Studio presented an event the seller may not own, may have left in draft,
+   * or (in production) that has no row at all, as their Active Event.
+   */
+  it('reports no pinned event when the URL names none, instead of manufacturing sunday-drop', () => {
+    window.history.replaceState({}, '', '/?tab=seller&studio=active-event');
+
+    expect(initialPinnedSellerEvent()).toBeNull();
+  });
+
+  describe('resolveSellerEventIdentity', () => {
+    const owned = (eventId: string, title: string): SellerEventRecord => ({
+      eventId,
+      title,
+      sellerId: 'seller-1',
+      sellerName: 'Avi',
+      status: 'draft',
+      startsAt: null,
+      endedAt: null,
+    });
+
+    it('follows the seller directory when nothing is pinned, seeding only as a last resort', () => {
+      // The server already orders this directory live-first, so its head is the
+      // event the seller most likely means (compareForSeller).
+      expect(resolveSellerEventIdentity(null, [owned('potato', 'Potato drop'), owned('avi-real-test', 'Avi Real Test')]))
+        .toEqual({ eventId: 'potato', eventTitle: 'Potato drop' });
+
+      // Seed survives ONLY with no directory at all — the pre-read first paint.
+      expect(resolveSellerEventIdentity(null, [])).toEqual({
+        eventId: 'sunday-drop',
+        eventTitle: 'Sunday vintage drop',
+      });
+    });
+
+    it('lets an explicit pin outrank the directory, and takes its title from the matching row', () => {
+      const pinned = sellerEventIdentity('avi-real-test');
+      const resolved = resolveSellerEventIdentity(pinned, [
+        owned('potato', 'Potato drop'),
+        owned('avi-real-test', 'Avi Real Test'),
+      ]);
+
+      // The id is the seller's choice; the TITLE is the directory's, so a pinned
+      // event can no longer wear the DEFAULT_EVENT_TITLE placeholder.
+      expect(resolved).toEqual({ eventId: 'avi-real-test', eventTitle: 'Avi Real Test' });
+    });
+
+    it('honours a pin the directory has never heard of, rather than silently redirecting', () => {
+      // Typing an unknown room id must keep that id — the console then warns
+      // about it. Quietly swapping in the directory's first row would hide the
+      // very state the seller needs told about.
+      //
+      // The title stays the DEFAULT_EVENT_TITLE placeholder here because no
+      // directory row exists to supply a real one. That is precisely why the
+      // status badge, not the headline, is what says whether buyers can find
+      // this room: `activeEventStatus` resolves it to `unlisted`.
+      expect(resolveSellerEventIdentity(sellerEventIdentity('typo-room'), [owned('potato', 'Potato drop')]))
+        .toEqual({ eventId: 'typo-room', eventTitle: 'Sunday vintage drop' });
     });
   });
 
