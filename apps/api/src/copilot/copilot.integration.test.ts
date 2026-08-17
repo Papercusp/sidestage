@@ -254,7 +254,7 @@ describe('seller Copilot integration', () => {
       });
 
       await expect(runtime.controller.approve(proposal.id, { actorId: 'seller-forged' }, 'seller-1'))
-        .rejects.toThrow('Grounding changed');
+        .rejects.toThrow('Blue mug live event listing changed after this reply was written.');
       await expect(runtime.queries.resolve(
         'event.copilot.proposals',
         { eventId: 'event-live' },

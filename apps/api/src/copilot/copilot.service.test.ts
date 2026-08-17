@@ -251,7 +251,7 @@ describe('CopilotProposalService', () => {
     expect(await runtime.chat.getMessages('event-1')).toEqual([]);
   });
 
-  it('blocks approval when fresh event facts differ from the generation snapshot', async () => {
+  it('blocks approval with a seller-readable reason naming the cited source that moved', async () => {
     const runtime = setup();
     const proposal = await runtime.service.createFromChat(question);
     runtime.setFreshContext({
@@ -259,14 +259,87 @@ describe('CopilotProposalService', () => {
       eventItems: [{ ...context.eventItems[0]!, availableQty: 0 }],
     });
 
+    // The reason names the source and what happened to it, rather than the old
+    // generic "Grounding changed" that told a seller nothing (plan D-010).
     await expect(runtime.service.approve(proposal.id, { actorId: 'seller-1' }))
-      .rejects.toThrow('Grounding changed');
+      .rejects.toThrow('Blue mug live event listing changed after this reply was written.');
 
-    expect(await runtime.store.get(proposal.id)).toMatchObject({
+    const blocked = await runtime.store.get(proposal.id);
+    expect(blocked).toMatchObject({
       status: 'blocked',
-      error: expect.stringContaining('Grounding changed'),
+      error: 'Blue mug live event listing changed after this reply was written. Create a fresh proposal before sending.',
     });
+    // Never persisted as sent, and never broadcast.
+    expect(blocked?.decision?.sentMessageId).toBeUndefined();
     expect(await runtime.chat.getMessages('event-1')).toEqual([]);
+  });
+
+  it('blocks a reply that cites no verified source at all', async () => {
+    const runtime = setup();
+    const proposal = await runtime.service.createFromChat(question);
+    await runtime.store.replace({ ...(await runtime.store.get(proposal.id))!, citations: [] }, proposal.revision);
+
+    await expect(runtime.service.approve(proposal.id, { actorId: 'seller-1' }))
+      .rejects.toThrow('This reply cites no verified source, so nothing backs up what it says.');
+
+    const blocked = await runtime.store.get(proposal.id);
+    expect(blocked).toMatchObject({ status: 'blocked' });
+    expect(blocked?.decision?.sentMessageId).toBeUndefined();
+    expect(await runtime.chat.getMessages('event-1')).toEqual([]);
+  });
+
+  it('sends a supported seller edit when every cited source still holds', async () => {
+    const runtime = setup();
+    const proposal = await runtime.service.createFromChat(question);
+
+    const approved = await runtime.service.approve(proposal.id, {
+      actorId: 'seller-1',
+      reply: 'Yes — the blue mug is still on the stage and ready to ship.',
+    });
+
+    expect(approved).toMatchObject({
+      status: 'approved',
+      reply: 'Yes — the blue mug is still on the stage and ready to ship.',
+    });
+    expect(approved.decision?.sentMessageId).toEqual(expect.any(String));
+    expect(await runtime.chat.getMessages('event-1')).toEqual([
+      expect.objectContaining({
+        role: 'seller',
+        text: 'Yes — the blue mug is still on the stage and ready to ship.',
+        grounding: expect.objectContaining({
+          assistant: expect.objectContaining({
+            edited: true,
+            citationSourceIds: ['event-item:event-1:mug'],
+          }),
+        }),
+      }),
+    ]);
+  });
+
+  it('does not block when context drifted only outside the sources the reply cited', async () => {
+    const runtime = setup();
+    const proposal = await runtime.service.createFromChat(question);
+    // A DIFFERENT product moves. The reply cites only the mug, so this is not
+    // drift for this reply — the whole-context comparison used to block it.
+    runtime.setFreshContext({
+      ...context,
+      eventItems: [
+        context.eventItems[0]!,
+        {
+          eventItemId: 'event-1:tote',
+          productId: 'tote',
+          title: 'Canvas tote',
+          priceCents: 2_400,
+          availableQty: 0,
+          attributes: {},
+        },
+      ],
+    });
+
+    const approved = await runtime.service.approve(proposal.id, { actorId: 'seller-1' });
+
+    expect(approved).toMatchObject({ status: 'approved' });
+    expect(await runtime.chat.getMessages('event-1')).toHaveLength(1);
   });
 
   it('executes a confirmed action once and still allows its reply to be approved', async () => {

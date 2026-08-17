@@ -311,4 +311,39 @@ describe('useLiveTranscript', () => {
     expect(currentController().suggestedProduct?.id).toBe('mug');
     expect(currentController().suggestionConfidence).toBe(0.95);
   });
+
+  /*
+   * WI-39726: a start that cannot run belongs in the controller's `error`, not
+   * in an unhandled rejection. The Studio renders this string, so a refusal has
+   * to arrive as recoverable UI state rather than a console-only browser throw.
+   */
+  it('surfaces a refused start as recoverable controller error state', async () => {
+    const session = new FakeTranscriptionSession();
+    const refusal = 'The microphone for this event is no longer live, so captions could not start. Start the event again to resume transcription.';
+    session.start.mockRejectedValueOnce(new Error(refusal));
+    const unhandled: unknown[] = [];
+    const onUnhandled = (event: PromiseRejectionEvent) => { unhandled.push(event.reason); };
+    window.addEventListener('unhandledrejection', onUnhandled);
+    let controller: LiveTranscriptController | null = null;
+
+    function Harness() {
+      controller = useLiveTranscript({
+        session,
+        active: true,
+        products: PRODUCTS,
+        activeProductId: null,
+        onActiveProductChange: () => undefined,
+      });
+      return <output>{controller.error ?? ''}</output>;
+    }
+
+    await act(async () => root.render(<Harness />));
+    await act(async () => { await Promise.resolve(); });
+
+    expect(container.textContent).toBe(refusal);
+    expect(container.textContent).not.toContain('Failed to execute');
+    expect(unhandled).toEqual([]);
+    window.removeEventListener('unhandledrejection', onUnhandled);
+    expect(controller).not.toBeNull();
+  });
 });
