@@ -453,6 +453,7 @@ export function AuctionPanel({
             </div>
             <small id={`auction-bid-help-${auction.id}`}>{bidHelp}</small>
           </form>
+          ) : null}
           {bidNotice ? (
             <p id={`auction-bid-notice-${auction.id}`} className="auction-bid-status" role="status">
               {bidNotice}
