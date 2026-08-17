@@ -541,7 +541,8 @@ export function SellerTab({
       // rather than a path that 404s.
       onEventIdChange: (nextEventId) => {
         setEventIdDraft(nextEventId);
-        const fetchable = nextEventId;
+        const fetchable = normalizedEventId(nextEventId);
+        if (!fetchable) return;
         setPinnedEvent((current) => (
           sellerEventIdentity(
             fetchable,
