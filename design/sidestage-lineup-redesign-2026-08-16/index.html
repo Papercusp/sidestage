@@ -1,0 +1,1288 @@
+<title>Lineup Console Directions</title>
+
+<style>
+/* ═══════════════════════════════════════════════════════════════════
+   PRESENTATION CHROME — the studio surface the app screens sit on.
+   Theme-aware. Deliberately NOT the SideStage palette: the mockups
+   are artwork, this is the wall they hang on.
+   ═══════════════════════════════════════════════════════════════ */
+:root {
+  --pg:        #F0EAE1;
+  --pg-2:      #E5DCCF;
+  --pg-ink:    #201A15;
+  --pg-ink-2:  #6B5F53;
+  --pg-line:   #D6CABA;
+  --pg-card:   #FBF7F1;
+  --pg-accent: #B52218;
+  --pg-flag:   #9B6300;
+  --pg-good:   #196B42;
+  --pg-shadow: 0 20px 60px rgb(92 62 34 / 14%);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --pg:        #171310;
+    --pg-2:      #221B16;
+    --pg-ink:    #F2EBE1;
+    --pg-ink-2:  #A29383;
+    --pg-line:   #382D25;
+    --pg-card:   #201A15;
+    --pg-accent: #FF8A7A;
+    --pg-flag:   #E8B04A;
+    --pg-good:   #63C48E;
+    --pg-shadow: 0 20px 60px rgb(0 0 0 / 50%);
+  }
+}
+:root[data-theme="dark"] {
+  --pg:        #171310;
+  --pg-2:      #221B16;
+  --pg-ink:    #F2EBE1;
+  --pg-ink-2:  #A29383;
+  --pg-line:   #382D25;
+  --pg-card:   #201A15;
+  --pg-accent: #FF8A7A;
+  --pg-flag:   #E8B04A;
+  --pg-good:   #63C48E;
+  --pg-shadow: 0 20px 60px rgb(0 0 0 / 50%);
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  padding: 0;
+  background: var(--pg);
+  color: var(--pg-ink);
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  font-size: 16px;
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+}
+
+.wrap { max-width: 1120px; margin: 0 auto; padding: 3.5rem 1.5rem 6rem; }
+
+/* ── page masthead ─────────────────────────────────────────────── */
+.masthead { display: grid; gap: 1.1rem; padding-bottom: 2.25rem; border-bottom: 2px solid var(--pg-line); }
+.kicker {
+  margin: 0; color: var(--pg-accent);
+  font-size: .7rem; font-weight: 800; letter-spacing: .18em; text-transform: uppercase;
+}
+.masthead h1 {
+  margin: 0; max-width: 22ch;
+  font-size: clamp(2.1rem, 5.5vw, 3.4rem); font-weight: 800;
+  letter-spacing: -.04em; line-height: 1.02; text-wrap: balance;
+}
+.standfirst { margin: 0; max-width: 62ch; color: var(--pg-ink-2); font-size: 1.06rem; }
+.standfirst strong { color: var(--pg-ink); font-weight: 650; }
+
+.meta-strip {
+  display: flex; flex-wrap: wrap; gap: .5rem 1.4rem;
+  margin-top: .35rem; color: var(--pg-ink-2);
+  font-size: .74rem; letter-spacing: .03em;
+}
+.meta-strip code {
+  padding: .12rem .38rem; border-radius: .3rem;
+  background: var(--pg-2); color: var(--pg-ink);
+  font-size: .72rem; font-family: ui-monospace, "SF Mono", Menlo, monospace;
+}
+
+/* ── section rhythm ────────────────────────────────────────────── */
+.sec { margin-top: 4rem; }
+.sec-head { display: grid; gap: .55rem; margin-bottom: 1.6rem; }
+.sec-head h2 {
+  margin: 0; font-size: clamp(1.35rem, 3vw, 1.85rem);
+  font-weight: 750; letter-spacing: -.025em; text-wrap: balance;
+}
+.sec-head p { margin: 0; max-width: 68ch; color: var(--pg-ink-2); font-size: .95rem; }
+
+/* ── the diagnosis ledger ──────────────────────────────────────── */
+.faults { display: grid; gap: 0; border: 1px solid var(--pg-line); border-radius: .9rem; overflow: hidden; background: var(--pg-card); }
+.fault {
+  display: grid; grid-template-columns: 2.5rem minmax(0, 1fr);
+  gap: 0 1rem; padding: 1rem 1.15rem;
+  border-bottom: 1px solid var(--pg-line);
+}
+.fault:last-child { border-bottom: 0; }
+.fault-n {
+  display: grid; place-items: center; align-self: start;
+  width: 1.7rem; height: 1.7rem; margin-top: .1rem; border-radius: .45rem;
+  background: color-mix(in srgb, var(--pg-accent) 13%, transparent);
+  color: var(--pg-accent); font-size: .72rem; font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+.fault-body { display: grid; gap: .3rem; min-width: 0; }
+.fault-body b { font-size: .95rem; font-weight: 680; letter-spacing: -.01em; }
+.fault-body p { margin: 0; color: var(--pg-ink-2); font-size: .87rem; }
+.fault-body code {
+  padding: .08rem .32rem; border-radius: .25rem;
+  background: var(--pg-2); color: var(--pg-ink);
+  font-size: .8rem; font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  word-break: break-word;
+}
+.evidence {
+  display: inline-flex; align-items: center; gap: .35rem;
+  margin-top: .1rem; padding: .12rem .45rem; border-radius: .3rem;
+  border: 1px solid color-mix(in srgb, var(--pg-good) 40%, transparent);
+  color: var(--pg-good); font-size: .66rem; font-weight: 750;
+  letter-spacing: .06em; text-transform: uppercase; width: fit-content;
+}
+
+/* ── direction switcher ────────────────────────────────────────── */
+.switcher {
+  position: sticky; top: 0; z-index: 20;
+  display: flex; flex-wrap: wrap; gap: .3rem;
+  margin: 0 -1.5rem 1.75rem; padding: .85rem 1.5rem;
+  background: color-mix(in srgb, var(--pg) 92%, transparent);
+  backdrop-filter: blur(14px);
+  border-bottom: 1px solid var(--pg-line);
+}
+.switcher button {
+  display: grid; gap: .1rem; justify-items: start;
+  padding: .5rem .85rem; border: 1px solid transparent; border-radius: .55rem;
+  background: transparent; color: var(--pg-ink-2);
+  font-family: inherit; font-size: .82rem; font-weight: 650;
+  cursor: pointer; text-align: left; transition: background .16s, color .16s, border-color .16s;
+}
+.switcher button:hover { color: var(--pg-ink); background: var(--pg-2); }
+.switcher button[aria-pressed="true"] {
+  color: var(--pg-ink); background: var(--pg-card);
+  border-color: var(--pg-line); box-shadow: var(--pg-shadow);
+}
+.switcher button span { font-size: .66rem; font-weight: 600; letter-spacing: .04em; color: var(--pg-ink-2); }
+.switcher button:focus-visible { outline: 3px solid color-mix(in srgb, var(--pg-accent) 45%, transparent); outline-offset: 2px; }
+
+/* ── direction block ───────────────────────────────────────────── */
+.dir[hidden] { display: none; }
+.dir { scroll-margin-top: 5.5rem; }
+.dir-head { display: grid; gap: .6rem; margin-bottom: 1.5rem; }
+.dir-label {
+  display: inline-flex; align-items: center; gap: .5rem;
+  color: var(--pg-accent); font-size: .7rem; font-weight: 800;
+  letter-spacing: .16em; text-transform: uppercase;
+}
+.dir-head h3 { margin: 0; font-size: clamp(1.5rem, 3.4vw, 2.1rem); font-weight: 780; letter-spacing: -.03em; }
+.dir-head .thesis { margin: 0; max-width: 66ch; font-size: 1.02rem; color: var(--pg-ink-2); }
+.dir-head .thesis strong { color: var(--pg-ink); font-weight: 650; }
+
+/* ── the app-screen frame ──────────────────────────────────────── */
+.screen-frame {
+  margin: 1.5rem 0 1.75rem;
+  border: 1px solid var(--pg-line); border-radius: 1rem;
+  background: var(--pg-2); box-shadow: var(--pg-shadow);
+  overflow: hidden;
+}
+.screen-bar {
+  display: flex; align-items: center; justify-content: space-between; gap: 1rem;
+  padding: .6rem .9rem; border-bottom: 1px solid var(--pg-line);
+  color: var(--pg-ink-2); font-size: .7rem; letter-spacing: .04em;
+}
+.screen-bar .dots { display: flex; gap: .32rem; }
+.screen-bar .dots i { width: .55rem; height: .55rem; border-radius: 50%; background: var(--pg-line); }
+.screen-scroll { overflow-x: auto; padding: 1.1rem; }
+
+/* ── trade ledger ──────────────────────────────────────────────── */
+.trade { display: grid; grid-template-columns: repeat(auto-fit, minmax(255px, 1fr)); gap: 1rem; }
+.trade-col {
+  display: grid; gap: .55rem; align-content: start;
+  padding: 1rem 1.1rem; border: 1px solid var(--pg-line); border-radius: .8rem; background: var(--pg-card);
+}
+.trade-col h4 {
+  display: flex; align-items: center; gap: .45rem; margin: 0;
+  font-size: .68rem; font-weight: 800; letter-spacing: .13em; text-transform: uppercase;
+}
+.trade-col.fixes h4 { color: var(--pg-good); }
+.trade-col.costs h4 { color: var(--pg-flag); }
+.trade-col.fit  h4 { color: var(--pg-ink-2); }
+.trade-col ul { margin: 0; padding-left: 1.05rem; display: grid; gap: .4rem; }
+.trade-col li { color: var(--pg-ink-2); font-size: .86rem; }
+.trade-col li b { color: var(--pg-ink); font-weight: 640; }
+.trade-col .fixnum {
+  display: inline-block; min-width: 1.15rem; margin-left: -1.15rem;
+  color: var(--pg-good); font-weight: 800; font-variant-numeric: tabular-nums;
+}
+.trade-col ul.numbered { padding-left: 2.2rem; }
+
+/* ═══════════════════════════════════════════════════════════════════
+   SIDESTAGE APP CANVAS — the shipped Ticket theme, reproduced exactly.
+   Single-theme on purpose: the product is a committed light cream app,
+   so these screens stay cream on either host theme. Every colour is
+   painted explicitly; nothing inherits from the chrome above.
+   ═══════════════════════════════════════════════════════════════ */
+.ss {
+  --bg:#FFF8EF; --surface:#FFFFFF; --surface-sunken:#FBF2E3; --surface-soft:#FDF8F0;
+  --border:#EBDFCC; --border-strong:#E8D3BC;
+  --text:#2A1F1A; --muted:#77685A;
+  --brand-red:#D62B1F; --on-brand-red:#FFF8F5; --red-text:#B52218;
+  --brand-yellow:#FFC400; --yellow-text:#9B6300;
+  --success:#196B42; --warning:#9B6300; --danger:#A61B10;
+  --shadow-card: 0 8px 24px rgb(92 62 34 / 8%);
+  --shadow-float: 0 18px 50px rgb(92 62 34 / 17%);
+
+  min-width: 700px;
+  padding: 1.15rem;
+  border: 1px solid var(--border);
+  border-radius: 1.15rem;
+  background: linear-gradient(145deg, #FFFDF9, var(--surface));
+  color: var(--text);
+  font-size: 14px; line-height: 1.5;
+}
+.ss * { box-sizing: border-box; }
+.ss p { margin: 0; }
+
+/* app chrome reproduced for context */
+.ss-crumb {
+  display: flex; align-items: center; justify-content: space-between; gap: 1rem;
+  padding-bottom: .85rem; margin-bottom: .95rem; border-bottom: 1px solid var(--border);
+}
+.ss-crumb-l { display: grid; gap: .3rem; min-width: 0; }
+.ss-eyebrow { color: var(--red-text); font-size: .66rem; font-weight: 800; letter-spacing: .14em; text-transform: uppercase; }
+.ss-crumb h4 { margin: 0; font-size: 1.28rem; font-weight: 750; letter-spacing: -.035em; }
+.ss-crumb-sub { color: var(--muted); font-size: .74rem; }
+.ss-tabs { display: inline-flex; gap: .3rem; padding: .25rem; border: 1px solid var(--border); border-radius: .65rem; background: var(--surface-sunken); flex: 0 0 auto; }
+.ss-tabs span { padding: .4rem .72rem; border-radius: .45rem; color: var(--muted); font-size: .73rem; font-weight: 700; }
+.ss-tabs span.on { color: var(--text); background: var(--surface); box-shadow: var(--shadow-card); }
+
+/* status chips */
+.chip {
+  display: inline-flex; align-items: center; gap: .3rem;
+  padding: .2rem .45rem; border-radius: .32rem;
+  font-size: .62rem; font-weight: 800; letter-spacing: .05em; text-transform: uppercase; white-space: nowrap;
+}
+.chip-live    { color:#0F4D2E; background:#DFF0E6; }
+.chip-queued  { color:#77685A; background:#F3EADC; }
+.chip-sched   { color:#B52218; background:#FBE3DF; }
+.chip-low     { color:#9B6300; background:#FFF0CC; }
+.chip-auction { color:#2A1F04; background:#FFC400; }
+
+.dot-live { width:.42rem; height:.42rem; border-radius:50%; background:#196B42; box-shadow:0 0 0 3px #DFF0E6; flex:0 0 auto; }
+
+/* buttons — a real hierarchy, which is the point */
+.btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: .4rem;
+  border-radius: .5rem; font-family: inherit; font-weight: 700; white-space: nowrap;
+  cursor: pointer; border: 1px solid transparent; transition: filter .15s, background .15s;
+}
+.btn:focus-visible { outline: 3px solid rgb(214 43 31 / 32%); outline-offset: 2px; }
+.btn-primary { min-height: 2.5rem; padding: 0 1rem; font-size: .82rem; color: var(--on-brand-red); background: var(--brand-red); box-shadow: 0 6px 16px rgb(214 43 31 / 22%); }
+.btn-primary:hover { filter: brightness(1.06); }
+.btn-primary.big { min-height: 3rem; padding: 0 1.4rem; font-size: .92rem; border-radius: .6rem; }
+.btn-secondary { min-height: 2.4rem; padding: 0 .85rem; font-size: .78rem; color: var(--text); background: var(--surface); border-color: var(--border-strong); }
+.btn-secondary:hover { background: var(--surface-soft); }
+.btn-ghost { min-height: 2.2rem; padding: 0 .7rem; font-size: .75rem; color: var(--muted); background: transparent; border-color: var(--border); }
+.btn-ghost:hover { color: var(--text); background: var(--surface); }
+.btn-icon { min-height: 2.2rem; min-width: 2.2rem; padding: 0 .5rem; font-size: .9rem; color: var(--muted); background: transparent; border-color: var(--border); }
+.btn-icon:hover { color: var(--text); background: var(--surface); }
+
+/* the shared guardrail-aware markdown control, used in all 3 directions */
+.md-control { display: grid; gap: .45rem; }
+.md-row { display: flex; align-items: center; gap: .5rem; flex-wrap: wrap; }
+.md-stepper {
+  display: inline-flex; align-items: stretch; overflow: hidden;
+  border: 1px solid var(--border-strong); border-radius: .5rem; background: var(--surface);
+}
+.md-stepper button {
+  width: 2.1rem; border: 0; background: transparent; color: var(--muted);
+  font-family: inherit; font-size: 1rem; font-weight: 700; cursor: pointer;
+}
+.md-stepper button:hover { background: var(--surface-sunken); color: var(--text); }
+.md-stepper .val {
+  display: grid; place-items: center; min-width: 3.4rem; padding: .45rem .2rem;
+  border-inline: 1px solid var(--border); font-size: .92rem; font-weight: 750;
+  font-variant-numeric: tabular-nums;
+}
+.md-preview { display: flex; align-items: baseline; gap: .45rem; font-variant-numeric: tabular-nums; }
+.md-was { color: var(--muted); font-size: .82rem; text-decoration: line-through; }
+.md-now { color: var(--red-text); font-size: 1.25rem; font-weight: 800; letter-spacing: -.03em; }
+.md-gauge { display: grid; gap: .28rem; }
+.md-track { position: relative; height: .4rem; border-radius: 99px; background: var(--surface-sunken); overflow: hidden; }
+.md-fill { position: absolute; inset-block: 0; left: 0; border-radius: 99px; background: linear-gradient(90deg, #FFC400, #D62B1F); }
+.md-limit { position: absolute; top: -.18rem; bottom: -.18rem; width: 2px; background: var(--danger); border-radius: 2px; }
+.md-legend { display: flex; justify-content: space-between; color: var(--muted); font-size: .66rem; font-variant-numeric: tabular-nums; }
+.md-legend b { color: var(--danger); font-weight: 750; }
+
+/* stock meter */
+.meter { display: grid; gap: .25rem; min-width: 92px; }
+.meter-bar { height: .32rem; border-radius: 99px; background: var(--surface-sunken); overflow: hidden; }
+.meter-bar i { display: block; height: 100%; border-radius: 99px; background: var(--success); }
+.meter-bar.low i { background: var(--warning); }
+.meter-txt { color: var(--muted); font-size: .68rem; font-variant-numeric: tabular-nums; }
+.meter-txt b { color: var(--text); font-weight: 750; }
+
+/* product identity block */
+.pid { display: flex; align-items: center; gap: .6rem; min-width: 0; }
+.pid-thumb {
+  display: grid; place-items: center; flex: 0 0 auto;
+  width: 2.5rem; height: 2.5rem; border-radius: .55rem;
+  border: 1px solid #E8D3BC; background: linear-gradient(140deg, #F3E2CC, #E8D3BC);
+  color: #77685A; font-size: .68rem; font-weight: 800;
+}
+.pid-thumb.lg { width: 3.6rem; height: 3.6rem; border-radius: .7rem; font-size: .84rem; }
+.pid-copy { display: grid; gap: .15rem; min-width: 0; }
+.pid-copy b { font-size: .85rem; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pid-copy small { color: var(--muted); font-size: .68rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.price-lg { font-size: 1.05rem; font-weight: 800; letter-spacing: -.02em; font-variant-numeric: tabular-nums; }
+
+/* ── A · STAGE DECK ────────────────────────────────────────────── */
+.deck { display: grid; gap: .85rem; }
+.stage-card {
+  display: grid; gap: .9rem; padding: 1rem;
+  border: 1px solid rgb(214 43 31 / 30%); border-radius: .85rem;
+  background: linear-gradient(145deg, #FFF3F1, #FFFFFF);
+  box-shadow: 0 10px 30px rgb(214 43 31 / 10%);
+}
+.stage-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 1rem; flex-wrap: wrap; }
+.stage-id { display: flex; align-items: center; gap: .75rem; min-width: 0; }
+.stage-meta { display: grid; gap: .3rem; min-width: 0; }
+.stage-meta .lbl { display: flex; align-items: center; gap: .4rem; color: var(--success); font-size: .64rem; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; }
+.stage-meta h5 { margin: 0; font-size: 1.15rem; font-weight: 780; letter-spacing: -.03em; }
+.stage-meta small { color: var(--muted); font-size: .7rem; }
+.stage-nums { display: flex; align-items: center; gap: 1.2rem; flex-wrap: wrap; }
+.stage-num { display: grid; gap: .1rem; }
+.stage-num .k { color: var(--muted); font-size: .62rem; font-weight: 750; letter-spacing: .09em; text-transform: uppercase; }
+.stage-num .v { font-size: 1.3rem; font-weight: 800; letter-spacing: -.035em; font-variant-numeric: tabular-nums; }
+.stage-actions { display: flex; gap: .5rem; flex-wrap: wrap; padding-top: .85rem; border-top: 1px dashed var(--border-strong); }
+
+.auction-strip {
+  display: flex; align-items: center; justify-content: space-between; gap: .9rem; flex-wrap: wrap;
+  padding: .7rem .85rem; border-radius: .6rem;
+  border: 1px solid rgb(255 196 0 / 55%); background: #FFFBEE;
+}
+.auction-strip .l { display: flex; align-items: center; gap: .65rem; min-width: 0; }
+.auction-strip .bid { font-size: 1.15rem; font-weight: 850; letter-spacing: -.03em; font-variant-numeric: tabular-nums; }
+.auction-strip small { color: var(--muted); font-size: .68rem; }
+.clock { font-variant-numeric: tabular-nums; font-weight: 800; color: var(--red-text); }
+
+.upnext-card {
+  display: flex; align-items: center; justify-content: space-between; gap: 1rem; flex-wrap: wrap;
+  padding: .8rem .9rem; border: 1px solid var(--border-strong); border-radius: .75rem;
+  background: var(--surface); box-shadow: var(--shadow-card);
+}
+.queue-head { display: flex; align-items: baseline; justify-content: space-between; gap: 1rem; padding: .35rem .15rem 0; }
+.queue-head .t { font-size: .68rem; font-weight: 800; letter-spacing: .13em; text-transform: uppercase; color: var(--muted); }
+.queue-head .c { color: var(--muted); font-size: .7rem; }
+.qrow {
+  display: grid; grid-template-columns: 1.6rem minmax(0,1fr) auto auto auto;
+  align-items: center; gap: .7rem;
+  padding: .55rem .6rem; border: 1px solid transparent; border-radius: .6rem;
+  transition: background .15s, border-color .15s;
+}
+.qrow:hover { border-color: var(--border); background: var(--surface); }
+.qrow.sel { border-color: rgb(214 43 31 / 40%); background: #FFF6F4; }
+.qrank { color: var(--muted); font-size: .72rem; font-weight: 800; font-variant-numeric: tabular-nums; text-align: center; }
+.qprice { font-size: .88rem; font-weight: 750; font-variant-numeric: tabular-nums; }
+
+/* inspector sheet */
+.inspector {
+  display: grid; gap: .85rem; margin-top: .3rem; padding: .95rem;
+  border: 1px solid var(--border-strong); border-radius: .8rem;
+  background: var(--surface); box-shadow: var(--shadow-float);
+}
+.insp-head { display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding-bottom: .7rem; border-bottom: 1px solid var(--border); }
+.insp-tabs { display: inline-flex; gap: .2rem; padding: .2rem; border-radius: .55rem; background: var(--surface-sunken); }
+.insp-tabs span { padding: .35rem .6rem; border-radius: .4rem; color: var(--muted); font-size: .7rem; font-weight: 750; }
+.insp-tabs span.on { color: var(--text); background: var(--surface); box-shadow: var(--shadow-card); }
+.insp-body { display: grid; gap: .85rem; }
+.field { display: grid; gap: .35rem; }
+.field > .k { color: var(--muted); font-size: .66rem; font-weight: 750; letter-spacing: .09em; text-transform: uppercase; }
+.buyer-pick {
+  display: flex; align-items: center; gap: .55rem; padding: .5rem .6rem;
+  border: 1px solid var(--border-strong); border-radius: .5rem; background: var(--surface);
+}
+.buyer-av { display: grid; place-items: center; width: 1.85rem; height: 1.85rem; border-radius: 50%; background: #FBE3DF; color: #B52218; font-size: .66rem; font-weight: 800; flex: 0 0 auto; }
+.buyer-pick .who { display: grid; gap: .1rem; min-width: 0; flex: 1; }
+.buyer-pick .who b { font-size: .8rem; font-weight: 700; }
+.buyer-pick .who small { color: var(--muted); font-size: .66rem; }
+.caret { color: var(--muted); font-size: .7rem; }
+.insp-foot { display: flex; align-items: center; justify-content: space-between; gap: 1rem; flex-wrap: wrap; padding-top: .8rem; border-top: 1px solid var(--border); }
+.guard-note { display: flex; align-items: center; gap: .4rem; color: var(--success); font-size: .7rem; font-weight: 650; }
+
+/* ── B · CONSOLE ───────────────────────────────────────────────── */
+.console-tbl { width: 100%; border-collapse: collapse; }
+.console-tbl thead th {
+  padding: .5rem .65rem; border-bottom: 1px solid var(--border-strong);
+  color: var(--muted); font-size: .62rem; font-weight: 800;
+  letter-spacing: .1em; text-transform: uppercase; text-align: left; white-space: nowrap;
+}
+.console-tbl thead th.r { text-align: right; }
+.console-tbl tbody td { padding: .6rem .65rem; border-bottom: 1px solid var(--border); vertical-align: middle; }
+.console-tbl tbody tr:last-child td { border-bottom: 0; }
+.console-tbl tbody tr.sel td { background: #FFF6F4; }
+.console-tbl tbody tr.sel td:first-child { box-shadow: inset 3px 0 0 var(--brand-red); }
+.console-tbl tbody tr.onstage td { background: #F5FBF7; }
+.console-tbl td.r { text-align: right; font-variant-numeric: tabular-nums; }
+.cnum { color: var(--muted); font-size: .72rem; font-weight: 800; font-variant-numeric: tabular-nums; }
+.cprice { font-size: .9rem; font-weight: 750; font-variant-numeric: tabular-nums; }
+.cprice s { display: block; color: var(--muted); font-size: .68rem; font-weight: 500; }
+
+.cmdbar {
+  position: relative; display: grid; gap: .7rem; margin-top: .9rem;
+  padding: .8rem .9rem; border: 1px solid var(--border-strong); border-radius: .75rem;
+  background: var(--surface); box-shadow: var(--shadow-float);
+}
+.cmd-target { display: flex; align-items: center; justify-content: space-between; gap: 1rem; flex-wrap: wrap; }
+.cmd-target .who { display: flex; align-items: center; gap: .55rem; min-width: 0; }
+.cmd-target .who .k { color: var(--muted); font-size: .62rem; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; }
+.cmd-keys { display: flex; gap: .4rem; flex-wrap: wrap; }
+.key {
+  display: inline-flex; align-items: center; gap: .45rem;
+  min-height: 2.3rem; padding: 0 .7rem; border: 1px solid var(--border); border-radius: .5rem;
+  background: var(--surface-sunken); color: var(--text); font-size: .76rem; font-weight: 700; cursor: pointer;
+}
+.key:hover { background: var(--surface); border-color: var(--border-strong); }
+.key.on { background: #FFF0EE; border-color: rgb(214 43 31 / 45%); color: var(--red-text); }
+.key.push { color: var(--on-brand-red); background: var(--brand-red); border-color: var(--brand-red); box-shadow: 0 6px 16px rgb(214 43 31 / 22%); }
+.key kbd {
+  display: grid; place-items: center; min-width: 1.35rem; height: 1.35rem; padding: 0 .3rem;
+  border: 1px solid var(--border-strong); border-bottom-width: 2px; border-radius: .3rem;
+  background: var(--surface); color: var(--muted);
+  font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: .66rem; font-weight: 700;
+}
+.key.push kbd { background: rgb(255 255 255 / 22%); border-color: rgb(255 255 255 / 40%); color: var(--on-brand-red); }
+.cmd-drawer {
+  display: grid; gap: .75rem; padding: .8rem; border-radius: .6rem;
+  border: 1px solid rgb(214 43 31 / 25%); background: #FFFAF9;
+}
+.cmd-drawer-head { display: flex; align-items: center; justify-content: space-between; gap: 1rem; }
+.cmd-drawer-head .t { font-size: .72rem; font-weight: 800; letter-spacing: .09em; text-transform: uppercase; color: var(--red-text); }
+.cmd-hint { display: flex; align-items: center; gap: .45rem; color: var(--muted); font-size: .68rem; }
+
+/* ── C · RUN OF SHOW ───────────────────────────────────────────── */
+.ros-head {
+  display: flex; align-items: center; justify-content: space-between; gap: 1rem; flex-wrap: wrap;
+  padding: .75rem .9rem; border: 1px solid var(--border-strong); border-radius: .7rem; background: var(--surface);
+}
+.ros-clock { display: flex; align-items: baseline; gap: .5rem; }
+.ros-clock .big { font-size: 1.5rem; font-weight: 850; letter-spacing: -.04em; font-variant-numeric: tabular-nums; }
+.ros-clock .sep { color: var(--muted); font-size: 1rem; }
+.ros-clock .tgt { color: var(--muted); font-size: .95rem; font-weight: 700; font-variant-numeric: tabular-nums; }
+.ros-clock .k { color: var(--muted); font-size: .62rem; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; }
+.ros-pace { display: inline-flex; align-items: center; gap: .35rem; padding: .25rem .5rem; border-radius: .35rem; font-size: .68rem; font-weight: 750; }
+.ros-pace.behind { color: #9B6300; background: #FFF0CC; }
+
+.spine { display: grid; gap: 0; margin-top: .85rem; }
+.slot {
+  display: grid; grid-template-columns: 1.1rem 2.6rem minmax(0,1fr) auto;
+  align-items: start; gap: .65rem;
+  padding: .7rem .55rem; border-bottom: 1px solid var(--border);
+}
+.slot:last-child { border-bottom: 0; }
+.slot.now { border-radius: .7rem; border: 1px solid rgb(214 43 31 / 30%); background: linear-gradient(145deg,#FFF3F1,#FFFFFF); box-shadow: 0 8px 22px rgb(214 43 31 / 9%); }
+.slot.done { opacity: .62; }
+.grip { align-self: center; color: #C9B9A4; font-size: .95rem; cursor: grab; line-height: 1; letter-spacing: -.1em; }
+.slot-time { display: grid; gap: .12rem; align-self: center; text-align: right; }
+.slot-time .mins { font-size: .82rem; font-weight: 800; font-variant-numeric: tabular-nums; }
+.slot-time .k { color: var(--muted); font-size: .58rem; font-weight: 750; letter-spacing: .08em; text-transform: uppercase; }
+.slot-time .over { color: var(--warning); }
+.slot-main { display: grid; gap: .5rem; min-width: 0; }
+.slot-line { display: flex; align-items: center; gap: .6rem; flex-wrap: wrap; min-width: 0; }
+.slot-side { display: flex; align-items: center; gap: .5rem; align-self: center; }
+.notes {
+  padding: .55rem .7rem; border-left: 2px solid var(--brand-yellow); border-radius: .1rem .45rem .45rem .1rem;
+  background: #FFFBEE; color: var(--text); font-size: .78rem;
+}
+.notes .k { display: block; margin-bottom: .18rem; color: var(--yellow-text); font-size: .58rem; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; }
+.drawer {
+  display: grid; gap: .7rem; padding: .75rem;
+  border: 1px solid var(--border); border-radius: .6rem; background: var(--surface-sunken);
+}
+.drawer-tabs { display: inline-flex; gap: .2rem; padding: .2rem; border-radius: .5rem; background: var(--surface); border: 1px solid var(--border); width: fit-content; }
+.drawer-tabs span { padding: .3rem .55rem; border-radius: .35rem; color: var(--muted); font-size: .68rem; font-weight: 750; }
+.drawer-tabs span.on { color: var(--text); background: var(--surface-sunken); }
+.tray {
+  display: grid; gap: .55rem; margin-top: .9rem; padding: .8rem;
+  border: 1px dashed var(--border-strong); border-radius: .7rem; background: var(--surface-soft);
+}
+.tray-head { display: flex; align-items: center; justify-content: space-between; gap: 1rem; }
+.tray-head .t { color: var(--muted); font-size: .66rem; font-weight: 800; letter-spacing: .11em; text-transform: uppercase; }
+.tray-items { display: flex; gap: .5rem; flex-wrap: wrap; }
+.tray-chip {
+  display: flex; align-items: center; gap: .5rem; padding: .4rem .55rem;
+  border: 1px solid var(--border); border-radius: .5rem; background: var(--surface); cursor: grab;
+}
+.tray-chip b { font-size: .76rem; font-weight: 700; }
+.tray-chip small { color: var(--muted); font-size: .68rem; font-variant-numeric: tabular-nums; }
+
+/* ── shared callout under each screen ──────────────────────────── */
+.detail-note {
+  display: grid; gap: .3rem; margin: -.4rem 0 1.6rem;
+  padding: .8rem 1rem; border-left: 3px solid var(--pg-accent); border-radius: 0 .5rem .5rem 0;
+  background: var(--pg-card);
+}
+.detail-note b { font-size: .8rem; font-weight: 720; }
+.detail-note p { margin: 0; color: var(--pg-ink-2); font-size: .85rem; }
+
+/* ── closing recommendation ────────────────────────────────────── */
+.reco {
+  display: grid; gap: 1rem; margin-top: 3.5rem; padding: 1.6rem 1.75rem;
+  border: 1px solid var(--pg-line); border-radius: 1rem; background: var(--pg-card); box-shadow: var(--pg-shadow);
+}
+.reco h2 { margin: 0; font-size: 1.35rem; font-weight: 760; letter-spacing: -.025em; }
+.reco p { margin: 0; max-width: 70ch; color: var(--pg-ink-2); font-size: .95rem; }
+.reco p strong { color: var(--pg-ink); font-weight: 680; }
+.reco ol { margin: 0; padding-left: 1.3rem; display: grid; gap: .5rem; }
+.reco li { color: var(--pg-ink-2); font-size: .92rem; }
+.reco li b { color: var(--pg-ink); font-weight: 660; }
+
+.footnote { margin-top: 3rem; padding-top: 1.4rem; border-top: 1px solid var(--pg-line); color: var(--pg-ink-2); font-size: .78rem; }
+.footnote code { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: .74rem; }
+
+@media (max-width: 720px) {
+  .wrap { padding: 2.25rem 1rem 4rem; }
+  .switcher { margin-inline: -1rem; padding-inline: 1rem; }
+}
+@media (prefers-reduced-motion: reduce) {
+  * { transition: none !important; animation: none !important; }
+}
+</style>
+
+<div class="wrap">
+
+  <header class="masthead">
+    <p class="kicker">SideStage · Seller · Event Manager</p>
+    <h1>Three ways to rebuild the Lineup</h1>
+    <p class="standfirst">
+      The Lineup is the one screen a seller operates <strong>while they are live on camera</strong>. Today it is a
+      five-column spreadsheet where every row holds five open forms and every button looks the same. These are three
+      different answers to that — not three skins. The palette, type and chrome below are the shipped Ticket theme,
+      unchanged; <strong>what changes is the information architecture</strong>.
+    </p>
+    <div class="meta-strip">
+      <span>Surface <code>EventLineupGrid.tsx</code></span>
+      <span>Screens drawn at <code>720px</code> — the real width the dock panel gets</span>
+      <span>WI-39609</span>
+    </div>
+  </header>
+
+  <!-- ══════════════ DIAGNOSIS ══════════════ -->
+  <section class="sec">
+    <div class="sec-head">
+      <h2>What's actually wrong today</h2>
+      <p>
+        Eight faults, all read off the source and a live screenshot of the page. Every direction below is judged on
+        which of these it removes — that's the scorecard, not taste.
+      </p>
+    </div>
+
+    <div class="faults">
+      <div class="fault">
+        <div class="fault-n">1</div>
+        <div class="fault-body">
+          <b>The grid cannot fit its own panel</b>
+          <p>
+            Five columns whose declared minimums sum to about <code>1080px</code> — the commerce cell alone sets
+            <code>min-width: 350px</code> — inside a dock panel that gets roughly <code>700px</code>.
+          </p>
+          <span class="evidence">Observed live: "Product" header clipped to "Pl"</span>
+        </div>
+      </div>
+      <div class="fault">
+        <div class="fault-n">2</div>
+        <div class="fault-body">
+          <b>Every row is five open forms at once</b>
+          <p>Five inputs and five buttons per item, permanently armed, on every row. Editing density crowds out the scanning the seller actually needs mid-show.</p>
+        </div>
+      </div>
+      <div class="fault">
+        <div class="fault-n">3</div>
+        <div class="fault-body">
+          <b>No action hierarchy</b>
+          <p>
+            Push — the highest-stakes live action on the page — renders identically to Stock, Markdown and Send.
+            All six are <code>.button.tertiary</code>, <code>.66rem</code> type, <code>1.9rem</code> tall.
+          </p>
+        </div>
+      </div>
+      <div class="fault">
+        <div class="fault-n">4</div>
+        <div class="fault-body">
+          <b>Targets sized for a spreadsheet, not a live console</b>
+          <p>30px buttons, a 30px-wide quantity input, 10px badge and label text — operated one-handed while talking to camera.</p>
+        </div>
+      </div>
+      <div class="fault">
+        <div class="fault-n">5</div>
+        <div class="fault-body">
+          <b>Targeted offers ask you to type a buyer ID</b>
+          <p>
+            A raw free-text field, inline on every row. A real value on the live site right now is
+            <code>buyer-AL;KJGL;DSKGHSDHGSDFH</code>. Nobody types that.
+          </p>
+          <span class="evidence">Observed live in the auction bid list</span>
+        </div>
+      </div>
+      <div class="fault">
+        <div class="fault-n">6</div>
+        <div class="fault-body">
+          <b>Markdown is a blind percentage</b>
+          <p>
+            You type a number and commit; you never see the resulting price first. The policy already carries
+            <code>priceFloorCentsByProduct</code> and <code>maxMarkdownPercent</code> — the guardrail exists in the data
+            and is invisible in the UI. A fat-fingered markdown is money.
+          </p>
+        </div>
+      </div>
+      <div class="fault">
+        <div class="fault-n">7</div>
+        <div class="fault-body">
+          <b>A "lineup" with no order</b>
+          <p>Nothing on the grid expresses sequence. The run-of-show planner is a separate panel stacked underneath — two disconnected surfaces over the same ordered products.</p>
+        </div>
+      </div>
+      <div class="fault">
+        <div class="fault-n">8</div>
+        <div class="fault-body">
+          <b>A permanent banner that never says anything</b>
+          <p>"Guarded seller actions are live" holds prime space above the work with copy that never changes and never needs a response.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ══════════════ DIRECTIONS ══════════════ -->
+  <section class="sec">
+    <div class="sec-head">
+      <h2>The three directions</h2>
+      <p>Each screen below is drawn at 720px — the width the panel actually gets — with the same event and the same four products, so you are comparing architecture and not content.</p>
+    </div>
+
+    <div class="switcher" role="group" aria-label="Choose a direction">
+      <button type="button" data-dir="a" aria-pressed="true">A · Stage Deck<span>Now / Next / Queue</span></button>
+      <button type="button" data-dir="b" aria-pressed="false">B · Console<span>Table + command bar</span></button>
+      <button type="button" data-dir="c" aria-pressed="false">C · Run of Show<span>One ordered timeline</span></button>
+    </div>
+
+    <!-- ─────────── A ─────────── -->
+    <article class="dir" id="dir-a">
+      <div class="dir-head">
+        <p class="dir-label">Direction A</p>
+        <h3>Stage Deck</h3>
+        <p class="thesis">
+          Stop drawing a table. The show has exactly three states — <strong>what's on stage, what's next, and
+          what's waiting</strong> — so draw those. The live item gets a card with room for real controls; the queue
+          gets one big obvious verb each; everything else moves into an inspector you open on purpose.
+        </p>
+      </div>
+
+      <div class="screen-frame">
+        <div class="screen-bar"><span class="dots"><i></i><i></i><i></i></span><span>Studio › Event Manager › avi test › Lineup</span><span>720 × auto</span></div>
+        <div class="screen-scroll">
+          <div class="ss">
+
+            <div class="ss-crumb">
+              <div class="ss-crumb-l">
+                <span class="ss-eyebrow">Seller workspace</span>
+                <h4>avi test</h4>
+                <p class="ss-crumb-sub">4 reserved items · scheduled · guardrails enforced</p>
+              </div>
+              <div class="ss-tabs"><span class="on">Lineup</span><span>Settings</span></div>
+            </div>
+
+            <div class="deck">
+
+              <!-- ON STAGE -->
+              <div class="stage-card">
+                <div class="stage-top">
+                  <div class="stage-id">
+                    <span class="pid-thumb lg">HK</span>
+                    <div class="stage-meta">
+                      <span class="lbl"><i class="dot-live"></i> On stage now · 4:12</span>
+                      <h5>Harbor Kettle</h5>
+                      <small>Hearthline · Sage — SKU HL-KET-SG</small>
+                    </div>
+                  </div>
+                  <div class="stage-nums">
+                    <div class="stage-num"><span class="k">Live price</span><span class="v">$78.00</span></div>
+                    <div class="stage-num">
+                      <span class="k">Event stock</span>
+                      <div class="meter">
+                        <div class="meter-bar"><i style="width:62%"></i></div>
+                        <span class="meter-txt"><b>5</b> of 8 left</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="auction-strip">
+                  <div class="l">
+                    <span class="chip chip-auction">Live auction</span>
+                    <div>
+                      <span class="bid">$92.00</span>
+                      <small>&nbsp;· 7 bids · top bidder <b>Dana R.</b></small>
+                    </div>
+                  </div>
+                  <div class="l">
+                    <span class="clock">0:41</span>
+                    <button class="btn btn-secondary" type="button">Close auction</button>
+                  </div>
+                </div>
+
+                <div class="stage-actions">
+                  <button class="btn btn-primary" type="button">Mark down</button>
+                  <button class="btn btn-secondary" type="button">Adjust stock</button>
+                  <button class="btn btn-secondary" type="button">Send offer</button>
+                  <button class="btn btn-ghost" type="button">Take off stage</button>
+                </div>
+              </div>
+
+              <!-- UP NEXT -->
+              <div class="upnext-card">
+                <div class="pid">
+                  <span class="pid-thumb">CA</span>
+                  <div class="pid-copy">
+                    <b>Cloud ANC Headphones</b>
+                    <small>Up next · Northstar Audio · Ocean · $199.00 · 4 reserved</small>
+                  </div>
+                </div>
+                <button class="btn btn-primary big" type="button">Push to stage →</button>
+              </div>
+
+              <!-- QUEUE -->
+              <div class="queue-head">
+                <span class="t">Queue</span>
+                <span class="c">2 waiting · drag to reorder</span>
+              </div>
+
+              <div class="qrow sel">
+                <span class="qrank">3</span>
+                <div class="pid">
+                  <span class="pid-thumb">HK</span>
+                  <div class="pid-copy"><b>Harbor Kettle</b><small>Hearthline · Sand</small></div>
+                </div>
+                <span class="qprice">$80.00</span>
+                <div class="meter"><div class="meter-bar low"><i style="width:30%"></i></div><span class="meter-txt"><b>3</b> of 10</span></div>
+                <div style="display:flex;gap:.4rem">
+                  <button class="btn btn-secondary" type="button">Push</button>
+                  <button class="btn btn-icon" type="button" aria-label="Open item inspector">⋯</button>
+                </div>
+              </div>
+
+              <div class="qrow">
+                <span class="qrank">4</span>
+                <div class="pid">
+                  <span class="pid-thumb">VD</span>
+                  <div class="pid-copy"><b>Vintage Denim Jacket</b><small>Reclaim Co · Indigo</small></div>
+                </div>
+                <span class="qprice">$145.00</span>
+                <div class="meter"><div class="meter-bar"><i style="width:100%"></i></div><span class="meter-txt"><b>2</b> of 2</span></div>
+                <div style="display:flex;gap:.4rem">
+                  <button class="btn btn-secondary" type="button">Push</button>
+                  <button class="btn btn-icon" type="button" aria-label="Open item inspector">⋯</button>
+                </div>
+              </div>
+
+              <!-- INSPECTOR -->
+              <div class="inspector">
+                <div class="insp-head">
+                  <div class="pid">
+                    <span class="pid-thumb">HK</span>
+                    <div class="pid-copy"><b>Harbor Kettle · Sand</b><small>Queue position 3 · $80.00 · 3 of 10 reserved</small></div>
+                  </div>
+                  <button class="btn btn-icon" type="button" aria-label="Close inspector">✕</button>
+                </div>
+
+                <div class="insp-tabs"><span class="on">Price</span><span>Stock</span><span>Auction</span><span>Offer</span></div>
+
+                <div class="insp-body">
+                  <div class="md-control">
+                    <span class="k" style="color:#77685A;font-size:.66rem;font-weight:750;letter-spacing:.09em;text-transform:uppercase">Markdown</span>
+                    <div class="md-row">
+                      <div class="md-stepper">
+                        <button type="button" aria-label="Decrease markdown">−</button>
+                        <span class="val">15%</span>
+                        <button type="button" aria-label="Increase markdown">+</button>
+                      </div>
+                      <div class="md-preview">
+                        <span class="md-was">$80.00</span>
+                        <span class="md-now">$68.00</span>
+                      </div>
+                    </div>
+                    <div class="md-gauge">
+                      <div class="md-track">
+                        <span class="md-fill" style="width:50%"></span>
+                        <span class="md-limit" style="left:100%"></span>
+                      </div>
+                      <div class="md-legend"><span>0%</span><span>Floor $56.00 · max <b>30%</b></span></div>
+                    </div>
+                  </div>
+
+                  <div class="field">
+                    <span class="k">Send a targeted offer to</span>
+                    <div class="buyer-pick">
+                      <span class="buyer-av">DR</span>
+                      <span class="who"><b>Dana R.</b><small>In the room now · top bidder on Harbor Kettle</small></span>
+                      <span class="caret">▾</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="insp-foot">
+                  <span class="guard-note">✓ Within the event's price floor</span>
+                  <div style="display:flex;gap:.5rem">
+                    <button class="btn btn-ghost" type="button">Cancel</button>
+                    <button class="btn btn-primary" type="button">Apply markdown</button>
+                  </div>
+                </div>
+              </div>
+
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="detail-note">
+        <b>The detail worth stealing regardless of direction</b>
+        <p>
+          The markdown control shows the resulting price before you commit, and draws the policy's real price floor and
+          max-markdown as a hard stop on the track. Both numbers already exist in <code>SellerEventPolicy</code>.
+        </p>
+      </div>
+
+      <div class="trade">
+        <div class="trade-col fixes">
+          <h4>Removes</h4>
+          <ul class="numbered">
+            <li><span class="fixnum">1</span>Nothing needs 1080px — cards reflow at any width.</li>
+            <li><span class="fixnum">2</span>Rows carry values; forms live in the inspector.</li>
+            <li><span class="fixnum">3</span>Push is the only red button on screen.</li>
+            <li><span class="fixnum">4</span>Full-size targets, no 30px anything.</li>
+            <li><span class="fixnum">5</span>Buyer picker with real people in the room.</li>
+            <li><span class="fixnum">6</span>Markdown previews the price and shows the floor.</li>
+            <li><span class="fixnum">8</span>Banner replaced by an inline guardrail verdict.</li>
+          </ul>
+        </div>
+        <div class="trade-col costs">
+          <h4>Costs</h4>
+          <ul>
+            <li><b>One click to edit.</b> Markdown and stock move behind the inspector — worse for bulk pre-show setup.</li>
+            <li><b>More vertical space</b> per item; a 20-item lineup scrolls a lot.</li>
+            <li>Sequence is implied by the queue, but there's still no time budget — <b>fault 7 only half-solved</b>.</li>
+          </ul>
+        </div>
+        <div class="trade-col fit">
+          <h4>Best when</h4>
+          <ul>
+            <li>The seller is <b>live and improvising</b>, deciding what to push next from what the room is doing.</li>
+            <li>Lineups are <b>short</b> — under a dozen items.</li>
+            <li>You want the smallest change that fixes the most faults.</li>
+          </ul>
+        </div>
+      </div>
+    </article>
+
+    <!-- ─────────── B ─────────── -->
+    <article class="dir" id="dir-b" hidden>
+      <div class="dir-head">
+        <p class="dir-label">Direction B</p>
+        <h3>Console</h3>
+        <p class="thesis">
+          Keep the table — a table is genuinely the fastest way to scan twenty products — but
+          <strong>take the forms out of it</strong>. Rows show values and one verb. Everything else happens in a
+          command bar that acts on the selected row, driven by keys, so an experienced seller never leaves the keyboard.
+        </p>
+      </div>
+
+      <div class="screen-frame">
+        <div class="screen-bar"><span class="dots"><i></i><i></i><i></i></span><span>Studio › Event Manager › avi test › Lineup</span><span>720 × auto</span></div>
+        <div class="screen-scroll">
+          <div class="ss">
+
+            <div class="ss-crumb">
+              <div class="ss-crumb-l">
+                <span class="ss-eyebrow">Seller workspace</span>
+                <h4>avi test</h4>
+                <p class="ss-crumb-sub">4 reserved items · scheduled · guardrails enforced</p>
+              </div>
+              <div class="ss-tabs"><span class="on">Lineup</span><span>Settings</span></div>
+            </div>
+
+            <table class="console-tbl">
+              <thead>
+                <tr>
+                  <th style="width:2rem">#</th>
+                  <th>Product</th>
+                  <th class="r">Price</th>
+                  <th class="r">Stock</th>
+                  <th>Status</th>
+                  <th style="width:1%"></th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr class="onstage">
+                  <td><span class="cnum">1</span></td>
+                  <td>
+                    <div class="pid">
+                      <span class="pid-thumb">HK</span>
+                      <div class="pid-copy"><b>Harbor Kettle</b><small>Hearthline · Sage</small></div>
+                    </div>
+                  </td>
+                  <td class="r"><span class="cprice">$78.00</span></td>
+                  <td class="r"><span class="cprice">5<s>of 8</s></span></td>
+                  <td><span class="chip chip-live"><i class="dot-live"></i> On stage</span></td>
+                  <td><button class="btn btn-ghost" type="button">Take off</button></td>
+                </tr>
+                <tr>
+                  <td><span class="cnum">2</span></td>
+                  <td>
+                    <div class="pid">
+                      <span class="pid-thumb">CA</span>
+                      <div class="pid-copy"><b>Cloud ANC Headphones</b><small>Northstar Audio · Ocean</small></div>
+                    </div>
+                  </td>
+                  <td class="r"><span class="cprice">$199.00</span></td>
+                  <td class="r"><span class="cprice">4<s>of 4</s></span></td>
+                  <td><span class="chip chip-queued">Up next</span></td>
+                  <td><button class="btn btn-secondary" type="button">Push</button></td>
+                </tr>
+                <tr class="sel">
+                  <td><span class="cnum">3</span></td>
+                  <td>
+                    <div class="pid">
+                      <span class="pid-thumb">HK</span>
+                      <div class="pid-copy"><b>Harbor Kettle</b><small>Hearthline · Sand</small></div>
+                    </div>
+                  </td>
+                  <td class="r"><span class="cprice">$80.00</span></td>
+                  <td class="r"><span class="cprice">3<s>of 10</s></span></td>
+                  <td><span class="chip chip-low">Low stock</span></td>
+                  <td><button class="btn btn-secondary" type="button">Push</button></td>
+                </tr>
+                <tr>
+                  <td><span class="cnum">4</span></td>
+                  <td>
+                    <div class="pid">
+                      <span class="pid-thumb">VD</span>
+                      <div class="pid-copy"><b>Vintage Denim Jacket</b><small>Reclaim Co · Indigo</small></div>
+                    </div>
+                  </td>
+                  <td class="r"><span class="cprice">$145.00</span></td>
+                  <td class="r"><span class="cprice">2<s>of 2</s></span></td>
+                  <td><span class="chip chip-queued">Queued</span></td>
+                  <td><button class="btn btn-secondary" type="button">Push</button></td>
+                </tr>
+              </tbody>
+            </table>
+
+            <div class="cmdbar">
+              <div class="cmd-target">
+                <div class="who">
+                  <span class="k">Selected</span>
+                  <span class="pid-thumb" style="width:1.8rem;height:1.8rem;font-size:.6rem">HK</span>
+                  <b style="font-size:.86rem">Harbor Kettle · Sand</b>
+                  <span class="chip chip-low">Low stock</span>
+                </div>
+                <span class="cmd-hint">↑ ↓ to move · Esc to clear</span>
+              </div>
+
+              <div class="cmd-keys">
+                <button class="key push" type="button"><kbd>⏎</kbd> Push to stage</button>
+                <button class="key on" type="button"><kbd>M</kbd> Mark down</button>
+                <button class="key" type="button"><kbd>A</kbd> Auction</button>
+                <button class="key" type="button"><kbd>O</kbd> Offer</button>
+                <button class="key" type="button"><kbd>S</kbd> Stock</button>
+              </div>
+
+              <div class="cmd-drawer">
+                <div class="cmd-drawer-head">
+                  <span class="t">Mark down · Harbor Kettle · Sand</span>
+                  <span class="cmd-hint">⏎ to apply · Esc to cancel</span>
+                </div>
+                <div class="md-control">
+                  <div class="md-row">
+                    <div class="md-stepper">
+                      <button type="button" aria-label="Decrease markdown">−</button>
+                      <span class="val">15%</span>
+                      <button type="button" aria-label="Increase markdown">+</button>
+                    </div>
+                    <div class="md-preview"><span class="md-was">$80.00</span><span class="md-now">$68.00</span></div>
+                    <span class="guard-note" style="margin-left:auto">✓ Above the $56.00 floor</span>
+                  </div>
+                  <div class="md-gauge">
+                    <div class="md-track">
+                      <span class="md-fill" style="width:50%"></span>
+                      <span class="md-limit" style="left:100%"></span>
+                    </div>
+                    <div class="md-legend"><span>0%</span><span>max <b>30%</b> by event policy</span></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+          </div>
+        </div>
+      </div>
+
+      <div class="detail-note">
+        <b>Why the command bar and not a modal</b>
+        <p>
+          A modal steals the screen mid-broadcast. The bar is always there, always shows what it will act on, and
+          closes back to the table in one key — so the seller never loses sight of the lineup while editing it.
+        </p>
+      </div>
+
+      <div class="trade">
+        <div class="trade-col fixes">
+          <h4>Removes</h4>
+          <ul class="numbered">
+            <li><span class="fixnum">1</span>Five value columns fit 700px comfortably.</li>
+            <li><span class="fixnum">2</span>Zero forms in the table; one drawer at a time.</li>
+            <li><span class="fixnum">3</span>One red key, and it's Push.</li>
+            <li><span class="fixnum">4</span>Command-bar targets are full size.</li>
+            <li><span class="fixnum">5</span>Offer opens a buyer picker, not a text field.</li>
+            <li><span class="fixnum">6</span>Same guarded markdown, with the floor inline.</li>
+            <li><span class="fixnum">8</span>Banner gone; guardrails shown where they bind.</li>
+          </ul>
+        </div>
+        <div class="trade-col costs">
+          <h4>Costs</h4>
+          <ul>
+            <li><b>A selection model to learn.</b> "Which row am I acting on" is now state the seller must hold.</li>
+            <li>Keyboard shortcuts are <b>invisible to a first-time seller</b> without onboarding.</li>
+            <li>Sequence still isn't expressed — <b>fault 7 untouched</b>, planner stays a separate panel.</li>
+            <li>Touch users get the least out of it.</li>
+          </ul>
+        </div>
+        <div class="trade-col fit">
+          <h4>Best when</h4>
+          <ul>
+            <li>Lineups are <b>long</b> — twenty, fifty items — and scanning speed dominates.</li>
+            <li>The seller is a <b>repeat operator</b> who runs shows weekly.</li>
+            <li>You want to keep the existing grid component and change what's inside it.</li>
+          </ul>
+        </div>
+      </div>
+    </article>
+
+    <!-- ─────────── C ─────────── -->
+    <article class="dir" id="dir-c" hidden>
+      <div class="dir-head">
+        <p class="dir-label">Direction C</p>
+        <h3>Run of Show</h3>
+        <p class="thesis">
+          The word "lineup" is already a promise of sequence — so make the lineup <em>be</em> the run of show.
+          One ordered timeline with a minutes budget per slot and a clock running against it, and the separate
+          planner panel underneath <strong>disappears into it</strong>. Commerce controls hang off each slot.
+        </p>
+      </div>
+
+      <div class="screen-frame">
+        <div class="screen-bar"><span class="dots"><i></i><i></i><i></i></span><span>Studio › Event Manager › avi test › Lineup</span><span>720 × auto</span></div>
+        <div class="screen-scroll">
+          <div class="ss">
+
+            <div class="ss-crumb">
+              <div class="ss-crumb-l">
+                <span class="ss-eyebrow">Seller workspace</span>
+                <h4>avi test</h4>
+                <p class="ss-crumb-sub">4 slots · 1 done · 45 min planned</p>
+              </div>
+              <div class="ss-tabs"><span class="on">Lineup</span><span>Settings</span></div>
+            </div>
+
+            <div class="ros-head">
+              <div class="ros-clock">
+                <span class="k">Elapsed</span>
+                <span class="big">18:24</span>
+                <span class="sep">/</span>
+                <span class="tgt">45:00</span>
+              </div>
+              <span class="ros-pace behind">▲ 3 min behind plan</span>
+              <button class="btn btn-secondary" type="button">Add from reserved</button>
+            </div>
+
+            <div class="spine">
+
+              <div class="slot done">
+                <span class="grip">⠿</span>
+                <div class="slot-time"><span class="mins">6</span><span class="k">min</span></div>
+                <div class="slot-main">
+                  <div class="slot-line">
+                    <span class="pid-thumb" style="width:2rem;height:2rem;font-size:.6rem">VD</span>
+                    <b style="font-size:.85rem">Vintage Denim Jacket</b>
+                    <span class="chip chip-queued">Done · sold 2</span>
+                  </div>
+                </div>
+                <div class="slot-side"><span class="meter-txt">$145.00</span></div>
+              </div>
+
+              <div class="slot now">
+                <span class="grip">⠿</span>
+                <div class="slot-time"><span class="mins over">12</span><span class="k">of 9 min</span></div>
+                <div class="slot-main">
+                  <div class="slot-line">
+                    <span class="pid-thumb" style="width:2rem;height:2rem;font-size:.6rem">HK</span>
+                    <b style="font-size:.92rem">Harbor Kettle · Sage</b>
+                    <span class="chip chip-live"><i class="dot-live"></i> On stage</span>
+                    <span class="chip chip-auction">Auction $92 · 0:41</span>
+                  </div>
+
+                  <div class="notes">
+                    <span class="k">Talking points</span>
+                    Cast-iron handle, holds 1.7L. Mention the Sand colourway is next so people stay.
+                  </div>
+
+                  <div class="drawer">
+                    <div class="drawer-tabs"><span class="on">Price</span><span>Stock</span><span>Auction</span><span>Offer</span></div>
+                    <div class="md-control">
+                      <div class="md-row">
+                        <div class="md-stepper">
+                          <button type="button" aria-label="Decrease markdown">−</button>
+                          <span class="val">10%</span>
+                          <button type="button" aria-label="Increase markdown">+</button>
+                        </div>
+                        <div class="md-preview"><span class="md-was">$78.00</span><span class="md-now">$70.20</span></div>
+                        <button class="btn btn-primary" type="button" style="margin-left:auto">Apply markdown</button>
+                      </div>
+                      <div class="md-gauge">
+                        <div class="md-track">
+                          <span class="md-fill" style="width:33%"></span>
+                          <span class="md-limit" style="left:100%"></span>
+                        </div>
+                        <div class="md-legend"><span>0%</span><span>Floor $54.60 · max <b>30%</b></span></div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                <div class="slot-side">
+                  <div class="meter">
+                    <div class="meter-bar"><i style="width:62%"></i></div>
+                    <span class="meter-txt"><b>5</b> of 8</span>
+                  </div>
+                </div>
+              </div>
+
+              <div class="slot">
+                <span class="grip">⠿</span>
+                <div class="slot-time"><span class="mins">10</span><span class="k">min</span></div>
+                <div class="slot-main">
+                  <div class="slot-line">
+                    <span class="pid-thumb" style="width:2rem;height:2rem;font-size:.6rem">CA</span>
+                    <b style="font-size:.85rem">Cloud ANC Headphones</b>
+                    <span class="chip chip-sched">Up next</span>
+                  </div>
+                  <div class="notes" style="border-left-color:#EBDFCC;background:#FDF8F0">
+                    <span class="k" style="color:#77685A">Talking points</span>
+                    Lead with the 40-hour battery. Do not undercut the retail floor.
+                  </div>
+                </div>
+                <div class="slot-side">
+                  <button class="btn btn-primary" type="button">Push to stage</button>
+                </div>
+              </div>
+
+              <div class="slot">
+                <span class="grip">⠿</span>
+                <div class="slot-time"><span class="mins">8</span><span class="k">min</span></div>
+                <div class="slot-main">
+                  <div class="slot-line">
+                    <span class="pid-thumb" style="width:2rem;height:2rem;font-size:.6rem">HK</span>
+                    <b style="font-size:.85rem">Harbor Kettle · Sand</b>
+                    <span class="chip chip-low">3 of 10 left</span>
+                  </div>
+                </div>
+                <div class="slot-side">
+                  <button class="btn btn-secondary" type="button">Push</button>
+                  <button class="btn btn-icon" type="button" aria-label="Expand slot controls">⌄</button>
+                </div>
+              </div>
+
+            </div>
+
+            <div class="tray">
+              <div class="tray-head">
+                <span class="t">Reserved · not in the show yet</span>
+                <span class="meter-txt">drag into the timeline</span>
+              </div>
+              <div class="tray-items">
+                <span class="tray-chip"><span class="pid-thumb" style="width:1.6rem;height:1.6rem;font-size:.55rem">ES</span><b>Enamel Saucepan</b><small>$62.00 · 6</small></span>
+                <span class="tray-chip"><span class="pid-thumb" style="width:1.6rem;height:1.6rem;font-size:.55rem">LT</span><b>Linen Tea Towel</b><small>$18.00 · 24</small></span>
+              </div>
+            </div>
+
+          </div>
+        </div>
+      </div>
+
+      <div class="detail-note">
+        <b>What the clock buys you</b>
+        <p>
+          "3 min behind plan" is the single most useful number a live seller can be told, and the data to compute it —
+          planned seconds per entry — is already stored by the run-of-show planner. Today nothing displays it during the show.
+        </p>
+      </div>
+
+      <div class="trade">
+        <div class="trade-col fixes">
+          <h4>Removes</h4>
+          <ul class="numbered">
+            <li><span class="fixnum">1</span>One column of slots; no horizontal pressure at all.</li>
+            <li><span class="fixnum">2</span>Controls collapse into the slot you expanded.</li>
+            <li><span class="fixnum">3</span>Push to stage is the only red button.</li>
+            <li><span class="fixnum">4</span>Full-size targets throughout.</li>
+            <li><span class="fixnum">5</span>Offer tab opens the buyer picker.</li>
+            <li><span class="fixnum">6</span>Guarded markdown with floor and preview.</li>
+            <li><span class="fixnum">7</span>Sequence, timing and pace become the spine.</li>
+            <li><span class="fixnum">8</span>Banner replaced by live guardrail feedback.</li>
+          </ul>
+        </div>
+        <div class="trade-col costs">
+          <h4>Costs</h4>
+          <ul>
+            <li><b>The largest change by far</b> — it absorbs <code style="font-family:ui-monospace,Menlo,monospace;font-size:.8rem">RunOfShowPlannerPanel</code> and needs its save path, not just a new grid.</li>
+            <li>Tallest rows of the three; a long lineup is a long scroll.</li>
+            <li>Sellers who <b>don't plan timings</b> pay for a column they leave empty.</li>
+            <li>Drag reorder needs a keyboard equivalent to stay accessible.</li>
+          </ul>
+        </div>
+        <div class="trade-col fit">
+          <h4>Best when</h4>
+          <ul>
+            <li>Shows are <b>rehearsed</b> and the plan is real, not decorative.</li>
+            <li>You want <b>one destination</b> for prep and for going live.</li>
+            <li>Pacing a show is a problem sellers actually report.</li>
+          </ul>
+        </div>
+      </div>
+    </article>
+  </section>
+
+  <!-- ══════════════ RECOMMENDATION ══════════════ -->
+  <section class="reco">
+    <h2>If you want my read</h2>
+    <p>
+      <strong>A, then C.</strong> Stage Deck clears seven of the eight faults for the least structural risk and needs
+      no new data — it is a rewrite of one component. Run of Show is the better product and clears all eight, but it
+      absorbs a second panel and its save path, so it is a plan rather than a change. Console is the right answer only
+      if long lineups and repeat operators are the real workload; it leaves the sequence problem entirely alone.
+    </p>
+    <p>Three things are worth building whichever direction you pick, because they are fixes rather than choices:</p>
+    <ol>
+      <li><b>The guarded markdown control</b> — resulting price before commit, floor and max drawn from the policy that already exists.</li>
+      <li><b>A buyer picker</b> in place of the free-text buyer ID field.</li>
+      <li><b>One primary action per item</b>, so Push never again looks like Stock.</li>
+    </ol>
+  </section>
+
+  <p class="footnote">
+    Screens use the shipped Ticket theme tokens verbatim — <code>#FFF8EF</code> ground, <code>#D62B1F</code> brand red,
+    <code>#FFC400</code> taxi yellow, Inter — so nothing here proposes a re-skin. Products, prices and the buyer
+    handle are drawn from real data on the live event. Nothing on this page is wired to the API.
+  </p>
+
+</div>
+
+<script>
+(function () {
+  var buttons = document.querySelectorAll('.switcher button');
+  buttons.forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      var want = btn.getAttribute('data-dir');
+      buttons.forEach(function (b) {
+        b.setAttribute('aria-pressed', String(b === btn));
+      });
+      ['a', 'b', 'c'].forEach(function (id) {
+        var panel = document.getElementById('dir-' + id);
+        if (panel) panel.hidden = (id !== want);
+      });
+    });
+  });
+})();
+</script>
