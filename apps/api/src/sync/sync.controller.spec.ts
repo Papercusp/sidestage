@@ -1,4 +1,3 @@
-import { Module } from '@nestjs/common';
 import { Global, Module } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import { firstValueFrom, filter, take } from 'rxjs';
