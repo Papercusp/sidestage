@@ -748,6 +748,20 @@ CREATE TABLE IF NOT EXISTS policy_idempotency (
   PRIMARY KEY (seller_id, route, key)
 );
 
+-- Retention (P-006 / WI-39262). Replay protection is a WINDOW, not a permanent
+-- record: without a sweep this table grows one jsonb row per unique key forever.
+-- PgPolicyStore.idempotencyPut sweeps its own (seller_id, route) partition on
+-- every write via the primary key, which needs no extra index; this one serves
+-- the unpartitioned PolicyStore.pruneIdempotency(olderThan) sweep, the entry
+-- point for an operator or a future scheduled job.
+--
+-- Deliberately NOT mirrored for policy_audit_entry: auto-expiring immutable
+-- audit evidence would destroy the durability P-006 exists to create. Also not
+-- mirrored for policy_outbox_event, which cannot carry a correct retention
+-- predicate until something actually drains it (WI-39729).
+CREATE INDEX IF NOT EXISTS policy_idempotency_created_idx
+  ON policy_idempotency (created_at);
+
 -- Policy-audit integrity (P-006 / WI-39262, scoped by D-009 to the policy side).
 --
 -- policy_audit_entry was created with none of the integrity its guarded-action
