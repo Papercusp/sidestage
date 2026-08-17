@@ -310,6 +310,23 @@ auto_rollback_failed_release() {
 say "Build + up on prod (SIDESTAGE_SHA=${SHA:0:7}, previous=${PREV_SHA:0:7})"
 "${SSH[@]}" "cd $PROD_DIR && SIDESTAGE_SHA=$SHA $COMPOSE build --pull api web && SIDESTAGE_SHA=$SHA $COMPOSE up -d --remove-orphans"
 
+# Zero replication is provisioned + verified HERE, after `up -d` and before the
+# health gate -- deliberately NOT beside the schema apply above. wal_level comes
+# from the postgres `command:` flags, and a compose `command:` change does nothing
+# to an ALREADY-CREATED container until it is recreated, so on the deploy that
+# first introduces those flags the pre-`up` server still reports wal_level=replica
+# and a check placed earlier would abort the very deploy that fixes it. The tables
+# the publication names were created by the db-apply step above, so they exist by
+# now. Until 2026-08-17 nothing in this pipeline applied db/zero-publication.sql at
+# all (db-apply.sh is schema.sql only, and the initdb.d mount runs only on an empty
+# volume), so production's publication existed solely because an agent applied it
+# by hand during the cutover -- see WI-39712.
+say "Provisioning + verifying zero logical replication"
+if ! "${SSH[@]}" "cd $PROD_DIR && SIDESTAGE_COMPOSE_FILE=docker-compose.prod.yml SIDESTAGE_COMPOSE_ENV_FILE=.env.production bash scripts/zero-replication-apply.sh"; then
+  echo "ERROR: zero replication provisioning/verification failed" >&2
+  auto_rollback_failed_release "zero replication check" 3
+fi
+
 # The sha is recorded ONLY after the health check passes -- see below. Writing
 # it before the check (the pre-2026-08-14 order) left prod asserting a sha it
 # had never verified whenever a deploy came up unhealthy.
