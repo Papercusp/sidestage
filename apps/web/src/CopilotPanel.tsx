@@ -342,9 +342,16 @@ export function CopilotPanel({
     event.preventDefault();
     const next = message.trim();
     if (!next || busyId) return;
+    const requiredProperties = parseRequiredProperties(requiredPropertiesInput);
     await run('create', async () => {
-      await createTurn({ eventId, message: next, actorId });
+      await createTurn({
+        eventId,
+        message: next,
+        actorId,
+        ...(requiredProperties.length ? { requiredProperties } : {}),
+      });
       setMessage('');
+      setRequiredPropertiesInput('');
     });
   }
 
@@ -367,8 +374,22 @@ export function CopilotPanel({
           <label htmlFor="copilot-message">Research a buyer question</label>
           <div className="copilot-input-row">
             <input id="copilot-message" value={message} onChange={(event) => setMessage(event.target.value)} placeholder="Ask using live event facts" />
+          </div>
+          <label htmlFor="copilot-required-properties">Catalog properties the answer must cover</label>
+          <div className="copilot-input-row">
+            <input
+              id="copilot-required-properties"
+              value={requiredPropertiesInput}
+              onChange={(event) => setRequiredPropertiesInput(event.target.value)}
+              placeholder="battery-life, dishwasher-safe"
+              aria-describedby="copilot-required-properties-hint"
+            />
             <button className="button primary" type="submit" disabled={Boolean(busyId) || !message.trim()}>{busyId === 'create' ? 'Grounding…' : 'Prepare'}</button>
           </div>
+          <p className="copilot-hint" id="copilot-required-properties-hint">
+            Optional, comma separated. A property the catalog cannot answer runs a labelled research
+            round; an incomplete round blocks the draft instead of sending it.
+          </p>
         </form>
       </div>
 
