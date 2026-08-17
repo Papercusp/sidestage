@@ -39,6 +39,22 @@ export interface StageStatusPanelProps {
   isSessionActive: boolean;
   onStartEvent: () => void;
   onEndEvent: () => void;
+  /**
+   * Set when the lifecycle transition that "End event" attempts did not land —
+   * the camera has stopped while the event is still `live` in the directory,
+   * pinned to the top of the What's-On rail with nobody on camera (WI-39737).
+   *
+   * OPTIONAL, unlike its `publishWarning` twin. The start-side prop is required
+   * because a caller that cannot say what the directory holds must not compile;
+   * here the honest default is "no failure to report", and every existing caller
+   * — including `SellerMobileStudio` and the panel's own test fixtures — is
+   * already correct under it. Requiring it would break peer-owned call sites to
+   * express nothing this default does not.
+   */
+  endWarning?: string | null;
+  /** Retry the end-event transition offered beside that warning. */
+  onEndRetry?: () => void;
+  ending?: boolean;
   /** Live EventChat content kept mounted inside the shared video engagement surface. */
   chat: ReactNode;
   /** Long-lived transcript runtime rendered as captions over the camera surface. */
@@ -68,6 +84,9 @@ export function StageStatusPanel({
   isSessionActive,
   onStartEvent,
   onEndEvent,
+  endWarning = null,
+  onEndRetry,
+  ending = false,
   chat,
   transcript,
 }: StageStatusPanelProps) {
@@ -124,14 +143,64 @@ export function StageStatusPanel({
           it arrives after the seller has already started, and the one-click
           retry sits inside it so the fix never requires leaving the console. */}
       {publishWarning ? (
-        <div className="stage-publish-warning" role="alert">
-          <p>{publishWarning}</p>
-          <button className="button secondary" type="button" onClick={onPublishEvent} disabled={publishing}>
-            {publishing ? 'Publishing…' : 'Publish to buyers'}
-          </button>
-        </div>
+        <StageLifecycleWarning
+          message={publishWarning}
+          onRetry={onPublishEvent}
+          pending={publishing}
+          idleLabel="Publish to buyers"
+          pendingLabel="Publishing…"
+        />
+      ) : null}
+      {/* The loud half of the WI-39737 fix, and the mirror of the block above.
+          "End event" now closes the event lifecycle as well as the camera, so
+          this renders only when that close FAILED — the state in which the
+          seller has walked away from a stopped camera while buyers are still
+          being shown the event at the top of the rail. Same `role="alert"` and
+          same one-click retry, because it is the same class of failure read
+          from the other end. */}
+      {endWarning && onEndRetry ? (
+        <StageLifecycleWarning
+          message={endWarning}
+          onRetry={onEndRetry}
+          pending={ending}
+          idleLabel="End it for buyers"
+          pendingLabel="Ending…"
+        />
       ) : null}
     </section>
+  );
+}
+
+/**
+ * One alert-with-retry, shared by the publish-on-start and end-on-stop
+ * failures.
+ *
+ * Extracted rather than duplicated because the two are the same UI answering
+ * the same question — "the room and the directory disagree, here is the one
+ * click that reconciles them" — and a second hand-copied block is how their
+ * `role="alert"` and disabled-while-pending behavior would drift apart. It
+ * keeps the `stage-publish-warning` class so the existing styling covers both.
+ */
+function StageLifecycleWarning({
+  message,
+  onRetry,
+  pending,
+  idleLabel,
+  pendingLabel,
+}: {
+  message: string;
+  onRetry: () => void;
+  pending: boolean;
+  idleLabel: string;
+  pendingLabel: string;
+}) {
+  return (
+    <div className="stage-publish-warning" role="alert">
+      <p>{message}</p>
+      <button className="button secondary" type="button" onClick={onRetry} disabled={pending}>
+        {pending ? pendingLabel : idleLabel}
+      </button>
+    </div>
   );
 }
 

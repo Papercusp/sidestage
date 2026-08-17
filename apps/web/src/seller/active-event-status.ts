@@ -176,3 +176,29 @@ export function publishOnStartWarning(error: unknown): string {
   const detail = error instanceof Error ? error.message : String(error);
   return `Could not publish this event to buyers, so it is not in What's on yet: ${detail}`;
 }
+
+/**
+ * The seller-facing warning for an end-on-stop that did NOT succeed (WI-39737).
+ *
+ * The exact mirror of `publishOnStartWarning`, and it inverts every clause for
+ * the same reason that one exists: the consequence the seller must act on is
+ * never the HTTP status, it is what buyers are being shown right now. Here the
+ * camera HAS stopped and the transition has not, so the event is still `live`
+ * in the directory — and because the What's-On rail sorts live events first, a
+ * dead room is pinned at the TOP of it. That is worse than an unpublished room,
+ * so this warning is more urgent than its start-side twin, not less.
+ *
+ * A 409 carries the SERVER'S refusal verbatim (D-002), same as the start side.
+ */
+export function endOnStopWarning(error: unknown): string {
+  if (error instanceof EventApiError) {
+    if (error.status === 404) {
+      return "Your camera stopped, but this room has no event in your directory to close, so nothing is pinned to What's on. If buyers can still see this event, end it from Event Manager.";
+    }
+    if (error.status === 409) {
+      return `${error.message} Your camera has stopped, so buyers are still being shown this event with nobody on camera.`;
+    }
+  }
+  const detail = error instanceof Error ? error.message : String(error);
+  return `Your camera stopped, but this event is still showing to buyers at the top of What's on with nobody on camera: ${detail}`;
+}
