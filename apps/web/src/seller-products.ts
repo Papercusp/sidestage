@@ -48,6 +48,9 @@ export function variantToTranscriptOption(variant: CatalogVariant): TranscriptPr
   ].filter((alias, index, all) => alias && all.indexOf(alias) === index);
   return {
     id: variant.id,
+    // Sibling colourways share a title and therefore one matching term. Carry
+    // the group through so the focus detector counts products, not rows.
+    groupKey: variant.groupId ?? variant.id,
     label: variant.title,
     price: `$${(variant.priceCents / 100).toFixed(2)}`,
     aliases,

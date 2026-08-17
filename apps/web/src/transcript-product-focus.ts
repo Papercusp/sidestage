@@ -1,5 +1,16 @@
 export interface TranscriptProductOption {
   id: string;
+  /**
+   * The product this row is a VARIANT of — `variant.groupId ?? variant.id`, the
+   * same coalesce the catalog itself uses.
+   *
+   * Four colourways of one lamp share a title, so they produce one matching
+   * term under four different `id`s. Counting rows instead of products made
+   * every multi-variant product read as "multiple products" and killed the
+   * suggestion outright. Ambiguity is a question about PRODUCTS; `id` cannot
+   * answer it. Omitted ⇒ the row is its own group.
+   */
+  groupKey?: string;
   label: string;
   price?: string;
   aliases?: readonly string[];
@@ -8,6 +19,11 @@ export interface TranscriptProductOption {
   description?: string;
   color?: string;
   sku?: string;
+}
+
+/** The product a row belongs to. A row with no group is its own product. */
+export function productGroupKey(product: TranscriptProductOption): string {
+  return product.groupKey ?? product.id;
 }
 
 export interface TranscriptFocusSegment {
@@ -44,6 +60,14 @@ export type TranscriptFocusDecision =
       evidenceSegmentIds: string[];
       reason: 'explicit-name' | 'explicit-transition' | 'repeated-focus';
       needsSemantic: false;
+      /**
+       * Sibling variants of the SAME suggested product that matched equally
+       * well — present only when the seller named a product that ships in more
+       * than one variant, so the surface can offer the colourway rather than
+       * silently staging one the seller never said. `product` still carries the
+       * best single candidate, so a consumer that ignores this keeps working.
+       */
+      variantChoices?: readonly TranscriptProductOption[];
     }
   | {
       kind: 'none' | 'ambiguous';
@@ -97,6 +121,11 @@ const COMPARISON_CUES = [
 export function normalizeTranscriptFocusText(value: string): string {
   return value
     .toLocaleLowerCase()
+    // Elide apostrophes rather than letting the punctuation rule split on them.
+    // Splitting turned "let's" into "let s", which no cue spells, so every
+    // `let's ...` transition — the ordinary way a seller says it — matched
+    // nothing. Both the straight and typographic forms appear in real captions.
+    .replace(/['‘’]/g, '')
     .replace(/[^a-z0-9]+/g, ' ')
     .trim()
     .replace(/\s+/g, ' ');
@@ -204,6 +233,23 @@ function bestMention(mentions: readonly Mention[]): Mention | null {
   ))[0] ?? null;
 }
 
+/**
+ * The distinct rows behind a suggestion, in the order they were matched.
+ *
+ * Returned only when there is more than one: a single-variant product has no
+ * colourway question to answer, and emitting a one-element list would invite
+ * a picker where there is nothing to pick.
+ */
+function variantChoicesFor(
+  mentions: readonly Mention[],
+): { variantChoices?: readonly TranscriptProductOption[] } {
+  const byId = new Map<string, TranscriptProductOption>();
+  for (const mention of mentions) {
+    if (!byId.has(mention.product.id)) byId.set(mention.product.id, mention.product);
+  }
+  return byId.size > 1 ? { variantChoices: [...byId.values()] } : {};
+}
+
 export function findTranscriptProductMention(
   text: string,
   products: readonly TranscriptProductOption[],
@@ -225,9 +271,18 @@ export function detectTranscriptProductFocus(input: {
   const hasTransition = containsPhrase(normalizedWindow, TRANSITION_CUES);
   const hasComparison = containsPhrase(normalizedWindow, COMPARISON_CUES);
   const mentions = mentionsFor(segments, input.products);
-  const activeMentions = mentions.filter((mention) => mention.product.id === input.activeProductId);
-  const alternativeMentions = mentions.filter((mention) => mention.product.id !== input.activeProductId);
-  const alternativeIds = [...new Set(alternativeMentions.map((mention) => mention.product.id))];
+  // Everything below counts PRODUCTS, not catalog rows. Sibling variants share a
+  // label, so a row count treats one product as several and reads it as
+  // ambiguous; it also makes "the arc table lamp" look like a switch away from
+  // the arc table lamp already on stage, when only the colourway differs.
+  const activeProduct = input.products.find((product) => product.id === input.activeProductId) ?? null;
+  const activeKey = activeProduct ? productGroupKey(activeProduct) : null;
+  const isActiveProduct = (mention: Mention): boolean => (
+    activeKey !== null && productGroupKey(mention.product) === activeKey
+  );
+  const activeMentions = mentions.filter(isActiveProduct);
+  const alternativeMentions = mentions.filter((mention) => !isActiveProduct(mention));
+  const alternativeIds = [...new Set(alternativeMentions.map((mention) => productGroupKey(mention.product)))];
   const evidenceSegmentIds = [...new Set(mentions.map((mention) => mention.segmentId))];
 
   if (alternativeIds.length === 0) {
@@ -250,7 +305,7 @@ export function detectTranscriptProductFocus(input: {
   }
 
   const transitionMentions = alternativeMentions.filter((mention) => mention.afterTransition);
-  const transitionIds = [...new Set(transitionMentions.map((mention) => mention.product.id))];
+  const transitionIds = [...new Set(transitionMentions.map((mention) => productGroupKey(mention.product)))];
   if (transitionIds.length === 1) {
     const mention = bestMention(transitionMentions)!;
     return {
@@ -260,6 +315,7 @@ export function detectTranscriptProductFocus(input: {
       evidenceSegmentIds: [...new Set(transitionMentions.map((candidate) => candidate.segmentId))],
       reason: 'explicit-transition',
       needsSemantic: false,
+      ...variantChoicesFor(transitionMentions),
     };
   }
 
@@ -273,7 +329,9 @@ export function detectTranscriptProductFocus(input: {
     };
   }
 
-  const candidateMentions = alternativeMentions.filter((mention) => mention.product.id === alternativeIds[0]);
+  const candidateMentions = alternativeMentions.filter(
+    (mention) => productGroupKey(mention.product) === alternativeIds[0],
+  );
   const mention = bestMention(candidateMentions)!;
   if (activeMentions.length > 0 && (hasComparison || !hasTransition)) {
     return {
@@ -294,6 +352,7 @@ export function detectTranscriptProductFocus(input: {
       evidenceSegmentIds: [...new Set(candidateMentions.map((candidate) => candidate.segmentId))],
       reason: mentionedAcross > 1 ? 'repeated-focus' : 'explicit-name',
       needsSemantic: false,
+      ...variantChoicesFor(candidateMentions),
     };
   }
 

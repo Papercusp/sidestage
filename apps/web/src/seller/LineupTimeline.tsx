@@ -238,7 +238,7 @@ export function LineupTimelineView({
           <div className="lineup-timeline-clock" aria-live="polite">
             <span className="lineup-timeline-elapsed">{formatClock(view.totalElapsedSec)}</span>
             <span className="lineup-timeline-pace">
-              {formatPace(view.paceDeltaSec, view.remainingCount)}
+              {formatPace(view.paceDeltaSec, view.remainingCount, view.plannedTotalSec)}
             </span>
           </div>
         ) : (

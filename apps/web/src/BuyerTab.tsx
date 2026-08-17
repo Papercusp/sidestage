@@ -21,6 +21,12 @@ import { AuctionPanel } from './AuctionPanel';
 import { BuyerProductRail } from './BuyerProductRail';
 import { BuyerRoomContext, type BuyerRoomSeller } from './BuyerRoomContext';
 import { connectViewer, createEventRoom, type ViewerSession } from './streaming';
+import {
+  isPublisherNotReady,
+  publisherRetryDelayMs,
+  PUBLISHER_ABSENT_MESSAGE,
+  WAITING_FOR_PUBLISHER_MESSAGE,
+} from './buyer-stream-recovery';
 import { EventThumbnail } from './event-creation/EventThumbnail';
 import { isRenderableThumbnailUrl } from './event-creation/thumbnail';
 import type { GuideEvent } from './events/api';
@@ -160,6 +166,8 @@ export function BuyerTab({
   const thumbnailUrl = thumbnailUrlProp ?? activeGuideEvent?.thumbnailUrl;
   const room = useMemo(() => createEventRoom(eventId, origin), [eventId, origin]);
   const [holdNotice, setHoldNotice] = useState<string | null>(null);
+  /** True while the room is live but no seller is publishing to it yet. */
+  const [waitingForPublisher, setWaitingForPublisher] = useState(false);
   const [holdOverrides, setHoldOverrides] = useState<Record<string, number>>({});
   const [showAllProducts, setShowAllProducts] = useState(false);
   const stream = useStreamSession<ViewerSession>();
@@ -167,6 +175,7 @@ export function BuyerTab({
     streamState,
     setStreamState,
     streamError,
+    setStreamError,
     session,
     videoRef,
     start: startStream,
@@ -207,13 +216,88 @@ export function BuyerTab({
       },
     ), [mediaBaseUrl, room, setStreamState, startStream, videoRef]);
 
-  useEffect(() => {
-    if (activeGuideEvent?.status !== 'live') return stopStream;
-    void connectStream();
-    return stopStream;
-  }, [activeGuideEvent?.status, connectStream, stopStream]);
+  /**
+   * Staying attached while the seller's camera arrives (WI-39733).
+   *
+   * The event goes `live` BEFORE the WHIP publisher exists — `Start event`
+   * publishes the lifecycle first and the camera permission grant sits between
+   * the two — and MediaMTX answers WHEP with 404 for a path with no publisher.
+   * A single auto-connect therefore lands in that gap for every buyer already
+   * in the room, and because this effect does not re-run while the event stays
+   * `live`, the publisher arriving seconds later changed nothing: the pane
+   * stayed black until the buyer reloaded. So the viewer re-offers on a bounded
+   * schedule instead of latching, and only for the not-yet 404 — every other
+   * failure still surfaces immediately with its own message.
+   *
+   * The bound is not caution, it is a live defect: `End event` leaves the row
+   * `live` forever (WI-39737), so dead rooms are reachable and an unbounded
+   * poll would run in them for as long as the tab stayed open.
+   */
+  const publisherWaitRef = useRef<{
+    generation: number;
+    timer: ReturnType<typeof globalThis.setTimeout> | undefined;
+  }>({ generation: 0, timer: undefined });
 
-  const disconnectStream = stopStream;
+  const cancelPublisherWait = useCallback(() => {
+    publisherWaitRef.current.generation += 1;
+    if (publisherWaitRef.current.timer !== undefined) {
+      globalThis.clearTimeout(publisherWaitRef.current.timer);
+      publisherWaitRef.current.timer = undefined;
+    }
+    setWaitingForPublisher(false);
+  }, []);
+
+  const connectStreamUntilPublisher = useCallback(async () => {
+    cancelPublisherWait();
+    const { generation } = publisherWaitRef.current;
+    const superseded = () => publisherWaitRef.current.generation !== generation;
+
+    const attempt = async (failures: number): Promise<void> => {
+      if (superseded()) return;
+      const outcome = await connectStream();
+      if (superseded()) return;
+
+      if (outcome.status !== 'failed' || !isPublisherNotReady(outcome.error)) {
+        setWaitingForPublisher(false);
+        return;
+      }
+
+      const delay = publisherRetryDelayMs(failures);
+      if (delay === null) {
+        // The wait is spent. `start` already left the viewer in its error
+        // state; only the message changes, from a transport status the buyer
+        // cannot act on to the one fact they can — nobody is on camera.
+        setWaitingForPublisher(false);
+        setStreamError(PUBLISHER_ABSENT_MESSAGE);
+        return;
+      }
+
+      setWaitingForPublisher(true);
+      setStreamState('connecting');
+      publisherWaitRef.current.timer = globalThis.setTimeout(() => {
+        void attempt(failures + 1);
+      }, delay);
+    };
+
+    await attempt(0);
+  }, [cancelPublisherWait, connectStream, setStreamError, setStreamState]);
+
+  useEffect(() => {
+    if (activeGuideEvent?.status !== 'live') {
+      cancelPublisherWait();
+      return stopStream;
+    }
+    void connectStreamUntilPublisher();
+    return () => {
+      cancelPublisherWait();
+      stopStream();
+    };
+  }, [activeGuideEvent?.status, cancelPublisherWait, connectStreamUntilPublisher, stopStream]);
+
+  const disconnectStream = useCallback(() => {
+    cancelPublisherWait();
+    stopStream();
+  }, [cancelPublisherWait, stopStream]);
 
   /** A real reservation (P-103): the hold hits inventory and decrements availableQty. */
   const reserveProduct = async (product: BuyerProduct) => {
@@ -306,11 +390,17 @@ export function BuyerTab({
           />
           <div className="buyer-player-overlay">
             <span className="live-badge">{room.eventId}</span>
-            <p>{streamState === 'error' ? streamError : 'The seller stream appears here when the room is live.'}</p>
+            <p>
+              {waitingForPublisher
+                ? WAITING_FOR_PUBLISHER_MESSAGE
+                : streamState === 'error'
+                  ? streamError
+                  : 'The seller stream appears here when the room is live.'}
+            </p>
             {session ? (
               <button className="button secondary" type="button" onClick={disconnectStream}>Disconnect</button>
             ) : streamState === 'error' ? (
-              <button className="button primary" type="button" onClick={() => void connectStream()}>
+              <button className="button primary" type="button" onClick={() => void connectStreamUntilPublisher()}>
                 Retry stream
               </button>
             ) : null}

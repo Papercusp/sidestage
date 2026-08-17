@@ -75,7 +75,7 @@ export function useStreamSession<T extends StreamSessionLike>() {
         } catch {
           // A superseded room is already detached; cleanup is best-effort.
         }
-        return;
+        return { status: 'superseded' };
       }
       connectingRef.current = false;
       sessionRef.current = next;
@@ -83,11 +83,13 @@ export function useStreamSession<T extends StreamSessionLike>() {
       setStreamState('live');
       const stream = options.attach?.(next) ?? null;
       if (videoRef.current && stream) videoRef.current.srcObject = stream;
+      return { status: 'connected' };
     } catch (error) {
-      if (connectionAttemptRef.current !== attempt) return;
+      if (connectionAttemptRef.current !== attempt) return { status: 'superseded' };
       connectingRef.current = false;
       setStreamState('error');
       setStreamError(error instanceof Error ? error.message : options.fallbackError);
+      return { status: 'failed', error };
     }
   }, []);
 

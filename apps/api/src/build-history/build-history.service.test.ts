@@ -10,10 +10,18 @@ describe('BuildHistoryService', () => {
 
     const history = loadBuildHistorySnapshot();
     const popupPlan = history.find(({ slug }) => slug === 'sidestage-history-plan-popup-2026-08-14');
+    // Acceptance-RUBRIC carrier plans (`template: rubric` frontmatter) are internal QA
+    // bookkeeping, not product history, and must never reach this public projection.
+    // They were originally excluded by the default `sidestage-` plan prefix; disabling that
+    // prefix (to admit real plans such as shared-cart-scout-drawer-libs) swept 21 of them in
+    // as a side effect, which is the defect EI-20475585438015488 tracks. This assertion is
+    // deliberately the INVERSE of what it once was.
     const acceptancePlan = history.find(({ slug }) => slug === 'acceptance-sidestage-demo-product-imagery-2026-08-14');
+    const rubricCarriers = history.filter(({ slug }) => /^acceptance-|-acceptance$/.test(slug));
 
-    expect(history.length).toBeGreaterThanOrEqual(56);
-    expect(acceptancePlan).toBeDefined();
+    expect(history.length).toBeGreaterThanOrEqual(45);
+    expect(acceptancePlan).toBeUndefined();
+    expect(rubricCarriers).toEqual([]);
     expect(popupPlan).toMatchObject({
       title: 'SideStage History tab and full Vditor plan popup',
       project: {

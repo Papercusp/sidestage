@@ -231,6 +231,9 @@ export function buildRunOfShowView(input: {
       )
     : null;
 
+  const budgeted = slots.filter((slot) => slot.plannedDurationSec !== null);
+  const plannedTotalSec = budgeted.reduce((sum, slot) => sum + (slot.plannedDurationSec ?? 0), 0);
+
   const remainingCount = slots.filter((slot) => slot.state === 'upcoming').length;
 
   const closedElapsedSec = Object.values(log.visitedSec).reduce((sum, seconds) => sum + seconds, 0);
@@ -251,6 +254,8 @@ export function buildRunOfShowView(input: {
     offPlanActive,
     nextUp,
     paceDeltaSec,
+    plannedTotalSec,
+    budgetedCount: budgeted.length,
     remainingCount,
     unplanned,
   };
@@ -272,10 +277,24 @@ export function formatClock(totalSec: number): string {
 /**
  * The aggregate pacing line (D-001: pacing over alarms). Within a minute of
  * plan reads as on pace; otherwise whole minutes, direction named.
+ *
+ * With no pace yet (nothing budgeted has been on stage — which is the whole of
+ * the pre-show, WI-39722) the line states the PLAN rather than denying it: a
+ * seller who has just typed minutes was being told "No time budgets yet" by the
+ * very screen they typed them into. That message is reserved for the case it
+ * actually describes — a show with no budgets anywhere.
  */
-export function formatPace(paceDeltaSec: number | null, remainingCount: number): string {
-  if (paceDeltaSec === null) return 'No time budgets yet';
+export function formatPace(
+  paceDeltaSec: number | null,
+  remainingCount: number,
+  plannedTotalSec = 0,
+): string {
   const tail = `${remainingCount} to go`;
+  if (paceDeltaSec === null) {
+    return plannedTotalSec > 0
+      ? `${formatClock(plannedTotalSec)} planned · ${tail}`
+      : 'No time budgets yet';
+  }
   if (Math.abs(paceDeltaSec) < 60) return `On pace · ${tail}`;
   const minutes = Math.round(Math.abs(paceDeltaSec) / 60);
   return paceDeltaSec > 0 ? `${minutes}m behind plan · ${tail}` : `${minutes}m ahead of plan · ${tail}`;
