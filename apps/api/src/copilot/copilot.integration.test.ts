@@ -308,7 +308,7 @@ describe('seller Copilot integration', () => {
 
       expect(retry).toEqual(first);
       expect(await runtime.actions.listAudit('event-live')).toHaveLength(1);
-      expect(runtime.actions.listOffersForBuyer('buyer-1')).toHaveLength(1);
+      expect(await runtime.actions.listOffersForBuyer('buyer-1')).toHaveLength(1);
       expect(approved).toMatchObject({
         status: 'executed',
         decision: { auditId: expect.any(String), sentMessageId: expect.any(String) },

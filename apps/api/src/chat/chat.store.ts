@@ -49,6 +49,23 @@ interface MemoryEvent {
   messages: ChatMessage[];
   transcript: TranscriptMoment[];
   presence: Map<string, ChatPresence>;
+  /**
+   * messageId -> the retained moderation record, mirroring the
+   * `chat_message.moderated_at / moderated_by / moderation_reason` columns.
+   *
+   * Moderation is a SOFT delete in Postgres: the row survives so the audit
+   * trail survives and so the (event_id, user_id, client_request_id) unique
+   * index keeps rejecting a replayed idempotency key. Keeping the record in a
+   * side map reproduces that exactly without leaking moderation state into the
+   * `ChatMessage` DTO, which PgChatStore's own row mapper never exposes either.
+   */
+  moderated: Map<string, ModerationRecord>;
+}
+
+interface ModerationRecord {
+  moderatedAt: string;
+  moderatedBy: string;
+  moderationReason: string;
 }
 
 export class InMemoryChatStore implements ChatStore {

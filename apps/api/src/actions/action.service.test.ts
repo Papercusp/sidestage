@@ -204,7 +204,7 @@ describe('GuardedActionService', () => {
 
     expect(retry).toEqual(first);
     expect(await actions.listAudit('event-1')).toHaveLength(1);
-    expect(actions.listOffersForBuyer('buyer-9')).toHaveLength(1);
+    expect(await actions.listOffersForBuyer('buyer-9')).toHaveLength(1);
     expect((await actions.listItems('event-1'))[0]?.availableQty).toBe(4);
   });
 
@@ -235,10 +235,10 @@ describe('GuardedActionService', () => {
 
     expect(result.offer).toMatchObject({ buyerId: 'buyer-9', quantity: 2, priceCents: 1_200, status: 'pending' });
     expect(result.offer?.createdAt).toBeDefined();
-    expect(actions.listOffersForBuyer('buyer-9')).toEqual([
+    expect(await actions.listOffersForBuyer('buyer-9')).toEqual([
       expect.objectContaining({ id: result.offer?.id, buyerId: 'buyer-9', createdAt: expect.any(String) }),
     ]);
-    expect(actions.listOffersForBuyer('buyer-other')).toEqual([]);
+    expect(await actions.listOffersForBuyer('buyer-other')).toEqual([]);
     expect(result.state.availableQty).toBe(3);
     const rollback = await actions.rollback(result.auditId, 'seller-1');
     expect(rollback.state.availableQty).toBe(5);

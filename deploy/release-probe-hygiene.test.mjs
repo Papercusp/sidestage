@@ -140,9 +140,14 @@ describe('production deploy wiring', () => {
   });
 
   it('auto-rolls back instead of recording a release with public probe residue', () => {
-    expect(deploySource).toMatch(
-      /if ! node "\$SCRIPT_DIR\/release-probe-hygiene\.mjs" --base-url "https:\/\/\$PUBLIC_HOSTNAME"/,
-    );
+    // The direct `node "$SCRIPT_DIR/..."` call became the run_release_probe
+    // helper when probes moved to the prod vantage (a14ce45). Both halves of
+    // the original guarantee are still asserted, just in two places: the call
+    // site runs the probe and rolls back on failure, and the helper is what
+    // now carries the public --base-url (so the probe cannot silently be
+    // pointed at localhost).
+    expect(deploySource).toMatch(/if ! run_release_probe release-probe-hygiene\.mjs "\$SHA"/);
+    expect(deploySource).toMatch(/\/probe\/\$1 --base-url https:\/\/\$PUBLIC_HOSTNAME/);
     expect(deploySource).toMatch(/auto_rollback_failed_release "release event hygiene" 7/);
   });
 });

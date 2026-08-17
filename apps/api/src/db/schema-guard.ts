@@ -85,6 +85,7 @@ export const REQUIRED_TABLES: readonly string[] = [
   'system_test_run',
   'system_test_suite',
   'system_test_transition',
+  'targeted_offer',
 ];
 
 /**
