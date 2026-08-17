@@ -22,12 +22,51 @@ export type EventStatus = 'draft' | 'scheduled' | 'live' | 'ended';
 /** The buyer-visible states, in the order the guide groups them. */
 export const BUYER_VISIBLE_STATUSES: readonly EventStatus[] = ['live', 'scheduled', 'ended'];
 
-/** Legacy acceptance identity that must never be mistaken for seller data. */
-export function isSyntheticSellerIdentity(
-  seller: { sellerId: string; sellerName: string },
-): boolean {
-  return seller.sellerId.trim().toLowerCase() === 'demo-seller'
-    || seller.sellerName.trim().toLowerCase() === 'sidestage seller';
+/**
+ * The retired placeholder DISPLAY name. `publishFromConfig` already refuses it
+ * at write time, so it can only ever match rows written before that guard —
+ * which is exactly why it stays a read-side filter too.
+ */
+export const RETIRED_PLACEHOLDER_SELLER_NAME = 'sidestage seller';
+
+/**
+ * Why the Channel Guide withholds an event that its status would otherwise
+ * make buyer-visible.
+ *
+ * A REASON rather than a boolean because withholding silently is the defect
+ * this type exists to prevent (WI-39723): every caller that hides a row can
+ * now say which rule hid it, and `listForSeller` reports it back to the seller
+ * who is looking straight at the event wondering where it went.
+ */
+export type GuideWithholdReason = 'retired-placeholder-seller-name';
+
+/**
+ * WI-39723: this deliberately does NOT filter on `sellerId === 'demo-seller'`,
+ * and must not be "restored" to.
+ *
+ * That clause looked like it fenced off legacy acceptance data. It did not.
+ * The only rows the schema ever seeds under that owner are inserted
+ * `status = 'draft'` (db/schema.sql, "Legacy event <id>"), and
+ * `listBuyerVisible()` already excludes drafts in SQL — so the owner clause
+ * guarded nothing the status filter did not already guard.
+ *
+ * What it DID do is hide real sellers. `readDemoIdentity(..., 'seller')`
+ * (apps/web/src/buyer-identity.ts) resolves every anonymous or minted Studio
+ * session's principal to the literal `demo-seller`, so the default Studio
+ * session is a demo-seller session. Its events were created (200), scheduled
+ * (200), taken live (200), listed in the seller's own directory as live — and
+ * silently dropped from the buyer guide, forever, with nothing anywhere saying
+ * so. Owner-reported as "events I take live never appear in the left rail".
+ *
+ * Identity is therefore no longer an ownership question here. Only the retired
+ * placeholder display name is withheld, and it announces itself when it is.
+ */
+export function guideWithholdReason(
+  seller: { sellerName: string },
+): GuideWithholdReason | null {
+  return seller.sellerName.trim().toLowerCase() === RETIRED_PLACEHOLDER_SELLER_NAME
+    ? 'retired-placeholder-seller-name'
+    : null;
 }
 
 export function isEventStatus(value: unknown): value is EventStatus {
@@ -666,7 +705,7 @@ export class EventService {
    */
   async listForGuide(): Promise<EventSummary[]> {
     const records = (await this.store.listBuyerVisible())
-      .filter((record) => !isSyntheticSellerIdentity(record));
+      .filter((record) => guideWithholdReason(record) === null);
     const summaries = await Promise.all(records.map(async (record) => ({
       ...record,
       // Only a live room can have anyone in it; reporting presence for an
@@ -682,10 +721,20 @@ export class EventService {
    * The seller's own event directory. Unlike the buyer guide this includes
    * drafts, never derives audience presence, and is scoped at the store read
    * so another seller's rows do not cross the API boundary.
+   *
+   * Each row carries `withheldFromGuide` (WI-39723). The seller's directory is
+   * the one surface that shows an event the buyer guide is hiding, side by side
+   * with the status that implies buyers can see it — so it is the surface that
+   * has to carry the reason. A seller reading "live" here while buyers see
+   * nothing, with no explanation available anywhere, is the actual reported
+   * defect; narrowing the filter fixed today's instance of it, and this makes
+   * the next one legible instead of invisible.
    */
-  async listForSeller(sellerId: string): Promise<EventRecord[]> {
+  async listForSeller(sellerId: string): Promise<SellerEventRecord[]> {
     const id = sellerId.trim();
     if (!id) return [];
-    return (await this.store.listBySeller(id)).sort(compareForSeller);
+    return (await this.store.listBySeller(id))
+      .sort(compareForSeller)
+      .map((record) => ({ ...record, withheldFromGuide: guideWithholdReason(record) }));
   }
 }
