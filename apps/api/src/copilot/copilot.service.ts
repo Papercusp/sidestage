@@ -322,17 +322,38 @@ export class CopilotProposalService {
     });
   }
 
+  /**
+   * Block a send when the evidence THIS reply rests on has moved — not when
+   * anything anywhere in the grounding context differs (plan D-010).
+   *
+   * The previous test was `groundingFingerprint(fresh) !== proposal.grounding-
+   * Fingerprint`, a hash over every event item, catalog product, transcript
+   * moment and the policy. On a live event some other product's stock moves
+   * constantly, so a reply about product A was blocked because product B sold
+   * a unit — and the block is destructive (status 'blocked', the seller must
+   * regenerate). It also could not say WHAT changed, while the acceptance
+   * clause for this seam explicitly requires seller-readable reasons.
+   *
+   * A reply citing NOTHING is blocked outright rather than allowed through.
+   * Under the old rule such a reply was blocked only incidentally, whenever
+   * unrelated context happened to drift; narrowing the comparison would
+   * otherwise have quietly turned "usually blocked" into "always sent".
+   */
   private async blockIfStale(proposal: CopilotProposal, fresh: GroundingContext): Promise<void> {
-    if (groundingFingerprint(fresh) === proposal.groundingFingerprint) return;
+    const reasons = proposal.citations.length === 0
+      ? ['This reply cites no verified source, so nothing backs up what it says.']
+      : citedEvidenceDrift(proposal.citations, proposal.context, fresh).map((drift) => drift.explanation);
+    if (reasons.length === 0) return;
+    const reason = reasons.join(' ');
     const blocked = await this.transition(proposal, {
       ...proposal,
       context: fresh,
       groundingFingerprint: groundingFingerprint(fresh),
       status: 'blocked',
-      error: 'Grounding changed after this reply was generated. Create a fresh proposal before sending.',
+      error: `${reason} Create a fresh proposal before sending.`,
     });
     await this.syncQuestionState(blocked);
-    throw new ConflictException('Grounding changed after this reply was generated; the stale proposal was blocked');
+    throw new ConflictException(reason);
   }
 
   private async transition(current: CopilotProposal, next: CopilotProposal): Promise<CopilotProposal> {
