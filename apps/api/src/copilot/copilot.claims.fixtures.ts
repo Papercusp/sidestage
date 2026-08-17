@@ -160,6 +160,26 @@ export interface ClaimAdversarialCase extends RehearsalCaseSpec {
   bound: GroundingContext;
   /** Facts as they stand when the reply would send. Same object when nothing moved. */
   atSend: GroundingContext;
+  /**
+   * The state BETWEEN the check and the send, for cases about the approve→send
+   * window.
+   *
+   * `CopilotService.approve` takes ONE freshness read, then runs the guardrail
+   * and the grounded-review judge — a model call — and only then hands the text
+   * to chat. Everything after that read is judged against a snapshot, so a
+   * fixture that carries only `bound` and `atSend` cannot say whether a reply
+   * was already wrong when the seller approved it or went wrong while the judge
+   * was running. Those need different fixes (re-draft vs re-check before send),
+   * so the shape has to tell them apart.
+   *
+   * The context and its expected verdict travel together deliberately: an
+   * approve-time context with no stated expectation would silently assert
+   * nothing.
+   */
+  approveWindow?: {
+    atApprove: GroundingContext;
+    expected: { supported: boolean; codes: readonly ClaimDefectCode[] };
+  };
   claims: ClaimSet;
   expected: {
     supported: boolean;
