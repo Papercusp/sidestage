@@ -16,8 +16,8 @@
  * Lives under apps/api/src so the root vitest `sidestage-node` project runs it in
  * the release gate; a test under libs/zero/** would not run there.
  */
-import { readFileSync } from 'node:fs';
-import { resolve } from 'node:path';
+import { readFileSync, readdirSync, statSync } from 'node:fs';
+import { join, relative, resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 import {
@@ -40,6 +40,91 @@ import {
 
 const REPO_ROOT = resolve(__dirname, '../../../..');
 const SCHEMA_SQL = readFileSync(resolve(REPO_ROOT, 'db/schema.sql'), 'utf8');
+const WEB_ROOT = resolve(REPO_ROOT, 'apps/web/src');
+
+function webSourceFiles(): string[] {
+  const output: string[] = [];
+  const visit = (directory: string) => {
+    for (const name of readdirSync(directory).sort()) {
+      const absolute = join(directory, name);
+      if (statSync(absolute).isDirectory()) visit(absolute);
+      else if (/\.tsx?$/.test(name) && !/\.(?:test|spec)\.tsx?$/.test(name)) output.push(absolute);
+    }
+  };
+  visit(WEB_ROOT);
+  return output;
+}
+
+/**
+ * Every `useSyncQuery({ ... })` invocation in one web source file, with the
+ * query-name string literals it can evaluate to.
+ *
+ * Brace-matched rather than regex-scanned on purpose: a bounded `[\s\S]{0,N}?`
+ * window silently walks PAST a call site whose `queryName` is a ternary and
+ * attributes the NEXT call site's literal to it, which is a false clean and a
+ * false accusation in one. Reading only within the invocation's own argument
+ * object cannot do that.
+ */
+function useSyncQueryCallSites(file: string): { at: string; names: string[] }[] {
+  const source = readFileSync(file, 'utf8');
+  const at = (index: number) => `${relative(REPO_ROOT, file).replaceAll('\\', '/')}:${source.slice(0, index).split('\n').length}`;
+  const sites: { at: string; names: string[] }[] = [];
+  const opener = /useSyncQuery(?:<[^(){}]*>)?\(\s*\{/g;
+  for (let match = opener.exec(source); match; match = opener.exec(source)) {
+    const open = match.index + match[0].length - 1;
+    let depth = 0;
+    let close = -1;
+    for (let i = open; i < source.length; i += 1) {
+      if (source[i] === '{') depth += 1;
+      else if (source[i] === '}') {
+        depth -= 1;
+        if (depth === 0) { close = i; break; }
+      }
+    }
+    if (close === -1) continue;
+    const args = source.slice(open, close);
+    const declaration = /queryName\s*:/.exec(args);
+    const names: string[] = [];
+    if (declaration) {
+      // The queryName expression: everything up to the next top-level comma.
+      let depths = 0;
+      let cut = args.length;
+      for (let i = declaration.index + declaration[0].length; i < args.length; i += 1) {
+        const character = args[i];
+        if ('{[('.includes(character)) depths += 1;
+        else if ('}])'.includes(character)) depths -= 1;
+        else if (character === ',' && depths === 0) { cut = i; break; }
+      }
+      const expression = args.slice(declaration.index + declaration[0].length, cut);
+      for (const literal of expression.matchAll(/'([^']+)'/g)) names.push(literal[1]);
+    }
+    sites.push({ at: at(match.index), names });
+    opener.lastIndex = close;
+  }
+  return sites;
+}
+
+/**
+ * Web call sites that name an UNSYNCED_QUERY_REASONS query and are NOT yet
+ * repaired — a ratchet, not a permission. Each one throws on the WEBSOCKETS
+ * transport; they are latent today only because a zero-cache auth failure
+ * demotes every prod client to polling before they render (WI-39763). Repairing
+ * that auth failure alone makes all of these user-visible at once, so this list
+ * is the fix-ordering hazard written down.
+ *
+ * Removing an entry is the definition of done for repairing one. Adding an entry
+ * is not a fix, and needs the same scrutiny as a new Zero registry exception.
+ */
+const KNOWN_UNSYNCED_CALL_SITES: readonly string[] = [
+  'apps/web/src/BuildHistoryTab.tsx:922 -> build.history',
+  'apps/web/src/BuyerTab.tsx:127 -> event.stats',
+  'apps/web/src/OrdersTab.tsx:492 -> orders.byBuyer',
+  'apps/web/src/SystemTestsTab.tsx:139 -> judge.latest',
+  'apps/web/src/TestTab.tsx:214 -> rehearsal.preflight',
+  'apps/web/src/TestTab.tsx:378 -> judge.latest',
+  'apps/web/src/catalog.ts:177 -> catalog.types',
+  'apps/web/src/seller/PricingHistoryPanel.tsx:58 -> event.pricingHistory',
+].sort();
 
 /**
  * Postgres tables the census classifies as `replicate` that this contract does
@@ -227,6 +312,44 @@ describe('Zero contract parity with the live sync surfaces', () => {
       unclassified,
       'web mutator call sites with no Zero disposition — the cutover would silently drop these writes',
     ).toEqual([]);
+  });
+
+  it('never lets a web call site name a query the Zero registry deliberately omits', () => {
+    // The blind spot that let WI-39763 reach production. Every assertion above
+    // compares NAME SETS — contract vs census vs registry — and each one passed
+    // while `EventChat.tsx` asked `useSyncQuery` for 'event.chat.stats' by name.
+    // An UNSYNCED_QUERY_REASONS entry has no Zero registry leaf by design, so on
+    // the WEBSOCKETS transport `resolveQuery` throws
+    // `Query '<name>' is not a function`; the polling/SSE adapters resolve the
+    // same name over REST and never consult the registry, which is exactly why
+    // this class of break stays invisible until a client is really on WebSockets.
+    const offenders: string[] = [];
+    const unreadable: string[] = [];
+    for (const file of webSourceFiles()) {
+      for (const site of useSyncQueryCallSites(file)) {
+        // A queryName built at runtime (`scope === 'seller' ? a : b`) is checked
+        // on EVERY literal it can evaluate to — one safe branch does not excuse
+        // the other. A call site yielding no literal at all is not "clean", it
+        // is unreadable, and it fails below rather than passing silently.
+        if (site.names.length === 0) unreadable.push(site.at);
+        for (const name of site.names) {
+          if (name in UNSYNCED_QUERY_REASONS) offenders.push(`${site.at} -> ${name}`);
+        }
+      }
+    }
+
+    // Fail closed on the detector itself: a call site whose queryName this cannot
+    // read is a call site this test does not guard, and an under-matching
+    // detector reports "clean" for the exact bug it exists to catch.
+    expect(
+      unreadable,
+      'useSyncQuery call sites whose queryName could not be read statically — this detector does not guard them, so it cannot report clean; give the call site a literal queryName or teach the extractor to read it',
+    ).toEqual([]);
+
+    expect(
+      offenders.sort(),
+      'web call sites naming an UNSYNCED_QUERY_REASONS query — each throws "Query \'<name>\' is not a function" the moment that client is on the WEBSOCKETS transport. Fix the call site (derive client-side, or move it to an explicit REST fetch); do not add the name to the Zero registry, and do not grow the list in KNOWN_UNSYNCED_CALL_SITES',
+    ).toEqual(KNOWN_UNSYNCED_CALL_SITES);
   });
 
   it('gives every deferred table and unsynced query a non-empty reason', () => {

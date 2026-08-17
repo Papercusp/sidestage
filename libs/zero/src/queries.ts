@@ -270,10 +270,22 @@ export type SyncedQueryName = keyof typeof SYNCED_QUERY_PRINCIPAL_SCOPE;
 
 /**
  * REST/SSE query names that deliberately do NOT get a Zero equivalent, with the
- * reason each one stays on the existing transport. The parity test requires
- * every `SyncQueryRegistry` registration to be either a synced query above or
- * listed here — so a new REST query can never be silently forgotten by the
- * Zero cutover.
+ * reason each one stays on the existing transport.
+ *
+ * Two separate guards, because listing a name here has two separate
+ * consequences and for a while only the first was checked:
+ *
+ * 1. REGISTRATION side — the parity test requires every `SyncQueryRegistry`
+ *    registration to be either a synced query above or listed here, so a new
+ *    REST query can never be silently forgotten by the Zero cutover.
+ * 2. CALL-SITE side — a name listed here has NO Zero registry leaf, so asking
+ *    for it via `useSyncQuery` throws `Query '<name>' is not a function` on the
+ *    WEBSOCKETS transport. Polling/SSE resolve the same name over REST without
+ *    consulting the registry, so such a call site looks perfectly healthy until
+ *    a client actually reaches WebSockets. Guard 1 cannot see this at all — it
+ *    compares name sets and never reads a call site. That gap shipped
+ *    `event.chat.stats` to production (WI-39763); the parity test now walks
+ *    apps/web for it too.
  */
 export const UNSYNCED_QUERY_REASONS: Readonly<Record<string, string>> = {
   'build.history': 'Operational build snapshot read from a generated JSON artifact, not a Postgres table (census: no backing table, P-020).',

@@ -226,12 +226,6 @@ function EventChatSurface({
     args: { eventId },
     pollIntervalMs: 10_000,
   });
-  const statsQuery = useSyncQuery<EventChatStats>({
-    queryName: 'event.chat.stats',
-    args: { eventId },
-    pollIntervalMs: 10_000,
-  });
-
   const [draft, setDraft] = useState('');
   const [optimisticMessages, setOptimisticMessages] = useState<EventChatMessage[]>([]);
   const [sendError, setSendError] = useState<string | null>(null);
@@ -338,12 +332,18 @@ function EventChatSurface({
     return counts;
   }, { high: 0, normal: 0, low: 0 }), [triagedMessages]);
   const presence = presenceQuery.data ?? [];
-  const stats = statsQuery.data?.[0] ?? {
+  // Derived client-side on purpose: `event.chat.stats` is a COUNT aggregate and
+  // ZQL has no COUNT, so it is deliberately absent from the Zero query registry
+  // (libs/zero/src/queries.ts UNSYNCED_QUERY_REASONS). Asking for it by name
+  // threw on the WebSocket transport. presence/buyers/sellers match the server's
+  // getStats exactly (same TTL-filtered presence rows); totalMessages counts the
+  // messages actually loaded, so it is bounded by the messages page size.
+  const stats = useMemo<EventChatStats>(() => ({
     activeUsers: presence.length,
     buyers: presence.filter((entry) => entry.role === 'buyer').length,
     sellers: presence.filter((entry) => entry.role === 'seller').length,
     totalMessages: messages.length,
-  };
+  }), [messages, presence]);
   const canSend = role === 'buyer' || surface === 'management';
   const composerLabel = role === 'seller' ? 'Reply to the room' : 'Message the room';
   const composerPlaceholder = role === 'seller' ? 'Reply to buyers…' : 'Ask the seller something…';
