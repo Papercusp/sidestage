@@ -6,14 +6,24 @@ interface ArchitectureNodeProps {
   title: string;
   copy: string;
   tone?: 'blue' | 'cyan' | 'green' | 'yellow' | 'red' | 'violet';
+  links?: ReadonlyArray<{ label: string; href: string }>;
 }
 
-function ArchitectureNode({ eyebrow, title, copy, tone = 'blue' }: ArchitectureNodeProps) {
+function ArchitectureNode({ eyebrow, title, copy, tone = 'blue', links }: ArchitectureNodeProps) {
   return (
     <div className={`architecture-node architecture-node--${tone}`}>
       {eyebrow ? <span>{eyebrow}</span> : null}
       <strong>{title}</strong>
       <small>{copy}</small>
+      {links?.length ? (
+        <nav className="architecture-node-links" aria-label={`${title} links`}>
+          {links.map((link) => (
+            <a key={link.href} href={link.href} target="_blank" rel="noreferrer">
+              {link.label}
+            </a>
+          ))}
+        </nav>
+      ) : null}
     </div>
   );
 }
@@ -110,7 +120,16 @@ export function ArchitectureTab() {
         <div className="architecture-context-diagram" role="img" aria-label="Clients connect through Traefik to the SideStage web application, API and media plane, which use durable data and external providers">
           <div className="architecture-context-column">
             <span className="architecture-column-label">People &amp; clients</span>
-            <ArchitectureNode eyebrow="Buyer" title="Web + native mobile" copy="Watch, chat, buy, bid, track orders" tone="cyan" />
+            <ArchitectureNode
+              eyebrow="Buyer"
+              title="Web + native mobile"
+              copy="Watch, chat, buy, bid, track orders. Native Android app: shared Rust core, UniFFI Kotlin bindings, Kotlin UI"
+              tone="cyan"
+              links={[
+                { label: 'Android v1.0.0 (APK + AAB)', href: 'https://github.com/Papercusp/sidestage-mobile/releases/tag/v1.0.0' },
+                { label: 'Mobile source', href: 'https://github.com/Papercusp/sidestage-mobile' },
+              ]}
+            />
             <ArchitectureNode eyebrow="Seller" title="Responsive Studio" copy="Run the room, stage products, approve actions" tone="violet" />
             <ArchitectureNode eyebrow="Operator" title="Tests + History" copy="Verify readiness and inspect delivery evidence" tone="yellow" />
           </div>
