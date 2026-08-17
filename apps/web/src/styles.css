@@ -546,6 +546,22 @@ a.app-badge:active { transform: translateY(1px); box-shadow: 0 2px 0 color-mix(i
 @media (max-width: 680px) { .topbar-install-and-identity { flex-wrap: wrap; } .topbar-demo-user { flex: 1 0 100%; width: 100%; } }
 @media (max-width: 600px) { .app-shell { --channel-guide-width: 10rem; } }
 @media (max-width: 760px) {
+  /* EI-20490117751347501: the desktop 2-column shell (channel-guide rail +
+     content) never collapsed below 760px — at 375px the rail's own
+     10rem/160px floor (see the 600px rule above) ate 43% of the viewport,
+     squeezing every non-Studio tab's content into ~190-215px (clipped nav
+     labels, compressed cards). Mirrors the proven .app-shell--seller
+     collapse in studio.css; that rule is MORE specific (.app-shell.app-shell
+     --seller) so it still wins for the Studio tab and this is a no-op there. */
+  .app-shell {
+    --channel-guide-width: 0px;
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .app-shell > .channel-guide-panel {
+    display: none;
+  }
+
   .topbar-inner { grid-template-columns: minmax(0, 1fr); gap: .6rem; width: min(100% - 1.5rem, var(--content-max)); padding: .6rem 0; }
   .topbar-brand-group { grid-column: 1; grid-row: 1; justify-content: space-between; width: 100%; }
   .topbar-brand-group .app-badge { min-width: 0; }
