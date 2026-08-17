@@ -1,5 +1,27 @@
 import { describe, expect, it, vi } from 'vitest';
-import { buildDeepgramUrl, createTranscriptionSession, requestDeepgramToken, type MediaRecorderLike, type SpeechRecognitionLike, type WebSocketLike } from './transcription';
+import {
+  buildDeepgramUrl,
+  createTranscriptionSession,
+  hasLiveAudioTrack,
+  PUBLISHER_STREAM_ENDED_MESSAGE,
+  requestDeepgramToken,
+  type MediaRecorderLike,
+  type SpeechRecognitionLike,
+  type WebSocketLike,
+} from './transcription';
+
+/**
+ * A publisher stream that can be ended the way `connectPublisher`'s teardown
+ * ends one: the tracks stop, the MediaStream object survives (WI-39726).
+ */
+function publisherStream() {
+  const track = { kind: 'audio', readyState: 'live' as MediaStreamTrackState, stop() { track.readyState = 'ended'; } };
+  const stream = {
+    getTracks: () => [track],
+    getAudioTracks: () => [track],
+  } as unknown as MediaStream;
+  return { stream, endTracks: () => track.stop() };
+}
 
 class FakeSocket implements WebSocketLike {
   readyState = 0;
@@ -17,12 +39,22 @@ class FakeSocket implements WebSocketLike {
   message(data: unknown) { this.onmessage?.({ data }); }
 }
 
+/**
+ * Chrome's observed contract: `.start()` against a stream with no live audio
+ * track throws this exact platform string — the failure WI-39726 reported.
+ */
 class FakeRecorder implements MediaRecorderLike {
   ondataavailable: ((event: { data: Blob }) => void) | null = null;
   onerror: ((event: unknown) => void) | null = null;
   started = false;
   stopped = false;
-  start() { this.started = true; }
+  constructor(private readonly stream?: MediaStream) {}
+  start() {
+    if (this.stream && !hasLiveAudioTrack(this.stream)) {
+      throw new Error("Failed to execute 'start' on 'MediaRecorder': There was an error starting the MediaRecorder.");
+    }
+    this.started = true;
+  }
   stop() { this.stopped = true; }
   data() { this.ondataavailable?.({ data: new Blob(['audio']) }); }
 }
@@ -56,7 +88,7 @@ describe('transcription transport', () => {
     const socket = new FakeSocket();
     const recorder = new FakeRecorder();
     const session = createTranscriptionSession({
-      mediaStream: {} as MediaStream,
+      mediaStream: publisherStream().stream,
       deepgramToken: 'ephemeral-token',
       webSocketFactory: vi.fn(() => socket),
       mediaRecorderFactory: vi.fn(() => recorder),
@@ -82,7 +114,7 @@ describe('transcription transport', () => {
     const socket = new FakeSocket();
     const webSocketFactory = vi.fn(() => socket);
     const session = createTranscriptionSession({
-      mediaStream: {} as MediaStream,
+      mediaStream: publisherStream().stream,
       deepgramTokenProvider: async () => 'temporary-jwt',
       webSocketFactory,
       mediaRecorderFactory: () => new FakeRecorder(),
@@ -176,5 +208,109 @@ describe('transcription transport', () => {
     expect(texts).toEqual(['buyer asks about the mug', 'buyer asks about the mug.']);
     await session.stop();
     expect(recognition.stopped).toBe(true);
+  });
+});
+
+/*
+ * WI-39726 — switching to an active event threw "Failed to execute 'start' on
+ * 'MediaRecorder'" in the seller Studio.
+ *
+ * The session captures the publisher's MediaStream when it is built. Ending the
+ * previous event stops that stream's TRACKS but leaves the object in place, so
+ * "we still hold a stream" stayed true while "the stream can be recorded" had
+ * become false — and a restart handed the dead stream straight to Chrome.
+ */
+describe('publisher stream liveness (WI-39726)', () => {
+  it('reads track state, not stream presence, as the recordability signal', () => {
+    const publisher = publisherStream();
+    expect(hasLiveAudioTrack(publisher.stream)).toBe(true);
+    publisher.endTracks();
+    expect(hasLiveAudioTrack(publisher.stream)).toBe(false);
+  });
+
+  it('refuses to restart on the previous event\'s ended stream instead of throwing the browser error', async () => {
+    const publisher = publisherStream();
+    const sockets: FakeSocket[] = [];
+    const recorders: FakeRecorder[] = [];
+    const session = createTranscriptionSession({
+      mediaStream: publisher.stream,
+      deepgramToken: 'ephemeral-token',
+      webSocketFactory: vi.fn(() => { const socket = new FakeSocket(); sockets.push(socket); return socket; }),
+      mediaRecorderFactory: vi.fn((stream) => { const r = new FakeRecorder(stream); recorders.push(r); return r; }),
+    });
+    const errors: string[] = [];
+    session.onError((error) => errors.push(error.message));
+
+    const started = session.start();
+    sockets[0].open();
+    await started;
+    expect(session.state).toBe('listening');
+
+    // The seller ends the event: publisher teardown stops the tracks.
+    publisher.endTracks();
+    await session.stop();
+
+    // Switching to the next active event re-activates transcription.
+    await expect(session.start()).rejects.toThrow(PUBLISHER_STREAM_ENDED_MESSAGE);
+
+    // No second recorder was ever built, so Chrome's raw message cannot appear.
+    expect(recorders).toHaveLength(1);
+    expect(sockets).toHaveLength(1);
+    expect(errors).toEqual([PUBLISHER_STREAM_ENDED_MESSAGE]);
+    expect(errors.join(' ')).not.toContain('Failed to execute');
+    expect(session.state).toBe('error');
+  });
+
+  it('recovers on the next event: a fresh live stream starts cleanly', async () => {
+    const ended = publisherStream();
+    ended.endTracks();
+    const sockets: FakeSocket[] = [];
+    const deadSession = createTranscriptionSession({
+      mediaStream: ended.stream,
+      deepgramToken: 'ephemeral-token',
+      webSocketFactory: vi.fn(() => { const socket = new FakeSocket(); sockets.push(socket); return socket; }),
+      mediaRecorderFactory: vi.fn((stream) => new FakeRecorder(stream)),
+    });
+    await expect(deadSession.start()).rejects.toThrow(PUBLISHER_STREAM_ENDED_MESSAGE);
+    // The token is never spent and no socket is opened for a stream that cannot
+    // be recorded.
+    expect(sockets).toHaveLength(0);
+
+    const fresh = publisherStream();
+    const socket = new FakeSocket();
+    const recorder = new FakeRecorder(fresh.stream);
+    const liveSession = createTranscriptionSession({
+      mediaStream: fresh.stream,
+      deepgramToken: 'ephemeral-token',
+      webSocketFactory: vi.fn(() => socket),
+      mediaRecorderFactory: vi.fn(() => recorder),
+    });
+    const started = liveSession.start();
+    socket.open();
+    await started;
+    expect(liveSession.state).toBe('listening');
+    expect(recorder.started).toBe(true);
+  });
+
+  it('cancels a start that a stop superseded while the token was in flight', async () => {
+    const publisher = publisherStream();
+    const sockets: FakeSocket[] = [];
+    const recorders: FakeRecorder[] = [];
+    let grantToken: (token: string) => void = () => {};
+    const session = createTranscriptionSession({
+      mediaStream: publisher.stream,
+      deepgramTokenProvider: () => new Promise<string>((resolve) => { grantToken = resolve; }),
+      webSocketFactory: vi.fn(() => { const socket = new FakeSocket(); sockets.push(socket); return socket; }),
+      mediaRecorderFactory: vi.fn((stream) => { const r = new FakeRecorder(stream); recorders.push(r); return r; }),
+    });
+
+    const pending = session.start();
+    await session.stop();      // the seller ends the event mid-grant
+    grantToken('ephemeral-token');
+    await pending;
+
+    // The superseded attempt must not open capture behind the seller's back.
+    expect(recorders).toHaveLength(0);
+    expect(session.state).toBe('stopped');
   });
 });

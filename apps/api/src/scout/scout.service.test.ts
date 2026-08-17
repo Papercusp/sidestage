@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { CartService, InMemoryCartStore } from '../cart/cart.service';
 import type { CatalogVariant } from '../catalog/catalog.types';
-import { DeterministicScoutReplyModel, ScoutService } from './scout.service';
+import { DeterministicScoutReplyModel, ScoutService, isCartStateQuestion } from './scout.service';
 import { FixtureCatalogSource } from '../catalog/catalog.sources';
 import { scoutCatalogFrom } from './scout-catalog.adapter';
 import { InMemoryScoutMemoryStore } from './scout-memory';
@@ -52,5 +52,81 @@ describe('ScoutService', () => {
 
     expect(response.products.map((product) => product.productId)).toEqual(['laptop', 'desktop']);
     expect(response.reply.toLowerCase()).not.toContain('kettle');
+  });
+
+  it('answers a held-items question from the cart, not the catalog, when nothing is held', async () => {
+    const carts = new CartService(new InMemoryCartStore());
+    const cart = await carts.getCart();
+    const service = new ScoutService(
+      scoutCatalogFrom(new FixtureCatalogSource()),
+      new DeterministicScoutReplyModel(),
+      carts,
+      new InMemoryScoutMemoryStore(),
+    );
+
+    const response = await service.chat({ message: 'what do I have held?', cartId: cart.id });
+
+    // The production defect: this came back as "I found 6 verified options"
+    // with unrelated products (a menu planner, wedding cake servers).
+    expect(response.products).toEqual([]);
+    expect(response.reply).not.toContain('verified option');
+    expect(response.reply.toLowerCase()).toContain("don't have any items held");
+  });
+
+  it('lists what the buyer is actually holding', async () => {
+    const carts = new CartService(new InMemoryCartStore());
+    const cart = await carts.getCart();
+    await carts.addItem({
+      cartId: cart.id, productId: 'sku-1', title: 'Latitude laptop', priceCents: 100_00, quantity: 2,
+    });
+    const service = new ScoutService(
+      scoutCatalogFrom(new FixtureCatalogSource()),
+      new DeterministicScoutReplyModel(),
+      carts,
+      new InMemoryScoutMemoryStore(),
+    );
+
+    const response = await service.chat({ message: 'what do I have held?', cartId: cart.id });
+
+    expect(response.products).toEqual([]);
+    expect(response.reply).toContain('Latitude laptop');
+    expect(response.reply).toContain('1 item held');
+  });
+
+  it('still searches the catalog for an ordinary product question', async () => {
+    const service = new ScoutService(
+      scoutCatalogFrom(new FixtureCatalogSource()),
+      new DeterministicScoutReplyModel(),
+      new CartService(new InMemoryCartStore()),
+      new InMemoryScoutMemoryStore(),
+    );
+
+    const response = await service.chat({ message: 'wireless headphones', maxProducts: 3 });
+
+    expect(response.products.length).toBeGreaterThan(0);
+    expect(response.reply).toContain('verified');
+  });
+});
+
+describe('isCartStateQuestion', () => {
+  it('matches questions about the buyer own holds', () => {
+    for (const message of [
+      'what do I have held?',
+      'what am I holding',
+      'do I have anything held right now',
+      'show my held items',
+      'what is in my cart',
+      'my cart',
+    ]) expect(isCartStateQuestion(message), message).toBe(true);
+  });
+
+  it('does not divert ordinary product searches that merely mention a cart word', () => {
+    for (const message of [
+      'wireless headphones',
+      'cart organizer for a workshop',
+      'hold-down straps',
+      'find me computers',
+      '',
+    ]) expect(isCartStateQuestion(message), message).toBe(false);
   });
 });

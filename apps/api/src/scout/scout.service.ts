@@ -75,6 +75,47 @@ function recallCallback(memories: readonly ScoutMemory[] | undefined): string {
   return best ? ` Last time you asked about “${best}”.` : '';
 }
 
+/**
+ * Questions about what the buyer is already holding, which Scout must answer
+ * from cart state. These are deliberately anchored on a first-person subject
+ * ("my", "I have", "am I") so an ordinary product search that merely mentions a
+ * cart word — "cart organizer", "hold-down straps" — is NOT diverted here.
+ */
+const CART_STATE_PATTERNS: readonly RegExp[] = [
+  /\b(?:what|which|anything|something)\b[^?]*\b(?:i|i've|ive)\b[^?]*\b(?:held|holding|hold|reserved)\b/i,
+  /\bam\s+i\s+holding\b/i,
+  /\bdo\s+i\s+have\b[^?]*\b(?:held|holding|hold|reserved|cart|basket)\b/i,
+  /\bmy\s+(?:held\s+items?|holds?|cart|basket)\b/i,
+  /\bheld\s+items?\b/i,
+  /\bin\s+my\s+(?:cart|basket)\b/i,
+  /\bcart\s+(?:contents|state|status|total)\b/i,
+];
+
+/** True when the message asks about the buyer's own held/cart state. */
+export function isCartStateQuestion(message: string): boolean {
+  const text = message.trim();
+  if (!text) return false;
+  return CART_STATE_PATTERNS.some((pattern) => pattern.test(text));
+}
+
+/**
+ * The held-items answer. An EMPTY cart is a real, useful answer here — the
+ * defect this replaces treated "nothing held" as "nothing found in the
+ * catalog" and fell through to unrelated product suggestions.
+ */
+function heldItemsReply(cart: Cart | undefined, callback: string): string {
+  const items = cart?.items ?? [];
+  if (items.length === 0) {
+    return `You don't have any items held right now.${callback} Search the verified catalog and I'll hold something for you.`;
+  }
+  const held = items
+    .slice(0, 3)
+    .map((item) => (item.quantity > 1 ? `${item.title} ×${item.quantity}` : item.title))
+    .join(', ');
+  const more = items.length > 3 ? `, and ${items.length - 3} more` : '';
+  return `You have ${items.length} item${items.length === 1 ? '' : 's'} held: ${held}${more}.${callback}`;
+}
+
 const CATEGORY_PATTERNS: ReadonlyArray<readonly [ScoutCategory, RegExp]> = [
   ['Laptop bags & cases', /\b(?:laptop|computer).*(?:bag|case|sleeve)|(?:bag|case|sleeve).*(?:laptop|computer)\b/i],
   ['Chargers & power adapters', /\b(?:charger|power adapter|power cord)\b/i],
@@ -330,9 +371,12 @@ export class ScoutService {
     ];
     const baseModel = this.runtimeModel
       ?? new LegacyReplyModelAdapter(this.fallbackModel, context);
+    // A cart-state question is answered from the cart alone. Requiring a
+    // catalog search here is what turned "what do I have held?" into search
+    // terms, so the buyer got unrelated products instead of their own holds.
     const requiredTools = [
       ...(input.cartId?.trim() ? [SCOUT_TOOL_GET_CART] : []),
-      SCOUT_TOOL_SEARCH_CATALOG,
+      ...(isCartStateQuestion(message) ? [] : [SCOUT_TOOL_SEARCH_CATALOG]),
     ];
     const model = new RequiredToolSequenceModel(baseModel, requiredTools);
 
@@ -523,6 +567,9 @@ function systemPrompt(input: ScoutStreamRequest, memories: readonly ScoutMemory[
     input.cartId?.trim()
       ? 'The request names a cart. Read it with get_cart before answering about cart state.'
       : 'No cart was named. Do not invent cart contents.',
+    isCartStateQuestion(input.message ?? '')
+      ? 'This question is about the buyer\'s own held items. Answer it from get_cart only. Do not search the catalog and do not suggest products; if nothing is held, say plainly that nothing is held.'
+      : '',
     input.eventId ? `Live event context: ${input.eventId}.` : '',
     recalled,
   ].filter(Boolean).join('\n');
