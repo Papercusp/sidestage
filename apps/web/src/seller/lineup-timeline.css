@@ -267,7 +267,7 @@
  * says what the field should actually be — as wide as the label that owns it.
  * Both are kept: `width` alone happens to be sufficient today only because the
  * label widths are definite, and a later `flex`/`auto` label width would
- * silently reopen the bug. Guarded by lineup-field-width.test.ts.
+ * silently reopen the bug. Guarded by field-width-constraint.test.ts.
  */
 .lineup-slot-minutes input,
 .lineup-slot-notes input,

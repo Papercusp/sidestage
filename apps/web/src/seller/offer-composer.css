@@ -33,7 +33,7 @@
  * to shrink into 7rem. Nothing clips — the flex siblings in `.offer-composer`
  * are laid out from the LABEL's 7rem, so the overflow is painted over: measured
  * here, "Offer qty" sat under "Offer price" by 129x37px and "Offer price" under
- * "Send offer" by 95x37px. Guarded by lineup-field-width.test.ts, which holds
+ * "Send offer" by 95x37px. Guarded by field-width-constraint.test.ts, which holds
  * this invariant for every fixed-width field in apps/web.
  */
 .offer-composer-field input {
