@@ -404,6 +404,100 @@ export function verifyClaim(
   return defects;
 }
 
+/**
+ * The canonical fingerprint of EVERYTHING one source says, or undefined when
+ * that source is not present in the context.
+ *
+ * This is the claim-free half of the contract, and it exists because the send
+ * path needs it TODAY: nothing produces Claim objects yet (ModelDraft carries
+ * `citations: string[]`), but "which evidence does this reply rest on" is
+ * already answerable from those citations. Fingerprinting a cited source lets
+ * the approve path ask "did the evidence THIS reply used move?" without
+ * waiting for a claim producer to exist (plan D-010, phase 1).
+ */
+export function fingerprintSource(
+  sourceId: string,
+  context: GroundingContext,
+): string | undefined {
+  if (sourceId.startsWith('event-item:')) {
+    const id = sourceId.slice('event-item:'.length);
+    const item = context.eventItems.find((candidate) => candidate.eventItemId === id);
+    return item ? canonicalFingerprint(item) : undefined;
+  }
+  if (sourceId.startsWith('catalog-product:')) {
+    const id = sourceId.slice('catalog-product:'.length);
+    const product = context.catalogProducts.find((candidate) => candidate.productId === id);
+    return product ? canonicalFingerprint(product) : undefined;
+  }
+  if (sourceId.startsWith('transcript:')) {
+    const id = sourceId.slice('transcript:'.length);
+    const moment = context.transcriptMoments?.find((candidate) => candidate.transcriptId === id);
+    return moment ? canonicalFingerprint(moment) : undefined;
+  }
+  if (sourceId.startsWith('web-research:')) {
+    const id = sourceId.slice('web-research:'.length);
+    const finding = context.webFindings?.find((candidate) => candidate.findingId === id);
+    return finding ? canonicalFingerprint(finding) : undefined;
+  }
+  if (sourceId.startsWith('policy:')) {
+    // Both policies matter to a reply: the automation policy bounds what may be
+    // said/done, the seller policy IS the shipping/returns answer.
+    return canonicalFingerprint({ policy: context.policy, sellerPolicy: context.sellerPolicy ?? null });
+  }
+  return undefined;
+}
+
+export interface EvidenceDrift {
+  sourceId: string;
+  code: Extract<ClaimDefectCode, 'evidence-stale' | 'evidence-missing'>;
+  explanation: string;
+}
+
+/**
+ * Which of the sources a reply CITED have moved or vanished between the
+ * context it was written against and the context now.
+ *
+ * The whole point is what it does NOT report: a change to a source the reply
+ * never cited is not drift. The previous whole-context comparison blocked a
+ * reply about one product because a different product's stock moved, which on
+ * a live event is most of the time (plan D-010).
+ */
+export function citedEvidenceDrift(
+  citations: readonly string[],
+  before: GroundingContext,
+  after: GroundingContext,
+): readonly EvidenceDrift[] {
+  const label = (sourceId: string): string =>
+    before.sources.find((source) => source.id === sourceId)?.label
+    ?? after.sources.find((source) => source.id === sourceId)?.label
+    ?? sourceId;
+
+  return citations.flatMap((sourceId) => {
+    const boundTo = fingerprintSource(sourceId, before);
+    // Cited something that was not in the original context either — not drift.
+    // The reply was unsupported from the start, which is verifyClaims' job to
+    // say, not this function's.
+    if (boundTo === undefined) return [];
+
+    const current = fingerprintSource(sourceId, after);
+    if (current === undefined) {
+      return [{
+        sourceId,
+        code: 'evidence-missing' as const,
+        explanation: `${label(sourceId)} is no longer part of this event, and this reply relies on it.`,
+      }];
+    }
+    if (current !== boundTo) {
+      return [{
+        sourceId,
+        code: 'evidence-stale' as const,
+        explanation: `${label(sourceId)} changed after this reply was written.`,
+      }];
+    }
+    return [];
+  });
+}
+
 /** Verify a whole reply's claims. Supported only when EVERY claim holds. */
 export function verifyClaims(
   set: ClaimSet,
