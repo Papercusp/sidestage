@@ -217,11 +217,19 @@ describe('LineupTimelineView', () => {
   });
 
   it('enables Start auction once no auction is live', () => {
-    const open = render({ openProductId: 'p-kettle', auctionWritesEnabled: true });
+    // The price must be present too, or the control is disabled for that
+    // reason instead and the test above would pass against a dead button.
+    const priced = {
+      'p-kettle': { ...emptySlotDraft(), minutes: '5', auctionStartPrice: '10.00' },
+    };
+    const open = render({
+      openProductId: 'p-kettle',
+      auctionWritesEnabled: true,
+      drafts: priced,
+    });
 
-    // Falsifies the test above: the disabled state must come from the flag, not
-    // from the drawer always rendering a dead button.
-    expect(open).toMatch(/<button[^>]*>Start auction<\/button>/);
+    // Falsifies the test above: the disabled state has to come from the flag.
+    expect(open).toMatch(/<button(?![^>]*disabled)[^>]*>Start auction<\/button>/);
     expect(open).not.toContain('Close the current auction before starting another');
   });
 
