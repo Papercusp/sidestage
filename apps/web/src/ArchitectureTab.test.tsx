@@ -75,6 +75,29 @@ describe('ArchitectureTab', () => {
     expect(markup).not.toContain('Query registry, batched reads, mutations, SSE invalidation');
   });
 
+  // Plan decision D-006 (sidestage-websocket-sync-cutover-2026-08-17): no surface may
+  // present the WebSocket/zero-cache rung as the transport serving today. zero-cache runs
+  // nowhere — the client's up-front session probe fails, so every client steps down to SSE —
+  // which makes the ladder describable only as designed behavior. Asserts the RENDERED
+  // markup rather than the source text: a source-text guard can be satisfied by the very
+  // comment that describes the behaviour it claims to prove (WI-38905).
+  it('never presents the WebSocket rung as the transport serving today (D-006)', () => {
+    const markup = renderToStaticMarkup(<ArchitectureTab />);
+
+    // The visible prose carries the disclosure for a sighted reader.
+    expect(markup).toContain('SSE is the rung serving today');
+
+    // The delivery diagram is role="img", so its aria-label is the ONLY description a
+    // screen-reader user gets for it — it must carry the same qualification the prose does.
+    const diagramLabel = /aria-label="([^"]*zero-cache replicates Postgres[^"]*)"/.exec(markup)?.[1];
+    expect(diagramLabel, 'delivery-diagram aria-label not found').toBeDefined();
+    expect(diagramLabel).toMatch(/not serving yet/);
+
+    // zero-cache is provisioned in the Compose stack but running nowhere, so no node may
+    // assert its behaviour as an unqualified operating guarantee.
+    expect(markup).toMatch(/not yet running on the public instance/);
+  });
+
   it('uses a sticky section sidebar and keeps the page responsive without hiding content', () => {
     expect(css).toMatch(/\.architecture-layout\s*\{[^}]*grid-template-columns:\s*minmax\(9\.5rem, 12rem\) minmax\(0, 1fr\)/);
     expect(css).toMatch(/\.architecture-jump-nav\s*\{[^}]*position:\s*sticky[^}]*top:\s*var\(--architecture-sticky-top\)[^}]*display:\s*grid/);
