@@ -64,8 +64,9 @@ const DATA_STORES = [
 ] as const;
 
 const SHARED_PACKAGES = [
-  ['@papercusp/sync', 'Query registry, batched reads, mutations, SSE invalidation'],
-  ['@papercusp/sse', 'Resilient event-stream transport and reconnect behavior'],
+  ['@papercusp/sidestage-zero', 'Shared Zero contract: schema, relationships and typed queries imported by client and server alike'],
+  ['@papercusp/sync', 'Query registry, typed subscriptions, server-authoritative mutators, WebSocket-first transport with stepped fallback'],
+  ['@papercusp/sse', 'Resilient event-stream transport and reconnect behavior—the first rung below WebSockets'],
   ['@papercusp/grid-core', 'Virtualized catalog and inventory grids'],
   ['@papercusp/scout-chat', 'Reusable buyer assistant and streaming chat UI'],
   ['Drawer packages', 'Cart, Scout and composable drawer-stack behavior'],
@@ -83,7 +84,7 @@ export function ArchitectureTab() {
             copy="How SideStage turns a live room into a safe commerce system—from browser and native clients through realtime services, guarded intelligence, durable data, and production operations."
           />
           <p className="architecture-source-note">
-            Current implementation map · React 19 + Vite · NestJS · PostgreSQL · Typesense · SSE · WebRTC
+            Current implementation map · React 19 + Vite · NestJS · PostgreSQL · Typesense · Zero sync (WebSocket → SSE) · WebRTC
           </p>
         </div>
         <dl className="architecture-snapshot" aria-label="Architecture snapshot">
@@ -135,7 +136,7 @@ export function ArchitectureTab() {
             <ArchitectureNode eyebrow="Seller" title="Responsive Studio" copy="Run the room, stage products, approve actions" tone="violet" />
             <ArchitectureNode eyebrow="Operator" title="Tests + History" copy="Verify readiness and inspect delivery evidence" tone="yellow" />
           </div>
-          <FlowArrow label="HTTPS · SSE · WebRTC" />
+          <FlowArrow label="HTTPS · WebSocket → SSE · WebRTC" />
           <div className="architecture-context-column architecture-context-column--core">
             <span className="architecture-column-label">SideStage</span>
             <ArchitectureNode eyebrow="Presentation" title="React single-page app" copy="URL-routed surfaces and shared Papercusp UI packages" tone="red" />
@@ -168,7 +169,7 @@ export function ArchitectureTab() {
               <li><b>3</b><span>Product focus + room chat ground a turn</span></li>
               <li><b>4</b><span>Copilot proposes reply or action</span></li>
               <li><b>5</b><span>Policy guard + seller approval gate delivery</span></li>
-              <li><b>6</b><span>Buyers receive WHEP video + SSE state</span></li>
+              <li><b>6</b><span>Buyers receive WHEP video + synced room state</span></li>
             </ol>
           </section>
           <section className="architecture-flow-card">
@@ -183,13 +184,13 @@ export function ArchitectureTab() {
             </ol>
           </section>
           <section className="architecture-flow-card">
-            <header><span>Application state</span><h3>Query → invalidate → reconcile</h3></header>
+            <header><span>Application state</span><h3>Subscribe → replicate → stream</h3></header>
             <ol className="architecture-flow-line">
-              <li><b>1</b><span>React requests named sync queries</span></li>
-              <li><b>2</b><span>API registry maps names to domain reads</span></li>
-              <li><b>3</b><span>REST batch returns initial snapshots</span></li>
-              <li><b>4</b><span>Domain writes publish scoped invalidations</span></li>
-              <li><b>5</b><span>SSE reconnects and refreshes affected queries</span></li>
+              <li><b>1</b><span>React subscribes to named sync queries</span></li>
+              <li><b>2</b><span>One shared Zero contract types every query</span></li>
+              <li><b>3</b><span>zero-cache tails Postgres logical replication</span></li>
+              <li><b>4</b><span>Subscribers receive incremental row deltas</span></li>
+              <li><b>5</b><span>Server-authoritative mutators commit every write</span></li>
               <li><b>6</b><span>Dedicated auction streams preserve server ordering</span></li>
             </ol>
           </section>
@@ -273,7 +274,7 @@ export function ArchitectureTab() {
         <div className="architecture-section-heading">
           <p className="eyebrow">05 · State</p>
           <h2 id="data-sync-title">How data syncing works</h2>
-          <p>Every screen subscribes to named queries over one WebSocket; every write is a server-authoritative mutator. Postgres stays the source of truth—clients render replicated state, they never invent it. <em>Cutover in progress: the SSE invalidation stream remains the live transport until the WebSocket rollout completes.</em></p>
+          <p>Every screen subscribes to named queries; every write is a server-authoritative mutator. Postgres stays the source of truth—clients render replicated state, they never invent it. <em>Transport is a ladder, not a switch: the client asks for one multiplexed WebSocket, then steps down to the SSE invalidation stream and finally bounded polling wherever a zero-cache origin isn't reachable. SSE is the rung serving today.</em></p>
         </div>
         <div className="architecture-delivery-diagram" role="img" aria-label="The shared Zero contract declares schema and queries, zero-cache replicates Postgres over logical replication, clients subscribe over one WebSocket, and writes flow through server-authoritative mutators back into Postgres">
           <ArchitectureNode eyebrow="1 · Declare" title="Zero contract package" copy="Schema, relationships and typed queries live in @papercusp/sidestage-zero—one shared contract the client, the server and the parity tests all import" tone="cyan" />
@@ -286,8 +287,8 @@ export function ArchitectureTab() {
         </div>
         <div className="architecture-operations-grid">
           <section><h3>Transport</h3><dl>
-            <div><dt>WebSockets first</dt><dd>One multiplexed WebSocket per client carries every query subscription—incremental deltas replace whole-snapshot re-fetches</dd></div>
-            <div><dt>Fallback ladder</dt><dd>The SSE invalidation stream stays wired as the degraded mode, with bounded polling as the floor—sync gets simpler, never dark</dd></div>
+            <div><dt>WebSockets first</dt><dd>The client asks for one multiplexed WebSocket to carry every query subscription, so incremental deltas can replace whole-snapshot re-fetches</dd></div>
+            <div><dt>Fallback ladder</dt><dd>A single session probe decides the rung: WebSocket, else the SSE invalidation stream, else bounded polling as the floor—sync gets simpler, never dark</dd></div>
             <div><dt>Resilience</dt><dd>Reconnect resumes subscriptions from the local cache and catches up on deltas—an offline gap is a catch-up, not a reload</dd></div>
           </dl></section>
           <section><h3>The contract</h3><dl>
@@ -298,7 +299,7 @@ export function ArchitectureTab() {
           <section><h3>Why WebSockets</h3><dl>
             <div><dt>Latency where it counts</dt><dd>Live bidding, chat and stage state want sub-second push—deltas over an open socket beat invalidate-then-refetch round trips</dd></div>
             <div><dt>Less to re-send</dt><dd>Row-level deltas replace whole-snapshot re-fetches, so a busy auction doesn't re-ship the product rail on every bid</dd></div>
-            <div><dt>Built on shared rails</dt><dd>The shared sync library carries the Rocicorp Zero engine used across Papercusp products—SideStage flips it on rather than building its own</dd></div>
+            <div><dt>Built on shared rails</dt><dd>The shared sync library carries the Rocicorp Zero engine used across Papercusp products—SideStage adopts it rather than building its own</dd></div>
           </dl></section>
         </div>
         <p className="architecture-caption"><strong>State split:</strong> user-meaningful state (tab, event, selection) lives in the URL; server state flows through sync queries. A shared link reproduces the same view because the two never mix.</p>
