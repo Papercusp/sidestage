@@ -187,9 +187,42 @@
   text-align: right;
 }
 
-.event-commerce-buyer { grid-column: 1; }
+.event-commerce-buyer { grid-column: 1; min-width: 0; }
 .event-commerce-buyer input { text-align: left; }
 .event-commerce-quantity input { width: 30px; }
+
+/* The picker draws its own field, so the row's generic label chrome would
+   double the border around it. */
+.event-commerce-buyer .buyer-picker-field {
+  padding: 0;
+  border: 0;
+  background: none;
+  min-height: 0;
+}
+
+.event-commerce-buyer .buyer-picker-field select {
+  min-height: 1.9rem;
+  padding: 0 .35rem;
+  border-radius: .45rem;
+  border-color: var(--border);
+  background: var(--surface);
+  color: var(--text);
+  font-size: .7rem;
+}
+
+.event-commerce-buyer .buyer-picker-note {
+  font-size: .6rem;
+  color: var(--muted);
+}
+
+.event-commerce-note {
+  margin: 0;
+  font-size: .66rem;
+  line-height: 1.25;
+  color: var(--muted);
+}
+
+.event-commerce-note.is-blocked { color: var(--warning-text, #b45309); }
 
 .button.tertiary {
   min-height: 1.9rem;
