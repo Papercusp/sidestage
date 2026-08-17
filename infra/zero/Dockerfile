@@ -58,4 +58,16 @@ EXPOSE 4848 4849
 HEALTHCHECK --interval=5s --timeout=3s --start-period=180s --retries=3 \
   CMD wget -q --spider http://127.0.0.1:4848/keepalive || exit 1
 
+# ⚠ This execs the binary DIRECTLY — scripts/zero-cache-start.sh is NOT the
+# entrypoint here, and must not become one. That script is a DEV launcher: it ends
+# in `exec npx zero-cache-dev` (one process, the wrong shape for production), kills
+# replica-lock holders with fuser, and defaults to a dev database URL.
+#
+# Its two genuinely production-relevant preflights — upstream wal_level must be
+# `logical`, and the live publication must match db/zero-publication.sql — are
+# therefore NOT run by this container. They live in scripts/zero-replication-apply.sh
+# instead, which deploy/deploy.sh runs on prod after `compose up -d` and before the
+# health gate. If you are wondering why a replication fault was not caught at
+# container start: by design, it is caught one step earlier, at deploy time.
+# (WI-39712. Guarded by deploy/zero-replication-apply.test.mjs.)
 CMD ["node_modules/.bin/zero-cache"]
