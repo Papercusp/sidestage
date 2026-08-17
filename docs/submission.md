@@ -78,7 +78,7 @@ which are reconciled against the repo afterward. Useful anchors are listed in
 | Primary product surface | `apps/web` — the Watch, Orders, Studio, History, Tests, and Architecture surfaces |
 | Native mobile app (buyer) | <https://github.com/Papercusp/sidestage-mobile> — v1.0.0 builds (signed Android APK + AAB, unsigned iOS IPA, provenance): <https://github.com/Papercusp/sidestage-mobile/releases/tag/v1.0.0> |
 | API surface | `apps/api` — NestJS on port `3100`, with `/healthz` for readiness |
-| Optional local infrastructure | `docker compose up -d` for Postgres, Typesense, Redis, and MediaMTX |
+| Optional local infrastructure | `docker compose -f infra/docker-compose.data.yml up -d postgres` for the database; `docker compose up -d typesense redis mediamtx` for search, cache, and media |
 
 The repository is public and retains its incremental commit history. No private
 checkout, credential, or local database is required for the default demo. Copy
@@ -99,8 +99,17 @@ The web shell is served at <http://localhost:5173>. The API health check is
 catalog search, or MediaMTX streaming:
 
 ```bash
-docker compose up -d
+# Database — the stack `.env.example`'s DATABASE_URL dials (127.0.0.1:55434),
+# and the only one that applies db/schema.sql and db/seed/demo.sql.
+docker compose -f infra/docker-compose.data.yml up -d postgres
+
+# Catalog search, cache, and live media.
+docker compose up -d typesense redis mediamtx
 ```
+
+The root `docker-compose.yml` `postgres` service publishes 5432 and mounts no
+schema or seed, so it does not serve the documented `DATABASE_URL`; use the
+database command above.
 
 For a deterministic verification run:
 
