@@ -107,7 +107,7 @@
  * returns, dock still gets 768px). This deliberately does NOT move the 760px
  * component swap: which surface mounts is unchanged.
  */
-@media (max-width: 1023px) {
+@media (max-width: 760px) {
   .app-shell.app-shell--seller {
     --channel-guide-width: 0px;
     grid-template-columns: minmax(0, 1fr);
