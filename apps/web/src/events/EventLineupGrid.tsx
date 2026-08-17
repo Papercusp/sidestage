@@ -1,6 +1,8 @@
 import { useMemo, useState } from 'react';
 import { RichGrid, type ColumnDef } from '@papercusp/grid-core';
 import { formatPrice } from '../event-creation/catalog';
+import { MarkdownControl } from '../seller/MarkdownControl';
+import type { MarkdownPolicyView } from '../seller/markdown-guard';
 import type { SellerEventItem } from './api';
 
 export interface EventLineupGridProps {
@@ -8,9 +10,19 @@ export interface EventLineupGridProps {
   busyProductId?: string | null;
   auctionWritesEnabled?: boolean;
   auctionWriteDisabledReason?: string;
+  /**
+   * The event's effective policy, for the markdown guardrail. Undefined means
+   * it has not loaded — the control then draws no floor and no limit rather
+   * than implying a guardrail it never read.
+   */
+  policy?: MarkdownPolicyView | null;
   onPush: (item: SellerEventItem) => void;
   onSwap: (current: SellerEventItem, target: SellerEventItem) => void;
-  onMarkdown: (item: SellerEventItem, percent: number) => void;
+  /**
+   * `priceCents` is the exact price the control previewed. Send THAT, never a
+   * recomputed one, or the seller is shown a number the action does not carry.
+   */
+  onMarkdown: (item: SellerEventItem, percent: number, priceCents: number) => void;
   onStockAdjust: (item: SellerEventItem, quantity: number) => void;
   onStartAuction: (item: SellerEventItem, quantity: number, startingPriceCents: number) => void;
   onSendOffer: (item: SellerEventItem, buyerId: string, quantity: number, priceCents: number) => void;
@@ -56,6 +68,7 @@ export function EventLineupGrid({
   busyProductId,
   auctionWritesEnabled = true,
   auctionWriteDisabledReason = 'Unlock seller auction writes before starting an auction',
+  policy,
   onPush,
   onSwap,
   onMarkdown,

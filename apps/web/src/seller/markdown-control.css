@@ -1,0 +1,167 @@
+/*
+ * Guarded markdown control (plan sidestage-lineup-run-of-show-2026-08-16, P-002).
+ *
+ * D-004: shipped Ticket theme tokens ONLY. No new hexes, no new font, no
+ * re-skin — every colour below resolves to a token already in styles.css, and
+ * sizing uses the existing seller/console density tier (--ss-font,
+ * --ss-control-h) rather than hardcoded pixels.
+ */
+
+.markdown-control {
+  display: grid;
+  gap: .3rem;
+  min-width: 190px;
+}
+
+.markdown-control-row {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: .3rem;
+}
+
+.markdown-control-step {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.75rem;
+  min-height: 1.9rem;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: .45rem;
+  color: var(--text);
+  background: var(--surface);
+  font-size: 1rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.markdown-control-step:hover:not(:disabled) {
+  border-color: var(--brand-red);
+  color: var(--brand-red);
+}
+
+.markdown-control-step:disabled {
+  opacity: .45;
+  cursor: not-allowed;
+}
+
+.markdown-control-field {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+}
+
+.markdown-control-field input {
+  width: 66px;
+  min-height: 1.9rem;
+  padding-right: 1.15rem;
+  border: 1px solid var(--border);
+  border-radius: .45rem;
+  color: var(--text);
+  background: var(--surface);
+  font-size: var(--ss-font);
+  text-align: right;
+}
+
+.markdown-control.is-blocked .markdown-control-field input {
+  border-color: var(--danger);
+}
+
+.markdown-control-unit {
+  position: absolute;
+  right: .4rem;
+  color: var(--muted);
+  font-size: .7rem;
+  pointer-events: none;
+}
+
+/* The resulting price. This is the number the action carries — never a
+ * separately computed one; markdown-guard.ts is the single source. */
+.markdown-control-preview {
+  display: flex;
+  align-items: baseline;
+  justify-content: flex-end;
+  gap: .3rem;
+  margin: 0;
+  font-size: .72rem;
+  color: var(--muted);
+}
+
+.markdown-control-was {
+  text-decoration: line-through;
+}
+
+.markdown-control-now {
+  color: var(--text);
+  font-size: var(--ss-font);
+}
+
+.markdown-control.is-blocked .markdown-control-now {
+  color: var(--danger);
+}
+
+.markdown-control-saving {
+  padding: .05rem .3rem;
+  border-radius: .3rem;
+  color: var(--yellow-text);
+  background: color-mix(in srgb, var(--brand-yellow) 22%, transparent);
+  font-size: .65rem;
+  font-weight: 600;
+}
+
+/* The hard stop, drawn. The allowed band is the pale run; everything past the
+ * stop marker is the blocked zone. Absent entirely when no policy loaded —
+ * an invented limit would be worse than no limit. */
+.markdown-control-track {
+  position: relative;
+  height: 4px;
+  border-radius: 2px;
+  background: color-mix(in srgb, var(--danger) 22%, var(--surface-sunken));
+  overflow: hidden;
+}
+
+.markdown-control-allowed {
+  position: absolute;
+  inset-block: 0;
+  left: 0;
+  border-radius: 2px;
+  background: var(--surface-sunken);
+}
+
+.markdown-control-fill {
+  position: absolute;
+  inset-block: 0;
+  left: 0;
+  border-radius: 2px;
+  background: var(--brand-yellow);
+}
+
+.markdown-control.is-blocked .markdown-control-fill {
+  background: var(--danger);
+}
+
+.markdown-control-stop {
+  position: absolute;
+  inset-block: -2px;
+  width: 2px;
+  border-radius: 1px;
+  background: var(--danger);
+  transform: translateX(-1px);
+}
+
+.markdown-control-note {
+  margin: 0;
+  color: var(--muted);
+  font-size: .65rem;
+  text-align: right;
+}
+
+.markdown-control-note.is-blocked {
+  color: var(--danger);
+  font-weight: 600;
+}
+
+.markdown-control-note.is-unknown {
+  font-style: italic;
+}

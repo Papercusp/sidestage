@@ -18,9 +18,22 @@ export interface EventConfigView {
   replyTone: 'warm' | 'playful' | 'minimal';
   guardrails: EventGuardrails;
   updatedAt: string;
+  /**
+   * The effective copilot policy, as `readEventConfigView` sends it
+   * (event-config.controller.ts:42-50) — a published seller policy when one
+   * exists, otherwise the guardrail-toggle derivation.
+   *
+   * `priceFloorCentsByProduct` is usually EMPTY here even though the server
+   * enforces per-product floors: the derivation from the markdown cap runs
+   * later, at the action boundary (event-policy-resolver.ts:45). A client that
+   * needs the floor must derive it the same way — see
+   * `seller/markdown-guard.ts`, whose differential test pins it to the server's
+   * own `withDerivedPriceFloors`.
+   */
   policy?: {
     automationLevel?: string;
     maxMarkdownPercent?: number;
+    priceFloorCentsByProduct?: Record<string, number>;
   };
   policySource?: string;
   policyRevisionId?: string;
