@@ -391,7 +391,22 @@ export function SellerTab({
     await publishActiveEvent();
     setRoom(nextRoom);
     await stream.start(
-      () => connectPublisher({ room: nextRoom, mediaBaseUrl: mediaBaseUrl() }),
+      () => connectPublisher({
+        room: nextRoom,
+        mediaBaseUrl: mediaBaseUrl(),
+        // WI-39747: an established publish can fall over (measured repeatedly
+        // against MediaMTX: `closed: peer connection closed` after anywhere
+        // from 3s to 5m). Nothing used to surface that, so the seller kept
+        // believing they were live while buyers held a black pane for the rest
+        // of the event. On the public domain this is routine, not exotic —
+        // buyers and sellers arrive over NAT, mobile data and wifi handoffs.
+        onConnectionLost: () => {
+          stream.setStreamState('error');
+          stream.setStreamError(
+            'Your camera disconnected from the media server — viewers are no longer seeing you. Start the stream again to reconnect.',
+          );
+        },
+      }),
       {
         attach: (session) => session.localStream,
         fallbackError: 'The camera and microphone could not be connected.',

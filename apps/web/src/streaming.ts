@@ -67,6 +67,13 @@ export interface PublisherOptions extends StreamingConfig {
   readonly peerConnectionFactory?: PeerConnectionFactory;
   /** Deadline for the camera/mic permission grant (default 20s). */
   readonly mediaAcquireTimeoutMs?: number;
+  /**
+   * Called when an ESTABLISHED publish falls over (see `isLostConnectionState`).
+   * Without this the seller keeps "broadcasting" to an empty path: the
+   * connection is gone, nothing surfaces it, and buyers see a black pane for the
+   * rest of the event. Not called for a deliberate `stop()`.
+   */
+  readonly onConnectionLost?: (state: RTCPeerConnectionState) => void;
 }
 
 export interface ViewerOptions extends StreamingConfig {
@@ -75,6 +82,49 @@ export interface ViewerOptions extends StreamingConfig {
   readonly peerConnectionFactory?: PeerConnectionFactory;
   readonly mediaStreamFactory?: MediaStreamFactory;
   readonly onTrack?: (stream: MediaStream, event: RTCTrackEvent) => void;
+  /**
+   * Called when an ESTABLISHED subscription falls over. The WHEP 404 retry only
+   * covers "the publisher has not started yet"; a stream that arrives and then
+   * dies never produces that 404, so this is the only signal that distinguishes
+   * a dead stream from a working one. Not called for a deliberate `stop()`.
+   */
+  readonly onConnectionLost?: (state: RTCPeerConnectionState) => void;
+}
+
+/**
+ * A peer-connection state meaning the media is gone and will not come back on
+ * its own. `failed` is terminal for an established session; `disconnected` is
+ * routinely transient (ICE recovers from it) and firing on it would tear down
+ * working streams.
+ *
+ * NOTE: `buyer-stream-recovery.ts` exports an identical predicate for the buyer
+ * retry path. This copy exists so the transport layer does not import the
+ * buyer-recovery module (which imports `MediaTransportError` from here, so the
+ * dependency would be circular). They must be unified — tracked on WI-39747.
+ */
+function isLostPeerConnectionState(state: RTCPeerConnectionState): boolean {
+  return state === 'failed';
+}
+
+/**
+ * Report an established connection falling over, exactly once, and never for a
+ * deliberate `stop()` — `close()` drives the state to `closed`, which must not
+ * be reported as a fault.
+ */
+function watchConnectionState(
+  peerConnection: RTCPeerConnection,
+  onConnectionLost: ((state: RTCPeerConnectionState) => void) | undefined,
+  isStopped: () => boolean,
+): void {
+  if (!onConnectionLost) return;
+  let reported = false;
+  peerConnection.onconnectionstatechange = () => {
+    if (reported || isStopped()) return;
+    const state = peerConnection.connectionState;
+    if (!isLostPeerConnectionState(state)) return;
+    reported = true;
+    onConnectionLost(state);
+  };
 }
 
 export class MediaTransportError extends Error {
@@ -362,6 +412,7 @@ export async function connectPublisher(options: PublisherOptions): Promise<Publi
   }
 
   let stopped = false;
+  watchConnectionState(peerConnection, options.onConnectionLost, () => stopped);
   return {
     peerConnection,
     localStream,
@@ -407,6 +458,7 @@ export async function connectViewer(options: ViewerOptions): Promise<ViewerSessi
   }
 
   let stopped = false;
+  watchConnectionState(peerConnection, options.onConnectionLost, () => stopped);
   return {
     peerConnection,
     get stream() {
