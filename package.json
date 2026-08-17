@@ -25,6 +25,7 @@
     "test:apps": "npm run test --workspace @papercusp/sidestage-api && npm run test --workspace @papercusp/sidestage-web",
     "release:probe-hygiene": "node deploy/release-probe-hygiene.mjs",
     "check": "npm run typecheck && npm test",
+    "green": "npm run build && npm test",
     "clean": "npm run clean --workspaces --if-present"
   },
   "engines": {
