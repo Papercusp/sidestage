@@ -74,6 +74,56 @@ export ZERO_MUTATE_URL="${ZERO_MUTATE_URL:-${DEFAULT_API_ORIGIN}${API_ZERO_PREFI
 
 mkdir -p "$(dirname "$ZERO_REPLICA_FILE")"
 
+# --- 0. preflight: upstream must actually have logical WAL --------------------
+# zero-cache dies mid-init with `Postgres must be configured with "wal_level =
+# logical"`, which sounds like a config-file problem. On 2026-08-17 it was NOT:
+# infra/docker-compose.data.yml already DECLARED `-c wal_level=logical`, and had
+# for days. The running container simply predated that declaration —
+# `docker inspect` showed its Cmd was a bare ["postgres"] — because a compose
+# `command:` change does nothing to an ALREADY-CREATED container until it is
+# recreated. So the upstream error sends you to fix a file that is already
+# correct, which is the worst kind of error message.
+#
+# Two things kept it hidden for four days, and both defeat the obvious check:
+#   * `show max_replication_slots` / `show max_wal_senders` both answer 10 —
+#     which looks like the -c flags took effect, but 10 is ALSO the postgres 16
+#     default for both. wal_level is the only one of the three whose configured
+#     value differs from its default, so it is the only one that can reveal this.
+#   * CREATE PUBLICATION SUCCEEDS under wal_level=replica (postgres only warns),
+#     so `zero_publication` existed and listed all 19 tables while nothing could
+#     ever stream. Every static check passed.
+#
+# Hence: check the LIVE server, not the compose file, and name the recreate as
+# the remedy. Advisory-but-loud — a non-default upstream, or no psql on PATH,
+# skips the check rather than blocking a legitimate setup.
+if command -v psql >/dev/null 2>&1; then
+  wal_level="$(psql "$ZERO_UPSTREAM_DB" -tAc 'show wal_level' 2>/dev/null || true)"
+  if [[ -z "$wal_level" ]]; then
+    echo "[zero-cache-start] NOTE: could not read wal_level from upstream (not reachable yet?); skipping preflight" >&2
+  elif [[ "$wal_level" != "logical" ]]; then
+    cat >&2 <<EOF
+[zero-cache-start] FATAL: upstream has wal_level=$wal_level, but zero-cache
+  requires 'logical'. Logical replication is OFF, so nothing can stream — note
+  that the publication may still exist and look complete; postgres only WARNS
+  when you create one under wal_level=replica.
+
+  If this is the default dev stack, the compose file is very likely ALREADY
+  correct and the CONTAINER is the stale part — a compose 'command:' change is
+  not applied to an existing container. Recreate it (the named volume persists,
+  so no data is lost):
+
+    docker compose -f infra/docker-compose.data.yml up -d postgres
+
+  Then confirm with:  docker inspect sidestage-data-postgres-1 --format '{{.Config.Cmd}}'
+  (a bare [postgres] means the flags are still not applied).
+EOF
+    exit 1
+  fi
+  echo "[zero-cache-start] preflight ok: wal_level=$wal_level"
+else
+  echo "[zero-cache-start] NOTE: psql not on PATH; skipping the wal_level preflight" >&2
+fi
+
 # --- 1. clear stale lock holders on this replica ------------------------------
 if command -v fuser >/dev/null 2>&1; then
   for f in "$ZERO_REPLICA_FILE" "$ZERO_REPLICA_FILE-wal" \
