@@ -9,21 +9,37 @@
     "emitDecoratorMetadata": true,
     "esModuleInterop": true,
     "noEmit": false,
-    "baseUrl": "."
-    // ⛔ DO NOT add `paths` entries for @rocicorp/zero's "./server" subpaths.
+    "baseUrl": ".",
     // `moduleResolution: "Node"` (node10) predates package `exports` maps, so it
-    // cannot see them and reports TS2307 — but `paths` is the WRONG fix, because it
-    // is not type-only: tsx honours tsconfig paths at RUNTIME. Mapping to the .d.ts
-    // made tsx load the declaration file, whose
-    // `export * from '../../../zero-server/src/adapters/pg.ts'` names a .ts that does
-    // not ship -> MODULE_NOT_FOUND; ZeroController is in AppModule's graph, so the
-    // ENTIRE API failed to boot (`start:dev` retried forever while
-    // bootstrapWithRetry's /healthz still answered 200 — up-looking, serving nothing).
-    // Mapping to the .js instead fails the other way: TS7016, no declaration file.
-    // The type gap is closed by src/types/rocicorp-zero-server.d.ts, which leaves
-    // runtime resolution to Node's exports map where it belongs.
-    // ⚠ Neither `tsc --noEmit` nor the vitest suite can catch a regression here:
-    // emit ignores paths, and vitest resolves through vite rather than tsx.
+    // cannot see @rocicorp/zero's "./server" / "./server/adapters/*" subpaths and
+    // reports TS2307 for them — even though Node resolves both fine at runtime
+    // (verified: `require('@rocicorp/zero/server')` returns PushProcessor et al).
+    // These two entries point the TYPE resolver at the same files the exports map
+    // names, so source keeps importing the public specifier rather than a deep
+    // out/ path. Remove them if this project ever moves to Bundler/NodeNext.
+    //
+    // ⚠⚠ LEAVE THE TARGETS EXTENSIONLESS. `paths` is NOT type-only: tsx honours
+    // tsconfig paths at RUNTIME, so each resolver must land on a different file
+    // here, and only the extensionless form lets both win — TS picks `pg.d.ts`,
+    // tsx picks `pg.js`. Both wrong forms were measured (2026-08-17, WI-39663):
+    //   `…/pg.d.ts` → tsx LOADS THE DECLARATION FILE, whose
+    //      `export * from '../../../zero-server/src/adapters/pg.ts'` names a .ts the
+    //      package does not ship → MODULE_NOT_FOUND. ZeroController is in
+    //      AppModule's graph, so the ENTIRE API fails to boot: `start:dev` retried
+    //      forever while bootstrapWithRetry's /healthz still answered 200 — the
+    //      port looks up and serves nothing.
+    //   `…/pg.js`   → TS7016, no declaration file (TS does not substitute the
+    //      sibling .d.ts for a node10 `paths` target).
+    // ⚠ Neither `tsc --noEmit` NOR the vitest suite can catch a regression here:
+    // emit ignores `paths`, and vitest resolves through vite, not tsx. The only
+    // check that sees it is booting the API (see the guard test in
+    // src/sync/zero-adapter-runtime-resolution.spec.ts).
+    "paths": {
+      "@rocicorp/zero/server": ["../../node_modules/@rocicorp/zero/out/zero/src/server"],
+      "@rocicorp/zero/server/adapters/pg": [
+        "../../node_modules/@rocicorp/zero/out/zero/src/adapters/pg"
+      ]
+    }
   },
   "include": ["src"]
 }
