@@ -40,15 +40,20 @@ function createSync() {
 }
 
 // CONTROL for the test below it. A guard that has never failed is a guard nobody has
-// tested, so this module is deliberately unsatisfiable: NeedsMissingDep asks for a token
-// no module provides, which is the same shape of failure (Nest cannot resolve a
-// dependency while scanning) that hid EI-20689489448966446.
+// tested, so this module is deliberately unbootable: its only provider's factory throws,
+// which is the same shape of failure (Nest cannot construct the graph while scanning)
+// that hid EI-20689489448966446.
 // NB: written with Module() applied as a plain function rather than as a @decorator.
 // Decorator syntax does not parse under this spec's tsconfig (TS1206), and a file that
 // fails to PARSE is worse than the bug this guards: bundle-host.sh esbuild-bundles the
 // working tree, so an unparseable file here takes the staging/release hosts down with
 // no commit involved.
-const DeliberatelyBrokenModule = Module({
+// Applied as a STATEMENT on a declared class, not as `Module(...)(class {})` whose value
+// is consumed: ClassDecorator returns `void | typeof T`, so consuming the call's result
+// hands NestFactory a `void`-widened type (TS2345). Nest's Module() mutates the target
+// via Reflect.defineMetadata and returns nothing, so the class binding is the real module.
+class DeliberatelyBrokenModule {}
+Module({
   providers: [
     {
       provide: 'DELIBERATELY_BROKEN',
@@ -57,7 +62,7 @@ const DeliberatelyBrokenModule = Module({
       },
     },
   ],
-})(class DeliberatelyBrokenModuleImpl {});
+})(DeliberatelyBrokenModule);
 
 describe('Nest boot failures must be visible', () => {
   // If this test ever ABORTS the worker instead of failing, the abortOnError:false
@@ -87,7 +92,16 @@ describe('SyncController', () => {
     // SyncModule (ZeroController -> @rocicorp/zero/server/adapters/pg) for hours.
     // With abortOnError:false the same failure surfaces here as a NAMED test failure.
     // Keep the logger on for the same reason: { logger: false } silences the cause.
-    const context = await NestFactory.createApplicationContext(SyncModule, { abortOnError: false });
+    //
+    // Bootstrap SyncSpecHostModule, NOT SyncModule: SyncModule's ZeroController injects
+    // PG_POOL, which nothing in SyncModule's own graph provides, so booting it bare fails
+    // to RESOLVE (a dependency error) — which is not the failure mode this test exists to
+    // check. SyncSpecHostModule wraps it with NullPgPoolModule so the graph is
+    // satisfiable and this test measures what it claims to: that SyncModule's own wiring
+    // (ZeroController's adapter import included) boots under tsx.
+    const context = await NestFactory.createApplicationContext(SyncSpecHostModule, {
+      abortOnError: false,
+    });
     try {
       const controller = context.get(SyncController);
       await expect(firstValueFrom(controller.syncEvents().pipe(take(1)))).resolves.toMatchObject({
