@@ -281,16 +281,40 @@ export function EventManager({
   const [planSaveError, setPlanSaveError] = useState<string | null>(null);
   const [nowMs, setNowMs] = useState(() => Date.now());
 
-  /** Seed the editable draft from the stored plan once per event. */
+  /*
+   * Seed the editable draft once per event.
+   *
+   * AN EVENT NOBODY PLANNED STILL HAS A SHOW (D-010). Direction C's premise is
+   * that the lineup IS the run of show, so when no plan was ever saved the show
+   * order defaults to LINEUP ORDER — every reserved product becomes a slot with
+   * no budget. Seeding empty instead would put every product in the "reserved,
+   * not in the show" tray and render no commerce control at all, which is the
+   * old two-surface split wearing the new surface's clothes: a seller who never
+   * opened a planner could not push, mark down, or auction anything.
+   *
+   * A plan that WAS saved is seeded verbatim, including a deliberately emptied
+   * one, so removing a product from the show survives a reload. The server
+   * makes the two cases distinguishable: a never-saved plan comes back from
+   * `emptyRunOfShow()` stamped with the epoch, while every real save stamps
+   * `new Date()` (run-of-show.service.ts:76 vs :105).
+   */
   useEffect(() => {
     if (!storedPlan || planSeededFor === selectedEventId) return;
-    setShowOrder(storedPlan.entries.map((entry) => entry.productId));
-    setSlotDrafts(Object.fromEntries(storedPlan.entries.map((entry) => [
+    // The lineup may still be loading; seeding from an empty one would pin an
+    // empty show for the event and never re-seed.
+    const neverSaved = storedPlan.entries.length === 0
+      && Date.parse(storedPlan.updatedAt) === 0;
+    if (neverSaved && items.length === 0) return;
+    const seedEntries: readonly RunOfShowEntry[] = neverSaved
+      ? items.map((item) => ({ productId: item.productId, plannedDurationSec: null, notes: '' }))
+      : storedPlan.entries;
+    setShowOrder(seedEntries.map((entry) => entry.productId));
+    setSlotDrafts(Object.fromEntries(seedEntries.map((entry) => [
       entry.productId,
       { ...emptySlotDraft(), ...draftFromEntry(entry) },
     ])));
     setPlanSeededFor(selectedEventId);
-  }, [storedPlan, planSeededFor, selectedEventId]);
+  }, [storedPlan, planSeededFor, selectedEventId, items]);
 
   /*
    * The ONE shared clock (D-003) — read, never created. Outside a provider
@@ -467,6 +491,90 @@ export function EventManager({
       setMessage(errorMessage(error));
     } finally {
       setBusyProductId(null);
+    }
+  };
+
+  /*
+   * Every edit below marks the document dirty by dropping `saved`, so the save
+   * status can never claim "Saved" about a plan that has since been changed.
+   */
+  const patchSlotDraft = (productId: string, patch: Partial<TimelineSlotDraft>) => {
+    setPlanSaveStatus('idle');
+    setSlotDrafts((current) => ({
+      ...current,
+      [productId]: { ...(current[productId] ?? emptySlotDraft()), ...patch },
+    }));
+  };
+
+  const reorderShow = (fromIndex: number, toIndex: number) => {
+    setPlanSaveStatus('idle');
+    setShowOrder((current) => {
+      if (fromIndex < 0 || fromIndex >= current.length) return current;
+      if (toIndex < 0 || toIndex >= current.length) return current;
+      const next = [...current];
+      const [moved] = next.splice(fromIndex, 1);
+      if (moved === undefined) return current;
+      next.splice(toIndex, 0, moved);
+      return next;
+    });
+  };
+
+  /** The keyboard path and the drag path are the same move, by design. */
+  const moveSlot = (productId: string, delta: -1 | 1) => {
+    const index = showOrder.indexOf(productId);
+    if (index === -1) return;
+    reorderShow(index, index + delta);
+  };
+
+  /*
+   * Dropping a product from the SHOW never removes it from the lineup — it
+   * returns to the reserved tray, one click from coming back. The commerce
+   * draft is deliberately kept, so a markdown typed before a reshuffle is
+   * still there afterwards.
+   */
+  const removeFromShow = (productId: string) => {
+    setPlanSaveStatus('idle');
+    setOpenSlotProductId((current) => (current === productId ? null : current));
+    setShowOrder((current) => current.filter((id) => id !== productId));
+  };
+
+  const addToShow = (productId: string) => {
+    setPlanSaveStatus('idle');
+    setShowOrder((current) => (current.includes(productId) ? current : [...current, productId]));
+  };
+
+  const saveRunOfShow = async () => {
+    const entries: RunOfShowEntry[] = [];
+    for (const productId of showOrder) {
+      const draft = slotDrafts[productId] ?? emptySlotDraft();
+      const seconds = draftMinutesToSeconds(draft.minutes);
+      if (seconds === undefined) {
+        setPlanSaveError(`"${titles[productId] ?? productId}": minutes must be a number between 1 and 240.`);
+        return;
+      }
+      entries.push({ productId, plannedDurationSec: seconds, notes: draft.notes });
+    }
+    setPlanSaveStatus('saving');
+    setPlanSaveError(null);
+    try {
+      const saved = await mutateSaveRunOfShow(entries);
+      // Re-seed from the SERVER's echo, merging rather than replacing so the
+      // commerce drafts of products it does not mention survive the save.
+      setShowOrder(saved.entries.map((entry) => entry.productId));
+      setSlotDrafts((current) => {
+        const next = { ...current };
+        for (const entry of saved.entries) {
+          next[entry.productId] = {
+            ...(next[entry.productId] ?? emptySlotDraft()),
+            ...draftFromEntry(entry),
+          };
+        }
+        return next;
+      });
+      setPlanSaveStatus('saved');
+    } catch (cause) {
+      setPlanSaveStatus('idle');
+      setPlanSaveError(cause instanceof Error ? cause.message : 'The show plan could not be saved.');
     }
   };
 
@@ -768,13 +876,17 @@ export function EventManager({
 
                 {items.length ? (
                   <>
-                    <div className="event-guardrail-banner">
-                      <span className="feature-icon cyan" aria-hidden="true">⌁</span>
-                      <span>
-                        <strong>Guarded seller actions are live</strong>
-                        <small>Price floors, markdown limits, verified inventory, audit, and rollback are enforced server-side.</small>
-                      </span>
-                    </div>
+                    {/*
+                      The permanent "guarded seller actions are live" banner is
+                      RETIRED here (fault 8). It restated a standing property of
+                      every control on the screen, on every render, and so was
+                      read as furniture within seconds — while occupying the one
+                      position a seller actually looks at mid-show. Guardrails
+                      now speak WHERE and WHEN they bind: the markdown control
+                      shows the floor it is clamping to, the offer control
+                      disables send with the reason, and a server refusal
+                      surfaces as the action's own message.
+                    */}
                     {auctionQuery.loading ? (
                       <p className="event-current-auction-state" role="status">Checking the authoritative auction state…</p>
                     ) : auctionQuery.error ? (
@@ -815,7 +927,22 @@ export function EventManager({
                         <strong>{items.length} reserved {items.length === 1 ? 'item' : 'items'} ready for the live room</strong>
                       </div>
                     </div>
-                    <EventLineupGrid
+                    <LineupTimelineView
+                      view={runOfShowView}
+                      drafts={slotDrafts}
+                      showPace={showPace}
+                      saveStatus={planSaveStatus}
+                      saveError={planSaveError}
+                      onDraftChange={patchSlotDraft}
+                      onMove={moveSlot}
+                      onReorder={reorderShow}
+                      onRemoveFromShow={removeFromShow}
+                      onAddToShow={addToShow}
+                      onSave={() => void saveRunOfShow()}
+                      openProductId={openSlotProductId}
+                      onToggleDrawer={(productId) => setOpenSlotProductId(
+                        (current) => (current === productId ? null : productId),
+                      )}
                       items={items}
                       busyProductId={busyProductId}
                       auctionWritesEnabled={auctionWritesEnabled}
@@ -898,7 +1025,14 @@ export function EventManager({
                         `${quantity} × ${item.title} offered to ${buyer.displayName}.`,
                       )}
                     />
-                    <RunOfShowPlannerPanel eventId={selectedEventId} apiBaseUrl={apiBaseUrl} />
+                    {/*
+                      The standalone RunOfShowPlannerPanel mount is RETIRED
+                      (D-001). Ordering, minutes and notes are no longer a
+                      separate pre-show surface below the lineup — they are the
+                      timeline above, which is the whole point of direction C.
+                      The module itself stays for the dock, which adopts this
+                      component under P-006.
+                    */}
                   </>
                 ) : loaded && !pickerOpen ? (
                   <div className="event-detail-empty">

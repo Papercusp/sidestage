@@ -35,6 +35,12 @@ const legacyAccessBudget = {
   // ChannelGuide's one timer advances scheduled-event countdown copy; the
   // directory itself arrives through useSyncQuery('events.guide').
   'events/ChannelGuide.tsx': { 'polling-timer': 1 },
+  // EventManager's one timer is the render pulse for the SHARED StageLog the
+  // Lineup timeline paces against — the same permanently-valid local-clock
+  // exception as AuctionPanel and RunOfShowPanel above. It reads no server
+  // state: the plan arrives via useSyncQuery('event.runOfShow') and the staged
+  // product via useSyncQuery('event.actions.items').
+  'events/EventManager.tsx': { 'polling-timer': 1 },
   'ConfigTab.tsx': { fetch: 1 },
   'CopilotPanel.tsx': { fetch: 1 },
   // One shared transport remains for named chat mutation REST fallbacks. Chat
