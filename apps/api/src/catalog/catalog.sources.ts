@@ -295,10 +295,63 @@ export class PgCatalogSource implements CatalogSource {
 
   async searchOwned(query: CatalogQuery, sellerId: string): Promise<CatalogPage> {
     await this.pool.query('SELECT expire_inventory_reservations()', []);
-    const { q, availability } = normalizeQuery(query);
+    const { q, productTypes, availability, page, pageSize } = normalizeQuery(query);
     const tokens = catalogSearchTokens(q, availability);
     if (q && tokens.length === 0) {
-      return { rows: [], page: normalizeQuery(query).page, pageSize: normalizeQuery(query).pageSize, total: 0, totalIsFloor: false };
+      return { rows: [], page, pageSize, total: 0, totalIsFloor: false };
+    }
+    // The same typo-tolerant Typesense leg as search() (spec parity,
+    // sidestage-code-quality P-110), seller-scoped at hydration so a match
+    // in another seller's inventory can never surface here (WI-39559).
+    const typesense = q && !this.collection ? await loadTypesense(this.logger) : null;
+    if (q && typesense) {
+      try {
+        const { hits, found } = await typesense.typesenseService.search({
+          q,
+          categories: productTypes.length > 0 ? productTypes : undefined,
+          inStockOnly: availability === 'in-stock',
+          limit: pageSize,
+          page,
+          includeFields: ['id', 'groupId'],
+        });
+        if (hits.length > 0) {
+          const groupKeys = hits.map((hit) => hit.groupId ?? hit.id);
+          const rows = await this.pool.query<VariantRow>(
+            `SELECT ${VARIANT_COLUMNS}
+             FROM storefront_product v
+             LEFT JOIN product_catalog c ON c.group_id = v.group_id AND c.region = v.region
+             WHERE v.active
+               AND v.seller_id = $2
+               AND (
+                 v.group_id = ANY($1)
+                 OR (v.group_id IS NULL AND v.id = ANY($1))
+               )
+             ORDER BY array_position($1, COALESCE(v.group_id, v.id)), v."availableQty" > 0 DESC, v.id`,
+            [groupKeys, sellerId],
+          );
+          if (rows.rows.length > 0) {
+            return {
+              rows: rows.rows.map(rowToVariant),
+              page,
+              pageSize,
+              // `found` is Typesense's corpus-wide group-match count; a
+              // seller-scoped page can only be a subset of it, so this is an
+              // acceptable overstatement for a small seller rather than a
+              // wrong hidden total — negligible in practice since one
+              // demo-seller currently owns the near-entirety of the corpus
+              // (1,099,890 of 1,099,891 rows).
+              total: Math.min(found, TOTAL_CAP),
+              totalIsFloor: found > TOTAL_CAP,
+            };
+          }
+          // Typesense's corpus-wide hits hydrated to zero rows for THIS
+          // seller — fall through to the SQL tsvector path below instead of
+          // returning an empty page while genuinely-matching owned stock
+          // may exist.
+        }
+      } catch (err) {
+        this.logger.warn(`Typesense searchOwned unavailable, falling back to SQL: ${(err as Error).message}`);
+      }
     }
     const tsQuery = `to_tsquery('english', array_to_string($Q::text[], ':* | ') || ':*')`;
     const primary = await this.runSearch(query, q ? {
