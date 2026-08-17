@@ -41,6 +41,15 @@ import {
 } from './VideoEngagementOverlay';
 import './BuyerTab.css';
 
+/**
+ * How many times a stream that DIED after working may re-arm the publisher wait
+ * (WI-39747). Each re-entry is itself bounded, so this only caps how many
+ * separate losses are recovered from: enough for genuine network blips, few
+ * enough that a room whose publisher drops instantly and forever terminates in
+ * the honest "nobody is on camera" message instead of an endless spinner.
+ */
+const MAX_LOSS_RECONNECTS = 3;
+
 export interface BuyerTabProps {
   eventId?: string;
   eventTitle?: string;
@@ -209,6 +218,17 @@ export function BuyerTab({
             setStreamState('live');
             void videoRef.current?.play().catch(() => undefined);
           },
+          // WI-39747: the retry below only covers "the publisher has not started
+          // YET" (a WHEP 404). A stream that ARRIVES and then dies never
+          // produces that 404 — measured against MediaMTX, every publisher
+          // eventually ends in `peer connection closed`, anywhere from 3s to
+          // 5m — so without this the pane goes black and nothing re-arms. On the
+          // public domain an established connection dropping is routine (NAT,
+          // mobile data, wifi handoffs), not exotic.
+          onConnectionLost: () => {
+            if (selectedRoomRef.current !== room) return;
+            reconnectOnLossRef.current?.();
+          },
         }),
       {
         attach: (viewer) => viewer.stream,
@@ -237,6 +257,22 @@ export function BuyerTab({
     generation: number;
     timer: ReturnType<typeof globalThis.setTimeout> | undefined;
   }>({ generation: 0, timer: undefined });
+
+  /**
+   * Re-entry point for a stream that dies after it was working (WI-39747).
+   *
+   * Held in a ref rather than called directly because the recovery routine is
+   * built FROM `connectStream`, so calling it from inside `connectStream`'s own
+   * options would be a dependency cycle between the two callbacks.
+   *
+   * `remaining` bounds how many times a LOSS may re-arm the wait. Each re-entry
+   * is itself bounded (~96s), but a connection that establishes and drops
+   * immediately, forever, would otherwise reconnect forever. A handful of
+   * recoveries covers a genuine network blip; past that the room is broken and
+   * the buyer is better served by the terminal message than by a silent spinner.
+   */
+  const reconnectOnLossRef = useRef<(() => void) | undefined>(undefined);
+  const lossReconnectsRemainingRef = useRef(MAX_LOSS_RECONNECTS);
 
   const cancelPublisherWait = useCallback(() => {
     publisherWaitRef.current.generation += 1;
@@ -282,11 +318,28 @@ export function BuyerTab({
     await attempt(0);
   }, [cancelPublisherWait, connectStream, setStreamError, setStreamState]);
 
+  // Armed here, not called inline, to keep `connectStream` and the recovery
+  // routine free of a mutual dependency. A loss re-enters the SAME bounded wait
+  // a first connect uses, so a dead room still terminates instead of spinning.
+  useEffect(() => {
+    reconnectOnLossRef.current = () => {
+      if (lossReconnectsRemainingRef.current <= 0) {
+        setWaitingForPublisher(false);
+        setStreamError(PUBLISHER_ABSENT_MESSAGE);
+        return;
+      }
+      lossReconnectsRemainingRef.current -= 1;
+      void connectStreamUntilPublisher();
+    };
+  }, [connectStreamUntilPublisher, setStreamError, setWaitingForPublisher]);
+
   useEffect(() => {
     if (activeGuideEvent?.status !== 'live') {
       cancelPublisherWait();
       return stopStream;
     }
+    // A fresh live event gets a fresh recovery budget.
+    lossReconnectsRemainingRef.current = MAX_LOSS_RECONNECTS;
     void connectStreamUntilPublisher();
     return () => {
       cancelPublisherWait();

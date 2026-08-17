@@ -14,6 +14,7 @@ import {
 } from './events/api';
 import type { EventLifecycleAction } from './events/event-lifecycle';
 import { activeEventStatus, publishOnStartWarning } from './seller/active-event-status';
+import { retryEndEvent, runEndEvent } from './seller/end-event';
 import { useStreamSession } from './hooks';
 import { studioViewHref, useUrlStudioView, type StudioView } from './app-routing';
 import { InventoryPanel } from './InventoryPanel';
@@ -374,6 +375,60 @@ export function SellerTab({
     }
   }, [directoryQuery, eventId, mutateLifecycle]);
 
+  /*
+   * Ending is part of ending (WI-39737) — the exact mirror of the publish-on-
+   * start gap above.
+   *
+   * "End event" used to be `stream.stop` and nothing else: the camera went off
+   * and the event stayed `status='live'` in the directory forever. Because the
+   * What's-On rail sorts live events FIRST, that pinned a dead room to the TOP
+   * of every buyer's rail, and clicking it lands on the MediaMTX WHEP 404 /
+   * black-video path (WI-39733). The seller's most reasonable action produced
+   * the worst-looking failure the product has.
+   *
+   * WHICH READING OF "END EVENT" THIS IMPLEMENTS, and why it is not the
+   * destructive one it looks like: this ends the EVENT LIFECYCLE (`end` →
+   * `ended`), not merely the broadcast. The reason that is safe is in the
+   * server's own transition table — `resolveLifecycleTransition` makes
+   * `go-live` legal from EVERY state including `ended`, and treats it as a new
+   * run rather than an error. So a mis-click during a show is recovered by
+   * pressing "Start event" again; the only cost is a restamped start time. It
+   * is not a one-way door, which is what would have made a "pause / seller
+   * away" state necessary instead. `end` is also idempotent from `ended`, so
+   * the retry beside the warning is safe to press twice.
+   */
+  const [endWarning, setEndWarning] = useState<string | null>(null);
+  const [ending, setEnding] = useState(false);
+  const endDeps = useMemo(() => ({
+    endLifecycle: () => mutateLifecycle({ eventId, action: 'end' as const }),
+    setWarning: setEndWarning,
+    invalidateDirectory: () => directoryQuery.invalidate(),
+  }), [directoryQuery, eventId, mutateLifecycle]);
+
+  /*
+   * The sequence itself lives in `seller/end-event.ts` — including why the
+   * camera stops BEFORE the API call, which is the reverse of `startEvent`.
+   * What stays here is only the React shell: the pending flag and the state
+   * setters it drives.
+   */
+  const endEvent = useCallback(async (): Promise<boolean> => {
+    setEnding(true);
+    try {
+      return await runEndEvent({ ...endDeps, stopStream: stream.stop });
+    } finally {
+      setEnding(false);
+    }
+  }, [endDeps, stream.stop]);
+
+  const retryEnd = useCallback(async (): Promise<boolean> => {
+    setEnding(true);
+    try {
+      return await retryEndEvent(endDeps);
+    } finally {
+      setEnding(false);
+    }
+  }, [endDeps]);
+
   const startEvent = async () => {
     let nextRoom: EventRoom;
     try {
@@ -470,7 +525,10 @@ export function SellerTab({
       videoRef: stream.videoRef,
       isSessionActive: Boolean(stream.session),
       onStartEvent: () => void startEvent(),
-      onEndEvent: stream.stop,
+      onEndEvent: () => void endEvent(),
+      endWarning,
+      onEndRetry: () => void retryEnd(),
+      ending,
       chat: <EventChat {...eventChatProps} surface="audience-overlay" />,
       transcript,
     },
