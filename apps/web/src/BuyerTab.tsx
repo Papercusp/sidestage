@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useSyncQuery } from '@papercusp/sync';
+import { useRestSyncQuery, useSyncQuery } from '@papercusp/sync';
 
 import {
   availableBuyerProducts,
@@ -124,7 +124,7 @@ export function BuyerTab({
 
   // Live stats (P-111 — no dummy data): real presence + paid orders through
   // the app-wide sync transport, with polling retained as its fallback mode.
-  const statsQuery = useSyncQuery<BuyerStats>({
+  const statsQuery = useRestSyncQuery<BuyerStats>({
     queryName: 'event.stats',
     args: { eventId },
     enabled: !statsProp,

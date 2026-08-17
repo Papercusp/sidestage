@@ -43,6 +43,10 @@ vi.mock('@papercusp/sync', async (importOriginal) => {
     ...actual,
     useSyncPrincipal: () => 'current-offer-test-buyer',
     useSyncQuery: vi.fn(() => ({ data: [], error: null, invalidate: vi.fn() })),
+    // BuyerTab's event.stats read is a useRestSyncQuery (WI-39772). The real
+    // hook is a react-query consumer, so it needs a QueryClientProvider this
+    // test does not mount — stub it like its useSyncQuery sibling.
+    useRestSyncQuery: vi.fn(() => ({ data: [], error: null, invalidate: vi.fn() })),
     useSyncMutate: (_name: string, fallback: (input: unknown) => Promise<unknown>) => fallback,
   };
 });
