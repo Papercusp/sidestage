@@ -105,26 +105,26 @@ function useSyncQueryCallSites(file: string): { at: string; names: string[] }[] 
 }
 
 /**
- * Web call sites that name an UNSYNCED_QUERY_REASONS query and are NOT yet
- * repaired — a ratchet, not a permission. Each one throws on the WEBSOCKETS
- * transport; they are latent today only because a zero-cache auth failure
- * demotes every prod client to polling before they render (WI-39763). Repairing
- * that auth failure alone makes all of these user-visible at once, so this list
- * is the fix-ordering hazard written down.
+ * Web call sites that reach an UNSYNCED_QUERY_REASONS query through
+ * `useSyncQuery` and are NOT yet repaired — a ratchet, not a permission. Each
+ * one throws `Query '<name>' is not a function` on the WEBSOCKETS transport,
+ * because the Zero client resolves the name against a registry that
+ * deliberately has no leaf for it.
  *
- * Removing an entry is the definition of done for repairing one. Adding an entry
- * is not a fix, and needs the same scrutiny as a new Zero registry exception.
+ * NOW EMPTY, and it must stay that way. All eight known instances were repaired
+ * by switching them to `useRestSyncQuery` (WI-39763 for `event.chat.stats`,
+ * WI-39772 for the other seven) — that hook always resolves through the REST
+ * batch fetcher, so it behaves identically on every transport. The scanner
+ * below only matches `useSyncQuery`, so a repaired site simply stops being
+ * found.
+ *
+ * A non-empty list is the fix-ordering hazard written down: these are latent on
+ * a rung that has already been demoted to polling, so repairing a WebSocket
+ * auth failure alone makes every listed site user-visible at once. Adding an
+ * entry is not a fix; it needs the same scrutiny as a new Zero registry
+ * exception. Reach for `useRestSyncQuery` instead.
  */
-const KNOWN_UNSYNCED_CALL_SITES: readonly string[] = [
-  'apps/web/src/BuildHistoryTab.tsx -> build.history',
-  'apps/web/src/BuyerTab.tsx -> event.stats',
-  'apps/web/src/OrdersTab.tsx -> orders.byBuyer',
-  'apps/web/src/SystemTestsTab.tsx -> judge.latest',
-  'apps/web/src/TestTab.tsx -> rehearsal.preflight',
-  'apps/web/src/TestTab.tsx -> judge.latest',
-  'apps/web/src/catalog.ts -> catalog.types',
-  'apps/web/src/seller/PricingHistoryPanel.tsx -> event.pricingHistory',
-].sort();
+const KNOWN_UNSYNCED_CALL_SITES: readonly string[] = ([] as string[]).sort();
 
 /**
  * Postgres tables the census classifies as `replicate` that this contract does
