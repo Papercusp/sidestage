@@ -27,10 +27,15 @@ DEPLOYED_SHA_FILE="$PROD_DIR/.deployed-sha"
 HISTORY_FILE="$PROD_DIR/.deploy-history"
 # The api container EXPOSES 3100 but never PUBLISHES it -- Traefik reaches it
 # over the `coolify` docker network -- so the PUBLIC url is the health contract.
-# Prod's .env.production does not define PUBLIC_HOSTNAME; default it to the same
-# value docker-compose.prod.yml defaults to. See deploy.sh's health_probe.
-PUBLIC_HOSTNAME="${PUBLIC_HOSTNAME:-sidestage.buyrestart.com}"
-HEALTH_URL="https://$PUBLIC_HOSTNAME/healthz"
+# WHICH hostname is resolved from PROD's own .env.production, never guessed
+# here -- see resolve_public_hostname below and deploy.sh's copy. Until
+# 2026-08-17 this hardcoded sidestage.buyrestart.com under a comment claiming
+# prod does not define PUBLIC_HOSTNAME; prod does (=sidestage.papercusp.com),
+# buyrestart now 301s there, and the probe read the redirect body as health
+# (WI-39708). Only the last-resort fallback is a constant, pinned to
+# docker-compose.prod.yml's own default by rollback.test.mjs.
+COMPOSE_DEFAULT_PUBLIC_HOSTNAME=sidestage.buyrestart.com
+HEALTH_URL=""   # set by resolve_public_hostname, after prod is reachable
 
 TARGET=""
 DRY_RUN=false
@@ -47,6 +52,34 @@ done
 
 SSH=(ssh -i "$PROD_SSH_KEY" -o ConnectTimeout=10 "root@$PROD_HOST")
 say() { echo "==> $*"; }
+
+# resolve_public_hostname -- print the hostname prod ACTUALLY serves. Kept
+# byte-identical to deploy.sh's copy (rollback.test.mjs asserts both scripts).
+# Precedence: explicit PUBLIC_HOSTNAME override > prod's .env.production (the
+# same env-file compose routes with, so the probe url and the Traefik Host(...)
+# rule are the SAME fact) > the compose default. A constant baked in here is a
+# COPY of prod config, and a copy drifts -- that is WI-39708.
+resolve_public_hostname() {
+  local from_prod
+  if [[ -n "${PUBLIC_HOSTNAME:-}" ]]; then
+    printf '%s' "$PUBLIC_HOSTNAME"
+    return 0
+  fi
+  from_prod="$("${SSH[@]}" "grep -sh -m1 -E '^[[:space:]]*PUBLIC_HOSTNAME=' $PROD_DIR/.env.production" 2>/dev/null || true)"
+  from_prod="${from_prod#*=}"
+  from_prod="${from_prod//[$'\r\n']/}"
+  from_prod="${from_prod//\"/}"
+  from_prod="${from_prod//\'/}"
+  from_prod="${from_prod// /}"
+  if [[ -n "$from_prod" ]]; then
+    printf '%s' "$from_prod"
+    return 0
+  fi
+  printf '%s' "$COMPOSE_DEFAULT_PUBLIC_HOSTNAME"
+}
+
+PUBLIC_HOSTNAME="$(resolve_public_hostname)"
+HEALTH_URL="https://$PUBLIC_HOSTNAME/healthz"
 
 # What prod RECORDS as live. This is an assertion written by the last deploy --
 # it can be stale (a deploy that died between `up -d` and the record, or an
