@@ -6,8 +6,8 @@ import {
   formatPace,
   type RunOfShowPlan,
   type RunOfShowView,
-  type StageLog,
 } from '../run-of-show';
+import { useStageClock, useStageNow } from './stage-clock';
 import {
   executeSellerAction,
   startSellerAuction,
@@ -32,8 +32,6 @@ export interface RunOfShowPanelProps {
   eventId: string;
   /** The acting seller, for the guarded push action "Take live" now performs. */
   actorId: string;
-  /** Seller-owned history persists when desktop/mobile panel hosts remount. */
-  stageLog: StageLog;
   /** The product currently on stage, including the live card's commerce detail. */
   activeProduct: CatalogProduct | null;
   /** The existing app-level catalog projection, used for next-item imagery. */
@@ -314,13 +312,22 @@ export function RunOfShowPanelView({
 export function RunOfShowPanel({
   eventId,
   actorId,
-  stageLog: log,
   activeProduct,
   catalogProducts = [],
   onActiveProductChange,
   apiBaseUrl,
 }: RunOfShowPanelProps) {
   const principal = useSyncPrincipal() ?? undefined;
+  /*
+   * The ONE shared clock (D-003) — read, never created, and no longer received
+   * as a prop. The prop let a host hand this panel a log that had accumulated
+   * separately from the Lineup's, which is the exact disagreement D-003 forbids:
+   * a `StageLog` remembers how long each product has held the stage, so a second
+   * one does not agree with the first. `nowMs` comes from the same provider, so
+   * both surfaces measure elapsed against the same instant.
+   */
+  const log = useStageClock();
+  const nowMs = useStageNow();
   /**
    * The plan rides the audited sync path (sync-contract.test.ts): the server
    * registers `event.runOfShow` and invalidates it on every PUT, so a save in
@@ -339,7 +346,6 @@ export function RunOfShowPanel({
     () => Object.fromEntries(lineupItems.map((item) => [item.productId, item.title])),
     [lineupItems],
   );
-  const [nowMs, setNowMs] = useState(() => Date.now());
   const [startingPrice, setStartingPrice] = useState('');
   const [durationSec, setDurationSec] = useState(90);
   const [auctionBusy, setAuctionBusy] = useState(false);
@@ -353,13 +359,6 @@ export function RunOfShowPanel({
     : itemsQuery.error
       ? 'The live event lineup could not be loaded.'
       : null;
-
-  /** A soft 1s clock, only while something is on stage. */
-  useEffect(() => {
-    if (!log.activeProductId) return undefined;
-    const timer = setInterval(() => setNowMs(Date.now()), 1000);
-    return () => clearInterval(timer);
-  }, [log.activeProductId]);
 
   const view = useMemo(
     () => buildRunOfShowView({

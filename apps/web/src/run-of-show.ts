@@ -31,6 +31,53 @@ export interface RunOfShowPlan {
  * This module is pure types + logic so the math is testable without a network.
  */
 
+/**
+ * Has this event's plan NEVER been saved? (D-010)
+ *
+ * Lives here, once, because BOTH surfaces need it and the discriminator is
+ * subtle enough that two copies would drift: emptiness alone is the wrong test.
+ * A never-saved plan and a plan the seller deliberately emptied are both zero
+ * entries, and only the timestamp separates them — the server's
+ * `emptyRunOfShow()` fallback stamps the epoch (run-of-show.service.ts:76)
+ * while every real save stamps `new Date()` (:105). Branching on emptiness
+ * would resurrect products the seller removed on purpose.
+ *
+ * `undefined` means the query has not delivered a row yet, which is treated as
+ * never-saved: the surfaces seed from the lineup and correct themselves when
+ * the real plan arrives, rather than flashing an empty show.
+ */
+export function planNeverSaved(plan: RunOfShowPlan | undefined): boolean {
+  const entries = plan?.entries ?? [];
+  return entries.length === 0 && (plan === undefined || Date.parse(plan.updatedAt) === 0);
+}
+
+/**
+ * The show order both surfaces render: the saved plan verbatim, or — when
+ * nothing was ever saved — LINEUP ORDER, because direction C's premise is that
+ * the lineup IS the run of show (D-010). A saved-but-empty plan stays empty.
+ */
+export function seededShowOrder(
+  plan: RunOfShowPlan | undefined,
+  lineupProductIds: readonly string[],
+): string[] {
+  return planNeverSaved(plan)
+    ? [...lineupProductIds]
+    : (plan?.entries ?? []).map((entry) => entry.productId);
+}
+
+/**
+ * The seeded order as PLAN ENTRIES, for a surface that only reads the plan.
+ * Seeded slots carry no budget and no notes — an unplanned show has no
+ * expectations to pace against, and inventing one would make the pace line lie.
+ */
+export function seededEntries(
+  plan: RunOfShowPlan | undefined,
+  lineupProductIds: readonly string[],
+): RunOfShowEntry[] {
+  if (!planNeverSaved(plan)) return plan?.entries ?? [];
+  return lineupProductIds.map((productId) => ({ productId, plannedDurationSec: null, notes: '' }));
+}
+
 /* ── Stage log: who has been on stage, for how long ───────────────────────── */
 
 /**

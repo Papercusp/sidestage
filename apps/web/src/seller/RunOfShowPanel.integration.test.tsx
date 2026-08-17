@@ -68,7 +68,14 @@ vi.mock('../events/api', () => ({
 }));
 
 import { RunOfShowPanel } from './RunOfShowPanel';
-import { emptyStageLog, stageLogOnProductChange } from '../run-of-show';
+/*
+ * The panel reads the ONE shared clock (D-003) rather than taking a log as a
+ * prop, so these renders supply a real provider. `stagedProductId` is the
+ * server-authoritative staged flag the provider tracks (D-005) — the same input
+ * production passes it — so the clock these tests exercise is the production
+ * one, not a hand-built log the panel would no longer accept.
+ */
+import { StageClockProvider } from './stage-clock';
 
 describe('RunOfShowPanel integration', () => {
   beforeEach(() => {
@@ -85,15 +92,15 @@ describe('RunOfShowPanel integration', () => {
     const container = document.createElement('div');
     const root = createRoot(container);
     await act(async () => {
-      const stageLog = stageLogOnProductChange(emptyStageLog(), 'planned-a', Date.now());
       root.render(
-        <RunOfShowPanel
-          eventId="demo-room"
-          actorId="seller-1"
-          stageLog={stageLog}
-          activeProduct={null}
-          onActiveProductChange={onActiveProductChange}
-        />,
+        <StageClockProvider stagedProductId="planned-a">
+          <RunOfShowPanel
+            eventId="demo-room"
+            actorId="seller-1"
+            activeProduct={null}
+            onActiveProductChange={onActiveProductChange}
+          />
+        </StageClockProvider>,
       );
     });
     const button = [...container.querySelectorAll('button')]
@@ -169,15 +176,15 @@ describe('RunOfShowPanel integration', () => {
 
     try {
       await act(async () => {
-        const stageLog = stageLogOnProductChange(emptyStageLog(), 'planned-a', Date.now());
         root.render(
-          <RunOfShowPanel
-            eventId="demo-room"
-            actorId="seller-1"
-            stageLog={stageLog}
-            activeProduct={null}
-            onActiveProductChange={() => undefined}
-          />,
+          <StageClockProvider stagedProductId="planned-a">
+            <RunOfShowPanel
+              eventId="demo-room"
+              actorId="seller-1"
+              activeProduct={null}
+              onActiveProductChange={() => undefined}
+            />
+          </StageClockProvider>,
         );
       });
 
@@ -201,19 +208,19 @@ describe('RunOfShowPanel integration', () => {
 
     try {
       await act(async () => {
-        const stageLog = stageLogOnProductChange(emptyStageLog(), 'planned-a', Date.now());
         root.render(
-          <RunOfShowPanel
-            eventId="demo-room"
-            actorId="seller-1"
-            stageLog={stageLog}
-            activeProduct={null}
-            catalogProducts={[{
-              id: 'planned-b', name: 'Beacon Mug', imageUrl: '/beacon.jpg', price: '$24.00',
-              description: 'Hand-thrown stoneware.', stockLabel: '6 available', tone: 'cyan', glyph: '◒',
-            }]}
-            onActiveProductChange={onActiveProductChange}
-          />,
+          <StageClockProvider stagedProductId="planned-a">
+            <RunOfShowPanel
+              eventId="demo-room"
+              actorId="seller-1"
+              activeProduct={null}
+              catalogProducts={[{
+                id: 'planned-b', name: 'Beacon Mug', imageUrl: '/beacon.jpg', price: '$24.00',
+                description: 'Hand-thrown stoneware.', stockLabel: '6 available', tone: 'cyan', glyph: '◒',
+              }]}
+              onActiveProductChange={onActiveProductChange}
+            />
+          </StageClockProvider>,
         );
       });
 
