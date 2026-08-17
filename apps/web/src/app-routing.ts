@@ -3,7 +3,7 @@ import { useEffect, useState } from 'react';
 export type TabId = 'buyer' | 'orders' | 'seller' | 'history' | 'config' | 'test' | 'architecture';
 export type StudioView = 'active-event' | 'event-manager' | 'inventory';
 export type EventManagerView = 'events' | 'create';
-export type EventManagerSection = 'lineup' | 'settings' | 'rehearse';
+export type EventManagerSection = 'lineup' | 'settings';
 
 export interface EventManagerRoute {
   view: EventManagerView;
@@ -113,8 +113,9 @@ function isEventManagerView(value: string | null): value is EventManagerView {
   return value === 'events' || value === 'create';
 }
 
+/** 'rehearse' is a retired URL value (folded into 'lineup') — kept resolvable, never valid to construct. */
 function isEventManagerSection(value: string | null): value is EventManagerSection {
-  return value === 'lineup' || value === 'settings' || value === 'rehearse';
+  return value === 'lineup' || value === 'settings';
 }
 
 /** Resolve the nested Event Manager state without interpreting Watch-page URLs. */

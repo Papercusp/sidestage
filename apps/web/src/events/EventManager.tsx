@@ -110,7 +110,6 @@ const EVENT_DETAIL_SECTIONS: ReadonlyArray<{
 }> = [
   { id: 'lineup', label: 'Lineup' },
   { id: 'settings', label: 'Settings' },
-  { id: 'rehearse', label: 'Rehearse' },
 ];
 
 export function EventManager({
@@ -436,10 +435,6 @@ export function EventManager({
                   apiBaseUrl={apiBaseUrl}
                   embedded
                 />
-              </div>
-            ) : route.section === 'rehearse' ? (
-              <div className="event-rehearse-view" role="tabpanel">
-                <RunOfShowPlannerPanel eventId={selectedEventId} apiBaseUrl={apiBaseUrl} />
               </div>
             ) : (
               <div className="event-lineup-view" role="tabpanel">
