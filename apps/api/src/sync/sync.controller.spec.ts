@@ -1,10 +1,34 @@
+import { Module } from '@nestjs/common';
+import { Global, Module } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import { firstValueFrom, filter, take } from 'rxjs';
 import { describe, expect, it, vi } from 'vitest';
+import { PG_POOL } from '../db/database.module';
 import { SyncController } from './sync.controller';
 import { SyncInvalidationService } from './sync-invalidation.service';
 import { SyncModule } from './sync.module';
 import { SyncQueryRegistry } from './sync-query.registry';
+
+/**
+ * SyncModule's ZeroController injects PG_POOL, which DatabaseModule provides in
+ * the real AppModule. Bootstrapping SyncModule ALONE has no DatabaseModule in
+ * the graph, so PG_POOL would be unresolvable and Nest's bootstrap rejection
+ * KILLS THE WHOLE VITEST WORKER rather than failing one test (the fork dies, so
+ * the file's results vanish and the leg exits 1 with every test still "passing"
+ * — EI-20689489448966446).
+ *
+ * Supply it here instead of importing DatabaseModule into SyncModule: that
+ * creates a temporal-dead-zone circular import via event.module.ts. See the
+ * warning in sync.module.ts. `null` is a legitimate PG_POOL value —
+ * createPoolOrNull() returns null under DATA_BACKEND=memory — and it keeps this
+ * spec hermetic (no database, no 2s connection probe).
+ */
+@Global()
+@Module({ providers: [{ provide: PG_POOL, useValue: null }], exports: [PG_POOL] })
+class NullPgPoolModule {}
+
+@Module({ imports: [NullPgPoolModule, SyncModule] })
+class SyncSpecHostModule {}
 
 function createSync() {
   const queries = new SyncQueryRegistry();
@@ -15,6 +39,43 @@ function createSync() {
     queries,
   };
 }
+
+// CONTROL for the test below it. A guard that has never failed is a guard nobody has
+// tested, so this module is deliberately unsatisfiable: NeedsMissingDep asks for a token
+// no module provides, which is the same shape of failure (Nest cannot resolve a
+// dependency while scanning) that hid EI-20689489448966446.
+// NB: written with Module() applied as a plain function rather than as a @decorator.
+// Decorator syntax does not parse under this spec's tsconfig (TS1206), and a file that
+// fails to PARSE is worse than the bug this guards: bundle-host.sh esbuild-bundles the
+// working tree, so an unparseable file here takes the staging/release hosts down with
+// no commit involved.
+const DeliberatelyBrokenModule = Module({
+  providers: [
+    {
+      provide: 'DELIBERATELY_BROKEN',
+      useFactory: () => {
+        throw new Error('deliberate boot failure — this provider exists to fail');
+      },
+    },
+  ],
+})(class DeliberatelyBrokenModuleImpl {});
+
+describe('Nest boot failures must be visible', () => {
+  // If this test ever ABORTS the worker instead of failing, the abortOnError:false
+  // contract has been lost somewhere and every boot failure in this file has silently
+  // become a "flake" again: vitest would report "N-1 passed (N)" plus one unattributed
+  // "Worker exited unexpectedly", naming no file. That is precisely how a real broken
+  // SyncModule survived a full green-looking suite run and cost the fleet a morning.
+  // Do NOT delete this control, and do NOT drop abortOnError:false to "clean it up".
+  it('CONTROL: an unsatisfiable module REJECTS rather than killing the process', async () => {
+    await expect(
+      NestFactory.createApplicationContext(DeliberatelyBrokenModule, {
+        abortOnError: false,
+        logger: false,
+      }),
+    ).rejects.toThrow();
+  });
+});
 
 describe('SyncController', () => {
   it('injects the registry and invalidation stream when Nest boots under tsx', async () => {
