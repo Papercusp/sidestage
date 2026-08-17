@@ -16,7 +16,10 @@ import {
  * reachable. Every store seam (auction inventory, cart, orders, catalog)
  * chooses its Postgres implementation when the pool exists and falls back to
  * the in-memory implementation otherwise — so a clean clone without Docker
- * still boots, while `docker compose up -d` + restart gives durable state.
+ * still boots, while starting the local data stack + restart gives durable
+ * state. That stack is infra/docker-compose.data.yml, NOT the root
+ * docker-compose.yml: only the former publishes DEFAULT_DATABASE_URL's port
+ * (55434) and mounts db/schema.sql + db/seed/demo.sql as initdb scripts.
  *
  * DATA_BACKEND overrides the probe: 'memory' forces in-memory even with a
  * reachable database (useful in tests); 'pg' makes an unreachable database a
@@ -70,7 +73,14 @@ export async function createPoolOrNull(
     if (mode === 'pg') {
       throw new Error(`DATA_BACKEND=pg but Postgres is unreachable: ${message}`);
     }
-    logger.warn(`Postgres unreachable (${message}) — falling back to in-memory stores. Run: docker compose up -d`);
+    // The remediation MUST name the data stack. `docker compose up -d` (the root
+    // file) publishes 5432 and mounts no initdb scripts, so it can neither answer
+    // DEFAULT_DATABASE_URL's 55434 nor create the schema this fallback is warning
+    // about — following it leaves the warning firing verbatim on every boot.
+    logger.warn(
+      `Postgres unreachable (${message}) — falling back to in-memory stores. ` +
+        'Run: docker compose -f infra/docker-compose.data.yml up -d postgres',
+    );
     return null;
   }
 

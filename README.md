@@ -31,8 +31,23 @@ that intentionally targets an isolated scratch tree may continue to use npm's
 explicit `--prefix /tmp/...` form.
 
 The web shell runs at <http://localhost:5173> and the API health endpoint is
-<http://localhost:3100/healthz>. Start local infrastructure with
-`docker compose up -d` before using persistence, search, or live media.
+<http://localhost:3100/healthz>. The default demo runs without Docker; start
+local infrastructure before using persistence, search, or live media:
+
+```bash
+# Database. This stack — not the root docker-compose.yml — is the one
+# `.env.example`'s DATABASE_URL dials (127.0.0.1:55434), and the only one that
+# applies db/schema.sql and db/seed/demo.sql on first start.
+docker compose -f infra/docker-compose.data.yml up -d postgres
+
+# Catalog search, cache, and live media.
+docker compose up -d typesense redis mediamtx
+```
+
+The root `docker-compose.yml` also defines a `postgres` service, but it
+publishes 5432 and mounts no schema or seed, so bringing it up does not satisfy
+the documented `DATABASE_URL`. If the API logs `Postgres unreachable ... falling
+back to in-memory stores`, the database stack above is what starts it.
 
 If either development port is already in use, change `WEB_PORT` and `API_PORT`
 in `.env` before running `npm run dev`. `VITE_API_URL` derives from `API_PORT` in
@@ -86,7 +101,11 @@ placeholders and the real `.env` is ignored.
 - `apps/api` — NestJS service; feature modules will be added here.
 - `libs/` — pinned Papercusp shared submodules. Keep generic components in the
   shared libraries; app-specific composition belongs under `apps/`.
-- `docker-compose.yml` — Postgres, Typesense, Redis zero-cache, and MediaMTX.
+- `docker-compose.yml` — Typesense, Redis zero-cache, and MediaMTX. It also
+  defines a `postgres` service, but local development uses the one below.
+- `infra/docker-compose.data.yml` — the local development database
+  (`127.0.0.1:55434`, the port `.env.example` dials), applying `db/schema.sql`
+  and `db/seed/demo.sql` on first start.
 
 The UI starts with the blue-frost visual language: dark navy surfaces, frosted
 panels, cyan accents, and semantic success/warning/danger tokens. Product flows

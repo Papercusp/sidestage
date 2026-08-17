@@ -33,6 +33,18 @@ describe('buildFilterBy', () => {
     expect(buildFilterBy({ conditions: ['NEW', 'REF'] })).toContain('conditions:[NEW,REF]');
   });
 
+  it('joins colours as array-contains-any, backtick-quoting multi-word labels', () => {
+    // Colour labels are display strings and may contain spaces ("Matte Black"),
+    // unlike condition codes — so they need the same quoting `categories` uses.
+    expect(buildFilterBy({ colors: ['Walnut'] })).toContain('colors:[`Walnut`]');
+    expect(buildFilterBy({ colors: ['Walnut', 'Matte Black'] })).toContain('colors:[`Walnut`,`Matte Black`]');
+  });
+
+  it('omits the colours clause when none are selected', () => {
+    expect(buildFilterBy({ colors: [] }).some((f) => f.startsWith('colors:'))).toBe(false);
+    expect(buildFilterBy({}).some((f) => f.startsWith('colors:'))).toBe(false);
+  });
+
   it('adds price bounds, omitting a non-finite max', () => {
     expect(buildFilterBy({ priceMinCents: 1000, priceMaxCents: 5000 })).toEqual(
       expect.arrayContaining(['priceCents:>=1000', 'priceCents:<=5000']),
