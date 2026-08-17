@@ -13,6 +13,20 @@ services:
   postgres:
     image: postgres:16-alpine
     restart: unless-stopped
+    # zero-cache replicates via LOGICAL replication; the stock image ships
+    # wal_level=replica, under which `zero_publication` exists but never
+    # streams a single row. Postgres reports this ONLY as a warning at CREATE
+    # PUBLICATION time, so the symptom in prod is a sync that connects fine and
+    # stays permanently empty. Changing wal_level requires a postgres RESTART
+    # (not a reload) — see infra/zero/README.md.
+    command:
+      - postgres
+      - -c
+      - wal_level=logical
+      - -c
+      - max_replication_slots=10
+      - -c
+      - max_wal_senders=10
     environment:
       POSTGRES_DB: ${POSTGRES_DB:-sidestage}
       POSTGRES_USER: ${POSTGRES_USER:-sidestage}
@@ -21,6 +35,11 @@ services:
       - sidestage-postgres:/var/lib/postgresql/data
       - ./db/schema.sql:/docker-entrypoint-initdb.d/10-schema.sql:ro
       - ./db/seed/demo.sql:/docker-entrypoint-initdb.d/20-demo.sql:ro
+      # FIRST-INIT ONLY — the prod volume already exists, so this mount will
+      # NOT create the publication there. It must be applied explicitly once:
+      #   docker compose exec -T postgres psql -U sidestage -d sidestage \
+      #     < db/zero-publication.sql
+      - ./db/zero-publication.sql:/docker-entrypoint-initdb.d/30-zero-publication.sql:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
       interval: 5s
@@ -189,6 +208,66 @@ services:
       - traefik.http.routers.sidestage-api.tls.certresolver=letsencrypt
       - traefik.http.services.sidestage-api.loadbalancer.server.port=3100
 
+  # WebSocket sync server (Rocicorp Zero). Browsers hold a long-lived WS to
+  # /zero on the public hostname; this container replicates Postgres into a
+  # local SQLite replica and serves the view-syncer from it. Queries and
+  # mutations are NOT resolved here — they delegate back to the api over
+  # ZERO_QUERY_URL / ZERO_MUTATE_URL, which is why no schema file is baked in.
+  zero-cache:
+    image: sidestage-zero-cache:${SIDESTAGE_SHA:-latest}
+    build:
+      context: .
+      dockerfile: infra/zero/Dockerfile
+    restart: unless-stopped
+    environment:
+      # Upstream = the database of record. CHANGE db is the same instance here;
+      # zero keeps its bookkeeping in the zero_0 schema alongside the app data.
+      ZERO_UPSTREAM_DB: postgresql://${POSTGRES_USER:-sidestage}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-sidestage}
+      ZERO_CHANGE_DB: postgresql://${POSTGRES_USER:-sidestage}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-sidestage}
+      # Must match db/zero-publication.sql. The drift guard in
+      # apps/api/src/sync/ asserts this publication covers the whole contract.
+      ZERO_APP_PUBLICATIONS: zero_publication
+      # On the named volume below — NOT the container filesystem. Losing this
+      # only costs a re-sync, but a re-sync of the full ~3.5GB published set.
+      ZERO_REPLICA_FILE: /data/zero/sidestage.db
+      ZERO_QUERY_URL: http://api:3100/api/zero/query
+      ZERO_MUTATE_URL: http://api:3100/api/zero/mutate
+      ZERO_ADMIN_PASSWORD: ${ZERO_ADMIN_PASSWORD:?set in .env.production}
+      ZERO_SHARD_ID: ${ZERO_SHARD_ID:-sidestage}
+      # 12288MB is deliberate and must NOT be tuned down: the initial snapshot
+      # of the published set (measured 3476 MB on 2026-08-17) OOMs a smaller
+      # heap mid-sync and never converges. On Restart that produced 92920
+      # container restarts in 30 days. The conservative-looking value is the
+      # dangerous one here.
+      NODE_OPTIONS: --max-old-space-size=${ZERO_HEAP_MB:-12288}
+    volumes:
+      - sidestage-zero-replica:/data/zero
+    depends_on:
+      postgres:
+        condition: service_healthy
+      api:
+        condition: service_started
+    networks:
+      - default
+      - coolify
+    labels:
+      - traefik.enable=true
+      - traefik.docker.network=coolify
+      - traefik.http.routers.sidestage-zero.rule=Host(`${PUBLIC_HOSTNAME:-sidestage.buyrestart.com}`) && PathPrefix(`/zero`)
+      # Must outrank the catch-all web router (priority 1) or the SPA swallows
+      # the WebSocket upgrade and the client silently falls back to polling.
+      - traefik.http.routers.sidestage-zero.priority=10
+      - traefik.http.routers.sidestage-zero.entrypoints=https
+      - traefik.http.routers.sidestage-zero.tls.certresolver=letsencrypt
+      - traefik.http.services.sidestage-zero.loadbalancer.server.port=4848
+      # A view-syncer connection is STATEFUL: each client must return to the
+      # instance holding its materialized views. Without stickiness, scaling to
+      # a second replica silently corrupts query results rather than erroring.
+      - traefik.http.services.sidestage-zero.loadbalancer.sticky.cookie=true
+      - traefik.http.services.sidestage-zero.loadbalancer.sticky.cookie.name=zero_instance
+      - traefik.http.services.sidestage-zero.loadbalancer.sticky.cookie.secure=true
+      - traefik.http.services.sidestage-zero.loadbalancer.sticky.cookie.httpOnly=true
+
   # Trusted queue consumer. It shares only the durable run ledger with the
   # public API and is never attached to Traefik or exposed on a host port.
   system-test-worker:
@@ -253,3 +332,7 @@ volumes:
   sidestage-postgres:
   sidestage-typesense:
   sidestage-redis:
+  # zero-cache's SQLite replica of the published set. Sized for the measured
+  # 3476 MB snapshot plus WAL headroom. Deleting it is recoverable but forces a
+  # full re-sync, during which clients see stale data.
+  sidestage-zero-replica:
