@@ -82,14 +82,33 @@ describe('EventManager auction recovery', () => {
     expect(markup).toContain('Live auction');
     expect(markup).toContain('Current bid $27.00');
     expect(markup).toMatch(/<button class="button secondary" type="button">Close auction<\/button>/);
-    expect(markup).toMatch(/<button[^>]*disabled=""[^>]*title="Close the current auction before starting another"[^>]*>Start auction<\/button>/);
   });
 
+  /*
+   * WHERE THE no-second-auction GUARDRAIL IS PROVEN NOW.
+   *
+   * This pair used to assert a disabled `Start auction` button here, against
+   * the flat lineup grid. Under direction C that control moved into the
+   * per-slot commerce drawer, which is CLOSED by default, so it no longer
+   * renders in this container's static markup at all.
+   *
+   * The guardrail itself did not move or weaken: EventManager still computes
+   * `auctionWritesEnabled` / `auctionWriteDisabledReason` from the live auction
+   * and hands them to the timeline. The button-level proof — disabled, with the
+   * reason shown and no credential prompt — now lives in LineupTimeline.test.tsx
+   * ('disables Start auction with the reason while another auction is live',
+   * plus its enabled-state falsifier), where the button actually exists.
+   *
+   * What stays HERE is what this container owns: that a live auction is read
+   * from the authoritative query and is closable.
+   */
   it('prevents a second concurrent auction without showing a credential prompt', () => {
     const { markup } = renderManager(LIVE_AUCTION);
 
     expect(markup).toMatch(/<button class="button secondary" type="button">Close auction<\/button>/);
-    expect(markup).toMatch(/<button[^>]*disabled=""[^>]*title="Close the current auction before starting another"[^>]*>Start auction<\/button>/);
+    // The commerce drawer is closed, so no start-auction affordance is offered
+    // from the collapsed timeline in the first place.
+    expect(markup).not.toContain('Start auction');
     expect(markup).not.toContain('Seller credential');
     expect(markup).not.toContain('Unlock auction writes');
   });
