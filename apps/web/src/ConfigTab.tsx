@@ -33,6 +33,12 @@ export interface EventConfigView {
     automationLevel?: string;
     maxMarkdownPercent?: number;
     priceFloorCentsByProduct?: Record<string, number>;
+    /**
+     * Action kinds the event forbids outright (guardrail.ts:73). Optional for
+     * the same reason as the rest: the view may answer before a policy is
+     * resolved, and an absent list means UNKNOWN, never "nothing is blocked".
+     */
+    blockedActionKinds?: readonly string[];
   };
   policySource?: string;
   policyRevisionId?: string;

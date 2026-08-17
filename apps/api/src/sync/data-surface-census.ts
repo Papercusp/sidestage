@@ -300,6 +300,7 @@ export const PROCESS_LOCAL_SURFACES: readonly SourceSurface[] = [
   local('apps/api/src/chat/chat.service.ts', 'sequence', 'chat-sequence', ['public', 'operational'], 'process-local monotonic counter', 'replicate', 'durable per-event chat sequence owned by the chat tables (P-001a lane)', 'P-001a'),
   local('apps/api/src/auction/auction.service.ts', 'updateSequence', 'auction-sequence', ['public', 'operational'], 'process-local monotonic counter', 'replicate', 'durable auction_state revision counter (P-001b lane)', 'P-001b'),
   local('apps/api/src/chat/chat-presence.sweeper.ts', 'timer', 'chat-presence-sweeper', ['operational'], 'bounded cleanup scheduler', 'runtime-only', 'interval handle only; no durable state', 'P-020'),
+  local('apps/api/src/events/event-activation.sweeper.ts', 'timer', 'event-activation-sweeper', ['operational'], 'bounded lifecycle scheduler', 'runtime-only', 'interval handle only; the durable state is the event table, which the sweep UPDATEs in place', 'P-020'),
   local('apps/api/src/checkout/stripe-payment.provider.ts', 'client', 'stripe-client', ['operational'], 'lazily constructed external client handle', 'runtime-only', 'rebuilt on demand from configuration; no durable state', 'P-020'),
 ];
 

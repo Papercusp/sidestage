@@ -86,6 +86,10 @@ const EVENT_ACCESS: {
     'GET /events': 'public-viewer',
     'GET /events/mine': 'seller-owned',
     'DELETE /events/:eventId': 'seller-owned',
+    // Schedule / go live / end (D-002). Seller-owned for the same reason the
+    // unpublish above is: it moves an event's lifecycle, and the handler proves
+    // ownership via findOwned before writing anything.
+    'PATCH /events/:eventId/lifecycle': 'seller-owned',
     'GET /v1/seller/policies/effective': 'seller-owned',
     'GET /v1/seller/policies/:id': 'seller-owned',
     'POST /v1/seller/policies': 'seller-owned',
