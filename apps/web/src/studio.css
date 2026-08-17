@@ -88,11 +88,26 @@
 }
 
 /*
- * The desktop dock is intentionally not squeezed into a phone. At <=760px the
- * Seller tab swaps to SellerMobileStudio, which mounts one live surface at a
- * time and keeps its mode switch reachable at the bottom of the viewport.
+ * WI-39287: the seller channel guide stays collapsed through the TABLET band,
+ * not only on phones.
+ *
+ * Two breakpoints used to fire at the same 761px: the Seller tab swapped from
+ * SellerMobileStudio to the desktop Dockview (SellerMobileStudio.tsx,
+ * `(max-width: 760px)`) AND this 2-column shell restored the channel guide. The
+ * guide's floor is 16rem (styles.css `clamp(16rem, 24vw, 19rem)`); at 768px that
+ * floor beats 24vw=184px, so the dock was left 768-256=512px. The default board's
+ * natural width is 620+380=1000px (seller-dock-layout.ts) and `.seller-dock-host`
+ * is `overflow: hidden`, so the Run of show / Inventory tab strip was clipped
+ * (~23px at 768px) with nothing to scroll -- dockview sizes its groups wider than
+ * the host, so `.dv-tabs-container` overflows nothing of its own and offers no
+ * scrollbar, while the host silently cuts the excess.
+ *
+ * Collapsing the guide until 1024px hands the dock the whole viewport exactly
+ * where it cannot afford guide+dock. At >=1024px behaviour is unchanged (guide
+ * returns, dock still gets 768px). This deliberately does NOT move the 760px
+ * component swap: which surface mounts is unchanged.
  */
-@media (max-width: 760px) {
+@media (max-width: 1023px) {
   .app-shell.app-shell--seller {
     --channel-guide-width: 0px;
     grid-template-columns: minmax(0, 1fr);
@@ -101,7 +116,14 @@
   .app-shell--seller > .channel-guide-panel {
     display: none;
   }
+}
 
+/*
+ * The desktop dock is intentionally not squeezed into a phone. At <=760px the
+ * Seller tab swaps to SellerMobileStudio, which mounts one live surface at a
+ * time and keeps its mode switch reachable at the bottom of the viewport.
+ */
+@media (max-width: 760px) {
   .app-shell--seller .skip-link {
     left: 0.5rem;
   }
