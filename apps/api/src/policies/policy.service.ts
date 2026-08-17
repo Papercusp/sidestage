@@ -145,11 +145,24 @@ export class InMemoryPolicyStore implements PolicyStore {
   }
 
   async idempotencyGet(sellerId: string, route: string, key: string) {
-    return this.idem.get(`${sellerId}\x1f${route}\x1f${key}`);
+    const row = this.idem.get(`${sellerId}\x1f${route}\x1f${key}`);
+    return row ? { requestHash: row.requestHash, response: row.response } : undefined;
   }
 
   async idempotencyPut(sellerId: string, route: string, key: string, requestHash: string, response: unknown): Promise<void> {
-    this.idem.set(`${sellerId}\x1f${route}\x1f${key}`, { requestHash, response });
+    this.idem.set(`${sellerId}\x1f${route}\x1f${key}`, { requestHash, response, createdAt: Date.now() });
+  }
+
+  async pruneIdempotency(olderThan: Date): Promise<number> {
+    const cutoff = olderThan.getTime();
+    let removed = 0;
+    for (const [mapKey, row] of this.idem) {
+      if (row.createdAt < cutoff) {
+        this.idem.delete(mapKey);
+        removed += 1;
+      }
+    }
+    return removed;
   }
 }
 
@@ -291,10 +304,27 @@ export class PgPolicyStore implements PolicyStore {
   }
 
   async idempotencyPut(sellerId: string, route: string, key: string, requestHash: string, response: unknown): Promise<void> {
+    // The insert and the retention sweep are ONE statement on purpose: a single
+    // round trip on a write path, atomic (a failed sweep cannot leave the row
+    // written and unswept, and needs no swallowed catch), and bounded to the
+    // (seller_id, route) partition being written — which the primary key already
+    // indexes. The DELETE runs on the pre-insert snapshot, so it can never see
+    // the row just written; a fresh row is younger than the cutoff regardless.
+    // This is what keeps the table bounded without a scheduler, since the API
+    // has no periodic-task surface.
     await this.pool.query(
-      `INSERT INTO policy_idempotency (seller_id, route, key, request_hash, response)
-       VALUES ($1, $2, $3, $4, $5::jsonb) ON CONFLICT (seller_id, route, key) DO NOTHING`,
-      [sellerId, route, key, requestHash, JSON.stringify(response)]);
+      `WITH inserted AS (
+         INSERT INTO policy_idempotency (seller_id, route, key, request_hash, response)
+         VALUES ($1, $2, $3, $4, $5::jsonb) ON CONFLICT (seller_id, route, key) DO NOTHING
+       )
+       DELETE FROM policy_idempotency
+        WHERE seller_id = $1 AND route = $2 AND created_at < $6`,
+      [sellerId, route, key, requestHash, JSON.stringify(response), new Date(Date.now() - IDEMPOTENCY_RETENTION_MS)]);
+  }
+
+  async pruneIdempotency(olderThan: Date): Promise<number> {
+    const r = await this.pool.query('DELETE FROM policy_idempotency WHERE created_at < $1', [olderThan]);
+    return r.rowCount ?? 0;
   }
 }
 
