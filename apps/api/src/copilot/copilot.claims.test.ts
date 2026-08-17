@@ -176,6 +176,23 @@ describe('P-003 clause: edited replies', () => {
     expect(verifyClaims(edited.claims, edited.request, edited.atSend).supported).toBe(false);
   });
 
+  // The negative edit above proves an edit can be caught. On its own that is
+  // also what a path which holds EVERY edit looks like, so the passing edit is
+  // what makes the negative one mean anything.
+  it('lets an edit through when the seller changed the wording and not the facts', () => {
+    const valid = CLAIM_ADVERSARIAL_CASES.find(
+      (entry) => entry.caseId === 'seller-edit-keeps-every-claim-grounded',
+    );
+    expect(valid).toBeDefined();
+    if (!valid) return;
+    expect(valid.claims.replyRevision).toBe(2);
+    expect(valid.claims.claims.length).toBeGreaterThan(1);
+
+    const verdict = verifyClaims(valid.claims, valid.request, valid.atSend);
+    expect(verdict.supported, valid.expectation).toBe(true);
+    expect(verdict.defects).toEqual([]);
+  });
+
   it('rebinds surviving evidence and drops evidence the context no longer has', () => {
     const stale = CLAIM_ADVERSARIAL_CASES.find((entry) => entry.caseId === 'price-moved-after-binding');
     expect(stale).toBeDefined();
@@ -271,6 +288,113 @@ describe('P-004 clause: only the evidence a reply CITES can make it stale', () =
   it('treats an unchanged context as no drift at all', () => {
     const before = ctx([item('cup', 2_800), item('mug', 1_500)]);
     expect(citedEvidenceDrift(['event-item:evt:cup', 'event-item:evt:mug'], before, before)).toEqual([]);
+  });
+});
+
+/**
+ * P-005 clause: concurrent inventory change.
+ *
+ * `CopilotService.approve` reads the context ONCE, then runs the reply
+ * guardrail and the grounded-review judge — a model call — and only then hands
+ * the text to chat. Every check it makes therefore describes the context as it
+ * was BEFORE that work, not as it is when the buyer reads the message.
+ *
+ * These tests pin the window rather than the wall-clock: the pair below is the
+ * assertion, because either half alone is satisfiable by a broken guard. "It
+ * fails at send" is also true of a guard that fails everything; "it passed at
+ * approve" is also true of a guard that passes everything.
+ */
+describe('P-005 clause: a reply sound at approve can be wrong by the time it sends', () => {
+  const windowed = CLAIM_ADVERSARIAL_CASES.filter((entry) => entry.approveWindow);
+
+  it('has a case whose facts move only inside the approve→send window', () => {
+    expect(windowed.length).toBeGreaterThan(0);
+  });
+
+  it.each(windowed.map((entry) => [entry.caseId, entry] as const))(
+    '%s — clean at approve, held at send',
+    (_caseId, testCase) => {
+      const approve = testCase.approveWindow;
+      expect(approve).toBeDefined();
+      if (!approve) return;
+
+      // Nothing had moved yet, so the check `approve` runs has nothing to catch.
+      const atApprove = verifyClaims(testCase.claims, testCase.request, approve.atApprove);
+      expect(atApprove.supported).toBe(approve.expected.supported);
+      expect(codesOf(atApprove.defects)).toEqual([...approve.expected.codes].sort());
+
+      // ...and the same claims against the context the buyer would actually
+      // receive the reply in.
+      const atSend = verifyClaims(testCase.claims, testCase.request, testCase.atSend);
+      expect(atSend.supported, testCase.expectation).toBe(testCase.expected.supported);
+      expect(codesOf(atSend.defects)).toEqual([...testCase.expected.codes].sort());
+    },
+  );
+
+  it('names the drift between the approve read and the send read, not between binding and send', () => {
+    // The guard this case argues for compares the APPROVE-time context to the
+    // SEND-time one. Comparing against `bound` instead would work here by
+    // accident — bound and atApprove are equal — so the assertion that matters
+    // is that drift is reported from atApprove, where a check already ran and
+    // found nothing.
+    const testCase = windowed.find(
+      (entry) => entry.caseId === 'stock-runs-out-inside-the-approve-to-send-window',
+    );
+    expect(testCase).toBeDefined();
+    if (!testCase?.approveWindow) return;
+
+    const cited = testCase.claims.claims.flatMap((claim) => claim.evidence.map((ref) => ref.sourceId));
+    expect(cited.length).toBeGreaterThan(0);
+
+    const drift = citedEvidenceDrift(cited, testCase.approveWindow.atApprove, testCase.atSend);
+    expect(drift.map((entry) => entry.code)).toEqual(['evidence-stale']);
+    // Seller-readable, like every other defect this contract emits.
+    expect(drift[0].explanation).toContain('Aurora ceramic cup');
+    expect(drift[0].explanation).not.toMatch(/evidence-|fingerprint|hash/);
+  });
+
+  it('reports no drift across the window when nothing sold', () => {
+    // The falsifying half: if this reported drift, the test above would be
+    // green because the drift check fires on everything.
+    const testCase = windowed[0];
+    expect(testCase?.approveWindow).toBeDefined();
+    if (!testCase?.approveWindow) return;
+    const cited = testCase.claims.claims.flatMap((claim) => claim.evidence.map((ref) => ref.sourceId));
+    expect(citedEvidenceDrift(cited, testCase.approveWindow.atApprove, testCase.approveWindow.atApprove)).toEqual([]);
+  });
+});
+
+describe('P-005 clause: stock stated as something the listing never said', () => {
+  // Distinct from the stale cases: no fact moved, so "the draft is out of date"
+  // would be the wrong thing to tell a seller. Each code has to imply a
+  // different fix or the vocabulary is noise.
+  const invented = ['availability-inflated-beyond-what-the-listing-ever-said', 'sold-out-item-called-available-at-binding'];
+
+  it.each(invented)('%s is missing evidence, never stale', (caseId) => {
+    const testCase = CLAIM_ADVERSARIAL_CASES.find((entry) => entry.caseId === caseId);
+    expect(testCase).toBeDefined();
+    if (!testCase) return;
+
+    // Same context at bind and at send — there is no movement to blame.
+    expect(testCase.bound).toBe(testCase.atSend);
+
+    const verdict = verifyClaims(testCase.claims, testCase.request, testCase.atSend);
+    expect(verdict.supported).toBe(false);
+    expect(codesOf(verdict.defects)).toEqual(['evidence-missing']);
+    expect(codesOf(verdict.defects)).not.toContain('evidence-stale');
+  });
+
+  it('holds the 999 reply even though its evidence is present, current and relevant', () => {
+    // The trap this case guards: every structural check a citation-shaped guard
+    // can make is satisfied here. The source exists, was gathered, covers the
+    // question, and has not moved — the number is simply not what it says.
+    const inflated = CLAIM_ADVERSARIAL_CASES.find(
+      (entry) => entry.caseId === 'availability-inflated-beyond-what-the-listing-ever-said',
+    );
+    expect(inflated).toBeDefined();
+    if (!inflated) return;
+    expect(citationsOnlyVerdict(inflated.claims.claims, inflated.atSend)).toBe(true);
+    expect(verifyClaims(inflated.claims, inflated.request, inflated.atSend).supported).toBe(false);
   });
 });
 

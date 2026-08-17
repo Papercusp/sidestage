@@ -336,6 +336,82 @@ export const CLAIM_ADVERSARIAL_CASES: readonly ClaimAdversarialCase[] = (() => {
     });
   }
 
+  // The "999" case. Nothing moved and nothing is missing from the context —
+  // the listing was read correctly and the reply states a different number
+  // anyway. Kept SEPARATE from the stale cases above because the fix differs:
+  // "re-draft, stock changed" sends the seller to look at a clock that is not
+  // the problem. The stock here was never 999 at any instant.
+  {
+    const bound = context({ availableQty: 12 });
+    cases.push({
+      caseId: 'availability-inflated-beyond-what-the-listing-ever-said',
+      title: 'A reply promising 999 in stock when the listing says 12',
+      expectation: 'The reply is held: it states a quantity no gathered source has ever reported.',
+      request: { message: 'How much stock is left?' },
+      bound,
+      atSend: bound,
+      claims: {
+        replyRevision: 1,
+        // Bound honestly against the real listing — the fingerprint records 12,
+        // which is what makes the 999 indefensible rather than merely unproven.
+        claims: [bind('c1', { subject: 'availability', productId: PRODUCT, availableQty: 999 }, [EVENT_SOURCE], bound)],
+      },
+      expected: { supported: false, codes: ['evidence-missing'] },
+    });
+  }
+
+  // Zero stock, and the reply says it is still available — the same defect
+  // pointed at the buyer-visible fact rather than a number. The item was
+  // ALREADY sold out when the reply was written, so there is no moment at which
+  // this reply was true; that is what separates it from
+  // 'listing-state-sold-out-after-binding' above, which was true when drafted.
+  {
+    const bound = context({ availableQty: 0 });
+    cases.push({
+      caseId: 'sold-out-item-called-available-at-binding',
+      title: 'A sold-out item described as still available',
+      expectation: 'The reply is held: the listing already read sold out when the reply was written.',
+      request: { message: 'Is it still available?' },
+      bound,
+      atSend: bound,
+      claims: {
+        replyRevision: 1,
+        claims: [bind('c1', { subject: 'listing-state', productId: PRODUCT, state: 'listed' }, [EVENT_SOURCE], bound)],
+      },
+      expected: { supported: false, codes: ['evidence-missing'] },
+    });
+  }
+
+  // CONCURRENT INVENTORY CHANGE. The reply was drafted correctly AND was still
+  // correct when the seller approved it — the freshness check `approve` runs
+  // passes. It sells out while the grounded-review judge is running, and the
+  // send that follows delivers a promise of stock that is gone.
+  //
+  // This is the case the two-context fixtures structurally could not hold: at
+  // `bound` and at `atApprove` the fact is identical, so any check comparing
+  // only those two is green.
+  {
+    const bound = context({ availableQty: 4 });
+    cases.push({
+      caseId: 'stock-runs-out-inside-the-approve-to-send-window',
+      title: 'The last unit sells while the reply is being reviewed',
+      expectation: 'The reply is held at SEND even though it was sound at approve — the window is not free.',
+      request: { message: 'How much stock is left?' },
+      bound,
+      approveWindow: {
+        // Same facts as binding: the approve-time check has nothing to catch.
+        atApprove: context({ availableQty: 4 }),
+        expected: { supported: true, codes: [] },
+      },
+      atSend: context({ availableQty: 0 }),
+      claims: {
+        replyRevision: 1,
+        claims: [bind('c1', { subject: 'availability', productId: PRODUCT, availableQty: 4 }, [EVENT_SOURCE], bound)],
+      },
+      expected: { supported: false, codes: ['evidence-stale'] },
+    });
+  }
+
   // The relevance case: a real, current, cited source that simply cannot speak
   // to the thing being claimed.
   {
@@ -460,6 +536,31 @@ export const CLAIM_ADVERSARIAL_CASES: readonly ClaimAdversarialCase[] = (() => {
         ],
       },
       expected: { supported: false, codes: ['evidence-missing'] },
+    });
+  }
+
+  // THE VALID EDIT. Without this, "edited replies are judged on their own
+  // claims" is only ever demonstrated by an edit that FAILS — which is equally
+  // consistent with a path that holds every edit on sight. A seller who cannot
+  // get an edit through has no reason to use the review surface at all, so the
+  // passing edit is the acceptance case, not a nicety.
+  {
+    const bound = context({ availableQty: 12 });
+    cases.push({
+      caseId: 'seller-edit-keeps-every-claim-grounded',
+      title: 'A seller rewrites the reply and both claims still hold',
+      expectation: 'The edited reply sends: the seller changed the wording, not the facts.',
+      request: { message: 'How much is the aurora cup, and how much stock is left?' },
+      bound,
+      atSend: bound,
+      claims: {
+        replyRevision: 2,
+        claims: [
+          bind('c1', { subject: 'price', productId: PRODUCT, priceCents: 2_800 }, [EVENT_SOURCE], bound),
+          bind('c2', { subject: 'availability', productId: PRODUCT, availableQty: 12 }, [EVENT_SOURCE], bound),
+        ],
+      },
+      expected: { supported: true, codes: [] },
     });
   }
 
