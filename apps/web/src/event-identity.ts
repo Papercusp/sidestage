@@ -37,3 +37,28 @@ export function urlEventId(): string | null {
 export function browserEventId(): string {
   return urlEventId() ?? DEFAULT_EVENT_ID;
 }
+
+/**
+ * Which room the buyer shell opens (D-001).
+ *
+ * Precedence: an explicit choice — the URL's `?event=`, or a Channel Guide row
+ * the buyer clicked — then the guide's FIRST row, then the seed.
+ *
+ * The middle term is the whole point, and is why this is a named function
+ * rather than an inline `??` chain: the guide is ALREADY ordered by the server
+ * (live by viewers, then soonest-scheduled, then most recently ended) and the
+ * sidebar paints it in that order, so its first element IS the top row the
+ * buyer can see. Anything else landing them somewhere the sidebar does not
+ * point is the defect this replaces.
+ *
+ * DEFAULT_EVENT_ID survives only as the pre-directory seed, for the first
+ * paint before any row has arrived. It must never outrank a row the guide
+ * actually has — production's directory contains no `sunday-drop`, so when it
+ * did, the shell opened a room the guide could not even list.
+ */
+export function resolveActiveEventId(
+  pinnedEventId: string | null,
+  guideEvents: readonly { eventId: string }[],
+): string {
+  return pinnedEventId ?? guideEvents[0]?.eventId ?? DEFAULT_EVENT_ID;
+}
