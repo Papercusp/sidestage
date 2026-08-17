@@ -70,6 +70,55 @@ export class EventController {
   }
 
   /**
+   * The seller lifecycle: schedule a start time, take the room live, end it
+   * (D-002).
+   *
+   * ONE transition endpoint rather than three verbs, so the legality table has
+   * a single server-side home and the UI cannot compose a transition the store
+   * will not honour. Before this existed nothing in the API could write
+   * `status = 'live'`, `status = 'ended'`, or `starts_at` at all — the columns
+   * were readable, sortable and countdown-rendered, but unreachable, so a
+   * created event was stuck `scheduled` with no start time forever.
+   *
+   * Status codes carry the three distinct failures a seller can hit: 400 for a
+   * malformed action, 404 for an event that is not theirs, 409 for a legal-shape
+   * request that this event's current state refuses (with the reason shown in
+   * the UI).
+   */
+  @Patch(':eventId/lifecycle')
+  async transition(
+    @Param('eventId') eventId: string,
+    @Body() body: { action?: unknown; startsAt?: unknown } | undefined,
+    @Headers(DEMO_PRINCIPAL_HEADER) principalHeader?: string,
+  ): Promise<{ event: EventRecord }> {
+    const sellerId = requireSellerId(principalHeader);
+    if (!isEventLifecycleAction(body?.action)) {
+      throw new BadRequestException(
+        "`action` must be one of 'schedule', 'go-live', or 'end'.",
+      );
+    }
+
+    const result = await this.events.transition(eventId, sellerId, body.action, {
+      startsAt: body.startsAt,
+    });
+    if (result.outcome === 'not-found') {
+      throw new NotFoundException('Event not found for this seller.');
+    }
+    if (result.outcome === 'refused') {
+      throw new ConflictException(result.reason);
+    }
+
+    // A lifecycle move changes what buyers see (the guide's grouping, ordering
+    // and countdown all read status/starts_at), what the seller's own directory
+    // shows, and the event-scoped lineup surface — the same fan-out unpublish
+    // performs, for the same reason.
+    this.invalidations.invalidate('event.lineup.items', { eventId });
+    this.invalidations.invalidate('events.guide');
+    this.invalidations.invalidate('events.mine', undefined, { principal: principalHeader });
+    return { event: result.event };
+  }
+
+  /**
    * Seller teardown is deliberately an unpublish, not a hard delete: buyers
    * stop seeing the event immediately, while event-scoped history remains
    * available for diagnosis and a later config save can publish it again.

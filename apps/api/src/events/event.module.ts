@@ -6,6 +6,7 @@ import { PgEventStore } from '../db/pg-event-store';
 import { SyncModule } from '../sync/sync.module';
 import { SyncQueryRegistry } from '../sync/sync-query.registry';
 import { rolePrincipal } from '../sync/sync-request-context';
+import { EventActivationSweeper } from './event-activation.sweeper';
 import { EventController } from './event.controller';
 import { EventOwnershipGuard } from './event-ownership.guard';
 import { EventVisibilityGuard } from './event-visibility.guard';
@@ -60,6 +61,9 @@ export function eventStoreForPool(
     EventOwnershipGuard,
     EventVisibilityGuard,
     EventSyncQueries,
+    // D-003: keeps a scheduled event's promised start time by taking the room
+    // live server-side, with no seller and no buyer tab required.
+    EventActivationSweeper,
     {
       provide: EVENT_STORE,
       inject: [PG_POOL],

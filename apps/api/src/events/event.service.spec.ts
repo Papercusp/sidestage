@@ -16,7 +16,6 @@ import {
   statusRank,
   type EventRecord,
   type EventSummary,
-  type EventStore,
 } from './event.service';
 
 function record(overrides: Partial<EventRecord> & Pick<EventRecord, 'eventId'>): EventRecord {
@@ -35,22 +34,25 @@ function summary(overrides: Partial<EventSummary> & Pick<EventSummary, 'eventId'
   return { ...record(overrides), viewers: 0, ...overrides };
 }
 
-class StubStore implements EventStore {
-  constructor(private readonly records: EventRecord[]) {}
-  async listBuyerVisible(): Promise<EventRecord[]> {
-    return this.records.filter((entry) => entry.status !== 'draft');
-  }
-  async listBySeller(sellerId: string): Promise<EventRecord[]> {
-    return this.records.filter((entry) => entry.sellerId === sellerId);
-  }
-  async findById(eventId: string): Promise<EventRecord | undefined> {
-    return this.records.find((entry) => entry.eventId === eventId);
-  }
-  async findOwned(eventId: string, sellerId: string): Promise<EventRecord | undefined> {
-    return this.records.find(
-      (entry) => entry.eventId === eventId && entry.sellerId === sellerId,
-    );
-  }
+/**
+ * Fixture-backed store for the ordering/projection tests below, whose subject
+ * is EventService — not the store.
+ *
+ * EXTENDS InMemoryEventStore instead of re-implementing EventStore, so widening
+ * the store contract cannot strand this double. Hand-listing the interface here
+ * has now broken the whole API typecheck THREE times, each from an unrelated
+ * lane: WI-38989 (listBySeller), WI-39072 (findById/findOwned), and again on
+ * applyLifecycle/activateDueScheduled. Every one of those methods was
+ * re-implemented here identically to the in-memory backend, so the duplication
+ * bought nothing and cost a red gate each time. Inheriting makes the default
+ * "whatever the maintained in-memory backend does", which is the correct
+ * default for this double and is strand-proof by construction.
+ *
+ * The two mutators stay overridden as loud throws: these tests deliberately do
+ * not exercise the write path, and a silent no-op double would let a future
+ * test assert against a write that never happened.
+ */
+class StubStore extends InMemoryEventStore {
   async publish(): Promise<boolean> {
     throw new Error('StubStore.publish is not under test here — use InMemoryEventStore');
   }
