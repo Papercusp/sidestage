@@ -87,6 +87,48 @@ The in-memory implementations double as the unit-test fakes.
 constructor injection uses explicit `@Inject(...)` tokens — by-type injection
 is silently `undefined` under tsx and is banned in this codebase.
 
+## LLM pipeline
+
+Every model turn runs the same four stages: gather verifiable signals, ground
+them in real inventory, generate a schema-locked draft, and deliver it only
+through policy guards.
+
+1. **Signals — ingest + classify.** Room chat, live transcript moments and
+   deterministic product-focus classification scope the turn.
+2. **Grounding — context assembly.** Event items, catalog products, transcript
+   moments and web findings are gathered *in parallel* under a latency budget.
+3. **Generation — schema-locked draft.** Strict JSON output: reply, citations,
+   confidence, tone and an optional action proposal.
+4. **Guarded delivery — ladder + audit.** Relevance, price, inventory and tone
+   guards; `suggest → confirm → auto`; an audited executor.
+
+**Model surfaces**
+
+| Surface | Role |
+| --- | --- |
+| Seller Copilot | Grounded replies and guarded action proposals in the Studio review queue |
+| Buyer Scout | Streaming shopping assistant with durable per-buyer session memory |
+| Judge | Rehearsal grader behind the same model seam — deterministic today, hosted-model ready |
+| Transcription | Deepgram speech-to-text feeding transcript moments into grounding |
+
+**Grounding contract.** Sources are staged event items, catalog products,
+transcript moments and capped web findings. Every draft cites its source ids,
+and an unsupported question gets an honest no-answer rather than a guess.
+Research runs in parallel under a sub-two-second budget with p50/p95 tracking.
+A draft only ships when the retrieved sources actually support the question
+asked.
+
+**Safety posture.** Output is a strict JSON schema, so malformed or uncited
+drafts never reach buyers. The automation ladder is `suggest → confirm → auto`
+per action kind, with a ceiling for review-queue drafts. Every outcome —
+executed, awaiting-confirmation, suggested or blocked — is recorded and
+auditable. With no provider configured the pipeline returns a deterministic
+grounded reply; it never fails silently.
+
+**Provider seam.** Generation is provider-neutral: the API binds a hosted model
+through server-side configuration, secrets never reach the browser, and every
+stage degrades deterministically.
+
 ## Data model
 
 `db/schema.sql` ports a production wholesale-catalog schema verbatim (names
@@ -100,6 +142,37 @@ per row with hot columns lifted out. The full 1.1M-product real-world import
 loads via `scripts/load-wholesale-catalog.sh`, which normalizes real-catalog
 shapes (camelCase storefront columns, NULL-able fields) into the port.
 
+Thirty-six tables organized around four anchors — catalog, commerce, live event
+and automation. Constraints live in the database, so invariants hold no matter
+which code path writes.
+
+**Column patterns.** Money is integer cents everywhere (`price_cents integer
+CHECK (>= 0)`), never floats. Derived stock is Postgres' job, not the
+application's: `"availableQty" integer GENERATED ALWAYS AS (GREATEST(0, qty −
+reserved_qty)) STORED`. Guarded documents use jsonb payload columns with
+`CHECK (jsonb_typeof = 'object'|'array')` so a malformed document cannot be
+inserted. Status and condition columns are text with CHECK constraints —
+`pending/paid/failed` is the entire order-state universe.
+
+**Integrity mechanics.** `FOREIGN KEY (group_id, region) ON UPDATE CASCADE`
+keeps regional catalogs consistent, and `UNIQUE (slug, region)` makes URLs
+unambiguous. Reservations carry state plus expiry columns with partial indexes,
+so an abandoned hold expires instead of leaking stock. `policy_outbox_event`
+and `policy_idempotency` make guarded automation deliverable exactly once and
+restart-safe. A tsvector column with a GIN index plus pg_trgm trigram indexes
+back the fallback search path.
+
+**Backing technology.** PostgreSQL 16 (`postgres:16-alpine`) is the system of
+record, with pg_trgm enabled at schema apply. Typesense 27 is a derived,
+rebuildable search index — never the source of truth. Redis 7 is disposable
+cache and coordination: losing it costs latency, not data. Every store degrades
+to in-memory when Postgres is unreachable, so a clean clone boots and demos
+with zero infrastructure.
+
+**Schema is code.** One idempotent `db/schema.sql` (`CREATE TABLE IF NOT
+EXISTS` plus convergence blocks) is applied on deploy and reviewed like any
+other change — no hand-run migrations, no drift.
+
 ## Search
 
 `@papercusp/typesense` (typo tolerance via `buildNumTypos`, one document per
@@ -108,6 +181,29 @@ builds the index from Postgres in keyset-paginated batches with
 transient-error retry. The catalog API queries Typesense first and falls back
 to Postgres full-text (tsvector GIN + trigram slug match) when Typesense is
 unavailable, so search degrades gracefully instead of failing.
+
+**Semantic layer.** Embeddings are OpenAI `text-embedding-3-small`, declared in
+the collection schema, with a local MiniLM model as the no-key fallback.
+Keyword and vector scores merge into one ranking (rank fusion), so a paraphrase
+and an exact title both find the product. Professional exact-match surfaces
+(wholesale procurement, SKU lookup) skip the embedding round-trip — it is pure
+latency cost there. Typo budget is per-field: name and description 2, brand 1.
+
+**Where search runs.** The storefront (buyer product search and type-ahead),
+Studio inventory (seller-scoped owned-item search through the identical stack,
+so sellers get the same typo tolerance buyers do) and Scout's product-search
+tool all query the same index.
+
+**Facets.** Category, condition, price-bucket and in-stock counts are each
+computed with that facet's own filter excluded, so a count answers "what would
+I get if I toggled this". Counts are computed against the full filtered corpus,
+so a category click never surfaces vector neighbours absent from results.
+In-stock filtering reads the same derived availability the cart enforces.
+
+**Degradation contract.** Typesense unavailability is logged and absorbed — the
+catalog API answers every query either way. The index is derived state: writes
+land in Postgres first and are mirrored forward, so a search-index outage is a
+relevance regression, never an outage.
 
 ## Realtime
 
@@ -174,6 +270,45 @@ ladder.
   after seller authentication, and the publisher browser uses that JWT for one
   direct live-transcription session. Buyers consume the shared event transcript
   and never create their own transcription sessions.
+
+## Checkout and commerce
+
+Reservation before payment, webhook before trust: the checkout path is built so
+no two buyers can buy the same unit, and no order is marked paid on the
+client's word.
+
+1. **Reserve — idempotent hold.** A hold or auction win writes an
+   `inventory_reservation` keyed by `(source_kind, source_id, variant)`, so
+   retries cannot double-reserve.
+2. **Intent — Stripe PaymentIntent.** The API creates the intent server-side and
+   pins its id to the order; card details go to Stripe and never through
+   SideStage.
+3. **Settle — webhook authority.** Only Stripe's *signed* webhook marks an order
+   paid: signature verified, payment-intent id cross-checked, mismatches
+   rejected and logged.
+4. **Fulfil — ship or release.** A paid order commits its reservation and gets
+   EasyPost rates over a box-packed parcel; failure or expiry releases the stock.
+
+**Order lifecycle.** `checkout_order` moves `pending → paid | failed`, and a
+database CHECK constraint makes a fourth state unrepresentable. `availableQty`
+is a generated column (quantity minus reserved), so no code path can sell stock
+the database says is held. Webhook retries and duplicate confirmations converge
+on the same final state.
+
+**Auctions.** `auction_state` keeps bids, lifecycle, the inventory hold and the
+winner's order in a single transaction-owned document. Closing an auction,
+holding the unit and creating the winner's order commit together or not at all.
+Seller auction actions authenticate with signed tokens, separate from buyer
+identity.
+
+**Shipping.** A packer fits ordered items into real parcel dimensions before
+asking for rates; EasyPost quotes carriers against the server-configured
+warehouse origin. Stripe and EasyPost sit behind adapters — domain logic never
+imports a vendor SDK directly.
+
+**Money truth lives at Stripe.** SideStage stores provider identifiers and
+derived state only. Settlement is asynchronous by design, which is why webhook
+delivery health is monitored rather than assumed.
 
 ## Guardrails and the depth area (agentic-write safety)
 
@@ -347,12 +482,90 @@ infrastructure as active. The Tests tab exposes the same rehearsal
 instruments the Guardrails section describes (reply judge, load simulator)
 so a reviewer can run the safety story, not just read it.
 
+## Application layers
+
+Composition stays app-specific; reusable transport and interface behaviour
+lives in pinned workspace libraries. Four layers, top to bottom:
+
+- **Experience layer** — the user-facing surfaces (storefront, Studio, live
+  room, Tests tab).
+- **Shared frontend capabilities** — pinned `@papercusp/*` packages for sync,
+  search and interface behaviour.
+- **NestJS domain boundary** — the API's domain modules and provider seams.
+- **Durable state and integrations** — Postgres, Typesense, Redis, MediaMTX and
+  the external provider adapters.
+
+## Native mobile apps
+
+One Rust core carries the domain logic for both platforms; each OS gets a thin
+native shell. The apps speak the same API and sync contracts as the web client.
+
+1. **Core — shared Rust crates.** Domain logic, API client and sync live in one
+   set of crates: both platforms ship the same behaviour because they ship the
+   same code.
+2. **Bindings — generated Kotlin + Swift.** UniFFI generates the language
+   bindings over the core; checksum symbols are verified at build time so
+   bindings and binary cannot drift.
+3. **Android — Kotlin app.** Single-activity Kotlin UI; `cargo-ndk`
+   cross-compiles the core for all four ABIs with 16 KB-aligned libraries; min
+   SDK 33, target SDK 36.
+4. **iOS — SwiftUI shell.** A SwiftUI shell over the identical core. v1.0.0
+   ships an *unsigned* IPA built with Xcode 16.4 — a build artifact, not
+   installable without re-signing under an Apple Developer certificate.
+
+**Distribution.** Android v1.0.0 ships as a signed APK (sideload) and an AAB
+(Play bundle); iOS ships as the unsigned IPA awaiting an Apple Developer
+certificate. All carry a provenance manifest recording the source commit and
+artifact hashes, published on the public companion repo's GitHub release page
+([sidestage-mobile v1.0.0](https://github.com/Papercusp/sidestage-mobile/releases/tag/v1.0.0)).
+
+**Backend binding.** The release build pins the live API and media hostnames at
+compile time — there is no in-app environment switcher to misconfigure. The
+Rust API client speaks the same authenticated REST and sync surface as the web
+app: one server contract, three clients.
+
+**Why this shape.** Domain behaviour is written and tested once in Rust and the
+platform layers stay thin enough to review in an afternoon. Binding checksums
+and packaged-ABI verification run inside the build, so an inconsistent artifact
+fails instead of shipping.
+
 ## Testing
 
 Vitest across both workspaces (`npm test`; `npm run check` adds typechecks and
 builds). Unit tests use the in-memory store fakes; integration-grade coverage
 comes from the judge + load-simulator rehearsals and live smokes against the
 running stack. CI runs the exact reviewer commands from a clean clone.
+
+Four layers, all deterministic — **no LLM sits in any gate**, so every verdict
+is reproducible:
+
+1. **Unit — focused Vitest specs.** Colocated `*.test.ts` specs across the web,
+   API and deploy workspaces; `npm test` runs the deploy project first, then the
+   app suites.
+2. **Contract — parity + census suites.** The sync census enumerates every
+   registered read surface, and the Zero parity suite pins the WebSocket
+   contract against the SSE-era resolvers so the two transports cannot drift.
+3. **Rehearsal — load + injection.** The in-app Tests surface runs scripted load
+   (price, shipping, policy, variant, stock, offer and bid prompts) plus
+   prompt-injection rehearsal against the copilot.
+4. **Judge — deterministic reply grading.** A rule-based judge grades grounding,
+   citations and tone; the same input always gets the same grade.
+
+**Where tests live.** Every module keeps its spec next to the source —
+`guardrail.test.ts` beside `guardrail.ts` — so a change and its proof travel in
+one diff. The deploy tooling is itself under test: rollback, deploy-lock,
+release positive-controls and probe hygiene each have focused suites.
+
+**What gates a ship.** `npm run check` runs the workspace typecheck and the full
+Vitest matrix — the same gate a clean clone runs for reviewers. Production
+deploys verify the public health contract after cutover and roll back
+automatically on failure.
+
+**Browser verification.** Unit green is not a ship signal on its own: a
+user-visible fix is confirmed by driving the real path in a browser against the
+running stack (web `:5173`, API `:3100`) and observing the post-action DOM and
+network state, with a hard reload first so a stale bundle cannot mask a landed
+fix.
 
 ## Deployment
 
