@@ -39,42 +39,110 @@ function addAttributes(target: Set<string>, attributes: Record<string, string | 
   }
 }
 
-function questionTokens(request: Pick<CopilotRequest, 'message' | 'requiredProperties'>): Set<string> {
-  const result = relevanceTokens(request.message);
+/**
+ * A source's vocabulary, split by what each half is allowed to decide.
+ *
+ * `identity` is what the source IS — its title, description and attributes.
+ * Only these anchor a question to a source, because only these distinguish one
+ * product from another.
+ *
+ * `all` additionally carries the intent vocabulary a source can always speak to
+ * (price for anything priced, stock for anything with live quantity). These
+ * words are deliberately EXCLUDED from `identity`: every event item can answer
+ * "how much", so matching on them would make every item relevant to every price
+ * question and cite the wrong product.
+ */
+interface SourceFacts {
+  readonly identity: Set<string>;
+  readonly all: Set<string>;
+}
+
+function factsOf(identity: Set<string>, intent: readonly string[][]): SourceFacts {
+  const all = new Set(identity);
+  for (const words of intent) for (const word of words) all.add(word);
+  return { identity, all };
+}
+
+function withoutStopWords(tokens: Set<string>): Set<string> {
+  for (const stop of STOP_WORDS) tokens.delete(stop);
+  return tokens;
+}
+
+function requiredPropertyTokens(
+  request: Pick<CopilotRequest, 'message' | 'requiredProperties'>,
+): Set<string> {
+  const result = new Set<string>();
   for (const property of request.requiredProperties ?? []) {
     for (const token of relevanceTokens(property)) result.add(token);
   }
-  for (const stop of STOP_WORDS) result.delete(stop);
-  return result;
+  return withoutStopWords(result);
 }
 
+/**
+ * Does this source support answering this question?
+ *
+ * TWO tests, and deliberately not a third:
+ *
+ *  1. EXPLICIT DEMANDS ARE STRICT. Every token of `requiredProperties` must be
+ *     in the source's vocabulary. This is the channel a caller uses to say "do
+ *     not answer unless you can verify X", so it stays an exact conjunction —
+ *     it is what makes a missing catalog property fall through to the research
+ *     fallback instead of being answered from a catalog that lacks the fact.
+ *
+ *  2. THE QUESTION MUST NAME THIS SOURCE. At least one question token must hit
+ *     the source's `identity` vocabulary, so a question about the Harbor Kettle
+ *     cannot be grounded by the headphones listing.
+ *
+ * WHAT IS NOT TESTED, AND WHY. Until now this function additionally required
+ * that EVERY non-stopword token of the buyer's message appear in the source's
+ * vocabulary. That made grounding strength fall as the buyer wrote a longer,
+ * more natural question: ordinary English ("right", "now", "many") was
+ * indistinguishable from a real property demand ("warranty"), so it gated
+ * exactly like one. A hand-maintained 30-word stopword list was the only thing
+ * holding it up, and it covered the short phrasings the tests happened to use.
+ * Measured on the running stack: "How much is the Harbor Kettle?" grounded,
+ * while the same question with any prefix — or asked as "what is the event
+ * price ... and how many are available right now?" — returned "no verified
+ * citation" (EI-20488839136964773).
+ *
+ * The intent behind that conjunction was real: an event-item citation about
+ * price must not support a warranty or overnight-shipping claim. But a word in
+ * the QUESTION is not a claim — only the reply can assert something false, and
+ * whether an assertion is supported by its evidence is decided by the
+ * claim/evidence contract (copilot.claims.ts) and enforced at send time against
+ * a fresh fingerprint. That layer can evaluate what this one could only guess
+ * at, so the check belongs there and the guess is removed rather than tuned.
+ */
 function coversQuestion(
   request: Pick<CopilotRequest, 'message' | 'requiredProperties'>,
-  facts: Set<string>,
+  facts: SourceFacts,
 ): boolean {
-  const wanted = questionTokens(request);
-  return wanted.size > 0 && [...wanted].every((token) => facts.has(token));
+  for (const token of requiredPropertyTokens(request)) {
+    if (!facts.all.has(token)) return false;
+  }
+  const asked = withoutStopWords(relevanceTokens(request.message));
+  for (const token of asked) {
+    if (facts.identity.has(token)) return true;
+  }
+  return false;
 }
 
-function eventItemFacts(item: GroundingContext['eventItems'][number]): Set<string> {
-  const facts = relevanceTokens(`${item.title} ${item.description ?? ''}`);
-  PRICE_WORDS.forEach((word) => facts.add(word));
-  STOCK_WORDS.forEach((word) => facts.add(word));
-  addAttributes(facts, item.attributes);
-  return facts;
+function eventItemFacts(item: GroundingContext['eventItems'][number]): SourceFacts {
+  const identity = relevanceTokens(`${item.title} ${item.description ?? ''}`);
+  addAttributes(identity, item.attributes);
+  return factsOf(identity, [PRICE_WORDS, STOCK_WORDS]);
 }
 
-function catalogProductFacts(product: GroundingContext['catalogProducts'][number]): Set<string> {
-  const facts = relevanceTokens(`${product.title} ${product.description ?? ''}`);
-  PRICE_WORDS.forEach((word) => facts.add(word));
-  addAttributes(facts, product.attributes);
-  return facts;
+function catalogProductFacts(product: GroundingContext['catalogProducts'][number]): SourceFacts {
+  const identity = relevanceTokens(`${product.title} ${product.description ?? ''}`);
+  addAttributes(identity, product.attributes);
+  return factsOf(identity, [PRICE_WORDS]);
 }
 
-function webFindingFacts(finding: WebResearchFinding): Set<string> {
-  const facts = relevanceTokens(`${finding.title} ${finding.snippet}`);
-  addAttributes(facts, finding.attributes ?? {});
-  return facts;
+function webFindingFacts(finding: WebResearchFinding): SourceFacts {
+  const identity = relevanceTokens(`${finding.title} ${finding.snippet}`);
+  addAttributes(identity, finding.attributes ?? {});
+  return factsOf(identity, []);
 }
 
 /**
@@ -101,7 +169,10 @@ export function sourceSupportsQuestion(
   if (sourceId.startsWith('transcript:')) {
     const id = sourceId.slice('transcript:'.length);
     const moment = context.transcriptMoments?.find((candidate) => candidate.transcriptId === id);
-    return Boolean(moment && coversQuestion(request, relevanceTokens(`${moment.productTitle ?? ''} ${moment.text}`)));
+    return Boolean(moment && coversQuestion(
+      request,
+      factsOf(relevanceTokens(`${moment.productTitle ?? ''} ${moment.text}`), []),
+    ));
   }
   if (sourceId.startsWith('web-research:')) {
     const id = sourceId.slice('web-research:'.length);
