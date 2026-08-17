@@ -424,6 +424,15 @@ export function AuctionPanel({
                   ? `You’re leading at ${formatBuyerPrice(leadingBid.amountCents)}.`
                   : leadingBid ? `${leadingBid.displayName ?? 'A buyer'} leads at ${formatBuyerPrice(leadingBid.amountCents)}.` : `Opening bid is ${formatBuyerPrice(auction.startingPriceCents)}.`}
           </div>
+          {/* The bid form belongs to the LIVE state only. D-003 makes sold an
+              additional STATE of this one module ("transform in place"), not the
+              live layout with a stamp added on top — and the approved sold panel
+              contains no bid affordance at all. Rendering it after close both
+              contradicted that and cost 175px of slot height on mobile, which is
+              most of the gap between the measured 813px and the approved 443px.
+              Disabled inputs were not enough: a "Your bid / Place bid" form on a
+              finished auction still reads as an action the buyer could take. */}
+          {!isClosed ? (
           <form className="auction-bid-form" onSubmit={(event) => void submitBid(event)}>
             <label htmlFor={`auction-bid-${auction.id}`}>Your bid</label>
             <div className="auction-bid-row">
