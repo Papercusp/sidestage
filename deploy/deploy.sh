@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# deploy.sh — Ship SideStage to production (sidestage.buyrestart.com).
+# deploy.sh — Ship SideStage to production (public hostname is read from prod's
+# .env.production; sidestage.papercusp.com since the 2026-08-17 D-022 cutover).
 #
 # Mimics the Restart deploy pattern (see /home/marsh-office/Restart/deploy):
 # export one immutable snapshot of the working tree (tracked edits plus
@@ -261,11 +262,17 @@ say "Checking .env.production exists on prod"
   echo "  WAREHOUSE_FROM_STREET1=… WAREHOUSE_FROM_CITY=… WAREHOUSE_FROM_STATE=… WAREHOUSE_FROM_ZIP=…" >&2
   echo "  STRIPE_SECRET_KEY=… STRIPE_PUBLISHABLE_KEY=… STRIPE_WEBHOOK_SECRET=…" >&2
   echo "  DEEPGRAM_API_KEY=…" >&2
-  echo "  PUBLIC_HOSTNAME=sidestage.buyrestart.com" >&2
+  echo "  PUBLIC_HOSTNAME=sidestage.papercusp.com" >&2
   echo "  MEDIAMTX_PUBLIC_IP=178.156.254.59" >&2
   echo "  TURN_AUTH_SECRET=<strong random secret>" >&2
   exit 2
 }
+
+# Now that .env.production is known to exist, resolve the hostname the health
+# gate and the release probes will use FROM IT (see resolve_public_hostname).
+PUBLIC_HOSTNAME="$(resolve_public_hostname)"
+HEALTH_URL="https://$PUBLIC_HOSTNAME/healthz"
+say "Public hostname: $PUBLIC_HOSTNAME (health gate: $HEALTH_URL)"
 
 # Compose owns the required-variable contract. Validate it before the expensive
 # build so checkout can never silently deploy with empty rates or payments.
