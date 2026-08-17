@@ -1,0 +1,92 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>WI-39726 live check</title>
+<pre id="out">running…</pre>
+<script type="module">
+import {
+  createTranscriptionSession,
+  hasLiveAudioTrack,
+  PUBLISHER_STREAM_ENDED_MESSAGE,
+} from '/src/transcription.ts';
+
+const results = {};
+const log = () => { document.getElementById('out').textContent = JSON.stringify(results, null, 1); };
+
+function fakeSocketFactory() {
+  const s = {
+    readyState: 0, onopen: null, onmessage: null, onerror: null, onclose: null,
+    send() {}, close() { s.readyState = 3; s.onclose?.({ code: 1000, reason: 'test' }); },
+  };
+  queueMicrotask(() => { s.readyState = 1; s.onopen?.(); });
+  return s;
+}
+
+try {
+  const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: true });
+  results.gotStream = true;
+  results.liveBefore = hasLiveAudioTrack(stream);
+
+  // CONTROL: what does this browser's REAL MediaRecorder do on an ended stream?
+  // This is the exact teardown connectPublisher performs on an event switch.
+  for (const t of stream.getTracks()) t.stop();
+  results.liveAfterStop = hasLiveAudioTrack(stream);
+  try {
+    const rec = new MediaRecorder(stream, { mimeType: 'audio/webm;codecs=opus' });
+    rec.start(250);
+    results.control = 'NO THROW (recorder started on ended stream)';
+  } catch (e) {
+    results.control = String(e && e.message ? e.message : e);
+  }
+
+  // FIXED PATH: the session must refuse before any recorder/socket is built.
+  let recorderBuilt = 0;
+  let socketBuilt = 0;
+  const session = createTranscriptionSession({
+    mediaStream: stream,
+    deepgramToken: 'ephemeral-token',
+    webSocketFactory: (...a) => { socketBuilt += 1; return fakeSocketFactory(...a); },
+    mediaRecorderFactory: (s) => {
+      recorderBuilt += 1;
+      return new MediaRecorder(s, { mimeType: 'audio/webm;codecs=opus' });
+    },
+  });
+  const seen = [];
+  session.onError((e) => seen.push(e.message));
+  try {
+    await session.start();
+    results.fixed = 'NO THROW — guard did not fire';
+  } catch (e) {
+    results.fixed = String(e && e.message ? e.message : e);
+  }
+  results.fixedMatchesRecoverable = results.fixed === PUBLISHER_STREAM_ENDED_MESSAGE;
+  results.fixedLeakedBrowserString = String(results.fixed).includes('Failed to execute');
+  results.recorderBuilt = recorderBuilt;
+  results.socketBuilt = socketBuilt;
+  results.errorsEmitted = seen;
+  results.state = session.state;
+
+  // RECOVERY: a fresh live stream (the next event) must still start.
+  const fresh = await navigator.mediaDevices.getUserMedia({ audio: true });
+  let freshRecorder = 0;
+  const live = createTranscriptionSession({
+    mediaStream: fresh,
+    deepgramToken: 'ephemeral-token',
+    webSocketFactory: fakeSocketFactory,
+    mediaRecorderFactory: (s) => {
+      freshRecorder += 1;
+      return new MediaRecorder(s, { mimeType: 'audio/webm;codecs=opus' });
+    },
+  });
+  await live.start();
+  results.recoveryState = live.state;
+  results.recoveryRecorderBuilt = freshRecorder;
+  await live.stop();
+} catch (err) {
+  results.fatal = String(err && err.stack ? err.stack : err);
+}
+results.done = true;
+log();
+try {
+  await fetch('http://127.0.0.1:8731/result', { method: 'POST', body: JSON.stringify(results) });
+} catch { /* collector optional */ }
+</script>
