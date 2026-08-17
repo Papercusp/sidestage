@@ -18,11 +18,20 @@ import {
   executeSellerAction,
   setupSellerEvent,
   startSellerAuction,
+  transitionSellerEvent,
+  unpublishSellerEvent,
   type SellerActionResult,
   type SellerAuction,
   type SellerEventItem,
+  type SellerEventRecord,
   type SellerEventSetup,
 } from './api';
+import {
+  instantFromLocalInput,
+  lifecycleRefusal,
+  lifecycleStatusRefusal,
+  type EventLifecycleAction,
+} from './event-lifecycle';
 import EventLineupGrid from './EventLineupGrid';
 import './event-manager.css';
 
@@ -37,16 +46,14 @@ export interface EventManagerProps {
   onEventReady?: (eventId: string, eventName: string) => void;
 }
 
-export interface SellerOwnedEvent {
-  eventId: string;
-  title: string;
-  sellerId: string;
-  sellerName: string;
-  status: 'draft' | 'scheduled' | 'live' | 'ended';
-  startsAt: string | null;
-  endedAt: string | null;
-  thumbnailUrl?: string;
-}
+/**
+ * A row of the seller's own event directory.
+ *
+ * The same shape the lifecycle endpoint returns, so it is an ALIAS rather than
+ * a second declaration: two hand-maintained copies of one server record is how
+ * a field added on the API silently fails to reach one of its two readers.
+ */
+export type SellerOwnedEvent = SellerEventRecord;
 
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : 'The seller event request failed.';
@@ -71,6 +78,12 @@ type StartAuctionMutation = {
   startingPriceCents: number;
 };
 type CloseAuctionMutation = { auctionId: string };
+type LifecycleMutation = {
+  eventId: string;
+  action: EventLifecycleAction;
+  startsAt?: string | null;
+};
+type UnpublishMutation = { eventId: string };
 
 function formatAuctionPrice(cents: number): string {
   return new Intl.NumberFormat(undefined, { style: 'currency', currency: 'USD' }).format(cents / 100);
@@ -85,17 +98,23 @@ function eventInitials(title: string): string {
     .join('') || 'EV';
 }
 
-function eventTiming(event: SellerOwnedEvent): string {
-  const date = event.status === 'ended' ? event.endedAt : event.startsAt;
-  if (!date) return event.status === 'draft' ? 'Not scheduled' : 'Schedule pending';
-  const parsed = new Date(date);
-  if (Number.isNaN(parsed.getTime())) return 'Schedule pending';
+/** The one wall-clock rendering for event times, so the list and the lifecycle
+ *  confirmations cannot describe the same instant two different ways. */
+function formatStartTime(iso: string): string {
   return new Intl.DateTimeFormat(undefined, {
     month: 'short',
     day: 'numeric',
     hour: 'numeric',
     minute: '2-digit',
-  }).format(parsed);
+  }).format(new Date(iso));
+}
+
+function eventTiming(event: SellerOwnedEvent): string {
+  const date = event.status === 'ended' ? event.endedAt : event.startsAt;
+  if (!date) return event.status === 'draft' ? 'Not scheduled' : 'Schedule pending';
+  const parsed = new Date(date);
+  if (Number.isNaN(parsed.getTime())) return 'Schedule pending';
+  return formatStartTime(date);
 }
 
 function managerRoute(
@@ -128,6 +147,11 @@ export function EventManager({
   const [eventSearch, setEventSearch] = useState('');
   const [busyProductId, setBusyProductId] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
+  // A half-typed start time is a mid-edit draft, so it stays local: nothing
+  // else reads it and a shareable URL carrying someone's abandoned keystrokes
+  // would be worse than useless.
+  const [startsAtDraft, setStartsAtDraft] = useState('');
+  const [lifecycleBusy, setLifecycleBusy] = useState<string | null>(null);
   const sellerDisplayName = sellerName?.trim() || actorId;
   const demoPrincipal = useSyncPrincipal() ?? actorId;
 
@@ -251,9 +275,32 @@ export function EventManager({
   );
   const mutateCloseAuction = useSyncMutate<CloseAuctionMutation, SellerAuction>('auction.close', closeAuctionFallback);
 
+  const lifecycleFallback = useCallback(
+    async ({ eventId: resolvedEventId, action, startsAt }: LifecycleMutation) => (
+      transitionSellerEvent(resolvedEventId, action, { startsAt }, apiBaseUrl, demoPrincipal)
+    ),
+    [apiBaseUrl, demoPrincipal],
+  );
+  const mutateLifecycle = useSyncMutate<LifecycleMutation, SellerEventRecord>('event.lifecycle', lifecycleFallback);
+
+  const unpublishFallback = useCallback(
+    async ({ eventId: resolvedEventId }: UnpublishMutation) => (
+      unpublishSellerEvent(resolvedEventId, apiBaseUrl, demoPrincipal)
+    ),
+    [apiBaseUrl, demoPrincipal],
+  );
+  const mutateUnpublish = useSyncMutate<UnpublishMutation, { eventId: string; status: 'draft' }>(
+    'event.unpublish',
+    unpublishFallback,
+  );
+
   useEffect(() => {
     setPickerOpen(false);
     setMessage(null);
+    // The start time belongs to the event that was on screen. Carrying it to
+    // the next one would offer to schedule a different room at a time its
+    // seller never chose.
+    setStartsAtDraft('');
   }, [selectedEventId]);
 
   const submitPicker = async (payload: EventCreationPayload) => {
@@ -295,6 +342,42 @@ export function EventManager({
   };
 
   const eventStatus = selectedEvent?.status ?? 'draft';
+  const scheduleInstant = instantFromLocalInput(startsAtDraft);
+  // Every control's availability comes from the mirror of the server's table
+  // (event-lifecycle.ts), never from a status check written here: a second
+  // hand-written copy of the rule is what lets the UI offer a button whose
+  // only outcome is a 409.
+  const scheduleRefusal = lifecycleRefusal(eventStatus, 'schedule', scheduleInstant);
+  const endRefusal = lifecycleRefusal(eventStatus, 'end');
+  // Only the refusals the seller cannot fix by filling the form in — an empty
+  // date field explains itself and must not become a standing complaint.
+  const lifecycleHint = lifecycleStatusRefusal(eventStatus, 'schedule')
+    ?? lifecycleStatusRefusal(eventStatus, 'end');
+  const lifecycleBusyNow = lifecycleBusy !== null;
+
+  const runLifecycle = async (
+    action: string,
+    task: () => Promise<unknown>,
+    success: string,
+  ) => {
+    setLifecycleBusy(action);
+    setMessage(null);
+    try {
+      await task();
+      // The move changed what the guide, the seller's directory and this
+      // event's own header report, so re-read them rather than painting an
+      // optimistic status the server may have resolved differently.
+      directoryQuery.invalidate();
+      configQuery.invalidate();
+      setMessage(success);
+    } catch (error) {
+      // A refused transition arrives as a 409 whose message IS the server's
+      // reason; showing it beats a generic failure the seller cannot act on.
+      setMessage(errorMessage(error));
+    } finally {
+      setLifecycleBusy(null);
+    }
+  };
   const currentAuctionItem = currentAuction
     ? items.find((item) => item.productId === currentAuction.productId)
     : undefined;
@@ -426,6 +509,79 @@ export function EventManager({
               <button className="button secondary" type="button" onClick={() => setPickerOpen((open) => !open)}>
                 {pickerOpen ? 'Close lineup editor' : 'Add inventory'}
               </button>
+            </div>
+
+            <div className="event-lifecycle-controls" role="group" aria-label="Event lifecycle">
+              <label className="event-lifecycle-schedule">
+                <span>Start time</span>
+                <input
+                  type="datetime-local"
+                  value={startsAtDraft}
+                  onChange={(event) => setStartsAtDraft(event.target.value)}
+                />
+              </label>
+              <button
+                className="button secondary"
+                type="button"
+                disabled={lifecycleBusyNow || scheduleRefusal !== null}
+                title={scheduleRefusal ?? undefined}
+                onClick={() => {
+                  // Unreachable while the control is disabled, but the guard is
+                  // what makes that a fact rather than an assumption.
+                  if (!scheduleInstant) return;
+                  void runLifecycle(
+                    'schedule',
+                    () => mutateLifecycle({
+                      eventId: selectedEventId,
+                      action: 'schedule',
+                      startsAt: scheduleInstant,
+                    }),
+                    `${name} is scheduled to start ${formatStartTime(scheduleInstant)}.`,
+                  );
+                }}
+              >
+                {lifecycleBusy === 'schedule' ? 'Scheduling…' : 'Schedule'}
+              </button>
+              <button
+                className="button primary"
+                type="button"
+                disabled={lifecycleBusyNow}
+                onClick={() => void runLifecycle(
+                  'go-live',
+                  () => mutateLifecycle({ eventId: selectedEventId, action: 'go-live' }),
+                  `${name} is live.`,
+                )}
+              >
+                {lifecycleBusy === 'go-live' ? 'Going live…' : 'Go live'}
+              </button>
+              <button
+                className="button secondary"
+                type="button"
+                disabled={lifecycleBusyNow || endRefusal !== null}
+                title={endRefusal ?? undefined}
+                onClick={() => void runLifecycle(
+                  'end',
+                  () => mutateLifecycle({ eventId: selectedEventId, action: 'end' }),
+                  `${name} has ended.`,
+                )}
+              >
+                {lifecycleBusy === 'end' ? 'Ending…' : 'End event'}
+              </button>
+              <button
+                className="button secondary"
+                type="button"
+                disabled={lifecycleBusyNow}
+                onClick={() => void runLifecycle(
+                  'unpublish',
+                  () => mutateUnpublish({ eventId: selectedEventId }),
+                  `${name} is unpublished and hidden from buyers.`,
+                )}
+              >
+                {lifecycleBusy === 'unpublish' ? 'Unpublishing…' : 'Unpublish'}
+              </button>
+              {lifecycleHint ? (
+                <small className="event-lifecycle-hint">{lifecycleHint}</small>
+              ) : null}
             </div>
 
             <nav className="event-detail-tabs" aria-label={`${name} detail`} role="tablist">

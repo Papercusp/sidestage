@@ -422,6 +422,55 @@
 .event-detail-panel { padding: clamp(1rem, 2.5vw, 1.35rem); }
 .event-detail-heading { align-items: flex-start; }
 
+/* The lifecycle row sits directly under the detail heading: scheduling, going
+   live and ending are properties of the event itself, not of whichever tab
+   happens to be open beneath them. It wraps rather than scrolls so no control
+   is reachable only by horizontal drag on a narrow window. */
+.event-lifecycle-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: .5rem;
+  margin-top: .85rem;
+  padding-top: .85rem;
+  border-top: 1px solid var(--border);
+}
+
+.event-lifecycle-schedule {
+  display: inline-flex;
+  align-items: center;
+  gap: .45rem;
+  margin-right: .25rem;
+}
+
+.event-lifecycle-schedule > span {
+  font-size: .78rem;
+  color: var(--muted);
+}
+
+.event-lifecycle-schedule > input {
+  padding: .38rem .5rem;
+  border: 1px solid var(--border);
+  border-radius: .55rem;
+  background: var(--surface-sunken);
+  color: inherit;
+  font: inherit;
+  font-size: .85rem;
+}
+
+.event-lifecycle-controls .button[disabled] {
+  opacity: .55;
+  cursor: not-allowed;
+}
+
+/* Takes the whole row so the reason sits under the controls it explains,
+   rather than being squeezed between two buttons. */
+.event-lifecycle-hint {
+  flex-basis: 100%;
+  color: var(--muted);
+  font-size: .78rem;
+}
+
 .event-detail-tabs { margin-top: 1rem; }
 
 .event-lineup-view,

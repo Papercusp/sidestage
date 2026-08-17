@@ -115,6 +115,100 @@ describe('EventManager', () => {
     expect(markup).toContain('Save show plan');
   });
 
+  /**
+   * The lifecycle controls (P-005). These assert the AFFORDANCES the seller is
+   * offered per status — which is the half the server cannot defend: a control
+   * the API would refuse is still a 409 the seller has to read and undo. The
+   * legality table itself is proven against the real server resolver in
+   * event-lifecycle.test.ts, and the wire in api.test.ts.
+   */
+  describe('lifecycle controls', () => {
+    const renderStatus = (status: SellerOwnedEvent['status']): string => renderToStaticMarkup(
+      <EventManager
+        actorId="seller-27"
+        eventId="sunday-drop"
+        eventName="Sunday drop"
+        initialItems={ITEMS}
+        initialEvents={[{ ...EVENTS[0], status }]}
+      />,
+    );
+
+    /**
+     * The `<button …>` OPENING TAG for the control with this exact label.
+     *
+     * Asserting `markup.toContain('disabled')` anywhere would pass on a page
+     * that disabled some OTHER button, which is the failure mode that makes a
+     * disabled-state test worthless. Throwing on a missing label matters just
+     * as much: a renamed control would otherwise silently satisfy every
+     * `not.toContain` assertion below.
+     */
+    const buttonTag = (markup: string, label: string): string => {
+      const labelAt = markup.indexOf(`>${label}<`);
+      expect(labelAt, `no control labelled "${label}" was rendered`).toBeGreaterThan(-1);
+      const tagStart = markup.lastIndexOf('<button', labelAt);
+      expect(tagStart, `"${label}" is not inside a <button>`).toBeGreaterThan(-1);
+      return markup.slice(tagStart, markup.indexOf('>', tagStart) + 1);
+    };
+
+    it('discriminates a disabled control from an enabled one', () => {
+      // The POSITIVE CONTROL for every disabled-state assertion below. Without
+      // it, an extractor that quietly returned the whole document — or always
+      // returned a disabled tag — would make those assertions unfalsifiable.
+      const markup = renderStatus('draft');
+      expect(buttonTag(markup, 'Schedule')).toContain('disabled');
+      expect(buttonTag(markup, 'Go live')).not.toContain('disabled');
+      expect(buttonTag(markup, 'Unpublish')).not.toContain('disabled');
+    });
+
+    it('offers the whole lifecycle on the event header', () => {
+      const markup = renderStatus('draft');
+      expect(markup).toContain('Event lifecycle');
+      expect(markup).toContain('Start time');
+      expect(markup).toContain('datetime-local');
+      expect(markup).toContain('Schedule');
+      expect(markup).toContain('Go live');
+      expect(markup).toContain('End event');
+      expect(markup).toContain('Unpublish');
+    });
+
+    it('will not offer to end an event that has not aired, and says why', () => {
+      for (const status of ['draft', 'scheduled'] as const) {
+        const markup = renderStatus(status);
+        expect(markup).toContain('Only a live event can be ended.');
+        // The refusal is not merely explained — the control is unreachable, so
+        // the explanation is never something the seller discovers by failing.
+        expect(buttonTag(markup, 'End event')).toContain('disabled');
+      }
+    });
+
+    it('will not offer to reschedule a room that is already on air, and says why', () => {
+      const markup = renderStatus('live');
+      expect(markup).toContain('End the live event before rescheduling it.');
+      expect(buttonTag(markup, 'Schedule')).toContain('disabled');
+      expect(markup).not.toContain('Only a live event can be ended.');
+      // A live room can still be ended — that is the move the hint points at.
+      expect(buttonTag(markup, 'End event')).not.toContain('disabled');
+    });
+
+    it('leaves an ended event with no standing refusal — every move is legal again', () => {
+      const markup = renderStatus('ended');
+      expect(markup).not.toContain('Only a live event can be ended.');
+      expect(markup).not.toContain('End the live event before rescheduling it.');
+      // Re-running a finished show is a real thing to want, so Go live stays.
+      expect(markup).toContain('Go live');
+    });
+
+    it('disables Schedule until a start time is entered, on every status', () => {
+      // The date field starts empty, so Schedule must never be the button that
+      // teaches the seller about ISO-8601 by failing.
+      for (const status of ['draft', 'scheduled', 'live', 'ended'] as const) {
+        const markup = renderStatus(status);
+        const scheduleButton = markup.slice(0, markup.indexOf('>Schedule<'));
+        expect(scheduleButton.slice(-90)).toContain('disabled=""');
+      }
+    });
+  });
+
   it('renders an empty selected event with an inventory call to action', () => {
     const newEvent: SellerOwnedEvent = {
       ...EVENTS[0],
