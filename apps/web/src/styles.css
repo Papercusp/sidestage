@@ -371,6 +371,8 @@ input:disabled, select:disabled, textarea:disabled { opacity: .55; cursor: not-a
 .copilot-input-row { display: flex; align-items: stretch; gap: .65rem; }
 .copilot-input-row input { flex: 1; min-width: 0; border: 1px solid var(--border); border-radius: .55rem; padding: .62rem .75rem; color: var(--text); background: var(--surface); }
 .copilot-input-row input:focus { outline: 2px solid color-mix(in srgb, var(--brand-red) 36%, transparent); outline-offset: 1px; border-color: var(--red-text); }
+.copilot-input-row + label { margin-top: .6rem; }
+.copilot-hint { margin: .45rem 0 0; color: var(--muted); font-size: .66rem; line-height: 1.35; }
 .copilot-error { margin: .8rem 1rem; color: var(--danger); font-size: .74rem; }
 .copilot-empty { margin: 1rem; color: var(--muted); font-size: .76rem; }
 

@@ -139,6 +139,22 @@ export class CopilotProposalService {
         .join(' ');
       throw new BadRequestException(`Reply failed grounded review. ${failures}`);
     }
+    // Grounded review is a model round-trip, so `fresh` is a snapshot of the
+    // world taken BEFORE a wait of unbounded length. Everything above — the
+    // staleness gate, the guardrail, the judge — was decided against that
+    // snapshot, while the thing it describes (stock, price, policy) kept
+    // moving. Re-read the evidence and re-run the two LOCAL checks, so what
+    // reaches the buyer is judged against the world at the moment of sending
+    // rather than the moment of approval.
+    //
+    // The judge is deliberately NOT re-run. It grades the reply against the
+    // evidence the reply cites, and the drift check below is precisely the
+    // assertion that that evidence has not moved — so its verdict still holds,
+    // without paying a second model call inside a seller's click.
+    const atSend = await this.freshContext(proposal);
+    await this.blockIfStale(proposal, atSend, 'during-review');
+    const sendGuardrail = await this.replyGuard.evaluate({ reply }, atSend);
+    if (!sendGuardrail.allowed) throw new BadRequestException(sendGuardrail.explanation);
     const actorId = input?.actorId?.trim() || 'seller-copilot-review';
     const sent = await this.chat.addCopilotReply(proposal.eventId, {
       actorId,
@@ -151,9 +167,9 @@ export class CopilotProposalService {
     const updated = await this.transition(proposal, {
       ...proposal,
       reply,
-      context: fresh,
-      groundingFingerprint: groundingFingerprint(fresh),
-      replyGuardrail: guardrail,
+      context: atSend,
+      groundingFingerprint: groundingFingerprint(atSend),
+      replyGuardrail: sendGuardrail,
       status: proposal.status === 'executed' ? 'executed' : 'approved',
       decision: { ...proposal.decision, actorId, decidedAt: new Date().toISOString(), sentMessageId: sent.id },
     });
@@ -340,12 +356,23 @@ export class CopilotProposalService {
    * unrelated context happened to drift; narrowing the comparison would
    * otherwise have quietly turned "usually blocked" into "always sent".
    */
-  private async blockIfStale(proposal: CopilotProposal, fresh: GroundingContext): Promise<void> {
+  private async blockIfStale(
+    proposal: CopilotProposal,
+    fresh: GroundingContext,
+    window: 'at-approval' | 'during-review' = 'at-approval',
+  ): Promise<void> {
     const reasons = proposal.citations.length === 0
       ? ['This reply cites no verified source, so nothing backs up what it says.']
       : citedEvidenceDrift(proposal.citations, proposal.context, fresh).map((drift) => drift.explanation);
     if (reasons.length === 0) return;
-    const reason = reasons.join(' ');
+    // A block from the late re-check is NOT the seller's mistake: their draft
+    // was clean when they approved it and the world moved while grounded review
+    // ran. Without this lead the two blocks are indistinguishable, and the
+    // seller re-reads a draft that was never out of date.
+    const lead = window === 'during-review'
+      ? 'Your reply was still accurate when you approved it, but this changed while it was being reviewed. '
+      : '';
+    const reason = `${lead}${reasons.join(' ')}`;
     const blocked = await this.transition(proposal, {
       ...proposal,
       context: fresh,

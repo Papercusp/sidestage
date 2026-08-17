@@ -119,3 +119,23 @@ describe('seller copilot proposal review', () => {
     expect(markup).toContain('Confirm action');
   });
 });
+
+describe('required catalog properties named by the seller', () => {
+  it('names each property the answer must cover, separated by commas or newlines', () => {
+    expect(parseRequiredProperties('battery-life, dishwasher-safe\ncapacity')).toEqual([
+      'battery-life',
+      'dishwasher-safe',
+      'capacity',
+    ]);
+  });
+
+  it('drops blank entries so no unsatisfiable property can pin the research block on', () => {
+    expect(parseRequiredProperties('  battery-life ,, ,\n  ')).toEqual(['battery-life']);
+    expect(parseRequiredProperties('   ')).toEqual([]);
+    expect(parseRequiredProperties('')).toEqual([]);
+  });
+
+  it('collapses a repeated property to one research contract entry', () => {
+    expect(parseRequiredProperties('battery-life, battery-life')).toEqual(['battery-life']);
+  });
+});
