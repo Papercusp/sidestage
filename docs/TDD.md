@@ -10,7 +10,7 @@ apps/api    NestJS (:3100)  — domain modules, one per commerce concern
 apps/web    Vite/React SPA (:5173 dev; nginx static in prod)
 libs/*      pinned shared libraries (grid-core/papergrid, sync, sse,
             ui-primitives, token-kit, typesense, …)
-db/         schema.sql (Restart-compatible port) + demo seed
+db/         schema.sql (ported production-grade commerce schema) + demo seed
 docker-compose.yml        dev data plane: Postgres, Typesense, Redis, MediaMTX
 docker-compose.prod.yml   production stack + Traefik routing labels
 deploy/deploy.sh          immutable working-tree snapshot production deploy
@@ -40,26 +40,25 @@ is silently `undefined` under tsx and is banned in this codebase.
 
 ## Data model
 
-`db/schema.sql` ports the Restart catalog verbatim (names preserved, including
-the quoted `"availableQty"` generated column): `product_catalog` (groups) ×
-`storefront_product` (variants) with option axes, plus `inventory_reservation`
-— reservations are the ONLY way stock is held; `reserved_qty` is recomputed by
-trigger from reservation rows, and `reserve_inventory()` is idempotent per
-`(source_kind, source_id, variant)`. Service state (`cart`, `checkout_order`,
-`event_config`) is one jsonb document per row with hot columns lifted out.
-The full Restart catalog (1.1M products / 1.1M variants) loads via
-`scripts/load-restart-catalog.sh`, which normalizes real-catalog shapes
-(camelCase storefront columns, NULL-able fields) into the port.
+`db/schema.sql` ports a production wholesale-catalog schema verbatim (names
+preserved, including the quoted `"availableQty"` generated column):
+`product_catalog` (groups) × `storefront_product` (variants) with option axes,
+plus `inventory_reservation` — reservations are the ONLY way stock is held;
+`reserved_qty` is recomputed by trigger from reservation rows, and
+`reserve_inventory()` is idempotent per `(source_kind, source_id, variant)`.
+Service state (`cart`, `checkout_order`, `event_config`) is one jsonb document
+per row with hot columns lifted out. The full 1.1M-product real-world import
+loads via `scripts/load-wholesale-catalog.sh`, which normalizes real-catalog
+shapes (camelCase storefront columns, NULL-able fields) into the port.
 
 ## Search
 
-The same search the Restart wholesale grid uses: `@papercusp/typesense`
-(typo tolerance via `buildNumTypos`, one document per product group, conditions
-facet, volume tiers). `scripts/typesense-sync.ts` builds the index from
-Postgres in keyset-paginated batches with transient-error retry. The catalog
-API queries Typesense first and falls back to Postgres full-text (tsvector GIN
-+ trigram slug match) when Typesense is unavailable — the same
-degrade-gracefully shape as the wholesale grid.
+`@papercusp/typesense` (typo tolerance via `buildNumTypos`, one document per
+product group, conditions facet, volume tiers). `scripts/typesense-sync.ts`
+builds the index from Postgres in keyset-paginated batches with
+transient-error retry. The catalog API queries Typesense first and falls back
+to Postgres full-text (tsvector GIN + trigram slug match) when Typesense is
+unavailable, so search degrades gracefully instead of failing.
 
 ## Realtime
 
@@ -106,7 +105,7 @@ running stack. CI runs the exact reviewer commands from a clean clone.
 
 ## Deployment
 
-Production mirrors the shop.buyrestart.com pattern, as an independent stack:
+Production is a single-box Docker Compose stack behind Traefik:
 `deploy/deploy.sh` uses temporary Git indexes to export one immutable snapshot
 of the superproject and initialized submodules. The snapshot includes tracked
 edits and non-ignored new files without touching the real indexes; ignored

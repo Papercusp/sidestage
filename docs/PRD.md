@@ -18,18 +18,27 @@ actions while keeping automation grounded and controlled.
 - **Seller (host)** — runs the event: camera, product lineup, chat triage,
   offers, auctions. Wants speed with control: nothing sent or changed without
   grounding, and risky actions gated behind approval.
-- **Buyer (viewer)** — joins a room from a share link: watches, chats, holds
-  items, bids, checks out. Wants a fast, honest shop: live availability,
-  real prices, instant answers.
+- **Buyer (viewer)** — picks a live room from the channel guide (the left-hand
+  sidebar listing every live and upcoming event): watches, chats, holds items,
+  bids, checks out. Wants a fast, honest shop: live availability, real prices,
+  instant answers.
 
-## Product shape — one site, four tabs
+## Product shape — one site, two work groups
 
-| Tab | Audience | Job |
+A persistent channel guide (left sidebar) lists every live and upcoming room;
+the top nav groups pages into buyer work and operator work.
+
+| Page | Audience | Job |
 | --- | --- | --- |
-| **Buyer** | buyers | Watch the stream, chat with the room, browse the drop, hold items, bid in the live auction, check out. |
-| **Seller** | host | Live console: camera + room controls, live transcript with product-mention detection driving the on-deck slot, copilot reply suggestions (approve/edit/skip), room chat with triage, event lineup management. |
-| **Config** | host | The event's terms and guardrails: name, reply tone, and the always-ask policies the copilot must respect (price changes, inventory claims, buyer-sensitive topics). |
-| **Test** | host | Launch readiness: live preflight probes, a deterministic N-user × M-msg/s load rehearsal of the copilot seam, and the reply judge grading grounding/policy/price/tone before buyers ever see a reply. |
+| **Watch** | buyers | Watch the stream, chat with the room, browse the drop, hold items, bid in the live auction, check out. |
+| **Orders** | buyers | Review purchases and product moments. |
+| **Studio** | host | Live console: camera + room controls, live transcript with product-mention detection driving the on-deck slot, copilot reply suggestions (approve/edit/skip), room chat with triage, lineup and run-of-show, and the event's guardrail settings (reply tone, always-ask policies: price changes, inventory claims, buyer-sensitive topics). |
+| **History** | host | Review shipped build history. |
+| **Tests** | host | Launch readiness: live preflight probes, a deterministic N-user × M-msg/s load rehearsal of the copilot seam, and the reply judge grading grounding/policy/price/tone before buyers ever see a reply. |
+| **Architecture** | reviewers | How SideStage works, from the running app. |
+
+A native mobile companion (iOS and Android) builds from the public
+`sidestage-mobile` repo; the topbar app badges link to it.
 
 ## Requirements (from the challenge brief)
 
@@ -51,11 +60,11 @@ actions while keeping automation grounded and controlled.
 
 ## Commerce model
 
-- **Catalog** — the real Restart catalog model (product groups × variants with
-  per-variant price, condition, handling, and trigger-maintained
-  availability). The demo ships with a seed; the production instance carries
-  the full 1.1M-product import. Search is the same Typesense-backed search the
-  Restart wholesale grid uses, with SQL fallback.
+- **Catalog** — product groups × variants with per-variant price, condition,
+  handling, and trigger-maintained availability. The demo event lineup uses a
+  small seeded catalog of demo products; the production instance additionally
+  carries a 1.1M-product real-world import behind browse and search. Search is
+  Typesense-backed with a Postgres full-text fallback.
 - **Inventory integrity** — every hold (buyer hold, auction quantity,
   event limit) is a source-tracked reservation in Postgres; availability is
   derived, never hand-counted; holds are idempotent per source and released on
@@ -63,15 +72,28 @@ actions while keeping automation grounded and controlled.
 - **Auctions** — one active auction per event with quantity holds taken at
   start; bids are ordered server-side; close produces a winner order that
   retains the reservation into checkout.
-- **Checkout** — Square sandbox sessions over the cart; orders persist with
+- **Checkout** — Stripe test-mode payments over the cart; orders persist with
   status; shipping via the box-packing estimator.
+
+## Demo identity — no auth, switchable users
+
+The demo deliberately ships with no authentication. Identity is a demo seam:
+the topbar **User id** field (with the **Switch** button) sets the active
+identity for the whole app — type any non-empty id to impersonate that user,
+and buyer/seller surfaces role-prefix it so the two roles never collapse into
+one participant. A first-time visitor gets an auto-minted anonymous id; seller
+surfaces (Studio) resolve anonymous visitors to the seeded `demo-seller`
+identity, which owns the demo catalog and the prefilled demo room. This makes
+multi-user flows testable from one browser: switch ids to act as different
+buyers, or clear back to the seed seller.
 
 ## Non-goals (this build)
 
-- Multi-seller marketplaces, seller onboarding, or payments beyond the Square
-  sandbox.
-- Mobile-native clients; the web app is responsive but desktop-first.
+- Multi-seller marketplaces, seller onboarding, or payments beyond Stripe
+  test mode.
 - Moderation tooling beyond the guardrail/judge path.
+- Accounts/auth: the identity seam above is a demo affordance, not a login
+  system.
 
 ## Success criteria
 

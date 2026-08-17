@@ -121,8 +121,11 @@ export function demoEventRecords(now: Date = new Date()): EventRecord[] {
     {
       eventId: 'sunday-drop',
       title: 'Sunday vintage drop',
-      sellerId: 'seller-marsh',
-      sellerName: 'Marsh & Co Vintage',
+      // Owned by the seed seller: the Studio prefills this room id, and an
+      // anonymous visitor resolves to demo-seller (buyer-identity.ts) — an
+      // owner mismatch here 404s every Studio pane on the no-Docker path.
+      sellerId: 'demo-seller',
+      sellerName: 'Demo Seller',
       status: 'live',
       startsAt: at(-35),
       endedAt: null,
