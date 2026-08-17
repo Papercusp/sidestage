@@ -8,6 +8,7 @@ RUN npm ci --no-audit --no-fund \
   && npm run build --workspace @papercusp/scout-runtime \
   && npm run build --workspace @papercusp/sse \
   && npm run build --workspace @papercusp/typesense \
+  && npm run build --workspace @papercusp/sidestage-zero \
   && npm run build --workspace @papercusp/sidestage-api \
   && npm prune --omit=dev
 
@@ -27,6 +28,8 @@ COPY --from=build /app/libs/sse/dist ./libs/sse/dist
 COPY --from=build /app/libs/sse/package.json ./libs/sse/package.json
 COPY --from=build /app/libs/typesense/dist ./libs/typesense/dist
 COPY --from=build /app/libs/typesense/package.json ./libs/typesense/package.json
+COPY --from=build /app/libs/zero/dist ./libs/zero/dist
+COPY --from=build /app/libs/zero/package.json ./libs/zero/package.json
 COPY --from=build /app/package.json ./package.json
 # Bake the deployed git sha in as the LAST layer: it changes every deploy, so
 # declaring it earlier would invalidate the cache for every COPY above it.

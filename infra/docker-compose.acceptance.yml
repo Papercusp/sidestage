@@ -9,6 +9,10 @@ services:
     volumes: !override
       - ./db/schema.sql:/docker-entrypoint-initdb.d/10-schema.sql:ro
       - ./db/seed/demo.sql:/docker-entrypoint-initdb.d/20-demo.sql:ro
+      # Acceptance postgres is always a FRESH volume per run, so unlike dev and
+      # prod this mount really does create the publication at init — no manual
+      # apply step is needed here.
+      - ./db/zero-publication.sql:/docker-entrypoint-initdb.d/30-zero-publication.sql:ro
 
   typesense:
     restart: "no"

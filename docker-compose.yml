@@ -2,6 +2,19 @@ services:
   postgres:
     image: postgres:16-alpine
     restart: unless-stopped
+    # Logical replication for zero-cache. This file is also the BASE that
+    # infra/docker-compose.acceptance.yml overrides, so setting it here is what
+    # gives the acceptance stack the same replication capability as prod —
+    # without it, any sync-level acceptance check would pass vacuously against
+    # a publication that can never stream.
+    command:
+      - postgres
+      - -c
+      - wal_level=logical
+      - -c
+      - max_replication_slots=10
+      - -c
+      - max_wal_senders=10
     environment:
       POSTGRES_DB: ${POSTGRES_DB:-sidestage}
       POSTGRES_USER: ${POSTGRES_USER:-sidestage}

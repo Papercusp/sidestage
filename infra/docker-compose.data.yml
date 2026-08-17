@@ -3,6 +3,20 @@ name: sidestage-data
 services:
   postgres:
     image: postgres:16-alpine
+    # zero-cache replicates via LOGICAL replication, which the stock postgres
+    # image does not enable: wal_level defaults to `replica`. Without this the
+    # `zero_publication` publication is created happily but nothing ever
+    # replicates, and postgres only warns ("wal_level is insufficient to
+    # publish logical changes") at CREATE PUBLICATION time — never at connect
+    # time, so the failure looks like a silent, empty sync.
+    command:
+      - postgres
+      - -c
+      - wal_level=logical
+      - -c
+      - max_replication_slots=10
+      - -c
+      - max_wal_senders=10
     environment:
       POSTGRES_DB: ${POSTGRES_DB:-sidestage}
       POSTGRES_USER: ${POSTGRES_USER:-sidestage}
@@ -13,6 +27,11 @@ services:
       - sidestage-postgres-data:/var/lib/postgresql/data
       - ../db/schema.sql:/docker-entrypoint-initdb.d/001-schema.sql:ro
       - ../db/seed/demo.sql:/docker-entrypoint-initdb.d/002-demo.sql:ro
+      # FIRST-INIT ONLY. An already-created volume never re-runs initdb, so an
+      # existing dev stack must apply this by hand — see infra/zero/README.md:
+      #   docker compose exec -T postgres psql -U sidestage -d sidestage \
+      #     < db/zero-publication.sql
+      - ../db/zero-publication.sql:/docker-entrypoint-initdb.d/003-zero-publication.sql:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
       interval: 5s
