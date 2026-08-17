@@ -89,6 +89,7 @@ export function ArchitectureTab() {
           <span className="architecture-jump-nav-label" aria-hidden="true">On this page</span>
           <a href="#system-map">System map</a>
           <a href="#runtime-flows">Runtime flows</a>
+          <a href="#llm-pipeline">LLM pipeline</a>
           <a href="#application-layers">Application layers</a>
           <a href="#data-safety">Data &amp; safety</a>
           <a href="#operations">Operations</a>
@@ -170,9 +171,47 @@ export function ArchitectureTab() {
         </div>
       </section>
 
+      <section className="architecture-section" id="llm-pipeline" aria-labelledby="llm-pipeline-title">
+        <div className="architecture-section-heading">
+          <p className="eyebrow">03 · Intelligence</p>
+          <h2 id="llm-pipeline-title">How the LLM pipeline works</h2>
+          <p>Every model turn runs the same four stages: gather verifiable signals, ground them in real inventory, generate a schema-locked draft, and deliver it only through policy guards.</p>
+        </div>
+        <div className="architecture-delivery-diagram" role="img" aria-label="Buyer signals are grounded in catalog and transcript context, generated as structured drafts, then guarded by policy before delivery">
+          <ArchitectureNode eyebrow="1 · Signals" title="Ingest + classify" copy="Room chat, live transcript moments and deterministic product-focus classification scope the turn" tone="cyan" />
+          <FlowArrow label="grounding retrieval" />
+          <ArchitectureNode eyebrow="2 · Grounding" title="Context assembly" copy="Event items, catalog products, transcript moments and web findings gathered in parallel under a latency budget" tone="blue" />
+          <FlowArrow label="provider-neutral seam" />
+          <ArchitectureNode eyebrow="3 · Generation" title="Schema-locked draft" copy="Strict JSON output: reply, citations, confidence, tone and an optional action proposal" tone="violet" />
+          <FlowArrow label="policy decision" />
+          <ArchitectureNode eyebrow="4 · Guarded delivery" title="Ladder + audit" copy="Relevance, price, inventory and tone guards; suggest → confirm → auto; audited executor" tone="green" />
+        </div>
+        <div className="architecture-operations-grid">
+          <section><h3>Model surfaces</h3><dl>
+            <div><dt>Seller Copilot</dt><dd>Grounded replies and guarded action proposals in the Studio review queue</dd></div>
+            <div><dt>Buyer Scout</dt><dd>Streaming shopping assistant with durable per-buyer session memory</dd></div>
+            <div><dt>Judge</dt><dd>Rehearsal grader behind the same model seam—deterministic today, hosted-model ready</dd></div>
+            <div><dt>Transcription</dt><dd>Deepgram speech-to-text feeding transcript moments into grounding</dd></div>
+          </dl></section>
+          <section><h3>Grounding contract</h3><dl>
+            <div><dt>Sources</dt><dd>Staged event items, catalog products, transcript moments and capped web findings</dd></div>
+            <div><dt>Citations</dt><dd>Every draft cites its source ids; an unsupported question gets an honest no-answer</dd></div>
+            <div><dt>Budgets</dt><dd>Research runs in parallel under a sub-two-second budget with p50 and p95 tracking</dd></div>
+            <div><dt>Relevance</dt><dd>A draft only ships when retrieved sources actually support the question asked</dd></div>
+          </dl></section>
+          <section><h3>Safety posture</h3><dl>
+            <div><dt>Structured output</dt><dd>Strict JSON schema—malformed or uncited drafts never reach buyers</dd></div>
+            <div><dt>Automation ladder</dt><dd>suggest → confirm → auto per action kind, with a ceiling for review-queue drafts</dd></div>
+            <div><dt>Outcomes</dt><dd>Executed, awaiting-confirmation, suggested or blocked—each recorded and auditable</dd></div>
+            <div><dt>Degradation</dt><dd>No provider configured means a deterministic grounded reply, never a silent failure</dd></div>
+          </dl></section>
+        </div>
+        <p className="architecture-caption"><strong>Provider seam:</strong> generation is provider-neutral—the API binds a hosted model through server-side configuration, secrets never reach the browser, and every stage degrades deterministically.</p>
+      </section>
+
       <section className="architecture-section" id="application-layers" aria-labelledby="application-layers-title">
         <div className="architecture-section-heading">
-          <p className="eyebrow">03 · Composition</p>
+          <p className="eyebrow">04 · Composition</p>
           <h2 id="application-layers-title">Application layers</h2>
           <p>Composition stays app-specific; reusable transport and interface behavior lives in pinned workspace libraries.</p>
         </div>
@@ -199,7 +238,7 @@ export function ArchitectureTab() {
       <section className="architecture-section architecture-two-column" id="data-safety" aria-labelledby="data-safety-title">
         <div>
           <div className="architecture-section-heading">
-            <p className="eyebrow">04 · Persistence</p>
+            <p className="eyebrow">05 · Persistence</p>
             <h2 id="data-safety-title">Data is organized around ownership and invariants</h2>
             <p>PostgreSQL is authoritative. Typesense accelerates discovery; Redis is disposable cache infrastructure.</p>
           </div>
@@ -237,7 +276,7 @@ export function ArchitectureTab() {
 
       <section className="architecture-section" id="operations" aria-labelledby="operations-title">
         <div className="architecture-section-heading">
-          <p className="eyebrow">05 · Operations</p>
+          <p className="eyebrow">06 · Operations</p>
           <h2 id="operations-title">From source tree to production</h2>
           <p>The repository, verification gate and deployment topology are part of the architecture—not afterthoughts.</p>
         </div>
