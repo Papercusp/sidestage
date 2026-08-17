@@ -75,6 +75,33 @@ const leafPaths = (node: unknown, prefix: readonly string[] = []): string[] =>
     return [];
   });
 
+/**
+ * Zero's table builder keeps `serverName` (the Postgres table name set by
+ * `.from()`) on the built schema, but the generated table type is a large union
+ * that does not surface it structurally — introspecting it needs an explicit shape.
+ */
+const zeroTables = Object.values(schema.tables) as unknown as readonly {
+  name: string;
+  serverName?: string;
+  columns: Record<string, unknown>;
+}[];
+
+/**
+ * A registry leaf: a callable custom query carrying the wire name Zero derived
+ * from its nesting position.
+ */
+type LeafQuery = ((...args: never[]) => unknown) & { queryName?: string };
+
+/** Resolve a dot-path against the query registry without assuming it exists. */
+const resolveLeaf = (path: string): LeafQuery | undefined => {
+  let node: unknown = queries;
+  for (const key of path.split('.')) {
+    if (node === null || (typeof node !== 'object' && typeof node !== 'function')) return undefined;
+    node = (node as Record<string, unknown>)[key];
+  }
+  return node as LeafQuery | undefined;
+};
+
 /** Every mutator in `createMutators()`, as its `namespace.name` path. */
 const mutatorPaths = (): string[] =>
   Object.entries(createMutators() as Record<string, Record<string, unknown>>).flatMap(
@@ -119,7 +146,7 @@ describe('Zero contract parity with the live sync surfaces', () => {
 
   it('never declares an unpublishable column as a Zero column', () => {
     const offenders: string[] = [];
-    for (const zeroTable of Object.values(schema.tables)) {
+    for (const zeroTable of zeroTables) {
       const serverName = zeroTable.serverName ?? zeroTable.name;
       const excluded = UNPUBLISHABLE_COLUMNS[serverName];
       if (!excluded) continue;
@@ -171,12 +198,7 @@ describe('Zero contract parity with the live sync surfaces', () => {
     const failures: string[] = [];
     for (const { name } of SYNC_QUERY_SURFACES) {
       if (!(name in SYNCED_QUERY_PRINCIPAL_SCOPE)) continue; // unsynced by design
-      const leaf = name
-        .split('.')
-        .reduce<unknown>(
-          (node, key) => (node as Record<string, unknown> | undefined)?.[key],
-          queries as unknown,
-        ) as { queryName?: string } | undefined;
+      const leaf = resolveLeaf(name);
       if (typeof leaf !== 'function') {
         failures.push(`${name}: no query defined at that registry path`);
       } else if (leaf.queryName !== name) {
