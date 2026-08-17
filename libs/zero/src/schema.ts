@@ -588,6 +588,7 @@ export const REPLICATED_TABLES = [
   'copilot_proposal',
   'seller_policy_revision',
   'action_audit_entry',
+  'targeted_offer',
   'cart',
   'checkout_order',
   'inventory_reservation',
