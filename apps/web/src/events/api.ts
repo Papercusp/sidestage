@@ -2,6 +2,7 @@ import { resolveApiBaseUrl, type CatalogVariant } from '../catalog';
 import { DEMO_PRINCIPAL_HEADER } from '@papercusp/sync';
 import type { EventCreationPayload } from '../event-creation/catalog';
 import type { RunOfShowEntry, RunOfShowPlan } from '../run-of-show';
+import type { EventLifecycleAction, EventLifecycleStatus } from './event-lifecycle';
 
 export type SellerActionKind = 'markdown' | 'targeted-offer' | 'push' | 'swap' | 'stock-adjust';
 
@@ -173,6 +174,67 @@ export interface GuideEvent {
   thumbnailUrl?: string;
   /** Live chat presence, read at request time — never a stored counter. */
   viewers: number;
+}
+
+/**
+ * A seller-owned event row, as `GET /events/mine` lists it and as the
+ * lifecycle endpoint returns it. Mirrors `EventRecord` in
+ * `apps/api/src/events/event.service.ts`.
+ */
+export interface SellerEventRecord {
+  eventId: string;
+  title: string;
+  sellerId: string;
+  sellerName: string;
+  status: EventLifecycleStatus;
+  startsAt: string | null;
+  endedAt: string | null;
+  thumbnailUrl?: string;
+}
+
+/**
+ * Move an event through its lifecycle (D-002): schedule a start time, take the
+ * room live, or end it.
+ *
+ * ONE endpoint rather than three verbs, so the legality table stays server-side.
+ * A refused move comes back as a 409 whose body message is the seller-facing
+ * reason, which `requestJson` surfaces as `EventApiError.message` — callers
+ * show it rather than inventing their own wording.
+ */
+export async function transitionSellerEvent(
+  eventId: string,
+  action: EventLifecycleAction,
+  options: { startsAt?: string | null } = {},
+  apiBaseUrl?: string,
+  principal?: string,
+): Promise<SellerEventRecord> {
+  const result = await requestJson<{ event: SellerEventRecord }>(
+    eventUrl(`/events/${encodeURIComponent(eventId)}/lifecycle`, apiBaseUrl),
+    {
+      method: 'PATCH',
+      headers: sellerPrivateRequestHeaders(principal),
+      body: JSON.stringify({
+        action,
+        ...(options.startsAt ? { startsAt: options.startsAt } : {}),
+      }),
+    },
+  );
+  return result.event;
+}
+
+/**
+ * Withdraw an event from every buyer surface. Deliberately an unpublish, not a
+ * delete: the row returns to `draft` and its event-scoped history survives.
+ */
+export async function unpublishSellerEvent(
+  eventId: string,
+  apiBaseUrl?: string,
+  principal?: string,
+): Promise<{ eventId: string; status: 'draft' }> {
+  return requestJson<{ eventId: string; status: 'draft' }>(
+    eventUrl(`/events/${encodeURIComponent(eventId)}`, apiBaseUrl),
+    { method: 'DELETE', headers: sellerPrivateRequestHeaders(principal) },
+  );
 }
 
 async function fetchVariant(productId: string, apiBaseUrl?: string): Promise<CatalogVariant> {
