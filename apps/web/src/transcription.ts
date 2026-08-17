@@ -316,10 +316,21 @@ class DeepgramSession extends BaseSession {
     return this.stopping || generation !== this.generation;
   }
 
+  /**
+   * Refuse a start the same way a failed one reports: listeners see the reason
+   * and the state turns `error`, so a caller that only subscribes still learns
+   * why captions stopped instead of watching a silent `idle`.
+   */
+  private refuseStart(message: string): never {
+    const error = new Error(message);
+    this.emitError(error);
+    throw error;
+  }
+
   async start(): Promise<void> {
     if (this.currentState === 'listening' || this.currentState === 'connecting') return;
     const stream = this.options.mediaStream;
-    if (!stream) throw new Error(PUBLISHER_STREAM_REQUIRED_MESSAGE);
+    if (!stream) this.refuseStart(PUBLISHER_STREAM_REQUIRED_MESSAGE);
     /*
      * Liveness is re-checked HERE, not trusted from construction (WI-39726).
      *
@@ -330,7 +341,7 @@ class DeepgramSession extends BaseSession {
      * where Chrome answers with a raw platform string instead of anything a
      * seller can act on.
      */
-    if (!hasLiveAudioTrack(stream)) throw new Error(PUBLISHER_STREAM_ENDED_MESSAGE);
+    if (!hasLiveAudioTrack(stream)) this.refuseStart(PUBLISHER_STREAM_ENDED_MESSAGE);
     const generation = ++this.generation;
     this.stopping = false;
     this.setState('connecting');
