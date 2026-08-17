@@ -27,6 +27,9 @@
 .architecture-node > span { color: var(--node-color, var(--brand-blue)); font-size: .53rem; font-weight: 820; letter-spacing: .07em; text-transform: uppercase; }
 .architecture-node strong { font-size: .75rem; line-height: 1.25; }
 .architecture-node small { color: var(--muted); font-size: .61rem; line-height: 1.45; }
+.architecture-node-links { display: flex; flex-wrap: wrap; gap: .45rem; }
+.architecture-node-links a { color: var(--node-color, var(--brand-blue)); font-size: .58rem; font-weight: 700; text-decoration: underline; text-underline-offset: 2px; }
+.architecture-node-links a:hover { opacity: .8; }
 .architecture-node--blue { --node-color: var(--brand-blue); }
 .architecture-node--cyan { --node-color: var(--brand-cyan); }
 .architecture-node--green { --node-color: var(--success); }

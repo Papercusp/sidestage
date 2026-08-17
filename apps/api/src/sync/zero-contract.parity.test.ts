@@ -29,6 +29,7 @@ import {
   UNSYNCED_QUERY_REASONS,
   createMutators,
   queries,
+  schema,
 } from '@papercusp/sidestage-zero';
 
 import {
@@ -117,23 +118,10 @@ describe('Zero contract parity with the live sync surfaces', () => {
   });
 
   it('never declares an unpublishable column as a Zero column', () => {
-    const declared = Object.entries(UNPUBLISHABLE_COLUMNS).flatMap(([table, columns]) => {
-      const zeroTable = Object.values(
-        (queries as unknown as { constructor: unknown }) && REPLICATED_TABLES.includes(table)
-          ? { table }
-          : {},
-      );
-      return zeroTable.length > 0 ? columns.map((column) => `${table}.${column}`) : [];
-    });
-    // The contract's own schema module is the authority; assert the row types do
-    // not carry the excluded columns by checking the emitted schema tables.
-    const { schema } = require('@papercusp/sidestage-zero') as {
-      schema: { tables: Record<string, { serverName?: string; columns: Record<string, unknown> }> };
-    };
     const offenders: string[] = [];
     for (const zeroTable of Object.values(schema.tables)) {
-      const serverName = zeroTable.serverName;
-      const excluded = serverName ? UNPUBLISHABLE_COLUMNS[serverName] : undefined;
+      const serverName = zeroTable.serverName ?? zeroTable.name;
+      const excluded = UNPUBLISHABLE_COLUMNS[serverName];
       if (!excluded) continue;
       for (const column of excluded) {
         if (column in zeroTable.columns) offenders.push(`${serverName}.${column}`);
@@ -141,9 +129,8 @@ describe('Zero contract parity with the live sync surfaces', () => {
     }
     expect(
       offenders,
-      'columns excluded from the publication must not be declared as Zero columns — the client would wait forever for a value replication never sends',
+      'a column excluded from the publication must not be declared as a Zero column — the client would wait forever for a value replication never sends',
     ).toEqual([]);
-    expect(declared.length).toBeGreaterThanOrEqual(0);
   });
 
   it('classifies every live sync query as synced or explicitly unsynced', () => {
@@ -174,20 +161,32 @@ describe('Zero contract parity with the live sync surfaces', () => {
     expect(both).toEqual([]);
   });
 
-  it('keeps every registry dot-path equal to its wire query name', () => {
-    // This is the property that makes flipping syncType a zero-call-site-edit
-    // change: Zero derives the wire name from nesting position, and the SSE
-    // transport addresses the same read by that exact string.
-    const mismatched = leafPaths(queries).filter((path) => {
-      const leaf = path
+  it('resolves every live synced query at a registry path with that exact wire name', () => {
+    // THE property that makes flipping syncType a zero-call-site-edit change:
+    // Zero derives a query's wire name from its nesting position, and the SSE
+    // transport addresses the same read by that exact string. Anchoring on the
+    // census name (which `data-surface-census.test.ts` pins to the real
+    // registrations) is what keeps this honest — comparing a leaf's queryName to
+    // its own path would be a tautology, since Zero derives one from the other.
+    const failures: string[] = [];
+    for (const { name } of SYNC_QUERY_SURFACES) {
+      if (!(name in SYNCED_QUERY_PRINCIPAL_SCOPE)) continue; // unsynced by design
+      const leaf = name
         .split('.')
-        .reduce<Record<string, unknown>>(
-          (node, key) => node[key] as Record<string, unknown>,
-          queries as unknown as Record<string, unknown>,
-        ) as unknown as { queryName?: string };
-      return leaf.queryName !== path;
-    });
-    expect(mismatched, 'query whose wire name differs from its registry path').toEqual([]);
+        .reduce<unknown>(
+          (node, key) => (node as Record<string, unknown> | undefined)?.[key],
+          queries as unknown,
+        ) as { queryName?: string } | undefined;
+      if (typeof leaf !== 'function') {
+        failures.push(`${name}: no query defined at that registry path`);
+      } else if (leaf.queryName !== name) {
+        failures.push(`${name}: registry emits wire name "${leaf.queryName}"`);
+      }
+    }
+    expect(
+      failures,
+      'a synced query whose Zero wire name would not match the SSE query name the call sites already use',
+    ).toEqual([]);
   });
 
   it('keeps the registry and the principal-scope map in exact agreement', () => {
