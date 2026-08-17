@@ -40,10 +40,23 @@ HISTORY_FILE="$PROD_DIR/.deploy-history"
 # contract, and /healthz is routed for exactly that purpose. Probing
 # http://127.0.0.1:3100 from the prod host fails exit 7 on a PERFECTLY HEALTHY
 # prod; every probe here did that until 2026-08-14, silently falling through to
-# the container leg. Prod's .env.production does not define PUBLIC_HOSTNAME, so
-# default it to the same value docker-compose.prod.yml defaults to.
-PUBLIC_HOSTNAME="${PUBLIC_HOSTNAME:-sidestage.buyrestart.com}"
-HEALTH_URL="https://$PUBLIC_HOSTNAME/healthz"
+# the container leg.
+#
+# WHICH hostname that public url uses is resolved from PROD, not guessed here
+# -- see resolve_public_hostname below. Until 2026-08-17 this line hardcoded
+# `${PUBLIC_HOSTNAME:-sidestage.buyrestart.com}` under a comment asserting
+# "prod's .env.production does not define PUBLIC_HOSTNAME". Prod DOES define it
+# (=sidestage.papercusp.com since the D-022 cutover), sidestage.buyrestart.com
+# now 301s there, and the probe below read the redirect body -- so a perfectly
+# healthy deploy reported a sha MISMATCH against the literal string "Moved
+# Permanently" (WI-39708). A local default that restates prod config is the
+# defect class; reading prod's own env-file is the fix.
+#
+# Only the LAST-RESORT fallback is still a constant here, for a prod that has
+# not set one. rollback.test.mjs pins it to docker-compose.prod.yml's own
+# ${PUBLIC_HOSTNAME:-...} default so the two cannot drift apart again.
+COMPOSE_DEFAULT_PUBLIC_HOSTNAME=sidestage.buyrestart.com
+HEALTH_URL=""   # set by resolve_public_hostname, after prod is reachable
 # ARGUMENT PARSING -- deliberately mirrors deploy/rollback.sh's case loop.
 # Until 2026-08-14 this was a single exact-match test on $1:
 #     [[ "${1:-}" == "--dry-run" ]] && DRY_RUN=true
@@ -84,6 +97,36 @@ SSH=(ssh -i "$PROD_SSH_KEY" -o ConnectTimeout=10 "root@$PROD_HOST")
 
 say() { echo "==> $*"; }
 
+# resolve_public_hostname -- print the hostname prod ACTUALLY serves.
+#
+# Precedence: an explicit PUBLIC_HOSTNAME env override (documented, and the
+# escape hatch used during the D-022 cutover) > prod's own .env.production >
+# the compose default. The middle leg is the point: .env.production is the
+# exact env-file `docker compose --env-file .env.production` routes with, so
+# reading it makes the probe hostname and the Traefik Host(...) rule the SAME
+# fact. A constant baked in here is a COPY of prod config, and a copy drifts --
+# which is precisely how WI-39708 happened.
+#
+# Needs SSH, so it is called after the .env.production check, not at the top.
+resolve_public_hostname() {
+  local from_prod
+  if [[ -n "${PUBLIC_HOSTNAME:-}" ]]; then
+    printf '%s' "$PUBLIC_HOSTNAME"
+    return 0
+  fi
+  from_prod="$("${SSH[@]}" "grep -sh -m1 -E '^[[:space:]]*PUBLIC_HOSTNAME=' $PROD_DIR/.env.production" 2>/dev/null || true)"
+  from_prod="${from_prod#*=}"
+  from_prod="${from_prod//[$'\r\n']/}"
+  from_prod="${from_prod//\"/}"
+  from_prod="${from_prod//\'/}"
+  from_prod="${from_prod// /}"
+  if [[ -n "$from_prod" ]]; then
+    printf '%s' "$from_prod"
+    return 0
+  fi
+  printf '%s' "$COMPOSE_DEFAULT_PUBLIC_HOSTNAME"
+}
+
 # health_probe <sha> -- set HEALTH_BODY to the /healthz body from the first leg
 # that answers, and HEALTH_LEG to that leg ("public" | "container" | "none").
 #
@@ -106,11 +149,38 @@ health_body_reports_sha() {
   [[ "$compact" == *"\"sha\":\"$2\""* ]]
 }
 
+# public_health_body -- print the PUBLIC /healthz body, but ONLY on a real 2xx.
+#
+# `curl -sf` is not enough and the gap is not obvious: --fail fails on >= 400,
+# so a 3xx SUCCEEDS and hands back the REDIRECT body. On 2026-08-17 prod moved
+# to sidestage.papercusp.com and sidestage.buyrestart.com began 301-ing there;
+# this probe then compared the literal string "Moved Permanently" against the
+# expected sha and reported a sha MISMATCH on a healthy deploy (WI-39708).
+#
+# A redirect is NEVER a health body -- it means we are probing the wrong
+# hostname -- so it is reported as exactly that. Deliberately NOT `curl -L`:
+# following it would silently probe whatever host the redirect names and report
+# ITS health as ours, which is a worse failure than the one being fixed.
+public_health_body() {
+  local response code
+  response="$(curl -s --max-time 6 -w '\n%{http_code}' "$HEALTH_URL" 2>/dev/null)" || return 1
+  code="${response##*$'\n'}"
+  if [[ ! "$code" =~ ^2[0-9][0-9]$ ]]; then
+    echo "WARN: $HEALTH_URL answered HTTP ${code:-<none>}, not 2xx -- that body is not a health report." >&2
+    if [[ "$code" =~ ^3[0-9][0-9]$ ]]; then
+      echo "      A 3xx means PUBLIC_HOSTNAME names a host that redirects elsewhere." >&2
+      echo "      Set PUBLIC_HOSTNAME (or fix $PROD_DIR/.env.production) to the host prod serves." >&2
+    fi
+    return 1
+  fi
+  printf '%s' "${response%$'\n'*}"
+}
+
 health_probe() {
   local target_sha="$1" body
   HEALTH_LEG=none
   HEALTH_BODY=""
-  if body="$(curl -sf --max-time 6 "$HEALTH_URL" 2>/dev/null)"; then
+  if body="$(public_health_body)"; then
     HEALTH_LEG=public
     HEALTH_BODY="$body"
     health_body_reports_sha "$body" "$target_sha" && return 0
