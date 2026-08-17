@@ -126,6 +126,27 @@ describe('BuildHistoryList', () => {
     expect(markup).not.toContain('&quot;testsRun&quot;');
   });
 
+  it('opens on the full archive rather than a rolling date window', () => {
+    // WI-39771. The Date filter used to default to '30d', so the page opened
+    // already-filtered and read as the whole archive while hiding most of it
+    // (62 plans rendered as 28 in production). 'R3 Ticket theme' last moved
+    // 2026-07-01, 44 days before NOW, so it is only visible if the default
+    // applies no date cutoff.
+    const markup = renderToStaticMarkup(<BuildHistoryList plans={HISTORY} now={NOW} />);
+    expect(markup).toContain('R3 Ticket theme');
+
+    // Positive control: prove the fixture really does fall outside a 30-day
+    // window. Without this, the assertion above would still pass if every
+    // fixture were recent — i.e. it would be measuring nothing.
+    const windowed = filterBuildHistory(
+      HISTORY,
+      { search: '', status: 'all', kind: 'all', date: '30d' },
+      NOW,
+    );
+    expect(windowed.length).toBeGreaterThan(0);
+    expect(windowed.map((plan) => plan.slug)).not.toContain('sidestage-theme-r3');
+  });
+
   it('opens a deep-linked plan and item without mounting raw evidence', () => {
     const markup = renderToStaticMarkup(
       <BuildHistoryList
