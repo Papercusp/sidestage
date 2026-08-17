@@ -194,12 +194,15 @@ describe('BuyerTab product preview', () => {
       /@media \(max-width: 900px\) \{[\s\S]*?\.buyer-stage-grid\s*\{[^}]*grid-template-columns:\s*minmax\(0,\s*1fr\)\s+minmax\(18rem,\s*20rem\);/s,
     );
 
-    // Falsifier for the whole class: no stage-grid track may be a bare fraction on
-    // the offer side. Catches a reintroduced `0.62fr`/`0.65fr` even at a new breakpoint.
+    // Falsifier for the whole class, at EVERY breakpoint: the offer track must never
+    // again be `minmax(<rem>, <n>fr)` — a rem floor with a fractional ceiling is
+    // exactly the shape that collapsed to the floor (17rem = the audited 272px).
+    // The video track is legitimately `minmax(0, 1fr)`, so only the rem-min form is
+    // the defect; matching any fraction here would flag the correct track too.
     for (const [, columns] of buyerCss.matchAll(
       /\.buyer-stage-grid\s*\{[^}]*grid-template-columns:\s*([^;]+);/gs,
     )) {
-      expect(columns).not.toMatch(/minmax\([^)]*,\s*[\d.]+fr\s*\)/);
+      expect(columns).not.toMatch(/minmax\(\s*[\d.]+rem\s*,\s*[\d.]+fr\s*\)/);
     }
   });
 
