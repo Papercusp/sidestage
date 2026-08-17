@@ -175,6 +175,55 @@ describe.each([
   });
 });
 
+// WI-39708. The probe url must name the host PROD serves. Both scripts used to
+// hardcode a local default under a comment asserting prod does not define
+// PUBLIC_HOSTNAME -- prod does (verified 2026-08-17 by reading
+// /opt/SideStage/.env.production: PUBLIC_HOSTNAME=sidestage.papercusp.com), and
+// the stale default 301'd, which is what made the redirect body reachable at
+// all. A constant restating prod config is the defect class, so the guard is
+// that the scripts RESOLVE it rather than that they hold the right constant.
+describe.each([
+  ['deploy.sh', deploySource],
+  ['rollback.sh', rollbackSource],
+])('%s resolves the public hostname from prod, not from a local constant', (_name, source) => {
+  it('reads PUBLIC_HOSTNAME out of prod .env.production', () => {
+    const resolver = shellFunction(source, 'resolve_public_hostname');
+    expect(resolver).toMatch(/PUBLIC_HOSTNAME=/);
+    expect(resolver).toMatch(/\.env\.production/);
+  });
+
+  it('still honours an explicit PUBLIC_HOSTNAME override', () => {
+    const resolver = shellFunction(source, 'resolve_public_hostname');
+    expect(resolver).toMatch(/\$\{PUBLIC_HOSTNAME:-\}/);
+  });
+
+  // Deliberately asserted on CODE, not on prose: both scripts quote the
+  // retired "prod does not define PUBLIC_HOSTNAME" claim verbatim in their
+  // history comments so the next reader knows what was wrong, and a guard that
+  // cannot tell code from prose goes red against a correct script (the same
+  // lesson deployCode exists for). The defect was never the sentence -- it was
+  // a hardcoded hostname being used as the probe target.
+  it('does not default PUBLIC_HOSTNAME to a hardcoded hostname in code', () => {
+    const code = source
+      .split('\n')
+      .filter((line) => !/^\s*#/.test(line))
+      .join('\n');
+    expect(code).not.toMatch(/PUBLIC_HOSTNAME="\$\{PUBLIC_HOSTNAME:-[^}]+\}"/);
+  });
+
+  // The last-resort fallback is the ONE constant left. Pin it to compose's own
+  // default so the two can never disagree about what an unconfigured prod gets.
+  it('pins its fallback to docker-compose.prod.yml’s own default', () => {
+    const scriptFallback = source.match(/^COMPOSE_DEFAULT_PUBLIC_HOSTNAME=(\S+)$/m)?.[1];
+    const composeDefault = composeSource.match(
+      /\$\{PUBLIC_HOSTNAME:-([^}]+)\}/,
+    )?.[1];
+    expect(scriptFallback).toBeTruthy();
+    expect(composeDefault).toBeTruthy();
+    expect(scriptFallback).toBe(composeDefault);
+  });
+});
+
 describe('deploy.sh records the deployed sha only after the health check', () => {
   // REGRESSION GUARD. Before 2026-08-14 deploy.sh wrote .deployed-sha
   // immediately after `up -d` and ran the health check afterwards. A deploy
