@@ -117,6 +117,7 @@ export function AuctionPanel({
   apiBaseUrl,
   idleContent,
   className,
+  onActiveAuctionProductChange,
 }: AuctionPanelProps) {
   const [bidDraft, setBidDraft] = useState('');
   const [bidError, setBidError] = useState<string | null>(null);

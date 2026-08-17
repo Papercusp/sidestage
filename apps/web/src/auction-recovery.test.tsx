@@ -279,4 +279,59 @@ describe('AuctionPanel recovery announcements', () => {
       container.remove();
     }
   });
+
+  /**
+   * PRODUCER half of the lifted current-offer identity (consumer half:
+   * BuyerTab.current-offer.test.tsx). The panel owns `event.auction.active`, so
+   * only it knows which product the room is actually on — the mobile sticky CTA
+   * lives outside this slot and named the wrong item until that identity was
+   * published outward. Also pins the id-not-object dependency: the 2s poll hands
+   * back a fresh auction object every tick, so notifying on the object would
+   * re-fire the parent's setter twice a second for an unchanged product.
+   */
+  it('publishes which product the auction is on, and withdraws it when none is live', async () => {
+    let auction: BuyerAuction | null = LEADING_AUCTION;
+    const useDataImpl = vi.fn(() => ({
+      data: auction ? [auction] : [],
+      loading: false,
+      fetching: false,
+      transport: 'SSE' as const,
+      invalidate: vi.fn(),
+      error: null,
+    }));
+    (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
+
+    const onActiveAuctionProductChange = vi.fn();
+    const container = document.createElement('div');
+    document.body.append(container);
+    const root = createRoot(container);
+    const renderPanel = () => (
+      <SyncContext.Provider value={{ transport: 'SSE', useDataImpl, prefetch: vi.fn() } as never}>
+        <AuctionPanel
+          eventId="sunday-drop"
+          bidderId="guest_viewer"
+          onActiveAuctionProductChange={onActiveAuctionProductChange}
+        />
+      </SyncContext.Provider>
+    );
+
+    try {
+      await act(async () => { root.render(renderPanel()); });
+      expect(onActiveAuctionProductChange).toHaveBeenCalledWith('mug');
+
+      // A re-render with the SAME product must not re-notify — an object-identity
+      // dependency would fire here, which is the regression this pins.
+      const callsAfterFirstRender = onActiveAuctionProductChange.mock.calls.length;
+      auction = { ...LEADING_AUCTION, currentPriceCents: 2_600 };
+      await act(async () => { root.render(renderPanel()); });
+      expect(onActiveAuctionProductChange.mock.calls).toHaveLength(callsAfterFirstRender);
+
+      auction = null;
+      await act(async () => { root.render(renderPanel()); });
+      expect(onActiveAuctionProductChange).toHaveBeenLastCalledWith(null);
+    } finally {
+      await act(async () => root.unmount());
+      container.remove();
+    }
+  });
 });
