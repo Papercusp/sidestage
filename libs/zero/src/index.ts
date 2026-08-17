@@ -60,7 +60,12 @@ export type {
   StorefrontProductOptionRow,
 } from './schema';
 
-export { queries, SYNCED_QUERY_PRINCIPAL_SCOPE, UNSYNCED_QUERY_REASONS } from './queries';
+export {
+  queries,
+  SYNCED_QUERY_PRINCIPAL_SCOPE,
+  UNSYNCED_QUERY_REASONS,
+  CONTRACT_AHEAD_OF_REGISTRY,
+} from './queries';
 export type { Queries, SyncedQueryName } from './queries';
 
 export { createMutators, REST_COMMAND_MUTATORS } from './mutators';

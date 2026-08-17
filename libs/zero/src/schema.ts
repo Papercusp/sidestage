@@ -332,7 +332,11 @@ export const storefrontProduct = table('storefrontProduct')
     variantImages: json().from('variant_images'),
     qty: number(),
     reservedQty: number().from('reserved_qty'),
-    availableQty: number().optional(),
+    // NOTE: `availableQty` is deliberately ABSENT — it is GENERATED ALWAYS AS
+    // (GREATEST(0, qty - reserved_qty)) STORED (db/schema.sql:63) and is not
+    // carried by logical replication, so declaring it here would promise the
+    // client a column that never arrives. Derive it from the two replicated
+    // columns instead: Math.max(0, row.qty - row.reservedQty).
     createdAt: number().from('created_at'),
     updatedAt: number().from('updated_at'),
   })
@@ -561,7 +565,13 @@ export const REPLICATED_TABLES = [
  * the exclusion travels with the reason instead of living only in a runbook.
  */
 export const UNPUBLISHABLE_COLUMNS: Readonly<Record<string, readonly string[]>> = {
+  // tsvector has no Zero column type, and it is trigger-maintained server-side.
   product_catalog: ['search_tsv'],
+  // GENERATED ALWAYS AS (GREATEST(0, qty - reserved_qty)) STORED — Postgres does
+  // not publish stored generated columns before PG17's publish_generated_columns,
+  // and it is redundant anyway: both operands are replicated, so the client
+  // derives it as Math.max(0, qty - reservedQty).
+  storefront_product: ['availableQty'],
 };
 
 // Row types

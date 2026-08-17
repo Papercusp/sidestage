@@ -284,4 +284,22 @@ export const UNSYNCED_QUERY_REASONS: Readonly<Record<string, string>> = {
   'event.chat.stats': 'Aggregate counts over chat_message + chat_presence. ZQL has no COUNT; derive client-side from event.chat.messages / event.chat.presence or keep the REST handler.',
   'event.stats': 'Aggregate over event + checkout_order + auction_state. Same COUNT/SUM limitation as event.chat.stats.',
   'event.pricingHistory': 'A projection of policy_audit_entry, not action_audit_entry; it lands as a Zero query once policy_audit_entry joins the replicated set (tracked on P-002 follow-up).',
+  'orders.byBuyer': 'Fan-in composite, not a table read: BuyerOrdersService.listForBuyer merges OrderStore.listByBuyer + AuctionService.listWinnerOrdersForBuyer + GuardedActionService.listOffersForBuyer + EventService.listForGuide, then decorates each row with chat replay chapters (apps/api/src/checkout/buyer-orders.service.ts:76). Two independent blockers: (1) ZQL cannot union four sources into one result set; (2) neither `cart` nor `checkout_order` carries a buyer column at all (db/schema.sql) — the buyer is derived from the request principal, so even the checkout_order leg alone is not filterable in ZQL. The Zero-native replacement is the `orders.byCart` / `orders.byId` pair below plus client-side composition; that is a P-004 call-site change, NOT a drop-in rename.',
+};
+
+/**
+ * Synced queries this contract defines that NO `SyncQueryRegistry` registration
+ * serves yet. They are deliberate forward scope, not drift — but they are listed
+ * explicitly so the parity test can tell "planned" apart from "accidentally
+ * invented", and so nothing ships a client call site whose name the `/zero/query`
+ * handler would 404 on.
+ */
+export const CONTRACT_AHEAD_OF_REGISTRY: Readonly<Record<string, string>> = {
+  'events.byId': 'Single-event read; the web client currently filters events.guide client-side.',
+  'event.auction.history': 'Closed-auction history; no REST equivalent is registered today.',
+  'event.audit.entries': 'Seller audit trail over action_audit_entry; no REST equivalent is registered today.',
+  'catalog.byId': 'Single-product read; the web client currently filters catalog.page client-side.',
+  'orders.byCart': 'Zero-native replacement leg for the unsynced orders.byBuyer composite (see UNSYNCED_QUERY_REASONS). Adopting it is a P-004 call-site change.',
+  'orders.byId': 'Zero-native single-order read; the REST equivalent is GET /checkout/orders/:id, not a sync query.',
+  'policy.published': 'Published seller policy revisions; today they reach the client folded into event.config.',
 };
