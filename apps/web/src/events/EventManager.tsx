@@ -493,10 +493,9 @@ export function EventManager({
     // seller never chose.
     setStartsAtDraft('');
     // Likewise the show plan: another event's order, budgets and notes must
-    // never be shown against this one's lineup, so the draft is dropped and
-    // re-seeded from the newly selected event's stored plan.
-    setPlanSeededFor(null);
-    setShowOrder([]);
+    // never be shown against this one's lineup. Dropping the local overrides
+    // returns the timeline to derivation from the newly selected event.
+    setShowOrderEdit(null);
     setSlotDrafts({});
     setOpenSlotProductId(null);
     setPlanSaveStatus('idle');
@@ -539,21 +538,24 @@ export function EventManager({
     setPlanSaveStatus('idle');
     setSlotDrafts((current) => ({
       ...current,
-      [productId]: { ...(current[productId] ?? emptySlotDraft()), ...patch },
+      [productId]: { ...(current[productId] ?? baseDraftFor(productId)), ...patch },
     }));
   };
 
+  /*
+   * The first structural edit MATERIALISES the derived order into state — from
+   * here on the seller owns it. `showOrder` is the derived value, so the
+   * materialised copy starts from exactly what was on screen.
+   */
   const reorderShow = (fromIndex: number, toIndex: number) => {
     setPlanSaveStatus('idle');
-    setShowOrder((current) => {
-      if (fromIndex < 0 || fromIndex >= current.length) return current;
-      if (toIndex < 0 || toIndex >= current.length) return current;
-      const next = [...current];
-      const [moved] = next.splice(fromIndex, 1);
-      if (moved === undefined) return current;
-      next.splice(toIndex, 0, moved);
-      return next;
-    });
+    if (fromIndex < 0 || fromIndex >= showOrder.length) return;
+    if (toIndex < 0 || toIndex >= showOrder.length) return;
+    const next = [...showOrder];
+    const [moved] = next.splice(fromIndex, 1);
+    if (moved === undefined) return;
+    next.splice(toIndex, 0, moved);
+    setShowOrderEdit(next);
   };
 
   /** The keyboard path and the drag path are the same move, by design. */
@@ -572,18 +574,19 @@ export function EventManager({
   const removeFromShow = (productId: string) => {
     setPlanSaveStatus('idle');
     setOpenSlotProductId((current) => (current === productId ? null : current));
-    setShowOrder((current) => current.filter((id) => id !== productId));
+    setShowOrderEdit(showOrder.filter((id) => id !== productId));
   };
 
   const addToShow = (productId: string) => {
     setPlanSaveStatus('idle');
-    setShowOrder((current) => (current.includes(productId) ? current : [...current, productId]));
+    if (showOrder.includes(productId)) return;
+    setShowOrderEdit([...showOrder, productId]);
   };
 
   const saveRunOfShow = async () => {
     const entries: RunOfShowEntry[] = [];
     for (const productId of showOrder) {
-      const draft = slotDrafts[productId] ?? emptySlotDraft();
+      const draft = timelineDrafts[productId] ?? emptySlotDraft();
       const seconds = draftMinutesToSeconds(draft.minutes);
       if (seconds === undefined) {
         setPlanSaveError(`"${titles[productId] ?? productId}": minutes must be a number between 1 and 240.`);
@@ -595,16 +598,16 @@ export function EventManager({
     setPlanSaveError(null);
     try {
       const saved = await mutateSaveRunOfShow(entries);
-      // Re-seed from the SERVER's echo, merging rather than replacing so the
-      // commerce drafts of products it does not mention survive the save.
-      setShowOrder(saved.entries.map((entry) => entry.productId));
+      // Adopt the SERVER's echo as the new baseline: the local overrides are
+      // dropped so the derivation above reads the freshly stored plan, which is
+      // now authoritative. Commerce drafts are keyed separately and untouched
+      // by this, so a markdown typed before the save survives it.
+      setShowOrderEdit(saved.entries.map((entry) => entry.productId));
       setSlotDrafts((current) => {
         const next = { ...current };
         for (const entry of saved.entries) {
-          next[entry.productId] = {
-            ...(next[entry.productId] ?? emptySlotDraft()),
-            ...draftFromEntry(entry),
-          };
+          if (next[entry.productId] === undefined) continue;
+          next[entry.productId] = { ...next[entry.productId]!, ...draftFromEntry(entry) };
         }
         return next;
       });
@@ -966,7 +969,7 @@ export function EventManager({
                     </div>
                     <LineupTimelineView
                       view={runOfShowView}
-                      drafts={slotDrafts}
+                      drafts={timelineDrafts}
                       showPace={showPace}
                       saveStatus={planSaveStatus}
                       saveError={planSaveError}
