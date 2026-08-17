@@ -330,7 +330,7 @@ export function LineupTimelineView({
                   <div className="lineup-slot-actions">
                     <button
                       type="button"
-                      className="button button-primary"
+                      className="button primary"
                       disabled={rowBusy || !item || onStage}
                       onClick={() => item && onPush(item)}
                     >
@@ -347,7 +347,7 @@ export function LineupTimelineView({
                     </button>
                     <button
                       type="button"
-                      className="button button-quiet"
+                      className="button tertiary"
                       onClick={() => onRemoveFromShow(slot.productId)}
                     >
                       Remove
@@ -525,7 +525,7 @@ export function LineupTimelineView({
       )}
 
       <div className="lineup-timeline-save">
-        <button type="button" className="button button-primary" onClick={onSave} disabled={saveStatus === 'saving'}>
+        <button type="button" className="button primary" onClick={onSave} disabled={saveStatus === 'saving'}>
           {saveStatus === 'saving' ? 'Saving…' : 'Save run of show'}
         </button>
         <span className="lineup-timeline-savestatus" aria-live="polite">
@@ -550,7 +550,7 @@ export function LineupTimelineView({
                 <span className="lineup-tray-title">{entry.title}</span>
                 <button
                   type="button"
-                  className="button button-quiet"
+                  className="button tertiary"
                   onClick={() => onAddToShow(entry.productId)}
                 >
                   Add to show
