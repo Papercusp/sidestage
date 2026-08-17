@@ -9,13 +9,24 @@ import {
 } from '../app-routing';
 import EventCreationPanel from '../event-creation/EventCreationPanel';
 import type { EventCreationPayload } from '../event-creation/catalog';
-import { RunOfShowPlannerPanel } from '../seller/RunOfShowPlannerPanel';
 import { buyerCandidates, type PresenceRowView } from '../seller/offer-guard';
+import {
+  LineupTimelineView,
+  emptySlotDraft,
+  type TimelineSlotDraft,
+} from '../seller/LineupTimeline';
+import { useHasStageClock, useStageClock } from '../seller/stage-clock';
+import {
+  buildRunOfShowView,
+  type RunOfShowEntry,
+  type RunOfShowPlan,
+} from '../run-of-show';
 import {
   addItemsToSellerEvent,
   adjustSellerEventStock,
   closeSellerAuction,
   executeSellerAction,
+  saveRunOfShowPlan,
   setupSellerEvent,
   startSellerAuction,
   transitionSellerEvent,
@@ -32,7 +43,6 @@ import {
   lifecycleStatusRefusal,
   type EventLifecycleAction,
 } from './event-lifecycle';
-import EventLineupGrid from './EventLineupGrid';
 import './event-manager.css';
 
 export interface EventManagerProps {
@@ -54,6 +64,31 @@ export interface EventManagerProps {
  * a field added on the API silently fails to reach one of its two readers.
  */
 export type SellerOwnedEvent = SellerEventRecord;
+
+/**
+ * Minutes as typed -> the seconds the run-of-show document stores.
+ *
+ * Three outcomes, deliberately distinct: `null` is a slot with NO budget (a
+ * valid plan), a number is a budget, and `undefined` means the seller typed
+ * something the save must refuse. Collapsing the last two would either send a
+ * NaN or silently drop a budget the seller believed they set. The 1..240 range
+ * is the server's, mirrored here so the refusal names the product.
+ */
+function draftMinutesToSeconds(minutes: string): number | null | undefined {
+  const trimmed = minutes.trim();
+  if (!trimmed) return null;
+  const parsed = Number(trimmed);
+  if (!Number.isFinite(parsed) || parsed <= 0 || parsed > 240) return undefined;
+  return Math.round(parsed * 60);
+}
+
+/** The stored half of a slot draft — what a saved entry seeds back into the editor. */
+function draftFromEntry(entry: RunOfShowEntry): Pick<TimelineSlotDraft, 'minutes' | 'notes'> {
+  return {
+    minutes: entry.plannedDurationSec === null ? '' : String(Math.round(entry.plannedDurationSec / 60)),
+    notes: entry.notes,
+  };
+}
 
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : 'The seller event request failed.';
@@ -225,6 +260,91 @@ export function EventManager({
   const loaded = isCreateView || initialItems !== undefined || (!configQuery.loading && !itemsQuery.loading);
   const readError = initialItems === undefined ? configQuery.error ?? itemsQuery.error : null;
 
+  /*
+   * THE RUN OF SHOW LIVES HERE NOW (D-001, direction C). The lineup IS the run
+   * of show, so the stored plan, the show order, and the per-slot drafts are
+   * owned by this container and rendered by `LineupTimelineView`. The separate
+   * authoring panel this replaces is retired from the section below.
+   */
+  const planQuery = useSyncQuery<RunOfShowPlan>({
+    queryName: 'event.runOfShow',
+    args: { eventId: selectedEventId },
+    enabled: !isCreateView && hasSelectedEvent,
+  });
+  const storedPlan = planQuery.data?.[0];
+  /** Array order IS the show order; the drafts hold what the seller is typing. */
+  const [showOrder, setShowOrder] = useState<string[]>([]);
+  const [slotDrafts, setSlotDrafts] = useState<Record<string, TimelineSlotDraft>>({});
+  const [planSeededFor, setPlanSeededFor] = useState<string | null>(null);
+  const [openSlotProductId, setOpenSlotProductId] = useState<string | null>(null);
+  const [planSaveStatus, setPlanSaveStatus] = useState<'idle' | 'saving' | 'saved'>('idle');
+  const [planSaveError, setPlanSaveError] = useState<string | null>(null);
+  const [nowMs, setNowMs] = useState(() => Date.now());
+
+  /** Seed the editable draft from the stored plan once per event. */
+  useEffect(() => {
+    if (!storedPlan || planSeededFor === selectedEventId) return;
+    setShowOrder(storedPlan.entries.map((entry) => entry.productId));
+    setSlotDrafts(Object.fromEntries(storedPlan.entries.map((entry) => [
+      entry.productId,
+      { ...emptySlotDraft(), ...draftFromEntry(entry) },
+    ])));
+    setPlanSeededFor(selectedEventId);
+  }, [storedPlan, planSeededFor, selectedEventId]);
+
+  /*
+   * The ONE shared clock (D-003) — read, never created. Outside a provider
+   * `showPace` is false and the timeline omits every time column rather than
+   * rendering a confident 0:00.
+   */
+  const stageLog = useStageClock();
+  const showPace = useHasStageClock();
+  /*
+   * A soft 1s pulse, only while something is on stage: the same permanently
+   * valid local-clock exception AuctionPanel and RunOfShowPanel already carry
+   * (sync-contract.test.ts). It reads NO server state — it only re-renders the
+   * pace that the shared StageLog above already holds. D-003 keeps the LOG
+   * single; this is that log's render pulse, not a second clock.
+   */
+  useEffect(() => {
+    if (!stageLog.activeProductId) return undefined;
+    const timer = setInterval(() => setNowMs(Date.now()), 1000);
+    return () => clearInterval(timer);
+  }, [stageLog.activeProductId]);
+
+  const titles = useMemo(
+    () => Object.fromEntries(items.map((item) => [item.productId, item.title])),
+    [items],
+  );
+  /*
+   * The plan AS TYPED, so the pace chips track what the seller is editing. An
+   * unparseable minutes value contributes NO budget rather than a NaN; `save`
+   * below is the thing that refuses it, with the product named.
+   */
+  const planEntries = useMemo<RunOfShowEntry[]>(
+    () => showOrder.map((productId) => {
+      const draft = slotDrafts[productId] ?? emptySlotDraft();
+      const seconds = draftMinutesToSeconds(draft.minutes);
+      return {
+        productId,
+        plannedDurationSec: seconds === undefined ? null : seconds,
+        notes: draft.notes,
+      };
+    }),
+    [showOrder, slotDrafts],
+  );
+  /** Every slot, pace and tray value the timeline renders (D-002: never re-derived). */
+  const runOfShowView = useMemo(
+    () => buildRunOfShowView({
+      entries: planEntries,
+      titles,
+      log: stageLog,
+      nowMs,
+      lineupProductIds: items.map((item) => item.productId),
+    }),
+    [planEntries, titles, stageLog, nowMs, items],
+  );
+
   const setupFallback = useCallback(
     async (payload: EventCreationPayload) => setupSellerEvent(
       payload,
@@ -294,6 +414,16 @@ export function EventManager({
     unpublishFallback,
   );
 
+  /** Whole-document save: reorder, edit and removal are all the same PUT. */
+  const runOfShowSaveFallback = useCallback(
+    (entries: RunOfShowEntry[]) => saveRunOfShowPlan(selectedEventId, entries, apiBaseUrl, demoPrincipal),
+    [selectedEventId, apiBaseUrl, demoPrincipal],
+  );
+  const mutateSaveRunOfShow = useSyncMutate<RunOfShowEntry[], RunOfShowPlan>(
+    'runOfShow.save',
+    runOfShowSaveFallback,
+  );
+
   useEffect(() => {
     setPickerOpen(false);
     setMessage(null);
@@ -301,6 +431,15 @@ export function EventManager({
     // the next one would offer to schedule a different room at a time its
     // seller never chose.
     setStartsAtDraft('');
+    // Likewise the show plan: another event's order, budgets and notes must
+    // never be shown against this one's lineup, so the draft is dropped and
+    // re-seeded from the newly selected event's stored plan.
+    setPlanSeededFor(null);
+    setShowOrder([]);
+    setSlotDrafts({});
+    setOpenSlotProductId(null);
+    setPlanSaveStatus('idle');
+    setPlanSaveError(null);
   }, [selectedEventId]);
 
   const submitPicker = async (payload: EventCreationPayload) => {
