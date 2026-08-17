@@ -295,7 +295,13 @@ body {
 .md-gauge { display: grid; gap: .28rem; }
 .md-track { position: relative; height: .4rem; border-radius: 99px; background: var(--surface-sunken); overflow: hidden; }
 .md-fill { position: absolute; inset-block: 0; left: 0; border-radius: 99px; background: linear-gradient(90deg, #FFC400, #D62B1F); }
-.md-limit { position: absolute; top: -.18rem; bottom: -.18rem; width: 2px; background: var(--danger); border-radius: 2px; }
+/* the region the event policy forbids — hatched, so "you cannot go there" reads
+   without having to parse a number */
+.md-block {
+  position: absolute; inset-block: 0; right: 0; width: 25%;
+  background: repeating-linear-gradient(45deg, #EFE2CE 0 3px, #FBF2E3 3px 6px);
+}
+.md-limit { position: absolute; top: -.2rem; bottom: -.2rem; width: 2px; background: var(--danger); border-radius: 2px; }
 .md-legend { display: flex; justify-content: space-between; color: var(--muted); font-size: .66rem; font-variant-numeric: tabular-nums; }
 .md-legend b { color: var(--danger); font-weight: 750; }
 
@@ -475,6 +481,9 @@ body {
 .slot-main { display: grid; gap: .5rem; min-width: 0; }
 .slot-line { display: flex; align-items: center; gap: .6rem; flex-wrap: wrap; min-width: 0; }
 .slot-side { display: flex; align-items: center; gap: .5rem; align-self: center; }
+/* an expanded slot is tall — centring its stock meter detaches it from the
+   product line it describes, so pin it to the top instead */
+.slot.now > .slot-side { align-self: start; padding-top: .25rem; }
 .notes {
   padding: .55rem .7rem; border-left: 2px solid var(--brand-yellow); border-radius: .1rem .45rem .45rem .1rem;
   background: #FFFBEE; color: var(--text); font-size: .78rem;
@@ -797,8 +806,9 @@ body {
                     </div>
                     <div class="md-gauge">
                       <div class="md-track">
-                        <span class="md-fill" style="width:50%"></span>
-                        <span class="md-limit" style="left:100%"></span>
+                        <span class="md-fill" style="width:37.5%"></span>
+                        <span class="md-block"></span>
+                        <span class="md-limit" style="left:75%"></span>
                       </div>
                       <div class="md-legend"><span>0%</span><span>Floor $56.00 · max <b>30%</b></span></div>
                     </div>
@@ -997,8 +1007,9 @@ body {
                   </div>
                   <div class="md-gauge">
                     <div class="md-track">
-                      <span class="md-fill" style="width:50%"></span>
-                      <span class="md-limit" style="left:100%"></span>
+                      <span class="md-fill" style="width:37.5%"></span>
+                      <span class="md-block"></span>
+                      <span class="md-limit" style="left:75%"></span>
                     </div>
                     <div class="md-legend"><span>0%</span><span>max <b>30%</b> by event policy</span></div>
                   </div>
@@ -1133,8 +1144,9 @@ body {
                       </div>
                       <div class="md-gauge">
                         <div class="md-track">
-                          <span class="md-fill" style="width:33%"></span>
-                          <span class="md-limit" style="left:100%"></span>
+                          <span class="md-fill" style="width:25%"></span>
+                          <span class="md-block"></span>
+                          <span class="md-limit" style="left:75%"></span>
                         </div>
                         <div class="md-legend"><span>0%</span><span>Floor $54.60 · max <b>30%</b></span></div>
                       </div>
