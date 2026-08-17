@@ -64,7 +64,7 @@ const validGrades = {
 function makeModel(content: string | (() => Promise<never>)) {
   const fallback: ReplyJudgeModel = { grade: vi.fn(async () => fallbackResult) };
   const complete = typeof content === 'string'
-    ? vi.fn(async () => ({ content, toolCalls: [] }))
+    ? vi.fn(async (_request: unknown) => ({ content, toolCalls: [] }))
     : vi.fn(content);
   const model = new VertexReplyJudgeModel({ model: 'fake-gemini', complete }, fallback);
   return { model, fallback, complete };

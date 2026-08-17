@@ -1,0 +1,51 @@
+{
+  "name": "@papercusp/sidestage-zero",
+  "version": "0.1.0",
+  "private": true,
+  "description": "SideStage-owned Zero contract: schema, relationships, named ZQL query registry, and custom mutators shared by the web SyncProvider and the API's zero-cache /query and /mutate handlers.",
+  "type": "commonjs",
+  "main": "./dist/index.js",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "import": "./src/index.ts",
+      "require": "./dist/index.js",
+      "default": "./dist/index.js"
+    },
+    "./schema": {
+      "types": "./src/schema.ts",
+      "import": "./src/schema.ts",
+      "require": "./dist/schema.js",
+      "default": "./dist/schema.js"
+    },
+    "./queries": {
+      "types": "./src/queries.ts",
+      "import": "./src/queries.ts",
+      "require": "./dist/queries.js",
+      "default": "./dist/queries.js"
+    },
+    "./mutators": {
+      "types": "./src/mutators.ts",
+      "import": "./src/mutators.ts",
+      "require": "./dist/mutators.js",
+      "default": "./dist/mutators.js"
+    }
+  },
+  "files": [
+    "dist",
+    "src"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "test": "vitest run --config vitest.config.ts"
+  },
+  "dependencies": {
+    "@rocicorp/zero": "^1.8.0",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "vitest": "^4.1.4"
+  }
+}
