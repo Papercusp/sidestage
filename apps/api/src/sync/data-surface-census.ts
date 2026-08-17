@@ -97,6 +97,9 @@ export const POSTGRES_SURFACES = {
   system_test_cancellation: pg('system_test_cancellation', ['operational'], 'authorized operator or release principal', [], [], 'P-020'),
   system_test_retention: pg('system_test_retention', ['operational'], 'parent test-run authority', [], [], 'P-020'),
   system_test_cleanup: pg('system_test_cleanup', ['operational'], 'authorized cleanup worker scoped to one test run', [], [], 'P-020'),
+  judge_run: pg('judge_run', ['operational'], 'authorized operator or release principal', ['judge.latest'], ['judge.run'], 'P-001c'),
+  judge_case_result: pg('judge_case_result', ['operational'], 'parent judge-run authority', ['judge.latest'], ['judge.run'], 'P-001c'),
+  rehearsal_run: pg('rehearsal_run', ['seller-owned', 'operational'], 'event seller owner', [], ['rehearsal.run', 'rehearsal.runAll'], 'P-001c'),
 } as const satisfies Record<string, PostgresSurface>;
 
 export interface NamedSurface extends SurfaceContract {
@@ -269,6 +272,21 @@ export const PROCESS_LOCAL_SURFACES: readonly SourceSurface[] = [
   local('apps/api/src/scout/scout-turn-bus.service.ts', 'ownerGcTimers', 'scout-turn-owner-gc', ['operational'], 'bounded cleanup scheduler', 'runtime-only', 'bounded timeout lifecycle; no durable state', 'P-020'),
   local('apps/api/src/shipping/shipping.service.ts', 'rateCache', 'shipping-rates', ['buyer-owned', 'operational'], 'external-result cache', 'command-with-synced-result', 'persist quote inputs/status/final result; retain bounded cache', 'P-011/P-018/P-020'),
   local('apps/api/src/sync/sync-query.registry.ts', 'handlers', 'sync-registry', ['operational'], 'runtime registry', 'runtime-only', 'shared typed Zero query registry', 'P-012'),
+  // ── Mutable non-Map instance fields (WS cutover P-001c) ───────────────────
+  // These were invisible to the census until its completeness guard stopped
+  // requiring a readonly Map-typed declaration. A plain mutable field holds
+  // authority just as effectively — `judge.latestReport` below was a live
+  // server authority that no census row described.
+  //
+  // NOTE: do not write that old detector's literal pattern in a comment here.
+  // The guard scans this file's own source text, so the example matches itself
+  // and injects a phantom surface named after the example's variable.
+  local('apps/api/src/judge/judge.service.ts', 'latestReport', 'judge', ['operational'], 'process-local authority for judge.latest — erased by restart, divergent across replicas', 'replicate', 'judge_run and judge_case_result', 'P-001c'),
+  local('apps/api/src/rehearsals/checkout-rehearsal.ts', 'nextEvent', 'rehearsal-stripe-stub', ['operational'], 'in-test stub handoff slot', 'runtime-only', 'rehearsal-local stub state; never a server authority', 'P-001c'),
+  local('apps/api/src/chat/chat.service.ts', 'sequence', 'chat-sequence', ['public', 'operational'], 'process-local monotonic counter', 'replicate', 'durable per-event chat sequence owned by the chat tables (P-001a lane)', 'P-001a'),
+  local('apps/api/src/auction/auction.service.ts', 'updateSequence', 'auction-sequence', ['public', 'operational'], 'process-local monotonic counter', 'replicate', 'durable auction_state revision counter (P-001b lane)', 'P-001b'),
+  local('apps/api/src/chat/chat-presence.sweeper.ts', 'timer', 'chat-presence-sweeper', ['operational'], 'bounded cleanup scheduler', 'runtime-only', 'interval handle only; no durable state', 'P-020'),
+  local('apps/api/src/checkout/stripe-payment.provider.ts', 'client', 'stripe-client', ['operational'], 'lazily constructed external client handle', 'runtime-only', 'rebuilt on demand from configuration; no durable state', 'P-020'),
 ];
 
 export interface ModuleSurface extends SurfaceContract {

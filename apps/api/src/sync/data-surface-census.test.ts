@@ -85,14 +85,30 @@ describe('Universal Zero data-surface census', () => {
     expect(sorted(SYNC_MUTATOR_SURFACES.map((surface) => surface.name))).toEqual(used);
   });
 
-  it('classifies every process-local class Map that can hide an authority or cache', () => {
-    const maps = captureAll(
+  it('classifies every process-local class field that can hide an authority or cache', () => {
+    // Two detectors, unioned. The Map detector alone was the census's blind
+    // spot: it requires BOTH `readonly` AND `= new Map`, so a plain mutable
+    // field holding real server authority was invisible to it. That is exactly
+    // how `AutoResponderJudgeService.latestReport` — the sole authority behind
+    // the judge.latest query, erased by every restart — sat uncatalogued while
+    // this test reported the census complete (WS cutover P-001c).
+    const mapFields = captureAll(
       apiFiles,
       /(?:private\s+)?readonly\s+#?([A-Za-z0-9_]+)\s*=\s*new\s+Map/g,
       (match, file) => `${repoPath(file)}#${match[1]}`,
     );
+    // Mutable instance fields: `private`/`protected`, NOT readonly, declared at
+    // class-body indentation with a type annotation or initializer. Constructor
+    // parameter properties are excluded by requiring a line start, and methods
+    // by forbidding `(` before the `:`/`=`.
+    const mutableFields = captureAll(
+      apiFiles,
+      /^[ \t]+(?:private|protected)[ \t]+(?!readonly[ \t])(#?[A-Za-z0-9_]+)[ \t]*[:=][^=(]/gm,
+      (match, file) => `${repoPath(file)}#${match[1]}`,
+    );
+    const discovered = sorted([...new Set([...mapFields, ...mutableFields])]);
     const declared = PROCESS_LOCAL_SURFACES.map((surface) => `${surface.source}#${surface.name}`);
-    expect(sorted(declared)).toEqual(maps);
+    expect(sorted(declared)).toEqual(discovered);
   });
 
   it('classifies every Nest controller boundary', () => {

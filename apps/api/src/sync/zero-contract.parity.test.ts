@@ -64,6 +64,9 @@ const DEFERRED_REPLICATION: Readonly<Record<string, string>> = {
   system_test_cancellation: 'Operational test-harness table; operator-only surface (P-020).',
   system_test_retention: 'Operational test-harness table; operator-only surface (P-020).',
   system_test_cleanup: 'Operational test-harness table; operator-only surface (P-020).',
+  judge_run: 'Operational judge-harness table; operator-only Test-tab surface (P-001c).',
+  judge_case_result: 'Operational judge-harness table; operator-only Test-tab surface (P-001c).',
+  rehearsal_run: 'Operational rehearsal-harness table; seller/operator preflight surface (P-001c).',
 };
 
 /** Every leaf query in the registry, as its dot-path. */
