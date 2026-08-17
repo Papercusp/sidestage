@@ -465,7 +465,6 @@ export function LineupTimelineView({
                       `evaluateOffer` mirror the dock does.
                     */}
                     <OfferComposer
-                      className="lineup-drawer-row"
                       productId={item.productId}
                       title={item.title}
                       currentPriceCents={item.priceCents}

@@ -509,3 +509,31 @@
   clip: rect(0 0 0 0);
   white-space: nowrap;
 }
+
+/* ── Live commerce on the staged product (P-006) ──────────────────────────── */
+
+/*
+ * The guarded markdown + targeted-offer controls, shown ONLY for whatever is on
+ * stage. They sit inside the live card, under the notes and pricing history,
+ * because the seller reaches for them while looking at what the room is looking
+ * at — a discount composed against a different product is exactly the error
+ * this placement makes impossible.
+ */
+.run-of-show-commerce {
+  display: grid;
+  gap: 0.6rem;
+  margin: 0.7rem 0 0;
+  padding: 0.65rem 0.75rem;
+  border-radius: 0.55rem;
+  background: var(--surface-sunken);
+}
+
+.run-of-show-commerce-note {
+  margin: 0;
+  font-size: 0.76rem;
+  color: var(--muted);
+}
+
+.run-of-show-commerce-note.is-error {
+  color: var(--text);
+}

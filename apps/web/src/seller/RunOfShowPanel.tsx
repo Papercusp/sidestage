@@ -648,7 +648,6 @@ export function RunOfShowPanel({
             )}
           />
           <OfferComposer
-            className="run-of-show-offer"
             productId={stagedItem.productId}
             title={stagedItem.title}
             currentPriceCents={stagedItem.priceCents}
