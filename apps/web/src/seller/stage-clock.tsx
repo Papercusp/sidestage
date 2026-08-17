@@ -22,7 +22,21 @@
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { emptyStageLog, stageLogOnProductChange, type StageLog } from '../run-of-show';
 
-const StageClockContext = createContext<StageLog | null>(null);
+/**
+ * The log AND its render pulse, because D-003's "one clock" is two things that
+ * must not be split: the accumulated `StageLog`, and the 1s tick that re-renders
+ * pace against it. Each consuming surface used to own the tick — so two timers
+ * fired on independent phases, and the same elapsed second could paint on the
+ * Lineup up to a second before the dock. One timer here means both surfaces
+ * re-render from the SAME instant, which is the property "one clock" promises.
+ */
+interface StageClock {
+  log: StageLog;
+  /** The instant both surfaces measure elapsed against — never per-surface. */
+  nowMs: number;
+}
+
+const StageClockContext = createContext<StageClock | null>(null);
 
 /**
  * The live show clock for `stagedProductId`.
@@ -39,12 +53,29 @@ export function StageClockProvider({
   children: ReactNode;
 }) {
   const [log, setLog] = useState(emptyStageLog);
+  const [nowMs, setNowMs] = useState(() => Date.now());
 
   useEffect(() => {
     setLog((current) => stageLogOnProductChange(current, stagedProductId, Date.now()));
   }, [stagedProductId]);
 
-  return <StageClockContext.Provider value={log}>{children}</StageClockContext.Provider>;
+  /*
+   * The one 1s pulse, and only while something is on stage — the same
+   * permanently-valid local-clock exception the panels used to hold
+   * individually (sync-contract.test.ts). It reads NO server state: it only
+   * re-renders the pace the shared log above already holds. Gating on
+   * `log.activeProductId` rather than `stagedProductId` keeps the timer tied to
+   * the value it advances, so an idle show costs no timer at all.
+   */
+  useEffect(() => {
+    if (!log.activeProductId) return undefined;
+    const timer = setInterval(() => setNowMs(Date.now()), 1000);
+    return () => clearInterval(timer);
+  }, [log.activeProductId]);
+
+  const clock = useMemo(() => ({ log, nowMs }), [log, nowMs]);
+
+  return <StageClockContext.Provider value={clock}>{children}</StageClockContext.Provider>;
 }
 
 /**
