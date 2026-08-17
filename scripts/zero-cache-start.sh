@@ -50,6 +50,28 @@ export ZERO_REPLICA_FILE="${ZERO_REPLICA_FILE:-$ROOT_DIR/.zero/replica.db}"
 # Must match the publication created by db/zero-publication.sql.
 export ZERO_APP_PUBLICATIONS="${ZERO_APP_PUBLICATIONS:-zero_publication}"
 
+# --- synced-query / custom-mutator delegation ---------------------------------
+# zero-cache does NOT evaluate queries or mutations itself: it forwards each one
+# to the API over these two URLs (verified in @rocicorp/zero 1.8.0 —
+# out/zero/src/zero-cache-dev.js reads ZERO_QUERY_URL and ZERO_MUTATE_URL by
+# those exact names). Leave them unset and every client read fails at the
+# view-syncer with no route to ask, which looks like a client/schema bug rather
+# than missing config — so they are defaulted here, not left to the caller.
+#
+# ⚠ THE PATH IS NOT THE SAME AS PRODUCTION, and the difference is not a typo.
+# apps/api/src/main.ts:19 applies a global prefix ONLY when API_PREFIX is set.
+# docker-compose.prod.yml and infra/docker-compose.acceptance.yml both set
+# API_PREFIX=api, which is why those files point zero-cache at
+# `/api/zero/query`. Local dev sets no prefix, so the same handler is served at
+# a BARE `/zero/query`. Copying the prod URL into a dev shell yields a 404 that
+# surfaces as an opaque view-syncer failure. Derived from API_PREFIX below so
+# the two can never drift apart.
+API_ZERO_PREFIX="$(printf '%s' "${API_PREFIX:-}" | sed -E 's#^/+|/+$##g')"
+[[ -n "$API_ZERO_PREFIX" ]] && API_ZERO_PREFIX="/$API_ZERO_PREFIX"
+DEFAULT_API_ORIGIN="http://127.0.0.1:${API_PORT:-3100}"
+export ZERO_QUERY_URL="${ZERO_QUERY_URL:-${DEFAULT_API_ORIGIN}${API_ZERO_PREFIX}/zero/query}"
+export ZERO_MUTATE_URL="${ZERO_MUTATE_URL:-${DEFAULT_API_ORIGIN}${API_ZERO_PREFIX}/zero/mutate}"
+
 mkdir -p "$(dirname "$ZERO_REPLICA_FILE")"
 
 # --- 1. clear stale lock holders on this replica ------------------------------
@@ -79,6 +101,10 @@ export NODE_OPTIONS="${NODE_OPTIONS:+$NODE_OPTIONS }--max-old-space-size=${ZERO_
 redacted_upstream="$(printf '%s' "${ZERO_UPSTREAM_DB%%\?*}" | sed -E 's#://[^/@]*@#://***:***@#')"
 echo "[zero-cache-start] upstream=$redacted_upstream"
 echo "[zero-cache-start] replica=$ZERO_REPLICA_FILE publication=$ZERO_APP_PUBLICATIONS heap=${ZERO_HEAP_MB}MB"
+# Printed because the #1 dev failure here is zero-cache pointing at a path the
+# API does not serve (see the API_PREFIX note above); the URL in the log is the
+# fastest way to tell that apart from a genuine query bug.
+echo "[zero-cache-start] query=$ZERO_QUERY_URL mutate=$ZERO_MUTATE_URL"
 
 # --- 3. run -------------------------------------------------------------------
 # zero-cache-dev runs the replication-manager and view-syncer in ONE process,
