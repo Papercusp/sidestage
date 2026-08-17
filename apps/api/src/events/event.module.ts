@@ -63,7 +63,25 @@ export function eventStoreForPool(
     EventSyncQueries,
     // D-003: keeps a scheduled event's promised start time by taking the room
     // live server-side, with no seller and no buyer tab required.
-    EventActivationSweeper,
+    //
+    // Registered via useFactory — NOT as a bare class provider — for the same
+    // reason ChatPresenceSweeper is (chat.module.ts): the constructor's third
+    // parameter is a plain `intervalMs: number` with a default. Under `tsc`
+    // (emitDecoratorMetadata) Nest reads design:paramtypes as
+    // [EventService, SyncInvalidationService, Number], has no provider for
+    // `Number`, and the whole app fails to boot with
+    // UnknownDependenciesException. Constructing it explicitly here lets the
+    // default apply and keeps the token list to the two real dependencies.
+    // A bare class provider survives `tsx` only because esbuild emits no
+    // decorator metadata, so this breaks in the built app and NOT in dev.
+    {
+      provide: EventActivationSweeper,
+      inject: [EventService, SyncInvalidationService],
+      useFactory: (
+        events: EventService,
+        invalidations: SyncInvalidationService,
+      ): EventActivationSweeper => new EventActivationSweeper(events, invalidations),
+    },
     {
       provide: EVENT_STORE,
       inject: [PG_POOL],
