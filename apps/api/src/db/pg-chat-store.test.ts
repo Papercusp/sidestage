@@ -152,6 +152,59 @@ describe('PgChatStore durable authority', () => {
   });
 });
 
+describe('PgChatStore presence expiry', () => {
+  function pool(handler: QueryHandler) {
+    const query = vi.fn(async (sql: string, params?: unknown[]) => handler(sql, params));
+    return { pool: { query } as never, query };
+  }
+
+  it('reads presence without writing — expiry is not a side effect of a read', async () => {
+    const harness = pool(() => ({ rows: [] }));
+
+    await new PgChatStore(harness.pool).listPresence('event-1', '2026-08-14T18:00:00.000Z');
+
+    const statements = harness.query.mock.calls.map(([sql]) => sql.replace(/\s+/g, ' ').trim());
+    expect(statements).toHaveLength(1);
+    expect(statements[0]).toContain('SELECT');
+    // The pre-cutover implementation issued a DELETE here. A client reading the
+    // replicated chat_presence table directly never triggers this path, so any
+    // pruning that lived here was invisible to it.
+    expect(statements.some((sql) => sql.includes('DELETE'))).toBe(false);
+    expect(harness.query.mock.calls[0]?.[1]).toEqual(['event-1', '2026-08-14T18:00:00.000Z']);
+  });
+
+  it('bounds the presence read by the freshness cutoff', async () => {
+    const harness = pool(() => ({
+      rows: [{ user_id: 'buyer-1', display_name: 'Maya', role: 'buyer', last_seen_at: '2026-08-14T18:00:30.000Z' }],
+    }));
+
+    await expect(new PgChatStore(harness.pool).listPresence('event-1', '2026-08-14T18:00:00.000Z')).resolves.toEqual([
+      { userId: 'buyer-1', displayName: 'Maya', role: 'buyer', lastSeenAt: '2026-08-14T18:00:30.000Z' },
+    ]);
+    expect(harness.query.mock.calls[0]?.[0]).toContain('last_seen_at >= $2');
+  });
+
+  it('expires stale rows across every event and reports each affected event once', async () => {
+    const harness = pool(() => ({
+      rows: [{ event_id: 'event-1' }, { event_id: 'event-2' }, { event_id: 'event-1' }],
+    }));
+
+    await expect(new PgChatStore(harness.pool).expireStalePresence('2026-08-14T18:00:00.000Z'))
+      .resolves.toEqual(['event-1', 'event-2']);
+
+    const [sql, params] = harness.query.mock.calls[0] ?? [];
+    expect(sql?.replace(/\s+/g, ' ').trim())
+      .toBe('DELETE FROM chat_presence WHERE last_seen_at < $1 RETURNING event_id');
+    expect(params).toEqual(['2026-08-14T18:00:00.000Z']);
+  });
+
+  it('reports no affected events when nothing was stale', async () => {
+    const harness = pool(() => ({ rows: [] }));
+
+    await expect(new PgChatStore(harness.pool).expireStalePresence('2026-08-14T18:00:00.000Z')).resolves.toEqual([]);
+  });
+});
+
 describe.runIf(process.env.SIDESTAGE_PG_INTEGRATION === '1')('PgChatStore against Postgres', () => {
   it('survives a store restart, deduplicates retries, and hides moderated messages', async () => {
     const pool = new Pool({ connectionString: process.env.DATABASE_URL ?? DEFAULT_DATABASE_URL, max: 2 });
@@ -177,6 +230,39 @@ describe.runIf(process.env.SIDESTAGE_PG_INTEGRATION === '1')('PgChatStore agains
       await expect(restartedProcess.moderateMessage(eventId, message.id, 'seller-demo', 'test cleanup'))
         .resolves.toBe(true);
       await expect(restartedProcess.listMessages(eventId, 10)).resolves.toEqual({ items: [] });
+    } finally {
+      await pool.query('DELETE FROM event WHERE event_id = $1', [eventId]);
+      await pool.end();
+    }
+  });
+
+  it('expires stale presence without a read, and leaves live participants in place', async () => {
+    const pool = new Pool({ connectionString: process.env.DATABASE_URL ?? DEFAULT_DATABASE_URL, max: 2 });
+    const suffix = randomUUID();
+    const eventId = `presence-test-event-${suffix}`;
+    const store = new PgChatStore(pool);
+    const cutoff = new Date('2026-08-14T18:00:00.000Z');
+
+    try {
+      await pool.query(
+        `INSERT INTO event (event_id, title, seller_id, seller_name, status)
+         VALUES ($1, 'Presence test event', 'seller-demo', 'Demo Seller', 'live')`,
+        [eventId],
+      );
+      const stale = new Date(cutoff.getTime() - 60_000).toISOString();
+      const live = new Date(cutoff.getTime() + 60_000).toISOString();
+      await store.touchPresence(eventId, { userId: 'ghost-1', displayName: 'Ghost', role: 'buyer', lastSeenAt: stale });
+      await store.touchPresence(eventId, { userId: 'live-1', displayName: 'Maya', role: 'buyer', lastSeenAt: live });
+
+      // The row is gone because the sweeper ran, not because anyone read it —
+      // the property a client reading the replicated table depends on.
+      await expect(store.expireStalePresence(cutoff.toISOString())).resolves.toContain(eventId);
+      await expect(store.listPresence(eventId, new Date(0).toISOString())).resolves.toEqual([
+        { userId: 'live-1', displayName: 'Maya', role: 'buyer', lastSeenAt: live },
+      ]);
+
+      // A second sweep with nothing stale reports no affected events.
+      await expect(store.expireStalePresence(cutoff.toISOString())).resolves.not.toContain(eventId);
     } finally {
       await pool.query('DELETE FROM event WHERE event_id = $1', [eventId]);
       await pool.end();

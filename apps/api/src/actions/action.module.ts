@@ -6,6 +6,7 @@ import { EventConfigModule } from '../config/event-config.module';
 import { DatabaseModule, PG_POOL } from '../db/database.module';
 import { PgActionItemStore } from '../db/pg-action-item-store';
 import { PgActionAuditStore } from '../db/pg-action-audit-store';
+import { PgTargetedOfferStore } from '../db/pg-targeted-offer-store';
 import { EventModule } from '../events/event.module';
 import { EventOwnershipGuard } from '../events/event-ownership.guard';
 import { EventVisibilityGuard } from '../events/event-visibility.guard';
@@ -16,6 +17,11 @@ import { SyncQueryRegistry } from '../sync/sync-query.registry';
 import { ActionController } from './action.controller';
 import { ACTION_ITEM_STORE, InMemoryActionItemStore, type ActionItemStore } from './action-item.store';
 import { ACTION_AUDIT_STORE, InMemoryActionAuditStore, type ActionAuditStore } from './action-audit.store';
+import {
+  TARGETED_OFFER_STORE,
+  InMemoryTargetedOfferStore,
+  type TargetedOfferStore,
+} from './targeted-offer.store';
 import { GuardedActionService } from './action.service';
 import { projectBuyerLineupItems } from './buyer-lineup.dto';
 
@@ -25,6 +31,10 @@ export function actionItemStoreForPool(pool: Pool | null): ActionItemStore {
 
 export function actionAuditStoreForPool(pool: Pool | null): ActionAuditStore {
   return pool ? new PgActionAuditStore(pool) : new InMemoryActionAuditStore();
+}
+
+export function targetedOfferStoreForPool(pool: Pool | null): TargetedOfferStore {
+  return pool ? new PgTargetedOfferStore(pool) : new InMemoryTargetedOfferStore();
 }
 
 @Injectable()
@@ -69,7 +79,12 @@ export class ActionSyncQueries implements OnModuleInit {
       inject: [PG_POOL],
       useFactory: actionAuditStoreForPool,
     },
+    {
+      provide: TARGETED_OFFER_STORE,
+      inject: [PG_POOL],
+      useFactory: targetedOfferStoreForPool,
+    },
   ],
-  exports: [GuardedActionService, ACTION_ITEM_STORE, ACTION_AUDIT_STORE],
+  exports: [GuardedActionService, ACTION_ITEM_STORE, ACTION_AUDIT_STORE, TARGETED_OFFER_STORE],
 })
 export class ActionModule {}

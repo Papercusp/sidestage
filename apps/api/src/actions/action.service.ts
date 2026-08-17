@@ -25,6 +25,13 @@ import {
   InMemoryActionAuditStore,
   type ActionAuditStore,
 } from './action-audit.store';
+import {
+  TARGETED_OFFER_STORE,
+  InMemoryTargetedOfferStore,
+  toDomainOffer,
+  type StoredTargetedOffer,
+  type TargetedOfferStore,
+} from './targeted-offer.store';
 import type {
   ActionAuditRecord,
   ActionEventItem,
@@ -111,10 +118,10 @@ function sameOffers(left: readonly TargetedOffer[], right: readonly TargetedOffe
 export class GuardedActionService implements ActionExecutor {
   private readonly guard = new PolicyActionGuard();
   private readonly policies = new Map<string, CopilotPolicy>();
-  private readonly offers = new Map<string, TargetedOffer>();
   private readonly idempotentExecutions = new Map<string, Promise<ActionExecutionResult>>();
   private readonly itemStore: ActionItemStore;
   private readonly auditStore: ActionAuditStore;
+  private readonly offerStore: TargetedOfferStore;
 
   /**
    * WI-38673: when the config-backed resolver is wired (the production DI
@@ -129,9 +136,11 @@ export class GuardedActionService implements ActionExecutor {
     @Optional() @Inject(ORDER_STORE) private readonly orders?: OrderStore,
     @Optional() @Inject(ACTION_ITEM_STORE) itemStore?: ActionItemStore,
     @Optional() @Inject(ACTION_AUDIT_STORE) auditStore?: ActionAuditStore,
+    @Optional() @Inject(TARGETED_OFFER_STORE) offerStore?: TargetedOfferStore,
   ) {
     this.itemStore = itemStore ?? new InMemoryActionItemStore();
     this.auditStore = auditStore ?? new InMemoryActionAuditStore();
+    this.offerStore = offerStore ?? new InMemoryTargetedOfferStore();
   }
 
   async registerEvent(eventIdInput: string, input: RegisterActionEventInput): Promise<ActionEventItem[]> {
@@ -176,31 +185,33 @@ export class GuardedActionService implements ActionExecutor {
     return this.auditStore.list(eventId);
   }
 
-  listOffersForBuyer(buyerIdInput: string): TargetedOffer[] {
+  async listOffersForBuyer(buyerIdInput: string): Promise<TargetedOffer[]> {
     const buyerId = assertText(buyerIdInput, 'buyerId');
-    return [...this.offers.values()]
-      .filter((offer) => offer.buyerId === buyerId)
-      .sort((left, right) => (right.createdAt ?? '').localeCompare(left.createdAt ?? ''))
-      .map(cloneOffer);
+    return (await this.offerStore.listForBuyer(buyerId)).map(toDomainOffer);
   }
 
-  findOffer(offerIdInput: string): TargetedOffer | undefined {
+  async findOffer(offerIdInput: string): Promise<TargetedOffer | undefined> {
     const offerId = offerIdInput?.trim();
     if (!offerId) return undefined;
-    const offer = this.offers.get(offerId);
-    return offer ? cloneOffer(offer) : undefined;
+    const offer = await this.offerStore.get(offerId);
+    return offer ? toDomainOffer(offer) : undefined;
   }
 
   async acceptOffer(offerIdInput: string, buyerIdInput: string): Promise<TargetedOffer> {
-    const offer = this.requireBuyerOffer(offerIdInput, buyerIdInput);
+    const offer = await this.requireBuyerOffer(offerIdInput, buyerIdInput);
     if (offer.status !== 'pending' && offer.status !== 'accepted') {
       throw new ConflictException(`Offer cannot be accepted from ${offer.status}`);
     }
+    // The status write is compare-and-set on the version this read returned, so
+    // a second API process accepting concurrently loses rather than both
+    // believing they were the transition that mattered.
+    const accepted = offer.status === 'pending'
+      ? await this.offerStore.setStatus(offer.id, offer.version, 'accepted', new Date().toISOString())
+      : offer;
     const changed = offer.status === 'pending';
-    if (changed) offer.status = 'accepted';
-    await this.ensureOfferOrder(offer);
-    if (changed) this.invalidateBuyerOrders(offer.buyerId);
-    return cloneOffer(offer);
+    await this.ensureOfferOrder(toDomainOffer(accepted));
+    if (changed) this.invalidateBuyerOrders(accepted.buyerId);
+    return toDomainOffer(accepted);
   }
 
   /** Payment success finalizes the already-accepted source reservation. */
@@ -209,21 +220,30 @@ export class GuardedActionService implements ActionExecutor {
   }
 
   async cancelOffer(offerIdInput: string, buyerIdInput: string): Promise<TargetedOffer> {
-    const offer = this.requireBuyerOffer(offerIdInput, buyerIdInput);
-    if (offer.status === 'cancelled') return cloneOffer(offer);
+    const offer = await this.requireBuyerOffer(offerIdInput, buyerIdInput);
+    if (offer.status === 'cancelled') return toDomainOffer(offer);
     if (offer.status !== 'pending' && offer.status !== 'accepted') {
       throw new ConflictException(`Offer cannot be cancelled from ${offer.status}`);
     }
+    // Release the held stock FIRST: if the offer status write then loses its
+    // compare-and-set to a concurrent cancel, the item write is idempotent in
+    // effect only because that rival cancel is the one that returns stock. So
+    // claim the offer transition first, then restock against it.
+    const cancelled = await this.offerStore.setStatus(
+      offer.id,
+      offer.version,
+      'cancelled',
+      new Date().toISOString(),
+    );
     const item = (await this.itemStore.list(offer.eventId)).find((candidate) => candidate.productId === offer.productId);
     if (!item) throw new NotFoundException('Offer was not found');
     await this.itemStore.write(offer.eventId, [{
       expectedVersion: item.version,
       item: { ...item, availableQty: item.availableQty + offer.quantity },
     }]);
-    offer.status = 'cancelled';
     this.invalidateEventItems(offer.eventId);
     this.invalidateBuyerOrders(offer.buyerId);
-    return cloneOffer(offer);
+    return toDomainOffer(cancelled);
   }
 
   /** ActionExecutor seam used by GroundedCopilotPipeline auto mode. */
@@ -304,7 +324,7 @@ export class GuardedActionService implements ActionExecutor {
       throw new BadRequestException({ code: guardrail.code, message: guardrail.explanation });
     }
 
-    const before = this.snapshot(eventId, current);
+    const before = await this.snapshot(eventId, current);
     let afterItem: ActionItemDraft = { ...current, attributes: { ...current.attributes } };
     const extraChanges: ActionItemChange[] = [];
     let offer: TargetedOffer | undefined;
@@ -362,8 +382,20 @@ export class GuardedActionService implements ActionExecutor {
       ...extraChanges,
     ]);
     afterItem = persisted.find((item) => item.productId === current.productId) ?? afterItem;
-    if (offer) this.offers.set(offer.id, offer);
-    const after = this.snapshot(eventId, afterItem);
+    // The item write above already carries the stock the offer holds, so the
+    // offer row must land before the audit snapshot is taken or the evidence
+    // would record a decrement with nothing to explain it. Creation is keyed on
+    // the originating command, so a retry that raced the audit dedupe converges
+    // on the first offer instead of minting a second against the same stock.
+    if (offer) {
+      const stored = await this.offerStore.create({
+        ...offer,
+        createdAt: offer.createdAt ?? new Date().toISOString(),
+        ...(input.clientRequestId ? { clientRequestId: input.clientRequestId } : {}),
+      });
+      offer = toDomainOffer(stored);
+    }
+    const after = await this.snapshot(eventId, afterItem);
     const audit = await this.recordAudit({
       eventId,
       actorId,
@@ -373,6 +405,9 @@ export class GuardedActionService implements ActionExecutor {
       offer,
       clientRequestId: input.clientRequestId,
     });
+    // Provenance backfill: the audit id only exists now, and this write is
+    // deliberately not a state change, so it does not bump the offer version.
+    if (offer) await this.offerStore.attachAudit(offer.id, audit.id);
     this.invalidateEventItems(eventId);
     this.invalidatePricingHistory(eventId, action.productId);
     if (offer) this.invalidateBuyerOrders(offer.buyerId);
@@ -392,7 +427,7 @@ export class GuardedActionService implements ActionExecutor {
     if (!current || !sameItem(current, original.after.item)) {
       throw new ConflictException(`Audit ${auditId} is stale; a newer item write must be reconciled first`);
     }
-    const currentSnapshot = this.snapshot(original.eventId, current);
+    const currentSnapshot = await this.snapshot(original.eventId, current);
     if (!sameOffers(currentSnapshot.offers, original.after.offers)) {
       throw new ConflictException(`Audit ${auditId} is stale; a newer offer write must be reconciled first`);
     }
@@ -403,11 +438,16 @@ export class GuardedActionService implements ActionExecutor {
       expectedVersion: current.version,
       item: restored,
     }]);
-    for (const offer of original.after.offers) {
-      if (!original.before.offers.some((previous) => previous.id === offer.id)) this.offers.delete(offer.id);
-    }
+    // Offers the rolled-back action minted are un-done with it. Deleting live
+    // state loses nothing: the audit trail retains them inside this record's
+    // own before/after snapshots, which is where the evidence belongs.
+    await this.offerStore.remove(
+      original.after.offers
+        .filter((offer) => !original.before.offers.some((previous) => previous.id === offer.id))
+        .map((offer) => offer.id),
+    );
     const restoredItem = persisted.find((item) => item.productId === restored.productId) ?? restored;
-    const after = this.snapshot(original.eventId, restoredItem);
+    const after = await this.snapshot(original.eventId, restoredItem);
     const rollbackAudit = this.buildAudit({
       eventId: original.eventId,
       actorId,
@@ -439,10 +479,12 @@ export class GuardedActionService implements ActionExecutor {
     this.syncInvalidations?.invalidate('orders.byBuyer', { buyerId });
   }
 
-  private requireBuyerOffer(offerIdInput: string, buyerIdInput: string): TargetedOffer {
+  private async requireBuyerOffer(offerIdInput: string, buyerIdInput: string): Promise<StoredTargetedOffer> {
     const offerId = assertText(offerIdInput, 'offerId');
     const buyerId = assertText(buyerIdInput, 'buyerId');
-    const offer = this.offers.get(offerId);
+    const offer = await this.offerStore.get(offerId);
+    // A wrong-buyer read is reported as not-found so the endpoint cannot be
+    // used to enumerate other buyers' offer ids.
     if (!offer || offer.buyerId !== buyerId) throw new NotFoundException('Offer was not found');
     return offer;
   }
@@ -572,12 +614,10 @@ export class GuardedActionService implements ActionExecutor {
     };
   }
 
-  private snapshot(eventId: string, item: ActionEventItem): ActionStateSnapshot {
+  private async snapshot(eventId: string, item: ActionEventItem): Promise<ActionStateSnapshot> {
     return {
       item: cloneItem(item),
-      offers: [...this.offers.values()]
-        .filter((offer) => offer.eventId === eventId && offer.productId === item.productId)
-        .map(cloneOffer),
+      offers: (await this.offerStore.listForEventProduct(eventId, item.productId)).map(toDomainOffer),
     };
   }
 
