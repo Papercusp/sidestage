@@ -68,7 +68,7 @@ export class ConfiguredCopilotReplyModel implements ReplyModel {
     const model = process.env.SIDESTAGE_COPILOT_MODEL?.trim();
     return apiKey && model
       ? this.generateRemote(request, apiKey, model)
-      : this.generateDeterministic(request);
+      : { ...this.generateDeterministic(request), provider: 'deterministic' };
   }
 
   private async generateRemote(request: ReplyGenerationRequest, apiKey: string, model: string): Promise<ModelDraft> {
