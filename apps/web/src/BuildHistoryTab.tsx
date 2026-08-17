@@ -123,7 +123,7 @@ interface BuildHistorySummary {
   lastUpdatedAt: string | null;
 }
 
-const LIVE_SITE_URL = 'https://sidestage.buyrestart.com';
+const LIVE_SITE_URL = 'https://sidestage.papercusp.com';
 const PLAN_PAGE_SIZE = 12;
 const ITEM_PAGE_SIZE = 12;
 const HISTORY_DOCUMENT_STATE = '__sidestageHistoryDocument';

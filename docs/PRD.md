@@ -78,7 +78,7 @@ actions while keeping automation grounded and controlled.
 - A reviewer can clone, `npm install`, `npm run dev`, and `npm test` from the
   README alone and reach a working app (CI-verified).
 - The public instance serves the real catalog at
-  https://sidestage.buyrestart.com.
+  https://sidestage.papercusp.com.
 - The judge rehearsal passes its threshold on the four dimensions
   (grounding, policy, price correctness, tone) and the load rehearsal covers
   the seven scripted scenario kinds.

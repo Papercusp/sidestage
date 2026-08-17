@@ -223,6 +223,18 @@ services:
       - traefik.http.routers.sidestage-web.entrypoints=https
       - traefik.http.routers.sidestage-web.tls.certresolver=letsencrypt
       - traefik.http.services.sidestage-web.loadbalancer.server.port=80
+      # Legacy-domain continuity (WI-39411): after the papercusp.com migration the
+      # old hostname 301s to the same path on the new one, so circulated links keep
+      # working. Only correct once PUBLIC_HOSTNAME=sidestage.papercusp.com — this
+      # deploys in the same step as that flip, never before it (pre-flip the legacy
+      # rule would collide with the primary router on the same hostname).
+      - traefik.http.routers.sidestage-web-legacy.rule=Host(`sidestage.buyrestart.com`)
+      - traefik.http.routers.sidestage-web-legacy.entrypoints=https
+      - traefik.http.routers.sidestage-web-legacy.tls.certresolver=letsencrypt
+      - traefik.http.routers.sidestage-web-legacy.middlewares=sidestage-legacy-redirect
+      - traefik.http.middlewares.sidestage-legacy-redirect.redirectregex.regex=^https://sidestage\.buyrestart\.com/(.*)
+      - traefik.http.middlewares.sidestage-legacy-redirect.redirectregex.replacement=https://sidestage.papercusp.com/$${1}
+      - traefik.http.middlewares.sidestage-legacy-redirect.redirectregex.permanent=true
 
 networks:
   coolify:

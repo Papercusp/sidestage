@@ -14,7 +14,7 @@ Read first: [`PRD.md`](PRD.md) (product requirements) and [`TDD.md`](TDD.md)
 | --- | --- |
 | Project | SideStage — Live Selling Copilot |
 | Repository | <https://github.com/Papercusp/sidestage> |
-| Live demo | <https://sidestage.buyrestart.com> — the public instance, serving the real catalog. (The clean-clone path below remains the reviewer-verifiable route.) |
+| Live demo | <https://sidestage.papercusp.com> — the public instance, serving the real catalog. (The clean-clone path below remains the reviewer-verifiable route.) |
 | Run command | `npm run dev` |
 | Test command | `npm test` |
 | Full local gate | `npm run check` followed by `npm run build` |
@@ -130,7 +130,7 @@ reviewable in one clean clone. The mapping and data policy are documented in
 
 ## Known limits disclosed to reviewers
 
-- The public instance at <https://sidestage.buyrestart.com> is live and serves
+- The public instance at <https://sidestage.papercusp.com> is live and serves
   the real catalog. It is a single-box deployment (one Hetzner host, Docker
   Compose behind Traefik) with no redundancy or autoscaling: it is a reviewable
   demo, not a high-availability service. Releases are pinned per-commit and a
