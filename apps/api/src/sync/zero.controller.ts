@@ -54,6 +54,7 @@ import {
   type QueryRequestHandler,
 } from '@rocicorp/zero/server';
 import type { MutateResponse, QueryResponse } from '@rocicorp/zero/server';
+import { addContextToQuery } from '@rocicorp/zero/bindings';
 import { createMutators, queries, schema } from '@papercusp/sidestage-zero';
 
 import { PG_POOL } from '../db/database.module';
@@ -103,7 +104,7 @@ export class ZeroController {
       principalHeader ?? searchParams?.[DEMO_PRINCIPAL_QUERY_PARAM],
     );
     return handleQueryRequest({
-      handler: this.transformQuery,
+      handler: this.transformQueryAs(principal),
       schema,
       query: searchParams ?? {},
       body: (body ?? {}) as never,
@@ -139,19 +140,50 @@ export class ZeroController {
   }
 
   /**
-   * Bound method: `handleQueryRequest` invokes this per query in the request.
-   * An unknown name throws rather than returning an empty result — a query the
-   * contract does not define is a drift bug, and answering it with zero rows
-   * would hide that behind a plausible-looking empty list.
+   * `handleQueryRequest` invokes the returned handler once per query in the
+   * request. An unknown name throws rather than returning an empty result — a
+   * query the contract does not define is a drift bug, and answering it with
+   * zero rows would hide that behind a plausible-looking empty list.
+   *
+   * ## Calling a registry leaf does NOT give you a Query — this is the trap
+   *
+   * A `defineQueries` leaf is a `CustomQuery`: a CALLABLE that captures args
+   * and returns a `QueryRequest` DESCRIPTOR (`{query, args, '~':'QueryRequest'}`),
+   * not a `Query`. `QueryRequestHandler` is typed `=> AnyQuery`, and Zero's
+   * `handleQueryRequest` runs `asQueryInternals(result).ast` on what we return
+   * — a brand-symbol check that only a real `QueryImpl` satisfies.
+   *
+   * Returning the descriptor therefore fails, and it fails MISLEADINGLY:
+   * `asQueryInternals` reports "there are two copies of Zero in your runtime",
+   * because a split module graph is the usual reason a brand check misses. It
+   * is not the only reason. Passing the wrong OBJECT produces the identical
+   * message, and that is what this used to do. (Measured 2026-08-17: the
+   * module graph was exonerated — public-exports vs deep-path imports, and
+   * require/import mixes, all assert identically. Plan Decision D-016.)
+   *
+   * `addContextToQuery(request, ctx)` is the supported conversion — it is what
+   * `zero-client`/`zero-react` call on every client-side read. It runs the
+   * definition's own `fn({ctx, args})` and yields the branded `QueryImpl`.
+   *
+   * The context we supply is the AUTHENTICATED PRINCIPAL, not a constant: it
+   * is the same `userID` we hand `handleQueryRequest`, so a query that scopes
+   * itself with `({ctx}) => ...` (see `SYNCED_QUERY_PRINCIPAL_SCOPE` in
+   * `@papercusp/sidestage-zero`) is scoped to the caller and not to whoever
+   * happened to warm the process. No query reads `ctx` yet; wiring it per
+   * request now means P-005's principal-isolation drills have nothing to
+   * retrofit.
    */
-  private readonly transformQuery: QueryRequestHandler = (name, args) => {
-    const leaf = resolveQueryLeaf(name);
-    if (!leaf) {
-      throw new Error(
-        `Unknown Zero query '${name}' — not defined in @papercusp/sidestage-zero's queries registry.`,
-      );
-    }
-    const build = leaf as (...callArgs: unknown[]) => unknown;
-    return (args === undefined ? build() : build(args)) as never;
-  };
+  private transformQueryAs(principal: string | null): QueryRequestHandler {
+    return (name, args) => {
+      const leaf = resolveQueryLeaf(name);
+      if (!leaf) {
+        throw new Error(
+          `Unknown Zero query '${name}' — not defined in @papercusp/sidestage-zero's queries registry.`,
+        );
+      }
+      const build = leaf as (...callArgs: unknown[]) => unknown;
+      const request = args === undefined ? build() : build(args);
+      return addContextToQuery(request as never, { userID: principal } as never);
+    };
+  }
 }

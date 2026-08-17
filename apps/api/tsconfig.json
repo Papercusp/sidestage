@@ -11,10 +11,11 @@
     "noEmit": false,
     "baseUrl": ".",
     // `moduleResolution: "Node"` (node10) predates package `exports` maps, so it
-    // cannot see @rocicorp/zero's "./server" / "./server/adapters/*" subpaths and
-    // reports TS2307 for them — even though Node resolves both fine at runtime
-    // (verified: `require('@rocicorp/zero/server')` returns PushProcessor et al).
-    // These two entries point the TYPE resolver at the same files the exports map
+    // cannot see @rocicorp/zero's "./server" / "./server/adapters/*" / "./bindings"
+    // subpaths and reports TS2307 for them — even though Node resolves all three
+    // fine at runtime (verified: `require('@rocicorp/zero/server')` returns
+    // PushProcessor et al; `@rocicorp/zero/bindings` served a live /zero/query).
+    // These entries point the TYPE resolver at the same files the exports map
     // names, so source keeps importing the public specifier rather than a deep
     // out/ path. Remove them if this project ever moves to Bundler/NodeNext.
     //
@@ -38,7 +39,12 @@
       "@rocicorp/zero/server": ["../../node_modules/@rocicorp/zero/out/zero/src/server"],
       "@rocicorp/zero/server/adapters/pg": [
         "../../node_modules/@rocicorp/zero/out/zero/src/adapters/pg"
-      ]
+      ],
+      // `addContextToQuery` — the only supported way to turn a registry leaf's
+      // QueryRequest descriptor into the branded Query `handleQueryRequest`
+      // demands (zero.controller.ts:transformQueryAs). Not re-exported from the
+      // root entry or from "./server", so this subpath is the public route to it.
+      "@rocicorp/zero/bindings": ["../../node_modules/@rocicorp/zero/out/zero/src/bindings"]
     }
   },
   "include": ["src"]
