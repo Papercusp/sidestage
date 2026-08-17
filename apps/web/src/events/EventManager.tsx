@@ -1,4 +1,12 @@
-import { useCallback, useEffect, useMemo, useState, type MouseEvent } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type KeyboardEvent,
+  type MouseEvent,
+} from 'react';
 import { useSyncMutate, useSyncPrincipal, useSyncQuery } from '@papercusp/sync';
 import { EventSettingsPanel, type EventConfigView } from '../ConfigTab';
 import {
@@ -167,6 +175,27 @@ const EVENT_DETAIL_SECTIONS: ReadonlyArray<{
   { id: 'lineup', label: 'Lineup' },
   { id: 'settings', label: 'Settings' },
 ];
+
+const EVENT_MANAGER_VIEWS: ReadonlyArray<EventManagerRoute['view']> = ['events', 'create'];
+
+/**
+ * Pure seam for the WAI-ARIA tab keys, so the roving-focus rule is covered
+ * without depending on jsdom focus behaviour. Returns null for a key the
+ * tablist does not handle, which is the signal to leave the event alone.
+ */
+export function nextTabId<T extends string>(
+  ids: readonly T[],
+  current: T,
+  key: string,
+): T | null {
+  const index = ids.indexOf(current);
+  if (index < 0) return null;
+  if (key === 'Home') return ids[0];
+  if (key === 'End') return ids[ids.length - 1];
+  if (key === 'ArrowRight') return ids[(index + 1) % ids.length];
+  if (key === 'ArrowLeft') return ids[(index - 1 + ids.length) % ids.length];
+  return null;
+}
 
 export function EventManager({
   eventId,
@@ -613,6 +642,39 @@ export function EventManager({
     navigateRoute(next);
   };
 
+  // Both tablists are a roving tab stop: only the selected tab is in the Tab
+  // sequence, and the arrow/Home/End keys move selection AND focus. Focusing
+  // through the owning nav (rather than a per-tab ref array) keeps the anchors
+  // free of refs, matching the SellerMobileStudio tablist.
+  const viewTabsRef = useRef<HTMLElement>(null);
+  const detailTabsRef = useRef<HTMLElement>(null);
+
+  const focusTab = (nav: HTMLElement | null, tabId: string) => {
+    nav?.querySelector<HTMLAnchorElement>(`#${tabId}`)?.focus();
+  };
+
+  const viewRoute = (view: EventManagerRoute['view']): EventManagerRoute =>
+    view === 'create'
+      ? { view: 'create', section: 'lineup' }
+      : managerRoute(selectedEvent?.eventId, route.section);
+
+  const onViewTabKeyDown = (event: KeyboardEvent<HTMLAnchorElement>) => {
+    const next = nextTabId(EVENT_MANAGER_VIEWS, route.view, event.key);
+    if (!next) return;
+    event.preventDefault();
+    navigateRoute(viewRoute(next));
+    focusTab(viewTabsRef.current, `event-manager-view-tab-${next}`);
+  };
+
+  const onDetailTabKeyDown = (event: KeyboardEvent<HTMLAnchorElement>) => {
+    const sections = EVENT_DETAIL_SECTIONS.map(({ id }) => id);
+    const next = nextTabId(sections, route.section, event.key);
+    if (!next) return;
+    event.preventDefault();
+    navigateRoute(managerRoute(selectedEventId, next));
+    focusTab(detailTabsRef.current, `event-manager-section-tab-${next}`);
+  };
+
   const selectEvent = (event: SellerOwnedEvent) => {
     onEventReady?.(event.eventId, event.title);
     navigateRoute(managerRoute(event.eventId, route.section));
@@ -686,24 +748,30 @@ export function EventManager({
             Choose an event to manage, or create one from real catalog inventory. Guarded seller actions remain enforced server-side.
           </p>
         </div>
-        <nav className="event-manager-switch" aria-label="Event Manager view" role="tablist">
+        <nav ref={viewTabsRef} className="event-manager-switch" aria-label="Event Manager view" role="tablist">
           <a
+            id="event-manager-view-tab-events"
             className={route.view === 'events' ? 'is-active' : undefined}
             href={eventManagerHref(managerRoute(selectedEvent?.eventId), typeof window === 'undefined' ? '/' : window.location.href)}
             role="tab"
             aria-selected={route.view === 'events'}
             aria-controls="event-manager-events"
+            tabIndex={route.view === 'events' ? 0 : -1}
             onClick={openRoute(managerRoute(selectedEvent?.eventId))}
+            onKeyDown={onViewTabKeyDown}
           >
             My events <span>{events.length}</span>
           </a>
           <a
+            id="event-manager-view-tab-create"
             className={route.view === 'create' ? 'is-active' : undefined}
             href={eventManagerHref({ view: 'create', section: 'lineup' }, typeof window === 'undefined' ? '/' : window.location.href)}
             role="tab"
             aria-selected={route.view === 'create'}
             aria-controls="event-manager-create"
+            tabIndex={route.view === 'create' ? 0 : -1}
             onClick={openRoute({ view: 'create', section: 'lineup' })}
+            onKeyDown={onViewTabKeyDown}
           >
             Create event
           </a>

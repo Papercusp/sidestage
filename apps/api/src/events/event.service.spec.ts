@@ -11,7 +11,7 @@ import {
   EventService,
   InMemoryEventStore,
   UnavailableEventStore,
-  isSyntheticSellerIdentity,
+  guideWithholdReason,
   isEventStatus,
   statusRank,
   type EventRecord,
@@ -131,18 +131,75 @@ describe('event directory (P-118 / D-019)', () => {
     expect(events.map((event) => event.eventId)).toEqual(['published']);
   });
 
-  it('never exposes the legacy dummy seller identity to buyers', async () => {
+  it('never exposes the retired placeholder seller NAME to buyers', async () => {
     const service = new EventService(new StubStore([
       record({ eventId: 'real', sellerId: 'seller-studio-27', sellerName: 'Studio 27' }),
-      record({ eventId: 'dummy-id', sellerId: 'demo-seller', sellerName: 'Demo Seller' }),
       record({ eventId: 'dummy-name', sellerId: 'seller-old', sellerName: 'SideStage Seller' }),
     ]), new ChatService());
 
     await expect(service.listForGuide()).resolves.toEqual([
       expect.objectContaining({ eventId: 'real', sellerName: 'Studio 27' }),
     ]);
-    expect(isSyntheticSellerIdentity({ sellerId: ' DEMO-SELLER ', sellerName: 'anything' })).toBe(true);
-    expect(isSyntheticSellerIdentity({ sellerId: 'seller-real', sellerName: ' sidestage seller ' })).toBe(true);
+    expect(guideWithholdReason({ sellerName: ' sidestage seller ' }))
+      .toBe('retired-placeholder-seller-name');
+    expect(guideWithholdReason({ sellerName: 'Studio 27' })).toBeNull();
+  });
+
+  /**
+   * WI-39723. The buyer guide used to drop every row owned by `demo-seller`,
+   * which reads like a fixture fence and is not one: `readDemoIdentity(...,
+   * 'seller')` resolves EVERY anonymous or minted Studio session to exactly
+   * that principal, so the default Studio session was the one whose events
+   * could never reach a buyer. Owner-reported as "events I take live never
+   * appear in the left rail", with a 200 on every call that produced them.
+   *
+   * Pinned as its own test because the deleted clause is the kind that gets
+   * re-added by someone reading `demo-seller` as obviously-not-real.
+   */
+  it('shows a live event owned by the anonymous demo-seller principal to buyers', async () => {
+    const service = new EventService(new StubStore([
+      record({ eventId: 'anon-live', sellerId: 'demo-seller', sellerName: 'demo-seller', status: 'live' }),
+      record({ eventId: 'anon-soon', sellerId: 'demo-seller', sellerName: 'seller-1dd66ef5', status: 'scheduled' }),
+    ]), new ChatService());
+
+    await expect(service.listForGuide()).resolves.toEqual([
+      expect.objectContaining({ eventId: 'anon-live' }),
+      expect.objectContaining({ eventId: 'anon-soon' }),
+    ]);
+  });
+
+  /**
+   * The CLASS guard, not the instance guard: whatever the withholding rules
+   * become, an event the seller is shown as buyer-visible must either appear in
+   * the guide or carry a reason saying why it does not. Silence is the defect —
+   * a seller staring at `status: live` while buyers see nothing, with no
+   * explanation obtainable from any surface, is what WI-39723 actually was.
+   */
+  it('never withholds a buyer-visible event from the guide without reporting a reason', async () => {
+    const rows = [
+      record({ eventId: 'plain', sellerId: 'demo-seller', sellerName: 'demo-seller', status: 'live' }),
+      record({ eventId: 'named', sellerId: 'seller-real', sellerName: 'Studio 27', status: 'scheduled' }),
+      record({ eventId: 'legacy', sellerId: 'seller-old', sellerName: 'SideStage Seller', status: 'live' }),
+      record({ eventId: 'unpublished', sellerId: 'demo-seller', sellerName: 'demo-seller', status: 'draft' }),
+    ];
+    const service = new EventService(new StubStore(rows), new ChatService());
+
+    const guideIds = new Set((await service.listForGuide()).map((event) => event.eventId));
+
+    for (const seller of new Set(rows.map((row) => row.sellerId))) {
+      for (const owned of await service.listForSeller(seller)) {
+        if (owned.status === 'draft') continue; // invisible for the ordinary reason
+        const reported = owned.withheldFromGuide !== null;
+        expect(
+          guideIds.has(owned.eventId) || reported,
+          `${owned.eventId} is ${owned.status} in the seller's directory but absent from the buyer `
+          + 'guide with withheldFromGuide === null — a silent exclusion',
+        ).toBe(true);
+        // The converse: a reported withhold must actually be withheld, or the
+        // seller is warned about a problem that does not exist.
+        expect(guideIds.has(owned.eventId)).toBe(!reported);
+      }
+    }
   });
 
   it('reads viewer counts from live chat presence, not a stored column', async () => {
@@ -281,7 +338,18 @@ describe('seller-created events reach the guide (EI-20426845001666103 / P-014)',
     await expect(service.listForGuide()).resolves.toEqual([]);
   });
 
-  it('keeps a generated demo seller event private instead of rejecting the create', async () => {
+  /**
+   * WI-39723 REVERSED THIS TEST'S EXPECTATION, deliberately.
+   *
+   * It used to assert that a generated demo persona's event stayed PRIVATE.
+   * That was the bug wearing the clothes of a requirement: the generated demo
+   * persona is not a fixture, it is what a real person gets the first time they
+   * open Studio (buyer-identity.ts resolves any minted persona to
+   * `demo-seller`), so "keep it private" meant "no first-time seller can ever
+   * reach the guide". A newly created event is `draft` and so still invisible
+   * to buyers here — but for the honest reason, and publishing it now works.
+   */
+  it('lets a generated demo seller reach the guide once the event is published', async () => {
     const service = new EventService(new InMemoryEventStore([]), new ChatService());
 
     await expect(service.publishFromConfig(
@@ -294,9 +362,18 @@ describe('seller-created events reach the guide (EI-20426845001666103 / P-014)',
         eventId: 'generated-demo-event',
         sellerId: 'demo-seller',
         sellerName: 'seller-1dd66ef5',
+        // Nothing is hiding it; it is simply not published yet.
+        withheldFromGuide: null,
       }),
     ]);
     await expect(service.listForGuide()).resolves.toEqual([]);
+
+    const live = await service.transition('generated-demo-event', 'demo-seller', 'go-live');
+    expect(live.outcome).toBe('applied');
+
+    await expect(service.listForGuide()).resolves.toEqual([
+      expect.objectContaining({ eventId: 'generated-demo-event', status: 'live' }),
+    ]);
   });
 
   it('publishFromConfig makes a brand-new event buyer-visible with its thumbnail', async () => {
