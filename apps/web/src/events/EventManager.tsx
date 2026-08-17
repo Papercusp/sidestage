@@ -15,9 +15,10 @@ import {
   emptySlotDraft,
   type TimelineSlotDraft,
 } from '../seller/LineupTimeline';
-import { useHasStageClock, useStageClock } from '../seller/stage-clock';
+import { useHasStageClock, useStageClock, useStageNow } from '../seller/stage-clock';
 import {
   buildRunOfShowView,
+  seededShowOrder,
   type RunOfShowEntry,
   type RunOfShowPlan,
 } from '../run-of-show';
@@ -289,7 +290,6 @@ export function EventManager({
   const [openSlotProductId, setOpenSlotProductId] = useState<string | null>(null);
   const [planSaveStatus, setPlanSaveStatus] = useState<'idle' | 'saving' | 'saved'>('idle');
   const [planSaveError, setPlanSaveError] = useState<string | null>(null);
-  const [nowMs, setNowMs] = useState(() => Date.now());
 
   const storedEntries = useMemo<readonly RunOfShowEntry[]>(
     () => storedPlan?.entries ?? [],
@@ -316,14 +316,9 @@ export function EventManager({
    * `new Date()` (run-of-show.service.ts:76 vs :105). Testing emptiness alone
    * would resurrect products the seller deliberately removed.
    */
-  const planNeverSaved = storedEntries.length === 0
-    && (storedPlan === undefined || Date.parse(storedPlan.updatedAt) === 0);
   const showOrder = useMemo(
-    () => showOrderEdit
-      ?? (planNeverSaved
-        ? items.map((item) => item.productId)
-        : storedEntries.map((entry) => entry.productId)),
-    [showOrderEdit, planNeverSaved, items, storedEntries],
+    () => showOrderEdit ?? seededShowOrder(storedPlan, items.map((item) => item.productId)),
+    [showOrderEdit, storedPlan, items],
   );
 
   /**
@@ -361,17 +356,12 @@ export function EventManager({
   const stageLog = useStageClock();
   const showPace = useHasStageClock();
   /*
-   * A soft 1s pulse, only while something is on stage: the same permanently
-   * valid local-clock exception AuctionPanel and RunOfShowPanel already carry
-   * (sync-contract.test.ts). It reads NO server state — it only re-renders the
-   * pace that the shared StageLog above already holds. D-003 keeps the LOG
-   * single; this is that log's render pulse, not a second clock.
+   * The pulse comes from the provider too, not from a timer here. This surface
+   * and the Studio dock each used to own one, so the same elapsed second could
+   * paint here up to a second before it painted there — two clocks in effect,
+   * which is what D-003 forbids, even though the LOG was already shared.
    */
-  useEffect(() => {
-    if (!stageLog.activeProductId) return undefined;
-    const timer = setInterval(() => setNowMs(Date.now()), 1000);
-    return () => clearInterval(timer);
-  }, [stageLog.activeProductId]);
+  const nowMs = useStageNow();
 
   const titles = useMemo(
     () => Object.fromEntries(items.map((item) => [item.productId, item.title])),

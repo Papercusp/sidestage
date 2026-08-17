@@ -28,19 +28,21 @@ const accessPatterns: Record<AccessKind, RegExp> = {
  */
 const legacyAccessBudget = {
   'AuctionPanel.tsx': { 'polling-timer': 1 },
-  // RunOfShowPanel's one timer ticks the on-stage elapsed clock; it reads no
-  // server state (the plan arrives via useSyncQuery('event.runOfShow')), so it
-  // is the same permanently-valid local-clock exception as AuctionPanel above.
-  'seller/RunOfShowPanel.tsx': { 'polling-timer': 1 },
   // ChannelGuide's one timer advances scheduled-event countdown copy; the
   // directory itself arrives through useSyncQuery('events.guide').
   'events/ChannelGuide.tsx': { 'polling-timer': 1 },
-  // EventManager's one timer is the render pulse for the SHARED StageLog the
-  // Lineup timeline paces against — the same permanently-valid local-clock
-  // exception as AuctionPanel and RunOfShowPanel above. It reads no server
-  // state: the plan arrives via useSyncQuery('event.runOfShow') and the staged
-  // product via useSyncQuery('event.actions.items').
-  'events/EventManager.tsx': { 'polling-timer': 1 },
+  // The ONE stage-clock pulse (D-003), and the reason this entry is here rather
+  // than on the two surfaces that render it: the Studio dock panel and the
+  // Lineup timeline each used to own an identical 1s timer, so the same elapsed
+  // second could paint on one up to a second before the other. Both now read the
+  // provider's single pulse. It reads NO server state — it only re-renders the
+  // pace the shared StageLog already holds — so it is the same permanently
+  // valid local-clock exception as AuctionPanel above.
+  //
+  // This is a CEILING of one for the whole app's stage clock. A second entry
+  // reappearing on RunOfShowPanel.tsx or EventManager.tsx means a surface has
+  // re-grown its own timer, which is the drift D-003 exists to prevent.
+  'seller/stage-clock.tsx': { 'polling-timer': 1 },
   'ConfigTab.tsx': { fetch: 1 },
   'CopilotPanel.tsx': { fetch: 1 },
   // One shared transport remains for named chat mutation REST fallbacks. Chat
