@@ -3,7 +3,11 @@
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 
-const DEFAULT_BASE_URL = 'https://sidestage.buyrestart.com';
+// Only a convenience default for a MANUAL run: deploy.sh always passes
+// --base-url built from the hostname it resolved out of prod's .env.production.
+// Kept current anyway (WI-39708) -- sidestage.buyrestart.com now 301s here, and
+// a probe that silently audits a redirect target is auditing the wrong claim.
+const DEFAULT_BASE_URL = 'https://sidestage.papercusp.com';
 
 const PROBE_ID_PATTERNS = [
   /^wi\d+(?:[-_].*)?$/i,

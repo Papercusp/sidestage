@@ -47,6 +47,26 @@
 .buyer-checkout-success > span { display: grid; place-items: center; width: 3.5rem; height: 3.5rem; border-radius: 50%; background: var(--success); color: white; font-size: 1.7rem; }
 .buyer-checkout-success h3, .buyer-checkout-success p { margin: 0; }
 
+/* Stripe.js appends singleton infrastructure iframes as direct children of
+   <body>, positioned above every app stacking context — `.buyer-checkout-layer`
+   is only z-index 80, so the drawer can never out-stack them. In test mode one
+   of those frames is a visible "developer tools" overlay, and left interactive
+   it swallows pointer events aimed at the drawer beneath it: the shipping-rate
+   radios sit inside its hit box, so the buyer re-clicks a control that never
+   responds while the 2min hold burns down and expires.
+
+   Scope this to frames that identify themselves as the developer-tools overlay.
+   A blanket `body > iframe[name^="__privateStripe"]` rule would be simpler and
+   WRONG — the 3D Secure challenge frame is appended exactly the same way and
+   MUST stay clickable, so disabling it would trade a UI annoyance for an
+   unpayable order. Both matchers below are case-insensitive and each is
+   sufficient on its own, so a rename on either attribute does not silently
+   defeat the rule. */
+body > iframe[name*="DeveloperTools" i],
+body > iframe[title*="developer tools" i] {
+  pointer-events: none !important;
+}
+
 @media (max-width: 620px) {
   .buyer-checkout-drawer { width: 100%; }
   .buyer-checkout-form { grid-template-columns: 1fr; }
