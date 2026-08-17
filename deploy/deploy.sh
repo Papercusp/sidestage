@@ -172,7 +172,9 @@ sidestage_acquire_release_lock
 # held more than the single entry the running deploy had just appended, so
 # `rollback.sh` with no --to could never find a previous sha. Both failures are
 # invisible until the incident when you need them. Guarded by rollback.test.mjs.
-PROD_STATE_FILES=(.env.production .deployed-sha .deploy-history)
+#   secrets/         hand-placed credential files (Vertex service-account key)
+#                    mounted read-only into the api container
+PROD_STATE_FILES=(.env.production .deployed-sha .deploy-history secrets)
 RSYNC_EXCLUDES=()
 for state_file in "${PROD_STATE_FILES[@]}"; do
   RSYNC_EXCLUDES+=(--exclude="/$state_file")

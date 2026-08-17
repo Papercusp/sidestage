@@ -159,11 +159,20 @@ services:
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
       OPENAI_BASE_URL: ${OPENAI_BASE_URL:-}
       SIDESTAGE_COPILOT_MODEL: ${SIDESTAGE_COPILOT_MODEL:-}
-      # Optional Vertex Scout configuration. A blank project keeps the tested
-      # deterministic adapter; location/model blanks use the factory defaults.
+      # Optional Vertex configuration (Scout, Copilot, Judge share the gate).
+      # A blank project keeps the tested deterministic engines; location/model
+      # blanks use the factory defaults. The credentials path points inside the
+      # container at the ./secrets read-only mount below.
       GOOGLE_CLOUD_PROJECT: ${GOOGLE_CLOUD_PROJECT:-}
       GOOGLE_CLOUD_LOCATION: ${GOOGLE_CLOUD_LOCATION:-}
+      GOOGLE_APPLICATION_CREDENTIALS: ${GOOGLE_APPLICATION_CREDENTIALS:-}
       SCOUT_VERTEX_MODEL: ${SCOUT_VERTEX_MODEL:-}
+      SIDESTAGE_COPILOT_VERTEX_MODEL: ${SIDESTAGE_COPILOT_VERTEX_MODEL:-}
+      SIDESTAGE_JUDGE_VERTEX_MODEL: ${SIDESTAGE_JUDGE_VERTEX_MODEL:-}
+    volumes:
+      # Hand-placed credential files (Vertex service-account key). Prod-side
+      # state: deploy.sh excludes /secrets from the rsync --delete sweep.
+      - ./secrets:/secrets:ro
     depends_on:
       postgres:
         condition: service_healthy
