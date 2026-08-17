@@ -333,6 +333,80 @@ describe('PgCatalogSource', () => {
       ['any-variant'],
     ]);
   });
+
+  it('scopes a typo-tolerant Typesense hit to the requesting seller (searchOwned parity with search)', async () => {
+    typesenseSearch.mockResolvedValue({
+      hits: [{ id: 'nortel-phone-v1', groupId: 'nortel-phone' }, { id: 'other-sellers-phone-v1', groupId: 'other-sellers-phone' }],
+      found: 2,
+    });
+    const ownedRow = {
+      id: 'nortel-phone-v1', groupId: 'nortel-phone', title: 'Nortel Phone', brand: 'Nortel',
+      productType: 'ELECTRONICS', sku: 'NORTEL-1', color: null, size: null, condition: 'NEW', handlingDays: 1,
+      priceCents: 4_200, qty: 3, reservedQty: 0, availableQty: 3, imageUrl: null, description: null,
+      weight: null, dimensions: null,
+    };
+    const observedParams: unknown[][] = [];
+    const poolQuery = vi.fn(async (_query: string, params: unknown[]) => {
+      observedParams.push([...params]);
+      // Only the hydration query runs (rows.length > 0 short-circuits before
+      // any SQL tsvector fallback call).
+      return { rows: [ownedRow] };
+    });
+    const source = new PgCatalogSource({ query: poolQuery } as unknown as Pool, '');
+
+    const page = await source.searchOwned({ q: 'nortl', pageSize: 6 }, 'seller-JHGLDS');
+
+    expect(typesenseSearch).toHaveBeenCalledWith({
+      q: 'nortl',
+      categories: undefined,
+      inStockOnly: false,
+      limit: 6,
+      page: 1,
+      includeFields: ['id', 'groupId'],
+    });
+    expect(poolQuery.mock.calls[0]).toEqual(['SELECT expire_inventory_reservations()', []]);
+    const [hydrationSql, hydrationParams] = poolQuery.mock.calls[1] as [string, unknown[]];
+    expect(hydrationSql).toContain('v.seller_id = $2');
+    expect(hydrationParams).toEqual([['nortel-phone', 'other-sellers-phone'], 'seller-JHGLDS']);
+    expect(page.rows).toHaveLength(1);
+    expect(page.rows[0]?.title).toBe('Nortel Phone');
+    // `found` is Typesense's corpus-wide count, intentionally not re-derived
+    // per-seller (see the settled-design note on searchOwned).
+    expect(page.total).toBe(2);
+  });
+
+  it('falls through to the SQL tsvector path when a seller-scoped Typesense hydration returns zero rows', async () => {
+    typesenseSearch.mockResolvedValue({
+      hits: [{ id: 'other-sellers-item-v1', groupId: 'other-sellers-item' }],
+      found: 1,
+    });
+    const observedParams: unknown[][] = [];
+    const responses = [
+      { rows: [] }, // SELECT expire_inventory_reservations() (unused)
+      { rows: [] }, // hydration: seller owns none of the indexed hits
+      { rows: [{ n: '1' }] }, // SQL fallback count
+      { rows: [{
+        id: 'seller-owned-kettle-v1', groupId: 'seller-owned-kettle', title: 'Harbor Kettle', brand: 'Hearthline',
+        productType: 'HOME', sku: 'SELLER-KETTLE-1', color: null, size: null, condition: 'NEW', handlingDays: 1,
+        priceCents: 7_400, qty: 2, reservedQty: 0, availableQty: 2, imageUrl: null, description: null,
+        weight: null, dimensions: null,
+      }] }, // SQL fallback rows
+    ];
+    let responseIndex = 0;
+    const poolQuery = vi.fn(async (_query: string, params: unknown[]) => {
+      observedParams.push([...params]);
+      return responses[responseIndex++];
+    });
+    const source = new PgCatalogSource({ query: poolQuery } as unknown as Pool, '');
+
+    const page = await source.searchOwned({ q: 'kettle', pageSize: 6 }, 'seller-JHGLDS');
+
+    expect(page.rows).toHaveLength(1);
+    expect(page.rows[0]?.title).toBe('Harbor Kettle');
+    const [fallbackSql, fallbackParams] = poolQuery.mock.calls[3] as [string, unknown[]];
+    expect(fallbackSql).toContain('v.seller_id = $1');
+    expect(fallbackParams).toEqual(['seller-JHGLDS', ['kettle'], 6, 0]);
+  });
 });
 
 describe('FixtureCatalogSource', () => {
