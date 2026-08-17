@@ -28,14 +28,19 @@ export function chatEventId(value: string): string {
  * Callers that can consult the directory should follow it and use this;
  * `browserEventId()` remains for seller surfaces that need a seed before any
  * directory read.
+ *
+ * `search` is injectable for the same reason `app-routing`'s readers take a
+ * URL: the parse is then verifiable without a DOM, so a node-environment test
+ * exercises the real function rather than a re-implementation of it.
  */
-export function urlEventId(): string | null {
-  if (typeof window === 'undefined') return null;
-  return normalizedEventId(new URLSearchParams(window.location.search).get('event') ?? '');
+export function urlEventId(search?: string): string | null {
+  const query = search ?? (typeof window === 'undefined' ? null : window.location.search);
+  if (query === null) return null;
+  return normalizedEventId(new URLSearchParams(query).get('event') ?? '');
 }
 
-export function browserEventId(): string {
-  return urlEventId() ?? DEFAULT_EVENT_ID;
+export function browserEventId(search?: string): string {
+  return urlEventId(search) ?? DEFAULT_EVENT_ID;
 }
 
 /**
