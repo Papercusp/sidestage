@@ -18,16 +18,20 @@ describe('ArchitectureTab', () => {
       'The data model',
       'Application layers',
       'Data is organized around ownership and invariants',
+      'How the mobile apps are built',
+      'How the test framework works',
       'From source tree to production',
     ]) expect(markup).toContain(heading);
 
-    // The four deep-dive sections each ship their flow diagram and jump-nav entry.
-    for (const anchor of ['#search', '#data-sync', '#checkout', '#data-model']) expect(markup).toContain(`href="${anchor}"`);
+    // The deep-dive sections each ship their flow diagram and jump-nav entry.
+    for (const anchor of ['#search', '#data-sync', '#checkout', '#data-model', '#mobile-apps', '#testing']) expect(markup).toContain(`href="${anchor}"`);
     for (const claim of [
       'Hybrid rank fusion',
-      'Targeted refresh',
+      'Server-authoritative writes',
       'Webhook authority',
       'GENERATED ALWAYS AS',
+      'Shared Rust core',
+      'Deterministic reply judge',
     ]) expect(markup).toContain(claim);
 
     for (const system of [
