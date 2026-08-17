@@ -62,7 +62,7 @@ import { PG_POOL } from '../db/database.module';
 import {
   DEMO_PRINCIPAL_HEADER,
   DEMO_PRINCIPAL_QUERY_PARAM,
-  normalizeDemoPrincipal,
+  resolveSyncPrincipal,
 } from './sync-request-context';
 
 /** A registry leaf: a callable query builder, possibly carrying Zero's derived wire name. */
@@ -94,16 +94,24 @@ export class ZeroController {
   /**
    * zero-cache resolves named queries here. Pure transformation: no database
    * access, so this answers correctly even with Postgres down.
+   *
+   * The `userID` this returns is not decoration: Zero treats it as a SERVER
+   * VALIDATION of the connection's user and closes any connection whose own
+   * `userID` disagrees. See `resolveSyncPrincipal` for why the principal has to
+   * come off the bearer token on this path (WI-39763).
    */
   @Post('query')
   async query(
     @Body() body: unknown,
     @Query() searchParams: Record<string, string>,
     @Headers(DEMO_PRINCIPAL_HEADER) principalHeader?: string,
+    @Headers('authorization') authorization?: string,
   ): Promise<QueryResponse> {
-    const principal = normalizeDemoPrincipal(
-      principalHeader ?? searchParams?.[DEMO_PRINCIPAL_QUERY_PARAM],
-    );
+    const principal = resolveSyncPrincipal({
+      authorization,
+      principalHeader,
+      principalParam: searchParams?.[DEMO_PRINCIPAL_QUERY_PARAM],
+    });
     return handleQueryRequest({
       handler: this.transformQueryAs(principal),
       schema,
@@ -119,6 +127,7 @@ export class ZeroController {
     @Body() body: unknown,
     @Query() searchParams: Record<string, string>,
     @Headers(DEMO_PRINCIPAL_HEADER) principalHeader?: string,
+    @Headers('authorization') authorization?: string,
   ): Promise<MutateResponse> {
     const pool = this.pool;
     if (!pool) {
@@ -129,9 +138,11 @@ export class ZeroController {
           'Run: docker compose up -d',
       );
     }
-    const principal = normalizeDemoPrincipal(
-      principalHeader ?? searchParams?.[DEMO_PRINCIPAL_QUERY_PARAM],
-    );
+    const principal = resolveSyncPrincipal({
+      authorization,
+      principalHeader,
+      principalParam: searchParams?.[DEMO_PRINCIPAL_QUERY_PARAM],
+    });
     const processor = new PushProcessor(zeroNodePg(schema, pool), { principal });
     return processor.process(
       createMutators() as never,
