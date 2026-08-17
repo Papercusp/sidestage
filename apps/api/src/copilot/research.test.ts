@@ -236,11 +236,15 @@ describe('mergeResearchIntoGroundingContext', () => {
       catalogProducts: [{ productId: 'p-1', title: 'Headphones', priceCents: 2000, attributes: {} }],
       webFindings: [{ findingId: 'f-1', title: 'Battery life', snippet: '30 hours.' }],
       usedWebFallback: true,
+      incomplete: false,
+      degraded: [],
     });
     const mergedAgain = mergeResearchIntoGroundingContext(merged, {
       catalogProducts: [{ productId: 'p-1', title: 'Headphones', priceCents: 2000, attributes: {} }],
       webFindings: [{ findingId: 'f-1', title: 'Battery life', snippet: '30 hours.' }],
       usedWebFallback: true,
+      incomplete: false,
+      degraded: [],
     });
 
     expect(mergedAgain.catalogProducts).toHaveLength(1);

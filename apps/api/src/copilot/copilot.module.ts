@@ -88,8 +88,12 @@ export class BuyerQuestionCopilotSubscriber implements OnModuleInit, OnModuleDes
     },
     {
       provide: COPILOT_PIPELINE,
-      inject: [SideStageGroundingRetriever, ConfiguredCopilotReplyModel],
-      useFactory: (retriever: SideStageGroundingRetriever, configured: ConfiguredCopilotReplyModel) => {
+      inject: [SideStageGroundingRetriever, ConfiguredCopilotReplyModel, CATALOG_SOURCE],
+      useFactory: (
+        retriever: SideStageGroundingRetriever,
+        configured: ConfiguredCopilotReplyModel,
+        catalog: CatalogSource,
+      ) => {
         // Gemini drafts replies when Google credentials are present; the
         // deterministic engine remains the fallback inside the Vertex model
         // and the whole model when credentials are absent. The adapter is
@@ -100,7 +104,18 @@ export class BuyerQuestionCopilotSubscriber implements OnModuleInit, OnModuleDes
         // This composition always creates a durable seller-review proposal.
         // Even an event configured for auto may execute only after the seller
         // confirms through CopilotProposalService's fresh-context boundary.
-        return new GroundedCopilotPipeline({ retriever, model, automationCeiling: 'confirm' });
+        // The research fallback is ALWAYS injected, never gated on a web
+        // provider existing. When the catalog covers the asked-for properties
+        // it answers alone and no web call happens; when it does not, the
+        // unconfigured web source degrades the round, which blocks the draft
+        // rather than letting it answer from a catalog that lacks the fact.
+        // Gating this on configuration is what previously left the entire
+        // research path dead in production.
+        const researchFallback = new ParallelResearchFallback(
+          new CatalogResearchAdapter(catalog),
+          new UnconfiguredWebResearchSource(),
+        );
+        return new GroundedCopilotPipeline({ retriever, model, researchFallback, automationCeiling: 'confirm' });
       },
     },
   ],

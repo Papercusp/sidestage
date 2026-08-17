@@ -93,6 +93,12 @@ export class CopilotProposalService {
     const text = input?.message?.trim();
     if (!text) throw new BadRequestException('message is required');
     const now = new Date().toISOString();
+    // Blank/whitespace entries are dropped rather than passed through: an empty
+    // property name can never be satisfied by any source, so keeping one would
+    // permanently force the incomplete-research block on for that turn.
+    const requiredProperties = (input.requiredProperties ?? [])
+      .map((property) => property.trim())
+      .filter((property) => property.length > 0);
     return this.generateOnce({
       id: input.sourceMessageId?.trim() || `manual-${randomUUID()}`,
       eventId,
@@ -100,6 +106,7 @@ export class CopilotProposalService {
       buyerName: input.buyerName?.trim() || 'Seller research',
       text,
       createdAt: now,
+      ...(requiredProperties.length ? { requiredProperties } : {}),
     });
   }
 
@@ -218,6 +225,9 @@ export class CopilotProposalService {
         eventId: question.eventId,
         buyerId: question.buyerId,
         message: question.text,
+        ...(question.requiredProperties?.length
+          ? { requiredProperties: question.requiredProperties }
+          : {}),
       });
       const proposal: CopilotProposal = {
         id: randomUUID(),

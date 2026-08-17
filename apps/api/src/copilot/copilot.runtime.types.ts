@@ -18,6 +18,13 @@ export interface CopilotQuestion {
   buyerName: string;
   text: string;
   createdAt: string;
+  /**
+   * Product properties the answer turns on. Carried on the question rather than
+   * recomputed at generation time so the proposal records what was actually
+   * asked for — a reply is only verifiable against the properties the asker
+   * named.
+   */
+  requiredProperties?: readonly string[];
 }
 
 export interface CopilotProposalDecision {
@@ -62,6 +69,13 @@ export interface CreateCopilotTurnInput {
   buyerId?: string;
   buyerName?: string;
   sourceMessageId?: string;
+  /**
+   * Catalog properties the seller needs the answer to cover (e.g. `battery-life`).
+   * Naming them is what enables the research fallback: when the catalog cannot
+   * answer them, a labelled web round runs, and when that round is incomplete
+   * the resulting draft is blocked instead of sent.
+   */
+  requiredProperties?: readonly string[];
 }
 
 export interface ReviewCopilotReplyInput {

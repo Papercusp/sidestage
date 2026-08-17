@@ -250,7 +250,22 @@ export class GroundedCopilotPipeline {
       || Boolean(draft.action && citation === `policy:${request.eventId}`)
     ));
     const replyGuardrail = await this.replyGuard.evaluate({ reply: draft.reply, declaredTone: draft.tone }, context);
-    const grounded = replyGuardrail.allowed && draft.reply.trim().length > 0 && citations.length > 0;
+    // A research round that dropped a provider leaves the very properties this
+    // question turns on UNVERIFIED. The reply can still look well-formed and
+    // cite the catalog rows that did arrive, so nothing downstream would catch
+    // it — which is precisely why the block belongs here, on the same flag the
+    // send boundary already reads, rather than in a second gate someone has to
+    // remember to consult.
+    const researchIncomplete = research?.incomplete
+      ? {
+        requiredProperties: [...(request.requiredProperties ?? [])],
+        degraded: research.degraded.map((entry) => ({ ...entry })),
+      }
+      : undefined;
+    const grounded = replyGuardrail.allowed
+      && draft.reply.trim().length > 0
+      && citations.length > 0
+      && !researchIncomplete;
     const action = draft.action
       ? replyGuardrail.allowed
         ? await resolveAction(
@@ -284,6 +299,7 @@ export class GroundedCopilotPipeline {
       action,
       latencyMs: latency.completeMs,
       latency,
+      ...(researchIncomplete ? { researchIncomplete } : {}),
     };
   }
 }

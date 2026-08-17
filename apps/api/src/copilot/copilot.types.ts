@@ -289,4 +289,23 @@ export interface CopilotResponse {
   action?: ActionResult;
   latencyMs: number;
   latency: CopilotLatency;
+  /**
+   * Set when a research round for `requiredProperties` was KNOWINGLY partial —
+   * a provider timed out, failed, or was cancelled. It is the reason a reply
+   * that otherwise looks well-formed is not `grounded`: the properties the
+   * question turned on were never verified, so the seller must not be offered
+   * a sendable draft. Carries the per-provider reasons so the block is
+   * explainable rather than mysterious.
+   */
+  researchIncomplete?: ResearchIncompleteReport;
+}
+
+/** Why a property-backed reply could not be verified within its budget. */
+export interface ResearchIncompleteReport {
+  requiredProperties: readonly string[];
+  degraded: readonly {
+    provider: 'catalog' | 'web';
+    reason: 'deadline-exceeded' | 'provider-failed' | 'cancelled';
+    detail?: string;
+  }[];
 }
