@@ -194,6 +194,37 @@ describe('LineupTimelineView', () => {
     expect(open).toContain('Live quantity');
   });
 
+  /*
+   * The no-concurrent-auction guardrail. This assertion used to live in
+   * EventManager.auction.test.tsx against the flat grid; under direction C the
+   * control moved into the per-slot drawer, so it is proven HERE, where the
+   * button actually renders. Deleting it with the grid would have left a real
+   * guardrail — a live auction must not be joinable by a second one — with no
+   * test at all, which is the failure mode this comment exists to prevent.
+   */
+  it('disables Start auction with the reason while another auction is live', () => {
+    const open = render({
+      openProductId: 'p-kettle',
+      auctionWritesEnabled: false,
+      auctionWriteDisabledReason: 'Close the current auction before starting another',
+    });
+
+    expect(open).toMatch(/<button[^>]*disabled=""[^>]*>Start auction<\/button>/);
+    expect(open).toContain('Close the current auction before starting another');
+    // The refusal is explained in the UI, never behind a credential prompt.
+    expect(open).not.toContain('Seller credential');
+    expect(open).not.toContain('Unlock auction writes');
+  });
+
+  it('enables Start auction once no auction is live', () => {
+    const open = render({ openProductId: 'p-kettle', auctionWritesEnabled: true });
+
+    // Falsifies the test above: the disabled state must come from the flag, not
+    // from the drawer always rendering a dead button.
+    expect(open).toMatch(/<button[^>]*>Start auction<\/button>/);
+    expect(open).not.toContain('Close the current auction before starting another');
+  });
+
   it('replaces the offer control with a reason when the event blocks targeted offers', () => {
     const open = render({ openProductId: 'p-kettle', blockedActionKinds: ['targeted-offer'] });
     expect(open).toContain('does not allow targeted offers');
