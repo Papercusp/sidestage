@@ -2,7 +2,9 @@ import { useMemo, useState } from 'react';
 import { RichGrid, type ColumnDef } from '@papercusp/grid-core';
 import { formatPrice } from '../event-creation/catalog';
 import { MarkdownControl } from '../seller/MarkdownControl';
+import { BuyerPicker } from '../seller/BuyerPicker';
 import type { MarkdownPolicyView } from '../seller/markdown-guard';
+import { evaluateOffer, type BuyerCandidate } from '../seller/offer-guard';
 import type { SellerEventItem } from './api';
 
 export interface EventLineupGridProps {
@@ -16,6 +18,17 @@ export interface EventLineupGridProps {
    * than implying a guardrail it never read.
    */
   policy?: MarkdownPolicyView | null;
+  /**
+   * Buyers the event actually has, from `buyerCandidates`. An empty array means
+   * nobody is here and the offer control says so; `undefined` means the caller
+   * supplies no presence at all, which is treated the same as empty rather than
+   * silently re-opening the free-text field this replaced.
+   */
+  buyers?: readonly BuyerCandidate[];
+  /** True while presence is still loading, so empty reads as "not known yet". */
+  buyersLoading?: boolean;
+  /** `policy.blockedActionKinds` — an event may forbid targeted offers outright. */
+  blockedActionKinds?: readonly string[];
   onPush: (item: SellerEventItem) => void;
   onSwap: (current: SellerEventItem, target: SellerEventItem) => void;
   /**
@@ -25,7 +38,12 @@ export interface EventLineupGridProps {
   onMarkdown: (item: SellerEventItem, percent: number, priceCents: number) => void;
   onStockAdjust: (item: SellerEventItem, quantity: number) => void;
   onStartAuction: (item: SellerEventItem, quantity: number, startingPriceCents: number) => void;
-  onSendOffer: (item: SellerEventItem, buyerId: string, quantity: number, priceCents: number) => void;
+  /**
+   * Receives the CHOSEN buyer, not a typed id — the caller needs the display
+   * name for the action's reason and the seller-facing confirmation, and a
+   * candidate is the only buyer shape that carries one the server has seen.
+   */
+  onSendOffer: (item: SellerEventItem, buyer: BuyerCandidate, quantity: number, priceCents: number) => void;
 }
 
 interface CommerceDraft {
@@ -69,6 +87,9 @@ export function EventLineupGrid({
   auctionWritesEnabled = true,
   auctionWriteDisabledReason = 'Unlock seller auction writes before starting an auction',
   policy,
+  buyers,
+  buyersLoading = false,
+  blockedActionKinds,
   onPush,
   onSwap,
   onMarkdown,
@@ -202,6 +223,24 @@ export function EventLineupGrid({
         const offerQuantity = positiveWholeNumber(draft.offerQuantity, maximum);
         const offerPriceCents = priceInCents(draft.offerPrice);
         const disabled = busyProductId === row.productId;
+        const candidates = buyers ?? [];
+        const offerBuyer = candidates.find((candidate) => candidate.buyerId === draft.offerBuyer) ?? null;
+        // Mirrors the server's targeted-offer gate in its own order, so the
+        // Send button is disabled for exactly the offers the server refuses —
+        // including the two the old row could compose and the server rejected:
+        // a typed buyer id nobody in the event answers to, and a quantity the
+        // reserved count allows but verified availability does not.
+        const offerVerdict = evaluateOffer({
+          policy,
+          blockedActionKinds,
+          productId: row.productId,
+          currentPriceCents: row.priceCents,
+          availableQty: row.availableQty,
+          buyerId: offerBuyer?.buyerId ?? '',
+          quantity: offerQuantity,
+          priceCents: offerPriceCents,
+          candidates,
+        });
         return (
           <div className="event-commerce-actions">
             <div className="event-commerce-row">
@@ -243,15 +282,17 @@ export function EventLineupGrid({
               </button>
             </div>
             <div className="event-commerce-row">
-              <label className="event-commerce-buyer">
-                <span className="sr-only">Offer buyer ID for {row.title}</span>
-                <input
-                  aria-label={`Offer buyer ID for ${row.title}`}
+              <div className="event-commerce-buyer">
+                <BuyerPicker
+                  productId={row.productId}
+                  title={row.title}
+                  candidates={candidates}
                   value={draft.offerBuyer}
-                  placeholder="Buyer ID"
-                  onChange={(event) => updateCommerceDraft(row, { offerBuyer: event.target.value })}
+                  loading={buyersLoading}
+                  disabled={disabled}
+                  onChange={(buyerId) => updateCommerceDraft(row, { offerBuyer: buyerId })}
                 />
-              </label>
+              </div>
               <label className="event-commerce-price">
                 <span aria-hidden="true">$</span>
                 <span className="sr-only">Offer price for {row.title}</span>
@@ -280,18 +321,27 @@ export function EventLineupGrid({
               <button
                 className="button tertiary"
                 type="button"
-                disabled={disabled || !draft.offerBuyer.trim() || offerQuantity === null || offerPriceCents === null}
-                onClick={() => offerQuantity !== null && offerPriceCents !== null
-                  && onSendOffer(row, draft.offerBuyer.trim(), offerQuantity, offerPriceCents)}
+                disabled={disabled || !offerVerdict.sendable}
+                title={offerVerdict.sendable ? undefined : offerVerdict.message ?? undefined}
+                onClick={() => offerBuyer !== null && offerQuantity !== null && offerPriceCents !== null
+                  && onSendOffer(row, offerBuyer, offerQuantity, offerPriceCents)}
               >
                 Send
               </button>
             </div>
+            {offerVerdict.message === null ? null : (
+              <p
+                className={`event-commerce-note is-${offerVerdict.sendable ? 'ok' : 'blocked'}`}
+                aria-live="polite"
+              >
+                {offerVerdict.message}
+              </p>
+            )}
           </div>
         );
       },
     },
-  ], [auctionWriteDisabledReason, auctionWritesEnabled, busyProductId, commerceDrafts, markdowns, onMarkdown, onPush, onSendOffer, onStage, onStartAuction, onStockAdjust, onSwap, policy, quantities]);
+  ], [auctionWriteDisabledReason, auctionWritesEnabled, blockedActionKinds, busyProductId, buyers, buyersLoading, commerceDrafts, markdowns, onMarkdown, onPush, onSendOffer, onStage, onStartAuction, onStockAdjust, onSwap, policy, quantities]);
 
   return (
     <RichGrid

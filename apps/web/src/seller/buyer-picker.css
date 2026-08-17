@@ -1,0 +1,38 @@
+.buyer-picker {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  min-width: 0;
+}
+
+.buyer-picker-field {
+  display: block;
+  min-width: 0;
+}
+
+.buyer-picker-field select {
+  width: 100%;
+  min-width: 0;
+  font: inherit;
+  padding: 0.3rem 0.4rem;
+  border: 1px solid var(--border, rgba(148, 163, 184, 0.45));
+  border-radius: 0.4rem;
+  background: var(--surface, transparent);
+  color: inherit;
+}
+
+.buyer-picker-field select:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.buyer-picker-note {
+  font-size: 0.72rem;
+  line-height: 1.2;
+  opacity: 0.7;
+}
+
+.buyer-picker-note.is-empty {
+  opacity: 0.85;
+  color: var(--warning-text, #b45309);
+}

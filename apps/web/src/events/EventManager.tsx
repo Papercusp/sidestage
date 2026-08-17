@@ -10,6 +10,7 @@ import {
 import EventCreationPanel from '../event-creation/EventCreationPanel';
 import type { EventCreationPayload } from '../event-creation/catalog';
 import { RunOfShowPlannerPanel } from '../seller/RunOfShowPlannerPanel';
+import { buyerCandidates, type PresenceRowView } from '../seller/offer-guard';
 import {
   addItemsToSellerEvent,
   adjustSellerEventStock,
@@ -176,6 +177,24 @@ export function EventManager({
     pollIntervalMs: 2_000,
     staleTime: 0,
   });
+  // Who a targeted offer may be addressed to. The server already TTL-filters
+  // presence to 35s (chat.service.ts:54), so this list is "in the event now"
+  // rather than "was here at some point"; the 10s poll matches EventChat so the
+  // two surfaces cannot disagree about who is in the room.
+  const presenceQuery = useSyncQuery<PresenceRowView>({
+    queryName: 'event.chat.presence',
+    args: { eventId: selectedEventId },
+    enabled: !isCreateView && hasSelectedEvent,
+    pollIntervalMs: 10_000,
+  });
+  const offerBuyers = useMemo(
+    () => buyerCandidates({
+      presence: presenceQuery.data,
+      auction: auctionQuery.data?.[0] ?? null,
+      excludeUserId: actorId,
+    }),
+    [actorId, auctionQuery.data, presenceQuery.data],
+  );
   const name = configQuery.data?.[0]?.name ?? selectedEvent?.title ?? eventName;
   const items = initialItems ?? itemsQuery.data ?? [];
   const currentAuction = auctionQuery.data?.[0] ?? null;
@@ -507,6 +526,9 @@ export function EventManager({
                       auctionWritesEnabled={auctionWritesEnabled}
                       auctionWriteDisabledReason={auctionWriteDisabledReason}
                       policy={configQuery.data?.[0]?.policy}
+                      buyers={offerBuyers}
+                      buyersLoading={presenceQuery.loading}
+                      blockedActionKinds={configQuery.data?.[0]?.policy?.blockedActionKinds}
                       onPush={(item) => void runAction(
                         item.productId,
                         () => mutateAction({
@@ -562,7 +584,7 @@ export function EventManager({
                         },
                         `${quantity} × ${item.title} auction started.`,
                       )}
-                      onSendOffer={(item, buyerId, quantity, priceCents) => void runAction(
+                      onSendOffer={(item, buyer, quantity, priceCents) => void runAction(
                         item.productId,
                         () => mutateAction({
                           eventId: selectedEventId,
@@ -570,13 +592,15 @@ export function EventManager({
                           action: {
                             kind: 'targeted-offer',
                             productId: item.productId,
-                            buyerId,
+                            // The id the server routes on stays the id; the
+                            // display name is only ever narration.
+                            buyerId: buyer.buyerId,
                             quantity,
                             priceCents,
-                            reason: `Seller sent ${buyerId} a quantity-aware targeted offer`,
+                            reason: `Seller sent ${buyer.displayName} a quantity-aware targeted offer`,
                           },
                         }),
-                        `${quantity} × ${item.title} offered to ${buyerId}.`,
+                        `${quantity} × ${item.title} offered to ${buyer.displayName}.`,
                       )}
                     />
                     <RunOfShowPlannerPanel eventId={selectedEventId} apiBaseUrl={apiBaseUrl} />
