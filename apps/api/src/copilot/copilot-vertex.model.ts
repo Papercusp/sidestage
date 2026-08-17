@@ -55,13 +55,25 @@ export class VertexCopilotReplyModel implements ReplyModel {
       const draft = this.parseDraft(response.content, request);
       if (!draft) {
         this.logger.warn(`Gemini copilot draft unparseable (model ${this.adapter.model}); using deterministic fallback`);
-        return this.fallback.generate(request);
+        return this.fallbackAfterError(request, 'unparseable-response');
       }
-      return { ...draft, latency: { completeMs: Date.now() - started } };
+      return { ...draft, provider: 'vertex', latency: { completeMs: Date.now() - started } };
     } catch (error) {
       this.logger.warn(`Gemini copilot generation failed (${(error as Error).message}); using deterministic fallback`);
-      return this.fallback.generate(request);
+      return this.fallbackAfterError(request, (error as Error).message);
     }
+  }
+
+  /**
+   * The pipeline never surfaces a provider failure to a buyer — the fallback
+   * draft is returned as-is. But a benchmark or latency budget measuring
+   * "the vertex leg" needs to know THIS sample is actually the fallback's
+   * latency, not the real provider's, so the failure is stamped onto the
+   * draft as `providerError` without changing what the buyer sees.
+   */
+  private async fallbackAfterError(request: ReplyGenerationRequest, reason: string): Promise<ModelDraft> {
+    const draft = await this.fallback.generate(request);
+    return { ...draft, providerError: reason };
   }
 
   private parseDraft(content: string, request: ReplyGenerationRequest): ModelDraft | null {

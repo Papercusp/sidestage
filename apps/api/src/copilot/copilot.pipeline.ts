@@ -284,7 +284,12 @@ export class GroundedCopilotPipeline {
     const ttftMs = typeof draft.latency?.ttftMs === 'number' && Number.isFinite(draft.latency.ttftMs)
       ? Math.max(0, draft.latency.ttftMs)
       : null;
-    const latency = this.latencyBudget.record({ ttftMs, completeMs });
+    const latency = this.latencyBudget.record({
+      ttftMs,
+      completeMs,
+      provider: draft.provider,
+      error: Boolean(draft.providerError),
+    });
 
     return {
       reply: grounded
