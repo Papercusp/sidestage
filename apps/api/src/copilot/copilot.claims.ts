@@ -308,6 +308,8 @@ export function verifyClaim(
 
   const defects: ClaimDefect[] = [];
   const observations: unknown[] = [];
+  /** Set when a fact MOVED since binding — the root cause, which suppresses its own symptom below. */
+  let drifted = false;
 
   for (const ref of claim.evidence) {
     if (!known.has(ref.sourceId)) {
@@ -354,6 +356,7 @@ export function verifyClaim(
     // keeping it that narrow is what makes it actionable ("re-draft, the price
     // changed") instead of a catch-all for every mismatch.
     if (canonicalFingerprint(observed) !== ref.fingerprint.value) {
+      drifted = true;
       defects.push({
         claimId: claim.claimId,
         code: 'evidence-stale',
@@ -384,8 +387,13 @@ export function verifyClaim(
   // Fresh, relevant, agreed evidence — that says something else. Nothing is
   // out of date here; there is simply no evidence FOR the stated value, which
   // is what 'missing' means.
+  //
+  // Suppressed when a fact DRIFTED, for the same reason a conflict suppresses
+  // it: "no source says 2800" is the downstream symptom of "the price moved
+  // from 2800 to 2400", and reporting both makes the seller fix the symptom.
+  // Each code should imply a different action, or the vocabulary is noise.
   const asserted = canonicalFingerprint(assertedValue(claim.asserted));
-  if (observations.length > 0 && !distinct.has(asserted)) {
+  if (!drifted && observations.length > 0 && !distinct.has(asserted)) {
     defects.push({
       claimId: claim.claimId,
       code: 'evidence-missing',

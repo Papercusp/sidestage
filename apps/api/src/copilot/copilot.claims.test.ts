@@ -57,6 +57,50 @@ describe('P-003 adversarial fixtures — every case behaves as specified', () =>
   });
 });
 
+/**
+ * FALSIFIABILITY CONTROL — kept permanently, per the repo's mutation-probe
+ * guidance for an imported module (never by mutating the shared tree).
+ *
+ * `citationsOnlyVerdict` is the behaviour this contract REPLACES: a reply was
+ * considered grounded when its `citations` named sources that exist. If the
+ * fixtures above were weak, that naive check would satisfy them too, and every
+ * test in this file would be green while proving nothing. So the control
+ * asserts the fixtures can tell the two apart — and names how many cases the
+ * old behaviour would have waved through.
+ */
+function citationsOnlyVerdict(
+  claims: readonly { evidence: readonly { sourceId: string }[] }[],
+  context: { sources: readonly { id: string }[] },
+): boolean {
+  const known = new Set(context.sources.map((source) => source.id));
+  return claims.every((claim) => claim.evidence.some((ref) => known.has(ref.sourceId)));
+}
+
+describe('P-003 falsifiability control — the fixtures reject the behaviour being replaced', () => {
+  it('the old citations-exist check would have sent replies this contract holds', () => {
+    const wavedThrough = CLAIM_ADVERSARIAL_CASES.filter((entry) => {
+      if (entry.expected.supported) return false;
+      return citationsOnlyVerdict(entry.claims.claims, entry.atSend);
+    });
+
+    // Every one of these is a reply that names a real, gathered source and is
+    // still wrong: the price moved, the sources disagree, the warranty is not
+    // in the listing. That gap is the whole reason P-003 exists.
+    expect(wavedThrough.length).toBeGreaterThanOrEqual(6);
+    for (const entry of wavedThrough) {
+      expect(verifyClaims(entry.claims, entry.request, entry.atSend).supported).toBe(false);
+    }
+  });
+
+  it('and the control case is NOT rejected by either, so strictness is not the explanation', () => {
+    const control = CLAIM_ADVERSARIAL_CASES.find((entry) => entry.expected.supported);
+    expect(control).toBeDefined();
+    if (!control) return;
+    expect(citationsOnlyVerdict(control.claims.claims, control.atSend)).toBe(true);
+    expect(verifyClaims(control.claims, control.request, control.atSend).supported).toBe(true);
+  });
+});
+
 describe('P-003 clause: price, availability, listing state, shipping/returns, catalog properties', () => {
   const subjects = CLAIM_ADVERSARIAL_CASES.flatMap((entry) =>
     entry.claims.claims.map((claim) => claim.asserted.subject),
