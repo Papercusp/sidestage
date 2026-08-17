@@ -1,6 +1,8 @@
 import { useMemo } from "react";
 import { RichGrid, type ColumnDef } from "@papercusp/grid-core";
 
+import { ProductThumbnail } from "../ProductThumbnail";
+
 import {
   draftFromCatalog,
   formatPrice,
@@ -37,7 +39,10 @@ export function variantAxisLabel(row: CatalogRow): string {
 function ProductCell({ row }: { row: CatalogRow }) {
   return (
     <div className="event-product-cell">
-      <img src={row.imageUrl} alt="" loading="lazy" />
+      {/* Was a bare <img src={row.imageUrl}>, which rendered broken both when
+          the row had no imageUrl at all and when it carried a dead supplier URL
+          (WI-39296). ProductThumbnail owns both fallbacks. */}
+      <ProductThumbnail url={row.imageUrl} title={row.title} />
       <div>
         <strong>{row.title}</strong>
         <span>{row.brand}</span>
