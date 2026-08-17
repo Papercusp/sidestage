@@ -19,16 +19,17 @@
  * `/zero/mutate` genuinely writes, so it does need a database. It runs the
  * shared `createMutators()` through Zero's `PushProcessor`.
  *
- * ## Why `zeroNodePg` and not the `zeroPostgresJS` pinned in harness.ts
+ * ## Why `zeroNodePg` and not `zeroPostgresJS`
  *
- * harness.ts:130 pins `zeroPostgresJS(schema, pg)`, which needs a *postgres.js*
- * client. This app's DI already provides a live, probed, schema-guarded
- * node-postgres `Pool` (`PG_POOL`, db/database.module.ts). Zero 1.8 ships
- * `zeroNodePg(schema, pg: Pool | string)` from
+ * `zeroPostgresJS` — which the original P-011 recipe pinned — needs a
+ * *postgres.js* client. This app's DI already provides a live, probed,
+ * schema-guarded node-postgres `Pool` (`PG_POOL`, db/database.module.ts). Zero
+ * 1.8 ships `zeroNodePg(schema, pg: Pool | string)` from
  * `@rocicorp/zero/server/adapters/pg`, which accepts exactly that Pool — so we
  * reuse the one pool the app already owns instead of opening a second,
  * unsupervised connection pool against the same database with its own limits.
- * Recorded as a plan Decision; harness.ts's comment is corrected to match.
+ * Plan Decisions D-010 and D-014; `parity/harness.ts` already reads the same
+ * way (its header recommends `zeroNodePg`), so the two no longer disagree.
  *
  * ## PG_POOL is nullable and that is load-bearing
  *

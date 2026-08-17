@@ -144,11 +144,25 @@ export function diffRows(sseRows: readonly unknown[], zeroRows: readonly unknown
  * NOTE this seam does NOT call the `/zero/query` HTTP handler, which exists as
  * of P-011 but is a pure AST transform and returns no rows. Data-level parity
  * needs ZQL *executed* against Postgres, so wire it to the same adapter the
- * controller uses:
- *   `zeroNodePg(schema, pool).run(resolveQueryLeaf(queryPath)!(args))`
- * (`@rocicorp/zero/server/adapters/pg`, given the app's `PG_POOL` — NOT
- * `zeroPostgresJS`, which would open a second unsupervised pool; see the
- * header and the plan decision).
+ * controller uses (`@rocicorp/zero/server/adapters/pg`, given the app's
+ * `PG_POOL` — NOT `zeroPostgresJS`, which would open a second unsupervised
+ * pool; see the header and the plan decision):
+ *
+ *   const request = resolveQueryLeaf(queryPath)!(args);
+ *   const query = addContextToQuery(request, {userID: principal});
+ *   await zeroNodePg(schema, pool).run(query);
+ *
+ * ⚠ THE `addContextToQuery` STEP IS NOT OPTIONAL — this comment used to omit
+ * it and the advice was WRONG. Calling a registry leaf returns a `QueryRequest`
+ * DESCRIPTOR (`{query, args, '~':'QueryRequest'}`), not a `Query`; passing that
+ * straight to `.run()` (or to `handleQueryRequest`) fails Zero's brand check.
+ * It fails MISLEADINGLY: the assert reads "there are two copies of Zero in your
+ * runtime", which sends you hunting a split module graph that is not there.
+ * Measured 2026-08-17 (WI-39663, plan Decision D-016) — the module graph was
+ * exonerated by A/B; the handler was simply passing the wrong object.
+ * `addContextToQuery` is exported from `@rocicorp/zero/bindings` and is what
+ * `zero-client`/`zero-react` call on every client-side read; see
+ * `zero.controller.ts:transformQueryAs`, which now does exactly this.
  */
 export async function runZeroQuery(queryPath: string, _args: Record<string, unknown>): Promise<unknown[]> {
   throw new Error(
