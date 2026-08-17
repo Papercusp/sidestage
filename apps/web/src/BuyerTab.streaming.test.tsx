@@ -5,8 +5,13 @@ import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { BuyerTab } from './BuyerTab';
+import {
+  PUBLISHER_ABSENT_MESSAGE,
+  PUBLISHER_RETRY_DELAYS_MS,
+  WAITING_FOR_PUBLISHER_MESSAGE,
+} from './buyer-stream-recovery';
 import type { GuideEvent } from './events/api';
-import type { ViewerSession } from './streaming';
+import { MediaTransportError, type ViewerSession } from './streaming';
 
 const connectViewerMock = vi.hoisted(() => vi.fn());
 
@@ -178,5 +183,136 @@ describe('BuyerTab stream lifecycle', () => {
     expect(connectViewerMock).toHaveBeenCalledTimes(2);
     expect(container.textContent).not.toContain('Retry stream');
     expect(container.textContent).toContain('Disconnect');
+  });
+});
+
+/**
+ * Recurrence guards for the reported bug (WI-39733): "Media server rejected the
+ * WHEP offer (404)" and a black pane that only a page reload recovered.
+ *
+ * MediaMTX answers WHEP with 404 while the path has no publisher, and going
+ * live happens BEFORE the seller's camera grant — so every buyer already in the
+ * room offers into that window. The viewer used to latch that 404 as a terminal
+ * error and never re-offer while the event stayed live.
+ *
+ * The behaviour that must not regress is a pair, which is why both halves are
+ * asserted together: a 404 re-offers on its own, and anything else still stops.
+ * Testing only the first half would pass just as well against a viewer that
+ * retried every failure forever, which is its own bug.
+ */
+describe('BuyerTab publisher wait (WI-39733)', () => {
+  let container: HTMLDivElement;
+  let root: Root | null;
+
+  beforeEach(() => {
+    connectViewerMock.mockReset();
+    vi.useFakeTimers();
+    (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
+    container = document.createElement('div');
+    document.body.append(container);
+    root = createRoot(container);
+  });
+
+  afterEach(async () => {
+    if (root) await act(async () => root?.unmount());
+    root = null;
+    container.remove();
+    vi.useRealTimers();
+    delete (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT;
+  });
+
+  /** Advance past the next scheduled re-offer and let its promises settle. */
+  async function advance(ms: number) {
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(ms);
+    });
+  }
+
+  it('keeps re-offering after a WHEP 404 and connects when the seller appears', async () => {
+    const recovered = viewerSession();
+    // The seller is not publishing yet: the first two offers get MediaMTX's
+    // "no publisher on this path" answer, then the camera comes up.
+    connectViewerMock
+      .mockRejectedValueOnce(new MediaTransportError('Media server rejected the WHEP offer (404).', 404))
+      .mockRejectedValueOnce(new MediaTransportError('Media server rejected the WHEP offer (404).', 404))
+      .mockResolvedValueOnce(recovered.session);
+
+    await act(async () => root?.render(buyer('late-publisher-room')));
+
+    // The 404 must not reach the buyer as an error, and must not park the UI
+    // behind a manual Retry — that combination WAS the bug.
+    expect(connectViewerMock).toHaveBeenCalledTimes(1);
+    expect(container.textContent).toContain(WAITING_FOR_PUBLISHER_MESSAGE);
+    expect(container.textContent).not.toContain('404');
+    expect(container.textContent).not.toContain('Retry stream');
+
+    // Nothing external changes — only time passes. The old viewer stayed dark
+    // here forever; this one re-offers on its own.
+    await advance(PUBLISHER_RETRY_DELAYS_MS[0] ?? 1_000);
+    expect(connectViewerMock).toHaveBeenCalledTimes(2);
+
+    await advance(PUBLISHER_RETRY_DELAYS_MS[1] ?? 2_000);
+    expect(connectViewerMock).toHaveBeenCalledTimes(3);
+
+    // The publisher arrived: the buyer is watching, with no reload and no click.
+    expect(container.textContent).toContain('Disconnect');
+    expect(container.textContent).not.toContain(WAITING_FOR_PUBLISHER_MESSAGE);
+  });
+
+  it('stops after the bounded wait instead of polling a dead room forever', async () => {
+    connectViewerMock.mockRejectedValue(
+      new MediaTransportError('Media server rejected the WHEP offer (404).', 404),
+    );
+
+    await act(async () => root?.render(buyer('dead-room')));
+    expect(connectViewerMock).toHaveBeenCalledTimes(1);
+
+    // `End event` leaves rooms permanently `live` (WI-39737), so a buyer can
+    // open a room whose seller is never coming. The wait must terminate.
+    for (const delay of PUBLISHER_RETRY_DELAYS_MS) await advance(delay);
+
+    const offers = connectViewerMock.mock.calls.length;
+    expect(offers).toBe(PUBLISHER_RETRY_DELAYS_MS.length + 1);
+
+    // Well past the whole schedule, it has genuinely stopped — not merely slowed.
+    await advance(120_000);
+    expect(connectViewerMock).toHaveBeenCalledTimes(offers);
+
+    // And the buyer is told the actionable fact, not a transport status code.
+    expect(container.textContent).toContain(PUBLISHER_ABSENT_MESSAGE);
+    expect(container.textContent).not.toContain('404');
+    expect(container.textContent).toContain('Retry stream');
+  });
+
+  it('still latches a non-404 failure immediately, without retrying', async () => {
+    // The other half of the pair: a real fault must keep its old behaviour, or
+    // genuine errors disappear behind a spinner for the length of the schedule.
+    connectViewerMock.mockRejectedValue(new MediaTransportError('Media server unavailable.', 503));
+
+    await act(async () => root?.render(buyer('broken-room')));
+
+    expect(connectViewerMock).toHaveBeenCalledTimes(1);
+    expect(container.textContent).toContain('Media server unavailable.');
+    expect(container.textContent).toContain('Retry stream');
+    expect(container.textContent).not.toContain(WAITING_FOR_PUBLISHER_MESSAGE);
+
+    // Time passing must change nothing for a real fault.
+    await advance(60_000);
+    expect(connectViewerMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('abandons the wait when the event stops being live', async () => {
+    connectViewerMock.mockRejectedValue(
+      new MediaTransportError('Media server rejected the WHEP offer (404).', 404),
+    );
+
+    await act(async () => root?.render(buyer('ending-room')));
+    expect(connectViewerMock).toHaveBeenCalledTimes(1);
+
+    await act(async () => root?.render(buyer('ending-room', [guideEvent('ending-room', 'ended')])));
+
+    // A scheduled re-offer must not fire into a room that is no longer live.
+    await advance(60_000);
+    expect(connectViewerMock).toHaveBeenCalledTimes(1);
   });
 });
