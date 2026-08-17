@@ -35,7 +35,9 @@ RUN ZERO_VERSION="$(node -e "process.stdout.write(require('./package-lock.json')
  && npm init -y > /dev/null \
  && npm install --no-audit --no-fund "@rocicorp/zero@${ZERO_VERSION}" \
  && test -x node_modules/.bin/zero-cache \
- && test "$(node -p "require('@rocicorp/zero/package.json').version")" = "$ZERO_VERSION"
+ && INSTALLED="$(node -p "require('./node_modules/@rocicorp/zero/package.json').version")" \
+ && echo "Installed @rocicorp/zero: ${INSTALLED} (lockfile: ${ZERO_VERSION})" \
+ && test "$INSTALLED" = "$ZERO_VERSION"
 
 # Persistent SQLite replica + change log. Size this volume for the published
 # set: measured 3476 MB across the 19 tables of `zero_publication` on
