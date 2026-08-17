@@ -79,7 +79,7 @@ describe('EventManager', () => {
     vi.unstubAllGlobals();
   });
 
-  it('renders the real guarded lineup through RichGrid', () => {
+  it('renders the lineup AS the run of show, seeded from the lineup when nothing was planned', () => {
     const markup = renderToStaticMarkup(
       <EventManager
         actorId="seller-27"
@@ -91,16 +91,29 @@ describe('EventManager', () => {
     );
 
     expect(markup).toContain('Sunday drop');
-    expect(markup).toContain('data-rg-screen-grid="true"');
-    expect(markup).toContain('Push');
-    expect(markup).toContain('Swap');
-    expect(markup).toContain('Markdown');
-    expect(markup).toContain('Stock');
-    expect(markup).toContain('Auction quantity for Barista Pro Espresso Machine');
+    // Direction C (D-001): ONE ordered timeline replaces the grid + the
+    // separate authoring panel that used to sit beneath it.
+    expect(markup).toContain('lineup-timeline');
+    expect(markup).toContain('Run of show');
+    expect(markup).not.toContain('data-rg-screen-grid="true"');
+
+    // D-010: no plan was ever saved, so the show is derived from the LINEUP —
+    // the product is a real SLOT, not a tray item behind an authoring step.
+    // This is what keeps an unplanned event operable.
+    expect(markup).toContain('data-testid="lineup-slot-espresso"');
+    expect(markup).toContain('Every product in this event is in the show.');
+
+    // The stage action lives on the slot ROW, so pushing stays one click mid
+    // show. ITEMS[0] is already on stage, so it reads as such.
+    expect(markup).toContain('On stage');
+    expect(markup).toContain('Controls');
+    // Markdown/stock/auction/offer hang off a per-slot drawer that is CLOSED by
+    // default, so they are deliberately absent here. LineupTimeline.test.tsx
+    // proves them with the drawer open — that is the level they belong at.
+    expect(markup).not.toContain('Start auction');
     expect(markup).not.toContain('Unlock auction writes');
     expect(markup).not.toContain('Seller credential');
-    expect(markup).toContain('Start auction');
-    expect(markup).toContain('Offer quantity for Barista Pro Espresso Machine');
+
     expect(markup).toContain('Barista Pro Espresso Machine');
     expect(markup).toContain('Event lineup');
     expect(markup).toContain('Add inventory');
@@ -109,10 +122,15 @@ describe('EventManager', () => {
     expect(markup).not.toContain('Rehearse');
     expect(markup.indexOf('>Lineup</a>')).toBeLessThan(markup.indexOf('>Settings</a>'));
     expect(markup).not.toContain('Event settings &amp; readiness');
-    // Rehearse -> Lineup merge: the run-of-show planner is folded into the default Lineup tab.
-    expect(markup).toContain('Plan the show');
-    expect(markup).toContain('Order the lineup, budget minutes per product');
-    expect(markup).toContain('Save show plan');
+
+    // Fault 8: the permanent "guarded seller actions are live" banner is gone.
+    // Guardrails now speak where and when they bind, not as standing furniture.
+    expect(markup).not.toContain('Guarded seller actions are live');
+
+    // The standalone planner mount is retired; authoring is the timeline now.
+    expect(markup).not.toContain('Plan the show');
+    expect(markup).not.toContain('Save show plan');
+    expect(markup).toContain('Save run of show');
   });
 
   /**
@@ -317,13 +335,15 @@ describe('EventManager', () => {
       />,
     );
 
-    // A bookmarked/shared ?section=rehearse link still lands on real content: the
-    // merged Lineup tab (guarded RichGrid lineup + the run-of-show planner), not
-    // a dedicated Rehearse tab or an empty/dead route.
-    expect(markup).toContain('data-rg-screen-grid="true"');
-    expect(markup).toContain('Plan the show');
-    expect(markup).toContain('Order the lineup, budget minutes per product');
-    expect(markup).toContain('Save show plan');
+    // A bookmarked/shared ?section=rehearse link still lands on real content:
+    // the merged Lineup tab, which under direction C IS the run of show — not a
+    // dedicated Rehearse tab, and not an empty/dead route.
+    expect(markup).toContain('lineup-timeline');
+    expect(markup).toContain('Run of show');
+    expect(markup).toContain('Save run of show');
+    expect(markup).not.toContain('data-rg-screen-grid="true"');
+    expect(markup).not.toContain('Plan the show');
+    expect(markup).not.toContain('Save show plan');
     expect(markup).not.toContain('Rehearse');
     expect(markup).not.toContain('Event settings &amp; readiness');
   });
