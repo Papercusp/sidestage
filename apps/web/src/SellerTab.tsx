@@ -5,11 +5,12 @@ import { requestChatJson } from './chat-api';
 import { TabHeader } from './components/TabHeader';
 import { EventChat, resolveApiOrigin } from './EventChat';
 import { browserEventId, chatEventId, DEFAULT_EVENT_TITLE, mediaBaseUrl } from './event-identity';
-import { sellerPrivateRequestHeaders, type GuideEvent } from './events/api';
+import { sellerPrivateRequestHeaders, type GuideEvent, type SellerEventItem } from './events/api';
 import { useStreamSession } from './hooks';
 import { studioViewHref, useUrlStudioView, type StudioView } from './app-routing';
 import { InventoryPanel } from './InventoryPanel';
 import { emptyStageLog, stageLogOnProductChange } from './run-of-show';
+import { StageClockProvider } from './seller/stage-clock';
 import { SellerMobileStudio, useMobileStudioViewport } from './SellerMobileStudio';
 import { SellerDock } from './SellerDock';
 import {
@@ -194,11 +195,33 @@ export function SellerTab({
     [eventId, eventTitle, guideQuery.data],
   );
 
-  // The desktop dock and mobile tab host remount their panels at the breakpoint.
-  // Keep the live show clock above both hosts so that transition history survives.
+  /*
+   * The live show clock (plan sidestage-lineup-run-of-show-2026-08-16).
+   *
+   * It lives here because the desktop dock and the mobile tab host remount
+   * their panels at the breakpoint, and the Event Manager board is a dock panel
+   * too — so this is the one level above every consumer, and transition history
+   * survives all of them.
+   *
+   * D-005: it advances on the EVENT'S STAGED PRODUCT — the server-authoritative
+   * `onStage` flag that the guarded push/swap actions mutate — not on the
+   * seller's local `selectedProductId`. The Lineup timeline renders its "on
+   * stage" chip from that same flag, so sourcing the clock anywhere else would
+   * let the chip and the clock disagree about which product is live, and would
+   * compute pace against the wrong slot.
+   */
+  const stageItemsQuery = useSyncQuery<SellerEventItem>({
+    queryName: 'event.actions.items',
+    args: { eventId },
+    pollIntervalMs: 10_000,
+  });
+  const stagedProductId = useMemo(
+    () => stageItemsQuery.data?.find((item) => item.onStage)?.productId ?? null,
+    [stageItemsQuery.data],
+  );
   useEffect(() => {
-    setRunOfShowLog((current) => stageLogOnProductChange(current, selectedProductId, Date.now()));
-  }, [selectedProductId]);
+    setRunOfShowLog((current) => stageLogOnProductChange(current, stagedProductId, Date.now()));
+  }, [stagedProductId]);
 
   const recordTranscriptMoment = useTranscriptMomentRecorder({
     eventId,
@@ -368,22 +391,26 @@ export function SellerTab({
           </a>
         ))}
       </nav>
-      {studioView === 'inventory' ? (
-        <InventoryPanel apiBaseUrl={import.meta.env.VITE_API_URL} principal={principal} />
-      ) : shouldUseMobileStudio(studioView, mobileStudio) ? (
-        <SellerMobileStudio panels={panels} />
-      ) : (
-        <SellerDock
-          key={layoutName}
-          panels={panels}
-          registry={sellerPanelRegistry}
-          layoutName={layoutName}
-          layoutSeed={layoutSeed}
-          foregroundPanelId={studioView === 'event-manager' ? 'event-manager' : undefined}
-          resetEventName={resetEventName}
-          missingComponent={SellerDockMissingPanel}
-        />
-      )}
+      {/* One clock above every panel host — the dock, the mobile host, and the
+          Event Manager board inside them all read this same log (D-003). */}
+      <StageClockProvider stagedProductId={stagedProductId}>
+        {studioView === 'inventory' ? (
+          <InventoryPanel apiBaseUrl={import.meta.env.VITE_API_URL} principal={principal} />
+        ) : shouldUseMobileStudio(studioView, mobileStudio) ? (
+          <SellerMobileStudio panels={panels} />
+        ) : (
+          <SellerDock
+            key={layoutName}
+            panels={panels}
+            registry={sellerPanelRegistry}
+            layoutName={layoutName}
+            layoutSeed={layoutSeed}
+            foregroundPanelId={studioView === 'event-manager' ? 'event-manager' : undefined}
+            resetEventName={resetEventName}
+            missingComponent={SellerDockMissingPanel}
+          />
+        )}
+      </StageClockProvider>
     </div>
   );
 }
