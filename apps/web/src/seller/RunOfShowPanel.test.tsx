@@ -127,4 +127,47 @@ describe('RunOfShowPlannerView', () => {
     expect(html).toContain('Add to plan');
     expect(html).toContain('Save show plan');
   });
+
+  /*
+   * P-006: the dock's live commerce controls are INJECTED into the live card,
+   * not built by the view. These pin the seam rather than the controls' own
+   * markup (OfferComposer.test.tsx owns that), because the failure this guards
+   * against is the seam silently dropping them — a panel that renders the card
+   * but never the controls looks perfectly fine in isolation.
+   */
+  it('renders the injected stage-commerce controls inside the live card', () => {
+    const html = renderToStaticMarkup(
+      <RunOfShowPanelView
+        view={viewAt('a')}
+        loaded
+        error={null}
+        onStageNext={() => undefined}
+        activeProduct={ACTIVE_PRODUCT}
+        stageCommerce={<div data-testid="stage-commerce">Mark down live</div>}
+      />,
+    );
+
+    expect(html).toContain('stage-commerce');
+    expect(html).toContain('Mark down live');
+  });
+
+  it('renders no commerce controls when nothing is on stage', () => {
+    /*
+     * The falsifier for the case above: with no live card there is nothing to
+     * mark down, and offering the controls anyway would invite the seller to
+     * discount a product the room is not looking at.
+     */
+    const html = renderToStaticMarkup(
+      <RunOfShowPanelView
+        view={viewAt(null)}
+        loaded
+        error={null}
+        onStageNext={() => undefined}
+        activeProduct={null}
+        stageCommerce={<div data-testid="stage-commerce">Mark down live</div>}
+      />,
+    );
+
+    expect(html).not.toContain('stage-commerce');
+  });
 });

@@ -1,0 +1,47 @@
+/*
+ * OfferComposer (P-006/D-007) — the composer travels with its own styles.
+ *
+ * The component is mounted by two surfaces with different layouts (the Lineup
+ * drawer row and the Studio dock's live card), so the LAYOUT stays with the
+ * caller via `className` while the FIELD styling lives here. Before this file,
+ * the fields inherited `.lineup-drawer-field` from the one surface that
+ * happened to host them — so lifting the block into a shared component would
+ * have silently rendered it unstyled everywhere else.
+ *
+ * Shipped Ticket tokens only (D-004): this is an IA change, not a re-skin.
+ */
+
+.offer-composer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: .5rem;
+}
+
+.offer-composer-field {
+  display: grid;
+  gap: .2rem;
+  width: 7rem;
+  color: var(--muted);
+}
+
+.offer-composer-field input {
+  min-height: var(--ss-control-h);
+  padding: 0 .5rem;
+  font: inherit;
+  color: var(--text);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-control);
+}
+
+/*
+ * The refusal reason. It takes the full row so a long guardrail message wraps
+ * under the controls instead of stretching them — the seller needs to read it
+ * at the moment the Send button will not move.
+ */
+.offer-composer-note {
+  flex-basis: 100%;
+  margin: 0;
+  color: var(--muted);
+}

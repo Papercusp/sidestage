@@ -570,7 +570,7 @@ export function RunOfShowPanel({
   );
   const mutateCommerce = useSyncMutate<CommerceMutation, SellerActionResult>('event.executeAction', commerceFallback);
 
-  const runCommerce = async (action: Record<string, unknown>, success: string) => {
+  const runCommerce = async (action: SellerAction, success: string) => {
     if (commerceBusy) return;
     setCommerceBusy(true);
     setCommerceNote(null);

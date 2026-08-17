@@ -20,6 +20,7 @@
 import { evaluateOffer, type BuyerCandidate } from './offer-guard';
 import type { MarkdownPolicyView } from './markdown-guard';
 import { BuyerPicker } from './BuyerPicker';
+import './offer-composer.css';
 
 export interface OfferDraft {
   buyerId: string;
@@ -43,7 +44,12 @@ export interface OfferComposerProps {
   /** Receives the CHOSEN buyer, so the caller can name them in the action reason. */
   onSend: (buyer: BuyerCandidate, quantity: number, priceCents: number) => void;
   disabled?: boolean;
-  /** Layout hook, so the dock and the timeline drawer can sit differently. */
+  /**
+   * An ADDITIONAL class, appended to the composer's own `offer-composer` base —
+   * never a replacement for it. Letting a caller replace the base would make
+   * the component's layout depend on each host remembering to restyle it, which
+   * is the coupling this shared component exists to remove.
+   */
   className?: string;
 }
 
@@ -78,7 +84,7 @@ export function OfferComposer({
   onDraftChange,
   onSend,
   disabled = false,
-  className = 'offer-composer',
+  className,
 }: OfferComposerProps) {
   const priceCents = priceToCents(draft.price);
   /*
@@ -114,7 +120,7 @@ export function OfferComposer({
   const sendable = verdict.sendable && buyer !== null && priceCents !== null && !disabled;
 
   return (
-    <div className={className}>
+    <div className={className ? `offer-composer ${className}` : 'offer-composer'}>
       <BuyerPicker
         productId={productId}
         title={title}
