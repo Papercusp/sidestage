@@ -179,7 +179,6 @@ export function SellerTab({
 }) {
   const [{ eventId, eventTitle }, setEventIdentity] = useState(initialSellerEventIdentity);
   const [room, setRoom] = useState<EventRoom | null>(null);
-  const [runOfShowLog, setRunOfShowLog] = useState(emptyStageLog);
   const stream = useStreamSession<PublisherSession>();
   const { userId, impersonate } = useDemoIdentity('seller');
   const principal = useSyncPrincipal() ?? userId;
@@ -219,10 +218,6 @@ export function SellerTab({
     () => stageItemsQuery.data?.find((item) => item.onStage)?.productId ?? null,
     [stageItemsQuery.data],
   );
-  useEffect(() => {
-    setRunOfShowLog((current) => stageLogOnProductChange(current, stagedProductId, Date.now()));
-  }, [stagedProductId]);
-
   const recordTranscriptMoment = useTranscriptMomentRecorder({
     eventId,
     roomEventId: room?.eventId,
@@ -354,7 +349,6 @@ export function SellerTab({
     'run-of-show': {
       eventId,
       actorId: userId,
-      stageLog: runOfShowLog,
       activeProduct: selectedProduct,
       catalogProducts: sellerProducts,
       onActiveProductChange,

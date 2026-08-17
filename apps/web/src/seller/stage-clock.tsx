@@ -84,12 +84,29 @@ export function StageClockProvider({
  * rather than throwing — an absent clock is a legible state, not an error.
  */
 export function useStageClock(): StageLog {
-  const log = useContext(StageClockContext);
+  const clock = useContext(StageClockContext);
   const fallback = useMemo(emptyStageLog, []);
-  return log ?? fallback;
+  return clock?.log ?? fallback;
+}
+
+/**
+ * The instant to measure elapsed against — the shared pulse inside a provider.
+ *
+ * Outside one it is FROZEN at first render rather than a live `Date.now()`:
+ * with no provider there is no timer to re-render anything, so a fresh reading
+ * per render would only make output depend on when React happened to re-render.
+ * A surface with no provider also has `useHasStageClock() === false` and omits
+ * its time columns, so the frozen value is never what the seller reads.
+ */
+export function useStageNow(): number {
+  const clock = useContext(StageClockContext);
+  const fallback = useMemo(() => Date.now(), []);
+  return clock?.nowMs ?? fallback;
 }
 
 /** True when a real provider is above this component. */
 export function useHasStageClock(): boolean {
   return useContext(StageClockContext) !== null;
 }
+
+export type { StageClock };
