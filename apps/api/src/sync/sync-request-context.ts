@@ -21,6 +21,53 @@ export function normalizeDemoPrincipal(value: unknown): string | null {
   return normalized.length > 0 ? normalized : null;
 }
 
+/** `Authorization: Bearer <token>`, scheme matched case-insensitively per RFC 7235. */
+const BEARER_SCHEME = /^Bearer[ \t]+/i;
+
+/**
+ * Resolve the caller's principal for a **sync** request, which — unlike every
+ * other controller in this app — may arrive second-hand from zero-cache.
+ *
+ * ## Why the demo header alone is not enough here (WI-39763)
+ *
+ * On the REST/SSE surfaces the browser calls us directly and sends
+ * `x-demo-principal`. On the WebSocket surface it does not: the browser talks
+ * to *zero-cache*, and zero-cache then calls `/zero/query` and `/zero/mutate`
+ * itself, server-to-server. It forwards a fixed, closed set of things from the
+ * browser connection — `schema` and `appID` on the URL, and on the headers an
+ * optional API key, allow-listed connect headers, cookie, origin, and
+ * `Authorization: Bearer <the client's opaque auth token>`. `x-demo-principal`
+ * is in none of those buckets, so on that path it simply never arrives.
+ *
+ * That absence was not harmless. Zero reads the `userID` we return as a SERVER
+ * VALIDATION of the connection's user, and a `null` there asserts "this
+ * connection has no user" — which never equals the `userID` the browser opened
+ * the connection with. zero-cache closed every connection with `Unauthorized:
+ * Connection userID does not match validated server userID` and the transport
+ * ladder demoted every user from WebSockets to SSE to polling.
+ *
+ * Reading the bearer token FIRST closes that gap: the web client sends its
+ * identity as Zero's opaque `auth` token, zero-cache forwards it verbatim, and
+ * the `userID` we hand back is the same string the connection claims. The demo
+ * header and query param stay as fallbacks — the surfaces that call us
+ * directly still use them, and they must keep working unchanged.
+ */
+export function resolveSyncPrincipal(sources: {
+  authorization?: string;
+  principalHeader?: string;
+  principalParam?: string;
+}): string | null {
+  const bearer =
+    typeof sources.authorization === 'string' && BEARER_SCHEME.test(sources.authorization)
+      ? sources.authorization.replace(BEARER_SCHEME, '')
+      : undefined;
+  return (
+    normalizeDemoPrincipal(bearer) ??
+    normalizeDemoPrincipal(sources.principalHeader) ??
+    normalizeDemoPrincipal(sources.principalParam)
+  );
+}
+
 /**
  * An auto-minted anonymous persona (`demo-` + the 8-char random token the web
  * client generates). Mirrors isMintedDemoPersona in apps/web/src/buyer-identity.ts —

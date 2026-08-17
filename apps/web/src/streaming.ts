@@ -101,12 +101,11 @@ export interface ViewerOptions extends StreamingConfig {
  * routinely transient (ICE recovers from it) and firing on it would tear down
  * working streams.
  *
- * NOTE: `buyer-stream-recovery.ts` exports an identical predicate for the buyer
- * retry path. This copy exists so the transport layer does not import the
- * buyer-recovery module (which imports `MediaTransportError` from here, so the
- * dependency would be circular). They must be unified — tracked on WI-39747.
+ * This is the SINGLE definition for both the transport layer and the buyer
+ * retry path: `buyer-stream-recovery.ts` re-exports it as `isLostConnectionState`.
+ * The dependency runs one way (buyer-recovery -> streaming), so there is no cycle.
  */
-function isLostPeerConnectionState(state: RTCPeerConnectionState): boolean {
+export function isLostPeerConnectionState(state: RTCPeerConnectionState): boolean {
   return state === 'failed';
 }
 

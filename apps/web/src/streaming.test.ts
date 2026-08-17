@@ -332,6 +332,19 @@ describe('SideStage event streaming', () => {
     expect(peerConnection.closed).toBe(true);
   });
 
+  // The behaviour change itself, isolated: this call used to REJECT here, which
+  // is what aborted negotiation before the POST.
+  it('resolves partial instead of rejecting when the gathering budget expires', async () => {
+    const peerConnection = new StallingGatheringPeerConnection('v=0');
+    await peerConnection.setLocalDescription({ type: 'offer', sdp: 'v=0' });
+    expect(peerConnection.iceGatheringState).toBe('gathering');
+
+    await expect(waitForIceGatheringComplete(
+      peerConnection as unknown as RTCPeerConnection,
+      20,
+    )).resolves.toBe('partial');
+  });
+
   it('resolves as soon as gathering completes rather than burning the whole budget', async () => {
     const peerConnection = new FakePeerConnection();
     await peerConnection.setLocalDescription({ type: 'offer', sdp: 'v=0' });
