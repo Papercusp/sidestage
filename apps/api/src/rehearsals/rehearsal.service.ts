@@ -5,7 +5,9 @@ import { runCheckoutRehearsal } from './checkout-rehearsal';
 import { runInjectionRehearsal } from './injection-rehearsal';
 import {
   DEFAULT_REHEARSAL_ACTOR,
+  DRESS_REHEARSAL_KIND,
   REHEARSAL_STORE,
+  type RehearsalRunKind,
   type RehearsalSaveContext,
   type RehearsalStore,
 } from './rehearsal.store';
@@ -78,10 +80,17 @@ export class RehearsalService {
     // happened here, and a per-kind history that only exists nested inside a
     // dress-rehearsal blob is not queryable by the recency index the table
     // carries for exactly that read.
+    // Each row needs its OWN idempotency key. rehearsal_run.idempotency_key is
+    // UNIQUE across the whole table, so reusing one retry token for every row
+    // would make the constituent runs collide with each other AND the folded
+    // verdict collide with a report — and the store's ON CONFLICT DO NOTHING +
+    // re-SELECT would then hand back a row of the WRONG KIND. Absent a token
+    // each save already mints a fresh uuid, so this only has to disambiguate
+    // the explicit-retry path.
     for (const report of reports) {
-      await this.store.saveReport(report, withDefaults(context));
+      await this.store.saveReport(report, withDefaults(context, report.kind));
     }
-    return this.store.saveVerdict(verdict, withDefaults(context));
+    return this.store.saveVerdict(verdict, withDefaults(context, DRESS_REHEARSAL_KIND));
   }
 
   /** The last stored run of one kind — survives restart, identical on every replica. */
@@ -102,11 +111,19 @@ export class RehearsalService {
  *
  * `idempotencyKey` is deliberately left undefined when the caller omits it —
  * the store then mints a fresh key so two genuine runs stay two rows.
+ *
+ * `scope` qualifies an explicitly-supplied retry token so that one token spread
+ * across a dress rehearsal still yields one unique key per stored row. It is
+ * ignored when no token was supplied, because a minted uuid is already unique.
  */
-function withDefaults(context: Partial<RehearsalSaveContext>): RehearsalSaveContext {
+function withDefaults(
+  context: Partial<RehearsalSaveContext>,
+  scope?: RehearsalRunKind,
+): RehearsalSaveContext {
+  const token = context.idempotencyKey;
   return {
     actorId: context.actorId?.trim() || DEFAULT_REHEARSAL_ACTOR,
     eventId: context.eventId ?? null,
-    idempotencyKey: context.idempotencyKey,
+    idempotencyKey: token && scope ? `${token}:${scope}` : token,
   };
 }

@@ -50,7 +50,7 @@ function makeCase(overrides: Partial<Parameters<AutoResponderJudgeService['run']
 
 describe('AutoResponderJudgeService', () => {
   it('passes a grounded, policy-safe, price-correct, warm reply', async () => {
-    const service = new AutoResponderJudgeService(new DeterministicReplyJudgeModel());
+    const service = new AutoResponderJudgeService(new DeterministicReplyJudgeModel(), new InMemoryJudgeStore());
     const report = await service.run({
       cases: [makeCase()],
     });
@@ -62,11 +62,13 @@ describe('AutoResponderJudgeService', () => {
       'price-correctness': { score: 1, passed: true },
       tone: { score: 1, passed: true },
     });
-    expect(service.latest()).toBe(report);
+    // latest() now reads through the store, which hands back a defensive clone
+    // rather than the live object — so this is deep equality, not identity.
+    expect(await service.latest()).toEqual(report);
   });
 
   it('fails unsupported citations, incorrect price, and tone mismatch', async () => {
-    const report = await new AutoResponderJudgeService(new DeterministicReplyJudgeModel()).run({
+    const report = await new AutoResponderJudgeService(new DeterministicReplyJudgeModel(), new InMemoryJudgeStore()).run({
       cases: [makeCase({
         id: 'unsafe-answer',
         reply: 'The Aurora cup is $9.99 — buy it now!!',
@@ -84,7 +86,7 @@ describe('AutoResponderJudgeService', () => {
 
   it('scores light upbeat wording as playful when the event requires it', async () => {
     const playfulContext = { ...context, policy: { ...policy, tone: 'playful' as const } };
-    const report = await new AutoResponderJudgeService(new DeterministicReplyJudgeModel()).run({
+    const report = await new AutoResponderJudgeService(new DeterministicReplyJudgeModel(), new InMemoryJudgeStore()).run({
       cases: [makeCase({
         reply: 'Great pick! The Aurora cup is $28 and 18 are ready to go.',
         context: playfulContext,
@@ -106,7 +108,7 @@ describe('AutoResponderJudgeService', () => {
         },
       }),
     };
-    const report = await new AutoResponderJudgeService(model).run({ cases: [makeCase()], passThreshold: 0.9 });
+    const report = await new AutoResponderJudgeService(model, new InMemoryJudgeStore()).run({ cases: [makeCase()], passThreshold: 0.9 });
 
     expect(report.passed).toBe(false);
     expect(report.cases[0].overallScore).toBeCloseTo(0.8);
@@ -114,7 +116,7 @@ describe('AutoResponderJudgeService', () => {
   });
 
   it('rejects an empty rehearsal instead of returning a vacuous green report', async () => {
-    await expect(new AutoResponderJudgeService(new DeterministicReplyJudgeModel()).run({ cases: [] }))
+    await expect(new AutoResponderJudgeService(new DeterministicReplyJudgeModel(), new InMemoryJudgeStore()).run({ cases: [] }))
       .rejects.toThrow('at least one judge case is required');
   });
 });
