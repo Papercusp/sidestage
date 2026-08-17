@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# load-restart-catalog.sh — Load the real Restart catalog into the SideStage DB.
+# load-wholesale-catalog.sh — Load the full real-world wholesale catalog into the SideStage DB.
 #
 # Companion to export-restart-catalog.sh. That script produces a portable SQL
 # artifact; THIS one streams the two catalog tables directly from a Restart
@@ -21,7 +21,7 @@
 # Usage:
 #   RESTART_DATABASE_URL=postgres://…/restart \
 #   SIDESTAGE_DATABASE_URL=postgres://…/sidestage \
-#     ./scripts/load-restart-catalog.sh
+#     ./scripts/load-wholesale-catalog.sh
 set -Eeuo pipefail
 
 SOURCE_URL="${RESTART_DATABASE_URL:-${DATABASE_URL:-}}"
