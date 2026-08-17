@@ -1,6 +1,22 @@
+.sc-products > .buyer-product-rail-wrap,
 .sc-products > .buyer-product-rail {
   min-width: 0;
   grid-column: 1 / -1;
+}
+
+.buyer-product-rail-wrap {
+  position: relative;
+}
+
+.buyer-rail-fade {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 2.25rem;
+  background: linear-gradient(to right, transparent, var(--surface-raised) 80%);
+  pointer-events: none;
+  border-radius: 0 0.75rem 0.75rem 0;
 }
 
 .buyer-product-rail {

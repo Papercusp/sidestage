@@ -111,8 +111,7 @@ export function BuyerProductRail({
     );
   }
   const heldProductIdSet = new Set(heldProductIds);
-
-  return (
+  const rail = (
     <ul className="buyer-product-rail" aria-label={ariaLabel}>
       {products.map((product, index) => (
         <ProductCard
@@ -126,6 +125,17 @@ export function BuyerProductRail({
         />
       ))}
     </ul>
+  );
+
+  if (products.length <= 1) {
+    return rail;
+  }
+
+  return (
+    <div className="buyer-product-rail-wrap">
+      {rail}
+      <span className="buyer-rail-fade" aria-hidden="true" />
+    </div>
   );
 }
 

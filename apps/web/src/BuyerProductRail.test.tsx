@@ -115,4 +115,22 @@ describe("BuyerProductRail", () => {
 
     expect(markup.match(/>Held for you<\/button>/g)).toHaveLength(2);
   });
+
+  it("shows a swipe-more fade affordance when multiple cards can overflow the viewport", () => {
+    const markup = renderToStaticMarkup(
+      <BuyerProductRail products={PRODUCTS} onHold={() => undefined} />,
+    );
+
+    expect(markup).toContain('class="buyer-product-rail-wrap"');
+    expect(markup).toContain('class="buyer-rail-fade" aria-hidden="true"');
+  });
+
+  it("omits the fade affordance for a single card (nothing to swipe to)", () => {
+    const markup = renderToStaticMarkup(
+      <BuyerProductRail products={[PRODUCTS[0]]} onHold={() => undefined} />,
+    );
+
+    expect(markup).not.toContain("buyer-product-rail-wrap");
+    expect(markup).not.toContain("buyer-rail-fade");
+  });
 });
