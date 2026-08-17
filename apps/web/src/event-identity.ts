@@ -49,10 +49,14 @@ export function browserEventId(search?: string): string {
 }
 
 /**
- * Which room the buyer shell opens (D-001).
+ * Which room a shell opens (D-001) — the buyer's, and since WI-39718 the
+ * seller Studio's too, via `resolveSellerEventIdentity`.
  *
- * Precedence: an explicit choice — the URL's `?event=`, or a Channel Guide row
- * the buyer clicked — then the guide's FIRST row, then the seed.
+ * Precedence: an explicit choice — the URL's `?event=`, or a directory row the
+ * user clicked — then the directory's FIRST row, then the seed. The seller
+ * passes its OWN directory (`events.mine`, which includes drafts) where the
+ * buyer passes the Channel Guide; the precedence is identical, which is why
+ * both call this rather than each writing the `??` chain out.
  *
  * The middle term is the whole point, and is why this is a named function
  * rather than an inline `??` chain: the guide is ALREADY ordered by the server
