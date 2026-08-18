@@ -23,17 +23,17 @@ import { zql } from './schema';
 
 // ── Shared arg shapes ───────────────────────────────────────────────────────
 
-const eventArg = z.object({ eventId: z.string().min(1) });
+// Every arg shape is .strict(): an unknown key is a CONTRACT ERROR, never
+// silently stripped. Silent stripping is how catalog.page served the wrong
+// rows instead of failing loudly when the client sent REST-shaped args to the
+// old Zero leaf (WI-39855) — a loud zod throw surfaces the drift immediately.
+const eventArg = z.object({ eventId: z.string().min(1) }).strict();
 const eventPageArgs = z.object({
   eventId: z.string().min(1),
   limit: z.number().int().positive().max(500).default(100),
-});
-const idArg = z.object({ id: z.string().min(1) });
-const sellerArg = z.object({ sellerId: z.string().min(1) });
-const regionPageArgs = z.object({
-  region: z.string().min(1).default('US'),
-  limit: z.number().int().positive().max(500).default(100),
-});
+}).strict();
+const idArg = z.object({ id: z.string().min(1) }).strict();
+const sellerArg = z.object({ sellerId: z.string().min(1) }).strict();
 
 // ── Registry ────────────────────────────────────────────────────────────────
 
@@ -166,17 +166,9 @@ export const queries = defineQueries({
     },
   },
 
-  /** `catalog.page` — the public buyer catalog. */
+  /** `catalog.byId` — forward scope; `catalog.page`/`inventory.page` are
+   * deliberately REST-only (see UNSYNCED_QUERY_REASONS). */
   catalog: {
-    page: defineQuery(regionPageArgs, ({ args: { region, limit } }) =>
-      zql.storefrontProduct
-        .where('region', region)
-        .where('active', true)
-        .orderBy('updatedAt', 'desc')
-        .limit(limit)
-        .related('catalog', (q) => q.one())
-        .related('options', (q) => q.related('axis', (a) => a.one()).related('value', (v) => v.one())),
-    ),
     byId: defineQuery(idArg, ({ args: { id } }) =>
       zql.storefrontProduct
         .where('id', id)
@@ -186,32 +178,20 @@ export const queries = defineQueries({
     ),
   },
 
-  /** `inventory.page` — the seller Studio inventory grid. */
-  inventory: {
-    page: defineQuery(
-      z.object({
-        sellerId: z.string().min(1),
-        limit: z.number().int().positive().max(1000).default(200),
-      }),
-      ({ args: { sellerId, limit } }) =>
-        zql.storefrontProduct
-          .where('sellerId', sellerId)
-          .orderBy('updatedAt', 'desc')
-          .limit(limit)
-          .related('catalog', (q) => q.one())
-          .related('reservations', (q) => q.where('state', 'held')),
-    ),
-  },
-
-  /** `cart.byId` — the buyer's cart document. */
+  /** `cart.byId` — the buyer's cart document. Args mirror the REST
+   * registration ({cartId}, apps/api/src/cart/cart.service.ts), NOT the
+   * generic {id} shape — the client sends {cartId} (WI-39855 drift axis 1). */
   cart: {
-    byId: defineQuery(idArg, ({ args: { id } }) => zql.cart.where('id', id).one()),
+    byId: defineQuery(
+      z.object({ cartId: z.string().min(1) }).strict(),
+      ({ args: { cartId } }) => zql.cart.where('id', cartId).one(),
+    ),
   },
 
   /** `orders.byBuyer` — routed through the buyer's cart id. */
   orders: {
     byCart: defineQuery(
-      z.object({ cartId: z.string().min(1) }),
+      z.object({ cartId: z.string().min(1) }).strict(),
       ({ args: { cartId } }) =>
         zql.checkoutOrder.where('cartId', cartId).orderBy('updatedAt', 'desc'),
     ),
@@ -221,7 +201,7 @@ export const queries = defineQueries({
   /** Seller policy revisions behind the Config tab's guardrails. */
   policy: {
     published: defineQuery(
-      z.object({ sellerId: z.string().min(1) }),
+      z.object({ sellerId: z.string().min(1) }).strict(),
       ({ args: { sellerId } }) =>
         zql.sellerPolicyRevision
           .where('sellerId', sellerId)
@@ -257,9 +237,7 @@ export const SYNCED_QUERY_PRINCIPAL_SCOPE = {
   'event.replay.chapters': 'public',
   'event.copilot.proposals': 'seller',
   'event.audit.entries': 'seller',
-  'catalog.page': 'public',
   'catalog.byId': 'public',
-  'inventory.page': 'seller',
   'cart.byId': 'buyer',
   'orders.byCart': 'buyer',
   'orders.byId': 'buyer',
@@ -292,6 +270,8 @@ export const UNSYNCED_QUERY_REASONS: Readonly<Record<string, string>> = {
   'judge.latest': 'Operational judge run; a command-with-synced-result surface whose authority is the judge service, not a replicated table (census: no backing table, P-020).',
   'rehearsal.preflight': 'Operational rehearsal preflight computed on demand; no durable table (census: no backing table, P-020).',
   'identity.current': 'Demo identity selection is device-local browser state (census DEVICE_LOCAL_SURFACES) and must never be replicated.',
+  'catalog.page': "Contract collision (WI-39855): the REST registration takes {q, productType, availability, page, pageSize} and returns a CatalogPage ENVELOPE (rows + total + facets) that consumers unwrap via data[0].rows, while the retired Zero leaf took {region, limit} over storefrontProduct and returned bare rows — same name, two incompatible contracts, so the WS rung silently served the wrong shape. ZQL cannot reproduce the envelope (no COUNT for total, no facet aggregation). Call sites pin the REST path via useRestSyncQuery; a future Zero leaf needs a NEW name plus client-side envelope composition.",
+  'inventory.page': "Same contract collision as catalog.page (WI-39855): the REST registration is the seller-scoped CatalogPage envelope search ({q, productType, availability, page, pageSize}), the retired Zero leaf was {sellerId, limit} bare storefrontProduct rows. Also envelope-blocked in ZQL (no COUNT/facets). Call sites pin the REST path via useRestSyncQuery.",
   'catalog.types': 'Distinct-value aggregate over product_catalog.product_type. ZQL has no DISTINCT/aggregate; derive it client-side from catalog.page or keep the REST handler.',
   'event.chat.stats': 'Aggregate counts over chat_message + chat_presence. ZQL has no COUNT; derive client-side from event.chat.messages / event.chat.presence or keep the REST handler.',
   'event.stats': 'Aggregate over event + checkout_order + auction_state. Same COUNT/SUM limitation as event.chat.stats.',

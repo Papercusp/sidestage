@@ -169,7 +169,10 @@ export function useCatalog(
     return () => clearTimeout(timer);
   }, [q, productType, availability, page, pageSize, debounceMs]);
 
-  const pageQuery = useSyncQuery<CatalogPage>({
+  // REST-pinned on purpose: catalog.page/inventory.page have no Zero leaf
+  // (contract collision — see UNSYNCED_QUERY_REASONS in libs/zero), so a
+  // transport-following useSyncQuery would break on the WEBSOCKETS rung.
+  const pageQuery = useRestSyncQuery<CatalogPage>({
     queryName: scope === 'seller' ? 'inventory.page' : 'catalog.page',
     args: { ...debouncedSearch },
     pollIntervalMs: 10_000,

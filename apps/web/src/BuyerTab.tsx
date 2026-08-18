@@ -157,7 +157,10 @@ export function BuyerTab({
   // The event's product rail comes from the ONE catalog source (P-102): the
   // API read model when reachable; explicit development builds may use the
   // shared fixture, while production source loss renders no inventory.
-  const catalogQuery = useSyncQuery<CatalogPage>({
+  // REST-pinned on purpose: catalog.page has no Zero leaf (contract collision
+  // — see UNSYNCED_QUERY_REASONS in libs/zero), so a transport-following
+  // useSyncQuery would break on the WEBSOCKETS rung.
+  const catalogQuery = useRestSyncQuery<CatalogPage>({
     queryName: 'catalog.page',
     args: { availability: 'in-stock', pageSize: 6 },
     enabled: !productsProp,
