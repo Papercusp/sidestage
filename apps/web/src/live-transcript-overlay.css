@@ -154,6 +154,58 @@
 }
 
 .live-transcript-mention strong { color: var(--brand-yellow); }
+
+/* The colourway question: one row of options, none of them committed to yet. */
+.live-transcript-variants {
+  display: flex;
+  min-width: 0;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: .3rem .45rem;
+}
+
+.live-transcript-variant-prompt {
+  display: inline-flex;
+  align-items: center;
+  gap: .3rem;
+  color: var(--on-video);
+  font-size: .68rem;
+  font-weight: 760;
+  text-shadow: 0 1px 3px #000;
+}
+
+.live-transcript-variant-options { display: flex; flex-wrap: wrap; gap: .3rem; }
+
+.live-transcript-variant {
+  display: inline-flex;
+  min-width: 0;
+  align-items: center;
+  gap: .35rem;
+  border: 1px solid color-mix(in srgb, var(--on-video) 35%, transparent);
+  border-radius: 999px;
+  padding: .34rem .6rem;
+  color: var(--on-video);
+  background: color-mix(in srgb, var(--video-inset-bg) 55%, transparent);
+  font: inherit;
+  font-size: .68rem;
+  font-weight: 740;
+  cursor: pointer;
+}
+
+/* The detector's best candidate — marked, never auto-staged. */
+.live-transcript-variant.is-preselected {
+  border-color: color-mix(in srgb, var(--brand-yellow) 72%, transparent);
+  background: color-mix(in srgb, var(--video-inset-bg) 75%, var(--brand-yellow) 25%);
+}
+
+.live-transcript-variant strong { color: var(--brand-yellow); }
+
+.live-transcript-variant:focus-visible {
+  outline: 2px solid var(--on-video-red);
+  outline-offset: 2px;
+}
+
 .live-transcript-dismiss { width: 1.9rem; height: 1.9rem; border-radius: 50%; font-size: 1rem; line-height: 1; }
 .live-transcript-error { margin: 0; color: #fff; font-size: .68rem; text-align: center; text-shadow: 0 1px 3px #000; }
 
