@@ -57,7 +57,7 @@
 
 import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 
@@ -135,9 +135,22 @@ function porcelainOf(repository) {
   return runGit(repository, ['status', '--porcelain', '--untracked-files=all']);
 }
 
-function isWorkTree(candidate) {
+/**
+ * Is `candidate` a POPULATED repository in its own right?
+ *
+ * The obvious test — `rev-parse --is-inside-work-tree` — is wrong here, and
+ * wrong in the direction that matters. A de-initialized submodule leaves an
+ * empty directory behind, and git answers `true` for it: the directory really
+ * is inside a work tree, just the PARENT's. Recursing on that answer runs
+ * `read-tree HEAD` against the parent's HEAD and then dies on `add -A` with
+ * "fatal: in unpopulated submodule". Comparing toplevels asks the question
+ * actually intended: does this path own a repository, or is it a hole where one
+ * used to be?
+ */
+function isPopulatedRepository(candidate) {
   try {
-    return runGit(candidate, ['rev-parse', '--is-inside-work-tree']).trim() === 'true';
+    const toplevel = runGit(candidate, ['rev-parse', '--show-toplevel']).trim();
+    return realpathSync(toplevel) === realpathSync(candidate);
   } catch {
     return false;
   }
@@ -184,7 +197,7 @@ export function computeTreeState(repositoryArgument) {
     for (const submodulePath of submodulePaths(staged)) {
       const absolute = path.join(repository, submodulePath);
       const nested = relativePath === '.' ? submodulePath : `${relativePath}/${submodulePath}`;
-      if (!isWorkTree(absolute)) {
+      if (!isPopulatedRepository(absolute)) {
         // An uninitialized submodule is RECORDED, never skipped silently: "no
         // content here" is itself a state whose change must move the digest.
         repositories.push({

@@ -63,6 +63,8 @@ function response(action?: ActionResult): CopilotResponse {
       sampleCount: 1,
       p50: { ttftMs: null, completeMs: 5 },
       p95: { ttftMs: null, completeMs: 5 },
+      provider: 'deterministic',
+      errorRate: 0,
     },
   };
 }

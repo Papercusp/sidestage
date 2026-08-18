@@ -24,9 +24,6 @@ function git(cwd, ...args) {
       GIT_AUTHOR_NAME: 'Tree State Test',
       GIT_COMMITTER_EMAIL: 'tree-state-test@example.com',
       GIT_COMMITTER_NAME: 'Tree State Test',
-      // Proves the helper defends itself: if it leaked this into its own reads
-      // it would inspect a bogus index instead of the repository's real one.
-      GIT_INDEX_FILE: path.join(tmpdir(), 'tree-state-test-should-never-be-read'),
     },
     stdio: ['ignore', 'pipe', 'pipe'],
   });
@@ -199,6 +196,29 @@ describe('tree-state fingerprint', () => {
     const { parent } = createFixture();
     const paths = computeTreeState(parent).repositories.map((repository) => repository.path);
     expect(paths).toEqual(['.', 'libs/sub']);
+  });
+
+  it('ignores an ambient GIT_INDEX_FILE in the environment', () => {
+    // A caller that exports GIT_INDEX_FILE (a wrapper script, another tool
+    // mid-operation) would otherwise redirect the reads meant to see the
+    // repository's REAL index, and the digest would describe a stale index
+    // instead of the working tree.
+    const { parent, submodulePath } = createFixture();
+    const clean = computeTreeState(parent).digest;
+
+    const previous = process.env.GIT_INDEX_FILE;
+    process.env.GIT_INDEX_FILE = path.join(tmpdir(), 'tree-state-ambient-index');
+    try {
+      expect(computeTreeState(parent).digest).toBe(clean);
+      writeFileSync(path.join(submodulePath, 'lib.txt'), 'changed under an ambient index\n');
+      expect(computeTreeState(parent).digest).not.toBe(clean);
+    } finally {
+      if (previous === undefined) {
+        delete process.env.GIT_INDEX_FILE;
+      } else {
+        process.env.GIT_INDEX_FILE = previous;
+      }
+    }
   });
 
   it('prints the digest on the command line', () => {

@@ -111,6 +111,19 @@ function stepTitle(step: BuyerCheckoutStep): string {
   return 'Where should it go?';
 }
 
+/**
+ * Whether a cart is worth asking the shipping meter about.
+ *
+ * A cart that has had every line released still EXISTS — it keeps its id and
+ * simply carries no items — so "there is a cart" is not the same question as
+ * "there is something to pack". The meter endpoint answers an empty one with a
+ * 400 rather than a zero-line meter, so asking anyway costs a round trip and a
+ * console error for a result the caller already knows.
+ */
+export function shouldRequestShippingMeter(cart: BuyerCart | null | undefined): boolean {
+  return Boolean(cart && cart.items.length > 0);
+}
+
 export function BuyerCheckoutDrawer(props: BuyerCheckoutDrawerProps) {
   const {
     open, step, cart, order, draft, rates, selectedRateId, checkout, completedOrder, busy, polling, error,
@@ -415,6 +428,15 @@ function BuyerCheckoutProviderForBuyer({
 
   useEffect(() => {
     if (!cartOpen || !cart) return;
+    if (!shouldRequestShippingMeter(cart)) {
+      // Releasing the last held item leaves a real cart with zero lines. The
+      // meter endpoint rejects that with a 400 ("Cart is empty or not found"),
+      // which the browser logs as a failed resource on every such release.
+      // There is nothing to pack, so do not ask.
+      setShippingMeter(null);
+      setShippingMeterLoading(false);
+      return;
+    }
     let cancelled = false;
     const hasQuoteContext = Boolean(
       selectedRateId && address.name.trim() && address.line1.trim() && address.city.trim()
