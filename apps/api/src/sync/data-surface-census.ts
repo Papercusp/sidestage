@@ -147,7 +147,7 @@ export const SYNC_QUERY_SURFACES: readonly NamedSurface[] = [
   query('event.chat.transcript', 'chat/chat.module.ts', 'transcript', ['public', 'seller-owned'], ['chat_transcript_moment'], 'event visibility policy', 'P-017/P-019'),
   query('event.config', 'config/event-config.module.ts', 'event_config', ['seller-owned'], ['event_config', 'seller_policy_revision'], 'event seller owner', 'P-019'),
   query('event.copilot.proposals', 'copilot/copilot.module.ts', 'copilot_proposal', ['seller-owned'], ['copilot_proposal'], 'event seller owner', 'P-019'),
-  query('event.pricingHistory', 'stats/stats.module.ts', 'pricing-history', ['public', 'seller-owned'], ['policy_audit_entry'], 'event visibility policy', 'P-017/P-019'),
+  query('event.pricingHistory', 'stats/stats.module.ts', 'pricing-history', ['public', 'seller-owned'], ['checkout_order', 'action_audit_entry', 'auction_state'], 'event visibility policy', 'P-017/P-019'),
   query('event.replay.chapters', 'chat/chat.module.ts', 'replay', ['public'], ['chat_transcript_moment'], 'public event projection', 'P-017'),
   query('event.runOfShow', 'run-of-show/run-of-show.module.ts', 'event_run_of_show', ['seller-owned'], ['event_run_of_show'], 'event seller owner', 'P-019'),
   query('event.stats', 'stats/stats.module.ts', 'event-stats', ['public'], ['event', 'checkout_order', 'auction_state'], 'public projection', 'P-017'),
