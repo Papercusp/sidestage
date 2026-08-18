@@ -185,20 +185,14 @@ export type Queries = typeof queries;
  */
 export const SYNCED_QUERY_PRINCIPAL_SCOPE = {
   'events.byId': 'public',
-  'event.config': 'seller',
-  'event.runOfShow': 'seller',
   'event.lineup.items': 'public',
   'event.actions.items': 'seller',
-  'event.auction.active': 'public',
   'event.auction.history': 'public',
   'event.chat.messages': 'public',
   'event.chat.presence': 'public',
   'event.chat.transcript': 'public',
-  'event.replay.chapters': 'public',
-  'event.copilot.proposals': 'seller',
   'event.audit.entries': 'seller',
   'catalog.byId': 'public',
-  'cart.byId': 'buyer',
   'orders.byCart': 'buyer',
   'orders.byId': 'buyer',
   'policy.published': 'seller',
@@ -226,6 +220,28 @@ export type SyncedQueryName = keyof typeof SYNCED_QUERY_PRINCIPAL_SCOPE;
  *    apps/web for it too.
  */
 export const UNSYNCED_QUERY_REASONS: Readonly<Record<string, string>> = {
+  // ── payload-jsonb DOCUMENT STORES (D-025) ─────────────────────────────────
+  // Measured by the WI-39867 differential harness against seeded live Postgres
+  // (2026-08-18): each of these reads a table whose whole domain object lives in
+  // a `payload` jsonb column, so the Zero row is {id, payload, updatedAt} and
+  // EVERY named field the REST rung serves is absent. ZQL cannot unpack jsonb —
+  // it has no select/project/map at all (fact `zql-has-no-projection-layer`) —
+  // so this is not a leaf that needs fixing, it is a query that cannot be a leaf.
+  // Unpacking client-side is refused: that is a second implementation of the DTO
+  // in the client, which is the exact defect that shipped as WI-39855.
+  'event.config':
+    "payload-document-store (D-025): `event_config` is {event_id, payload jsonb, updated_at} (libs/zero/src/schema.ts). The Config tab's whole settings document — name, policy, policySource, guardrails, replyTone — lives INSIDE payload, so the Zero rung served none of them (measured 2026-08-18). Promotion to real columns is refused as a gate: an open settings document grows a migration per setting forever. Call sites pin the REST path via useRestSyncQuery.",
+  'event.runOfShow':
+    'payload-document-store (D-025): `event_run_of_show` is {event_id, payload jsonb, updated_at}. `plannedOrder` is an ARRAY inside payload — not a column at all, and an array member is its own table, i.e. a real relational redesign rather than a rename. Call sites pin the REST path via useRestSyncQuery.',
+  'event.auction.active':
+    'payload-document-store (D-025): `auction_state` carries the hot fields as real columns but keeps allocationState, bids, winnerOrder and startingPriceCents in `payload` jsonb (measured 2026-08-18). `bids` is an array, so the same array-is-its-own-table objection as event.runOfShow applies. Note `event.auction.history` remains a synced leaf — it reads only the replicated columns. Call sites pin the REST path via useRestSyncQuery.',
+  'event.copilot.proposals':
+    'payload-document-store (D-025): `copilot_proposal` is {id, event_id, source_message_id, status, revision, payload jsonb, ...}, and the proposal itself — reply, citations, grounding — is inside payload (measured 2026-08-18). `citations` is an array. Call sites pin the REST path via useRestSyncQuery.',
+  'cart.byId':
+    'payload-document-store (D-025): `cart` is literally {id, payload jsonb, updated_at}, so the Zero rung served the blob and none of items, subtotalCents, currency, buyerId, revision, eventHoldKeys or eventTerminalTransition (measured 2026-08-18). `items` is an array whose Zero-native form is a `cart_item` TABLE — the one promotion here that is a genuine relational redesign, tracked as follow-up and deliberately NOT gating D-023. Call sites pin the REST path via useRestSyncQuery.',
+  // ── DERIVED VIEW (D-025) ──────────────────────────────────────────────────
+  'event.replay.chapters':
+    'derived-view (D-025): the REST rung DERIVES chapters by merging chat_transcript_moment rows and decorating them with evidenceKind / evidenceLabel / previewText; the Zero leaf read the moments straight. Measured 2026-08-18: REST returned 1 row where Zero returned 2, and endMs disagreed 15000 vs 5000 — i.e. the WS rung served UNMERGED moments as if they were chapters. A derived view is not a table, so ZQL cannot produce it. The Zero-native replacement is client-side composition over `event.chat.transcript`, a call-site change rather than a rename. Call sites pin the REST path via useRestSyncQuery.',
   'events.guide': "SERVER-COMPUTED fields (WI-39855/WI-39839): EventService.listForGuide (apps/api/src/events/event.service.ts:725) decorates every row with `viewers` (live chat presence via chat.getStats(eventId).activeUsers) and `playbackUrl` (whepPlaybackUrl(eventId)). NEITHER is a column on the Zero `event` table (libs/zero/src/schema.ts) and neither is derivable in ZQL — presence is a different table's live aggregate, and the URL is composed from runtime config. The retired Zero leaf therefore served rows with `viewers` UNDEFINED, which formatViewers rendered as a confident \"0 watching\" beside a correct \"2 watching\" from event.stats (WI-39839 symptom 3). Name-set parity cannot see this class of drift. Call sites pin the REST path via useRestSyncQuery.",
   'events.mine': "SERVER-COMPUTED field (WI-39855): EventService.listForSeller (apps/api/src/events/event.service.ts:753) decorates every row with `withheldFromGuide` = guideWithholdReason(record) — a POLICY VERDICT computed from several fields, not a stored column, and absent from the Zero `event` table. Same class as events.guide: ZQL cannot derive it, so the retired Zero leaf silently dropped the seller's only signal for why a room is hidden from the guide (WI-39723). Call sites pin the REST path via useRestSyncQuery.",
   'build.history': 'Operational build snapshot read from a generated JSON artifact, not a Postgres table (census: no backing table, P-020).',

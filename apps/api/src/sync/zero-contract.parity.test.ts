@@ -375,21 +375,20 @@ describe('Zero contract parity with the live sync surfaces', () => {
     // The fixture map is pinned to the registry both ways, so a new leaf
     // cannot ship unguarded and a removed leaf cannot leave a stale fixture.
     const VALID_LEAF_ARGS: Readonly<Record<string, Record<string, unknown> | null>> = {
+      // D-025 removed six leaves — event.config, event.runOfShow,
+      // event.auction.active, event.replay.chapters, event.copilot.proposals
+      // and cart.byId — so their fixtures are gone with them. A fixture for a
+      // name with no leaf is not coverage; the assertion below is what caught
+      // them still sitting here after the demotion.
       'events.byId': { eventId: 'event-1' },
-      'event.config': { eventId: 'event-1' },
-      'event.runOfShow': { eventId: 'event-1' },
       'event.lineup.items': { eventId: 'event-1' },
       'event.actions.items': { eventId: 'event-1' },
-      'event.auction.active': { eventId: 'event-1' },
       'event.auction.history': { eventId: 'event-1' },
       'event.chat.messages': { eventId: 'event-1' },
       'event.chat.presence': { eventId: 'event-1' },
       'event.chat.transcript': { eventId: 'event-1' },
-      'event.replay.chapters': { eventId: 'event-1' },
-      'event.copilot.proposals': { eventId: 'event-1' },
       'event.audit.entries': { eventId: 'event-1' },
       'catalog.byId': { id: 'product-1' },
-      'cart.byId': { cartId: 'cart-1' },
       'orders.byCart': { cartId: 'cart-1' },
       'orders.byId': { id: 'order-1' },
       'policy.published': { sellerId: 'seller-1' },

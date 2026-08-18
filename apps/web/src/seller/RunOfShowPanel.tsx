@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
-import { useSyncMutate, useSyncPrincipal, useSyncQuery } from '@papercusp/sync';
+import { useRestSyncQuery, useSyncMutate, useSyncPrincipal, useSyncQuery } from '@papercusp/sync';
 import {
   buildRunOfShowView,
   formatClock,
@@ -365,9 +365,15 @@ export function RunOfShowPanel({
    * registers `event.runOfShow` and invalidates it on every PUT, so a save in
    * the planner board appears here live with no refetch code of our own.
    */
-  const planQuery = useSyncQuery<RunOfShowPlan>({ queryName: 'event.runOfShow', args: { eventId } });
+  // `event.runOfShow` and `event.auction.active` are REST on every transport —
+  // both read payload-jsonb document stores with no Zero leaf (D-025 /
+  // UNSYNCED_QUERY_REASONS). `event.actions.items` remains a real synced leaf.
+  const planQuery = useRestSyncQuery<RunOfShowPlan>({
+    queryName: 'event.runOfShow',
+    args: { eventId },
+  });
   const itemsQuery = useSyncQuery<SellerEventItem>({ queryName: 'event.actions.items', args: { eventId } });
-  const auctionQuery = useSyncQuery<SellerAuction>({
+  const auctionQuery = useRestSyncQuery<SellerAuction>({
     queryName: 'event.auction.active',
     args: { eventId },
     staleTime: 0,
@@ -379,7 +385,10 @@ export function RunOfShowPanel({
    * controls. The 10s presence poll matches EventChat and EventManager, so the
    * three surfaces cannot disagree about who is in the room.
    */
-  const configQuery = useSyncQuery<EventConfigView>({ queryName: 'event.config', args: { eventId } });
+  const configQuery = useRestSyncQuery<EventConfigView>({
+    queryName: 'event.config',
+    args: { eventId },
+  });
   const presenceQuery = useSyncQuery<PresenceRowView>({
     queryName: 'event.chat.presence',
     args: { eventId },

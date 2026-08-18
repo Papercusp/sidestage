@@ -103,18 +103,10 @@ export type ParityFixture = {
  * args a real client sends.
  */
 export const PARITY_FIXTURES: Readonly<Record<string, ParityFixture>> = {
-  'event.config': {
-    args: (r) => ({ eventId: r.eventId }),
-    principal: (r) => r.sellerId,
-    minRows: 1,
-    zeroReturnsOne: true,
-  },
-  'event.runOfShow': {
-    args: (r) => ({ eventId: r.eventId }),
-    principal: (r) => r.sellerId,
-    minRows: 1,
-    zeroReturnsOne: true,
-  },
+  // `event.config` and `event.runOfShow` had fixtures here until D-025 demoted
+  // them to UNSYNCED_QUERY_REASONS (payload-jsonb document stores). A demoted
+  // query has no Zero rung to disagree with, so a fixture for it is not
+  // coverage — it is a stale entry that `staleFixtures` correctly rejects.
   'event.lineup.items': {
     args: (r) => ({ eventId: r.eventId }),
     principal: () => null,
@@ -125,12 +117,7 @@ export const PARITY_FIXTURES: Readonly<Record<string, ParityFixture>> = {
     principal: (r) => r.sellerId,
     minRows: 2,
   },
-  'event.auction.active': {
-    args: (r) => ({ eventId: r.eventId }),
-    principal: () => null,
-    minRows: 1,
-    zeroReturnsOne: true,
-  },
+  // `event.auction.active` demoted by D-025 (payload-jsonb document store).
   'event.chat.messages': {
     args: (r) => ({ eventId: r.eventId }),
     principal: () => null,
@@ -146,27 +133,11 @@ export const PARITY_FIXTURES: Readonly<Record<string, ParityFixture>> = {
     principal: () => null,
     minRows: 2,
   },
-  'event.replay.chapters': {
-    // minRows 1, not 2: the REST rung DERIVES chapters from transcript moments
-    // and may merge several into one, so its row count is deliberately not 1:1
-    // with the seeded moments. The Zero leaf reads the moment rows straight, so
-    // the resulting count difference is a genuine cardinality finding — this
-    // floor only stops the seed's own expectation from being reported as drift.
-    args: (r) => ({ eventId: r.eventId }),
-    principal: () => null,
-    minRows: 1,
-  },
-  'event.copilot.proposals': {
-    args: (r) => ({ eventId: r.eventId }),
-    principal: (r) => r.sellerId,
-    minRows: 1,
-  },
-  'cart.byId': {
-    args: (r) => ({ cartId: r.cartId }),
-    principal: (r) => `buyer-${r.cartId}`,
-    minRows: 1,
-    zeroReturnsOne: true,
-  },
+  // `event.replay.chapters` (derived-view), `event.copilot.proposals` and
+  // `cart.byId` (payload-jsonb document stores) demoted by D-025. The
+  // measurement that justified demoting chapters is preserved in its
+  // UNSYNCED_QUERY_REASONS entry: REST returned 1 merged chapter where the Zero
+  // leaf returned 2 raw moments, and endMs disagreed 15000 vs 5000.
 };
 
 /**

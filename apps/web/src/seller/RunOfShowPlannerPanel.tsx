@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { useSyncMutate, useSyncPrincipal, useSyncQuery } from '@papercusp/sync';
+import { useRestSyncQuery, useSyncMutate, useSyncPrincipal } from '@papercusp/sync';
 import type { RunOfShowEntry, RunOfShowPlan } from '../run-of-show';
 import { fetchSellerEvent, saveRunOfShowPlan } from '../events/api';
 import '../run-of-show.css';
@@ -161,7 +161,11 @@ export function RunOfShowPlannerPanel({ eventId, apiBaseUrl }: RunOfShowPlannerP
   const [error, setError] = useState<string | null>(null);
 
   /** Stored plan via the audited sync path; seeds the draft once per event. */
-  const planQuery = useSyncQuery<RunOfShowPlan>({ queryName: 'event.runOfShow', args: { eventId } });
+  // REST on every transport: payload-jsonb document store, no Zero leaf (D-025).
+  const planQuery = useRestSyncQuery<RunOfShowPlan>({
+    queryName: 'event.runOfShow',
+    args: { eventId },
+  });
   const storedPlan = planQuery.data?.[0];
   useEffect(() => {
     if (!storedPlan || seededFor === eventId) return;

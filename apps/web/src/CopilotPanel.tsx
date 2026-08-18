@@ -1,5 +1,10 @@
 import { type FormEvent, useCallback, useState } from 'react';
-import { DEMO_PRINCIPAL_HEADER, useSyncMutate, useSyncPrincipal, useSyncQuery } from '@papercusp/sync';
+import {
+  DEMO_PRINCIPAL_HEADER,
+  useRestSyncQuery,
+  useSyncMutate,
+  useSyncPrincipal,
+} from '@papercusp/sync';
 import { browserEventId } from './event-identity';
 import { resolveApiOrigin } from './EventChat';
 
@@ -277,7 +282,9 @@ export function CopilotPanel({
 }: CopilotPanelProps) {
   const apiOrigin = resolveApiOrigin(apiBaseUrl);
   const principal = useSyncPrincipal() ?? actorId;
-  const proposals = useSyncQuery<CopilotProposal>({
+  // REST on every transport: `event.copilot.proposals` is a payload-jsonb
+  // document store with no Zero leaf (D-025 / UNSYNCED_QUERY_REASONS).
+  const proposals = useRestSyncQuery<CopilotProposal>({
     queryName: 'event.copilot.proposals',
     args: { eventId },
   });

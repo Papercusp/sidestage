@@ -61,7 +61,18 @@ describe('differential parity coverage', () => {
     // Guards the guard: if `comparableQueryNames` silently resolved to [] (a
     // renamed census field, a broken import), every assertion above would pass
     // vacuously. A floor turns that into a failure.
-    expect(comparableQueryNames(registeredNames).length).toBeGreaterThanOrEqual(8);
+    //
+    // The floor was 8 when 11 queries were comparable. D-025 then demoted 6 of
+    // them to UNSYNCED_QUERY_REASONS — 5 payload-jsonb document stores plus the
+    // derived `event.replay.chapters` — leaving exactly 5: lineup.items,
+    // actions.items, chat.messages, chat.presence, chat.transcript.
+    //
+    // A floor that is quietly lowered to match whatever survives is not a
+    // guard, so this number is DELIBERATE, not descriptive: 5 is the full set
+    // this contract intends to keep comparable, and any drop below it means a
+    // query left the WS rung. Lowering it again requires a plan Decision saying
+    // which query left and why — never a green-run edit.
+    expect(comparableQueryNames(registeredNames).length).toBeGreaterThanOrEqual(5);
   });
 
   it('excludes synced queries that have no REST registration to diff against', () => {

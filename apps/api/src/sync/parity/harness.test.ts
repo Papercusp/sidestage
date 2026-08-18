@@ -12,13 +12,24 @@ import {
 describe('resolveQueryLeaf', () => {
   it('resolves a nested dot-path to its callable leaf', () => {
     expect(typeof resolveQueryLeaf('event.lineup.items')).toBe('function');
-    expect(typeof resolveQueryLeaf('cart.byId')).toBe('function');
+    expect(typeof resolveQueryLeaf('event.chat.messages')).toBe('function');
   });
 
   it('returns undefined for a path that does not resolve to a function', () => {
     expect(resolveQueryLeaf('event')).toBeUndefined(); // namespace, not a leaf
     expect(resolveQueryLeaf('does.not.exist')).toBeUndefined();
     expect(resolveQueryLeaf('')).toBeUndefined();
+  });
+
+  it('returns undefined for a name D-025 demoted to UNSYNCED_QUERY_REASONS', () => {
+    // `cart.byId` used to be the second case in the resolves-a-leaf test above.
+    // Asserting its ABSENCE is the more useful assertion now: a demoted name
+    // that quietly regains a leaf is how the WS rung would start serving a
+    // payload-jsonb blob again, and nothing else in the suite would notice.
+    expect(resolveQueryLeaf('cart.byId')).toBeUndefined();
+    expect(resolveQueryLeaf('event.config')).toBeUndefined();
+    expect(resolveQueryLeaf('event.auction.active')).toBeUndefined();
+    expect(resolveQueryLeaf('event.replay.chapters')).toBeUndefined();
   });
 });
 

@@ -9,7 +9,7 @@ import {
   useRef,
   useState,
 } from 'react';
-import { useSyncMutate, useSyncQuery } from '@papercusp/sync';
+import { useRestSyncQuery, useSyncMutate } from '@papercusp/sync';
 import type { BuyerProduct } from './buyer';
 import { formatBuyerPrice } from './buyer';
 import {
@@ -288,7 +288,10 @@ function BuyerCheckoutProviderForBuyer({
   const [nowMs, setNowMs] = useState(() => Date.now());
   const expiryRefreshInFlight = useRef<string | undefined>(undefined);
 
-  const cartQuery = useSyncQuery<BuyerCart>({
+  // REST on every transport: `cart` is literally {id, payload, updatedAt}, so
+  // items/subtotalCents/currency all live inside the blob and there is no Zero
+  // leaf (D-025 / UNSYNCED_QUERY_REASONS).
+  const cartQuery = useRestSyncQuery<BuyerCart>({
     queryName: 'cart.byId',
     args: { cartId: cartId ?? '' },
     enabled: Boolean(cartId),

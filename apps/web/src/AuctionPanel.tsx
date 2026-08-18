@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { FormEvent, ReactNode } from 'react';
-import { useSyncMutate, useSyncQuery } from '@papercusp/sync';
+import { useRestSyncQuery, useSyncMutate } from '@papercusp/sync';
 import type { BuyerProduct } from './buyer';
 import { formatBuyerPrice } from './buyer';
 import {
@@ -134,7 +134,10 @@ export function AuctionPanel({
     leaderBidderId: string | null;
   } | null>(null);
 
-  const auctionQuery = useSyncQuery<BuyerAuction>({
+  // REST on every transport: `event.auction.active` keeps bids/allocationState/
+  // winnerOrder/startingPriceCents in a payload jsonb column, so it has no Zero
+  // leaf (D-025 / UNSYNCED_QUERY_REASONS).
+  const auctionQuery = useRestSyncQuery<BuyerAuction>({
     queryName: 'event.auction.active',
     args: { eventId },
     pollIntervalMs: 2_000,

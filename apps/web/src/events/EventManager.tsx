@@ -250,7 +250,11 @@ export function EventManager({
   const hasSelectedEvent = selectedEvent !== undefined;
   const isCreateView = route.view === 'create';
 
-  const configQuery = useSyncQuery<EventConfigView>({
+  // `event.config`, `event.auction.active` and `event.runOfShow` below are REST
+  // on every transport: all three read payload-jsonb document stores, so they
+  // have no Zero leaf (D-025 / UNSYNCED_QUERY_REASONS). `event.actions.items`
+  // and `event.chat.presence` remain real synced leaves.
+  const configQuery = useRestSyncQuery<EventConfigView>({
     queryName: 'event.config',
     args: { eventId: selectedEventId },
     enabled: initialItems === undefined && !isCreateView && hasSelectedEvent,
@@ -262,7 +266,7 @@ export function EventManager({
     enabled: initialItems === undefined && !isCreateView && hasSelectedEvent,
     pollIntervalMs: 10_000,
   });
-  const auctionQuery = useSyncQuery<SellerAuction>({
+  const auctionQuery = useRestSyncQuery<SellerAuction>({
     queryName: 'event.auction.active',
     args: { eventId: selectedEventId },
     enabled: !isCreateView && hasSelectedEvent,
@@ -299,7 +303,7 @@ export function EventManager({
    * owned by this container and rendered by `LineupTimelineView`. The separate
    * authoring panel this replaces is retired from the section below.
    */
-  const planQuery = useSyncQuery<RunOfShowPlan>({
+  const planQuery = useRestSyncQuery<RunOfShowPlan>({
     queryName: 'event.runOfShow',
     args: { eventId: selectedEventId },
     enabled: !isCreateView && hasSelectedEvent,

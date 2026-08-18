@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useId, useRef, useState, type FormEvent } from 'react';
-import { DEMO_PRINCIPAL_HEADER, useSyncMutate, useSyncQuery } from '@papercusp/sync';
+import { DEMO_PRINCIPAL_HEADER, useRestSyncQuery, useSyncMutate } from '@papercusp/sync';
 import { catalogDemoDataEnabled, resolveApiBaseUrl } from './catalog';
 import { TabHeader } from './components/TabHeader';
 import { browserEventId } from './event-identity';
@@ -444,7 +444,9 @@ export function EventSettingsPanel({
   const [savedAt, setSavedAt] = useState<Date | null>(null);
   const appliedRevision = useRef<string | null>(null);
 
-  const configQuery = useSyncQuery<EventConfigView>({
+  // REST on every transport: `event.config` is a payload-jsonb document store
+  // with no Zero leaf (D-025 / UNSYNCED_QUERY_REASONS).
+  const configQuery = useRestSyncQuery<EventConfigView>({
     queryName: 'event.config',
     args: { eventId },
     pollIntervalMs: 30_000,

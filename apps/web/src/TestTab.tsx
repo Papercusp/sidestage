@@ -185,7 +185,8 @@ export function TestTab() {
   const principal = useSyncPrincipal() ?? undefined;
   const [activeSuite, setActiveSuite] = useState<TestSuiteId>('preflight');
   const [selectedCheckId, setSelectedCheckId] = useState<string | null>(null);
-  const eventConfigQuery = useSyncQuery<EventConfigRead>({
+  // REST on every transport: payload-jsonb document store, no Zero leaf (D-025).
+  const eventConfigQuery = useRestSyncQuery<EventConfigRead>({
     queryName: 'event.config',
     args: { eventId },
     pollIntervalMs: 30_000,
