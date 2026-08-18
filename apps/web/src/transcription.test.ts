@@ -316,3 +316,88 @@ describe('publisher stream liveness (WI-39726)', () => {
     expect(session.state).toBe('stopped');
   });
 });
+
+/**
+ * WI-39774 — Deepgram capture runs through MediaRecorder, and the recorder used to be built
+ * with a HARDCODED `audio/webm;codecs=opus`. On Safari and every iOS browser (which record only
+ * `audio/mp4`) that threw NotSupportedError the moment the Deepgram socket opened: no captions,
+ * a raw platform string as the only explanation, and no fallback to the Web Speech engine that
+ * was configured and sitting right there.
+ */
+describe('Deepgram recorder format negotiation', () => {
+  it('prefers WebM/Opus on a browser that can record it', () => {
+    expect(pickDeepgramRecorderMimeType(() => true)).toBe('audio/webm;codecs=opus');
+  });
+
+  it('falls through to the next Deepgram-decodable container when WebM is unavailable', () => {
+    expect(pickDeepgramRecorderMimeType((type) => type.startsWith('audio/ogg'))).toBe('audio/ogg;codecs=opus');
+  });
+
+  it('offers Deepgram only containers it sniffs — never Safari-only audio/mp4', () => {
+    // Deepgram is dialled with no `encoding`/`container` parameter, so it must SNIFF the
+    // stream. audio/mp4 stays out until someone measures it against a real grant token:
+    // shipping it unverified would trade a loud failure for a silent one.
+    expect(DEEPGRAM_RECORDER_MIME_TYPES).not.toContain('audio/mp4');
+    expect(DEEPGRAM_RECORDER_MIME_TYPES.every((type) => /^audio\/(webm|ogg)/.test(type))).toBe(true);
+  });
+
+  it('reports NO usable container for a Safari-class browser', () => {
+    const safari = (type: string) => type.startsWith('audio/mp4');
+    // POSITIVE CONTROL: this browser genuinely records something. The null below is therefore
+    // "nothing Deepgram accepts", not a probe that answers no to everything.
+    expect(safari('audio/mp4')).toBe(true);
+    expect(pickDeepgramRecorderMimeType(safari)).toBeNull();
+  });
+
+  it('keeps the preferred container when the browser has no isTypeSupported to ask', () => {
+    // The probe exists to catch a browser that says NO — never to refuse one that cannot answer.
+    vi.stubGlobal('MediaRecorder', undefined);
+    try {
+      expect(pickDeepgramRecorderMimeType()).toBe('audio/webm;codecs=opus');
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it('routes a Safari-class browser to Web Speech instead of a Deepgram session it cannot record', async () => {
+    const recognition = new FakeRecognition();
+    const webSocketFactory = vi.fn(() => new FakeSocket());
+    const session = createTranscriptionSession({
+      mediaStream: publisherStream().stream,
+      deepgramTokenProvider: async () => 'temporary-jwt',
+      fallbackToWebSpeech: true,
+      isTypeSupported: (type) => type.startsWith('audio/mp4'),
+      speechRecognitionFactory: () => recognition,
+      webSocketFactory,
+    });
+
+    await session.start();
+
+    expect(session.provider).toBe('web-speech');
+    expect(recognition.started).toBe(true);
+    // The token was valid and the socket WOULD have opened — that is exactly how far the old
+    // code got before dying at recorder construction. Nothing may dial Deepgram now.
+    expect(webSocketFactory).not.toHaveBeenCalled();
+  });
+
+  it('POSITIVE CONTROL: the same configuration on a WebM browser still chooses Deepgram', async () => {
+    const socket = new FakeSocket();
+    const webSocketFactory = vi.fn(() => socket);
+    const session = createTranscriptionSession({
+      mediaStream: publisherStream().stream,
+      deepgramTokenProvider: async () => 'temporary-jwt',
+      fallbackToWebSpeech: true,
+      isTypeSupported: (type) => type.startsWith('audio/webm'),
+      speechRecognitionFactory: () => new FakeRecognition(),
+      webSocketFactory,
+      mediaRecorderFactory: () => new FakeRecorder(),
+    });
+
+    const started = session.start();
+    await vi.waitFor(() => expect(webSocketFactory).toHaveBeenCalledOnce());
+    socket.open();
+    await started;
+
+    expect(session.provider).toBe('deepgram');
+  });
+});
