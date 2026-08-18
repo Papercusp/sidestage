@@ -56,11 +56,25 @@
  *     live `SyncQueryRegistry.resolve(name, args, context)` — the actual
  *     production resolver, not a mock.
  *
- * `runZeroQuery` / `runSseQuery` are the typed seams Phase 2 fills in; they
- * throw until then so a suite that calls them fails loudly instead of
- * silently reporting a pass it never actually ran.
+ * ## Phase 2 is now IMPLEMENTED (WI-39867)
+ *
+ * `createZeroQueryRunner` / `createSseQueryRunner` below replace the throwing
+ * seams this header used to describe. The per-query DIFFERENTIAL that consumes
+ * them — row key sets, cardinality, and value equality against seeded live data
+ * — lives in `differential.ts` + `differential.integration.test.ts`, and is what
+ * plan Decision D-023 gates the WS rung's return on.
+ *
+ * Note what `diffRows` below can and cannot do: it is an ORDER-SENSITIVE,
+ * whole-row equality check, which answers "are these two result sets identical".
+ * It cannot say WHY they differ, and in particular it cannot distinguish "the
+ * Zero rung dropped a server-computed field" (the WI-39839/WI-39855 class) from
+ * an unrelated value change. `diffQueryShape` in `differential.ts` is the one
+ * that separates those axes; prefer it for parity verdicts.
  */
-import { queries } from '@papercusp/sidestage-zero';
+import type { Pool } from 'pg';
+import { zeroNodePg } from '@rocicorp/zero/server/adapters/pg';
+import { addContextToQuery } from '@rocicorp/zero/bindings';
+import { queries, schema } from '@papercusp/sidestage-zero';
 
 /** A registry leaf: a callable query/mutator function, possibly carrying Zero's derived wire name. */
 type RegistryLeaf = ((...args: never[]) => unknown) & { queryName?: string };
@@ -137,47 +151,76 @@ export function diffRows(sseRows: readonly unknown[], zeroRows: readonly unknown
 }
 
 /**
- * PHASE 2 SEAM — deliberately unimplemented (needs a live Postgres to compare
- * rows against). Throws rather than returning `[]` so a suite that calls it
- * fails loudly instead of reporting a false pass.
+ * PHASE 2, IMPLEMENTED (WI-39867). Executes a named Zero query as ZQL directly
+ * against Postgres and returns what the WS rung would serve.
  *
- * NOTE this seam does NOT call the `/zero/query` HTTP handler, which exists as
- * of P-011 but is a pure AST transform and returns no rows. Data-level parity
- * needs ZQL *executed* against Postgres, so wire it to the same adapter the
- * controller uses (`@rocicorp/zero/server/adapters/pg`, given the app's
- * `PG_POOL` — NOT `zeroPostgresJS`, which would open a second unsupervised
- * pool; see the header and the plan decision):
+ * This deliberately does NOT call the `/zero/query` HTTP handler. That endpoint
+ * exists (P-011) but is a PURE AST TRANSFORM — it hands zero-cache a ZQL AST to
+ * run against its own replica and returns no rows at all, so it cannot answer a
+ * data-level parity question. What we need is ZQL *executed*, which is what the
+ * adapter below does.
  *
- *   const request = resolveQueryLeaf(queryPath)!(args);
- *   const query = addContextToQuery(request, {userID: principal});
- *   await zeroNodePg(schema, pool).run(query);
+ * `zeroNodePg` — NOT `zeroPostgresJS` — because it accepts the `node-postgres`
+ * `Pool` the app already owns (`PG_POOL`), whereas postgresjs would open a
+ * second unsupervised pool against the same database, bypassing the app's probe,
+ * schema guard and `max:10` limit. Plan Decisions D-010/D-014; `zero.controller.ts`
+ * uses the same adapter, so the comparison exercises SHIPPING code rather than a
+ * reimplementation that could itself drift.
  *
- * ⚠ THE `addContextToQuery` STEP IS NOT OPTIONAL — this comment used to omit
- * it and the advice was WRONG. Calling a registry leaf returns a `QueryRequest`
- * DESCRIPTOR (`{query, args, '~':'QueryRequest'}`), not a `Query`; passing that
- * straight to `.run()` (or to `handleQueryRequest`) fails Zero's brand check.
- * It fails MISLEADINGLY: the assert reads "there are two copies of Zero in your
- * runtime", which sends you hunting a split module graph that is not there.
- * Measured 2026-08-17 (WI-39663, plan Decision D-016) — the module graph was
- * exonerated by A/B; the handler was simply passing the wrong object.
- * `addContextToQuery` is exported from `@rocicorp/zero/bindings` and is what
- * `zero-client`/`zero-react` call on every client-side read; see
- * `zero.controller.ts:transformQueryAs`, which now does exactly this.
+ * ⚠ THE `addContextToQuery` STEP IS NOT OPTIONAL. Calling a registry leaf
+ * returns a `QueryRequest` DESCRIPTOR (`{query, args, '~':'QueryRequest'}`), not
+ * a `Query`; passing that straight to `.run()` fails Zero's brand check — and it
+ * fails MISLEADINGLY, asserting "there are two copies of Zero in your runtime",
+ * which sends you hunting a split module graph that is not there. Measured
+ * 2026-08-17 (WI-39663, plan Decision D-016): the module graph was exonerated by
+ * A/B; the handler was simply passing the wrong object. `addContextToQuery` is
+ * what `zero-client`/`zero-react` call on every client-side read.
+ *
+ * Returns the RAW result, not a normalized array: a `.one()` leaf resolves to a
+ * single row or `undefined`, and flattening that here would destroy the
+ * cardinality axis the differential has to measure (WI-39855 leg c). See
+ * `diffQueryShape` in `differential.ts`, which normalizes it explicitly.
  */
-export async function runZeroQuery(queryPath: string, _args: Record<string, unknown>): Promise<unknown[]> {
-  throw new Error(
-    `runZeroQuery('${queryPath}') is a Phase 2 seam (post-P-004 live data parity) — see harness.ts header for the wiring.`,
-  );
+export type ZeroQueryRunner = (
+  queryPath: string,
+  args: Record<string, unknown>,
+  principal: string | null,
+) => Promise<unknown>;
+
+export function createZeroQueryRunner(pool: Pool): ZeroQueryRunner {
+  const database = zeroNodePg(schema, pool);
+  return async (queryPath, args, principal) => {
+    const leaf = resolveQueryLeaf(queryPath);
+    if (!leaf) {
+      throw new Error(
+        `Unknown Zero query '${queryPath}' — not defined in @papercusp/sidestage-zero's queries registry.`,
+      );
+    }
+    const build = leaf as (...callArgs: unknown[]) => unknown;
+    const request = build(args);
+    const query = addContextToQuery(request as never, { userID: principal } as never);
+    return database.run(query as never);
+  };
 }
 
 /**
- * PHASE 2 SEAM — deliberately unimplemented (needs a bootstrapped
- * `AppModule` + live Postgres). Throws rather than returning `[]` so a suite
- * that calls it fails loudly instead of reporting a false pass. Wire it to a
- * bootstrapped `AppModule`'s `SyncQueryRegistry.resolve(queryName, args, context)`.
+ * PHASE 2, IMPLEMENTED (WI-39867). Runs the same named query through the LIVE
+ * REST/SSE resolver — the actual `SyncQueryRegistry` a bootstrapped `AppModule`
+ * populated, not a mock. A mock would be re-describing the behaviour under test
+ * and could agree with the Zero rung while production disagreed.
+ *
+ * `SyncQueryRegistry.resolve` already enforces the array contract, so the return
+ * type is honest: any singular-vs-array asymmetry lives entirely on the Zero
+ * side, which is what makes the cardinality comparison meaningful.
  */
-export async function runSseQuery(queryName: string, _args: Record<string, unknown>): Promise<unknown[]> {
-  throw new Error(
-    `runSseQuery('${queryName}') is a Phase 2 seam (post-P-004 live data parity) — see harness.ts header for the wiring.`,
-  );
+export type SseQueryRunner = (
+  queryName: string,
+  args: Record<string, unknown>,
+  principal: string | null,
+) => Promise<unknown[]>;
+
+export function createSseQueryRunner(registry: {
+  resolve: (name: string, args: Record<string, unknown>, context: { principal: string | null }) => Promise<unknown[]>;
+}): SseQueryRunner {
+  return (queryName, args, principal) => registry.resolve(queryName, args, { principal });
 }

@@ -1,6 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import { createMutators } from '@papercusp/sidestage-zero';
-import { diffRows, mutatorGuardsOwnPrincipal, mutatorLeaves, resolveQueryLeaf, runSseQuery, runZeroQuery } from './harness';
+import {
+  createSseQueryRunner,
+  createZeroQueryRunner,
+  diffRows,
+  mutatorGuardsOwnPrincipal,
+  mutatorLeaves,
+  resolveQueryLeaf,
+} from './harness';
 
 describe('resolveQueryLeaf', () => {
   it('resolves a nested dot-path to its callable leaf', () => {
@@ -75,12 +82,49 @@ describe('diffRows', () => {
   });
 });
 
-describe('Phase 2 seams', () => {
-  it('runZeroQuery throws (not implemented until P-004 lands)', async () => {
-    await expect(runZeroQuery('event.lineup.items', {})).rejects.toThrow(/Phase 2 seam/);
+/**
+ * The Phase 2 seams no longer throw — they are implemented (WI-39867). What is
+ * still worth asserting WITHOUT a database is the failure that would otherwise
+ * be silent: asking for a query name the contract does not define. Returning
+ * `[]` there would make contract drift look like an empty result set, which is
+ * the same "plausible-looking emptiness" trap `zero.controller.ts` refuses.
+ */
+describe('Phase 2 runners', () => {
+  it('createSseQueryRunner delegates to the live registry with the principal in context', async () => {
+    const calls: { name: string; args: unknown; context: unknown }[] = [];
+    const runner = createSseQueryRunner({
+      resolve: async (name, args, context) => {
+        calls.push({ name, args, context });
+        return [{ id: 'row-1' }];
+      },
+    });
+
+    const rows = await runner('event.chat.messages', { eventId: 'e1' }, 'buyer-1');
+
+    expect(rows).toEqual([{ id: 'row-1' }]);
+    expect(calls).toEqual([
+      { name: 'event.chat.messages', args: { eventId: 'e1' }, context: { principal: 'buyer-1' } },
+    ]);
   });
 
-  it('runSseQuery throws (not implemented until P-004 lands)', async () => {
-    await expect(runSseQuery('event.lineup.items', {})).rejects.toThrow(/Phase 2 seam/);
+  it('createSseQueryRunner passes a null principal through rather than dropping it', async () => {
+    // `null` is a real value for public queries; coercing it to undefined would
+    // change which branch a handler's principal check takes.
+    const seen: unknown[] = [];
+    const runner = createSseQueryRunner({
+      resolve: async (_name, _args, context) => {
+        seen.push(context);
+        return [];
+      },
+    });
+    await runner('event.chat.presence', { eventId: 'e1' }, null);
+    expect(seen).toEqual([{ principal: null }]);
+  });
+
+  it('createZeroQueryRunner refuses an unknown query name instead of returning no rows', async () => {
+    // No database is touched: the name is rejected before any query is built,
+    // so this runs in the ordinary hermetic suite.
+    const runner = createZeroQueryRunner({} as never);
+    await expect(runner('event.not.a.real.query', {}, null)).rejects.toThrow(/Unknown Zero query/);
   });
 });
