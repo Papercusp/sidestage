@@ -49,7 +49,14 @@ export interface EventChatPresence {
   userId: string;
   displayName: string;
   role: EventChatRole;
-  lastSeenAt: string;
+  /**
+   * ISO string on the SSE/polling path, EPOCH MILLISECONDS on the zero
+   * websocket path (WI-39774). Declaring this `string` is the lie that let a
+   * `localeCompare` comparator crash the seller render mid-stream — compare it
+   * only through a coercion that admits both shapes (offer-guard.ts
+   * `lastSeenAtMs`).
+   */
+  lastSeenAt: string | number;
 }
 
 export interface EventChatStats {
