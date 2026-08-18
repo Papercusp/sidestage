@@ -80,6 +80,7 @@ const event: EventSummary = {
   endedAt: '2026-08-14T04:00:00.000Z',
   thumbnailUrl: '/event.png',
   viewers: 0,
+  playbackUrl: null,
 };
 
 const chapters: ReplayChapter[] = [

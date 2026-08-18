@@ -1,5 +1,6 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { ChatService } from '../chat/chat.service';
+import { whepPlaybackUrl } from './playback-url';
 
 /**
  * The event directory behind the buyer "What's on" Channel Guide (P-118 /
@@ -192,6 +193,12 @@ export interface EventRecord {
 /** A directory row as served: the record plus its LIVE viewer count. */
 export interface EventSummary extends EventRecord {
   viewers: number;
+  /**
+   * Full WHEP endpoint for this event's stream, or null when the deployment
+   * has no media plane configured. Server-computed (D-035): clients play what
+   * they are handed and never derive where a stream lives.
+   */
+  playbackUrl: string | null;
 }
 
 /**
@@ -725,6 +732,7 @@ export class EventService {
       viewers: record.status === 'live'
         ? (await this.chat.getStats(record.eventId)).activeUsers
         : 0,
+      playbackUrl: whepPlaybackUrl(record.eventId),
     })));
     return summaries.sort(compareForGuide);
   }

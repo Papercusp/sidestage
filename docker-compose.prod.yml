@@ -172,6 +172,10 @@ services:
       STRIPE_PUBLISHABLE_KEY: ${STRIPE_PUBLISHABLE_KEY:?set in .env.production}
       STRIPE_WEBHOOK_SECRET: ${STRIPE_WEBHOOK_SECRET:?set in .env.production}
       SIDESTAGE_AUCTION_SIGNING_SECRET: ${SIDESTAGE_AUCTION_SIGNING_SECRET:?set in .env.production}
+      # PUBLIC base, not a compose-internal alias: the API serves this URL to
+      # browsers and mobile clients as `playbackUrl` (D-035), so it must be the
+      # address THEY can dial — same host the web bakes into VITE_MEDIAMTX_URL.
+      MEDIAMTX_WHEP_URL: https://media.${PUBLIC_HOSTNAME:-sidestage.buyrestart.com}
       DEEPGRAM_API_KEY: ${DEEPGRAM_API_KEY:?set in .env.production}
       # Optional: blank values keep the provider-independent deterministic
       # Copilot active. Production may inject all three without rebuilding.

@@ -31,7 +31,7 @@ function record(overrides: Partial<EventRecord> & Pick<EventRecord, 'eventId'>):
 }
 
 function summary(overrides: Partial<EventSummary> & Pick<EventSummary, 'eventId'>): EventSummary {
-  return { ...record(overrides), viewers: 0, ...overrides };
+  return { ...record(overrides), viewers: 0, playbackUrl: null, ...overrides };
 }
 
 /**
@@ -72,6 +72,28 @@ describe('event directory (P-118 / D-019)', () => {
 
     await expect(queries.resolve('events.guide', {})).resolves.toEqual([
       expect.objectContaining({ eventId: 'live-room', viewers: 0 }),
+    ]);
+  });
+
+  it('serves the server-computed playback URL on guide rows (D-035)', async () => {
+    const service = new EventService(
+      new StubStore([record({ eventId: 'live-room', status: 'live' })]),
+      new ChatService(),
+    );
+    process.env.MEDIAMTX_WHEP_URL = 'https://media.example.com';
+    try {
+      await expect(service.listForGuide()).resolves.toEqual([
+        expect.objectContaining({
+          eventId: 'live-room',
+          playbackUrl: 'https://media.example.com/sidestage-live-room/whep',
+        }),
+      ]);
+    } finally {
+      delete process.env.MEDIAMTX_WHEP_URL;
+    }
+    // The unconfigured deployment answers null, not a guessed localhost.
+    await expect(service.listForGuide()).resolves.toEqual([
+      expect.objectContaining({ eventId: 'live-room', playbackUrl: null }),
     ]);
   });
 
