@@ -320,3 +320,68 @@ describe('BuyerTab publisher wait (WI-39733)', () => {
     expect(connectViewerMock).toHaveBeenCalledTimes(1);
   });
 });
+
+/**
+ * Autoplay policy (WI-39774): Chrome REJECTS an unmuted `play()` with no user
+ * gesture. The buyer player used to render unmuted, swallow that rejection, and
+ * sit paused forever — a black pane while WebRTC stats showed packets flowing
+ * and frames decoding underneath (measured on prod, 2026-08-18). Muted autoplay
+ * is always policy-allowed, so the element ships muted and the native controls
+ * carry the unmute.
+ */
+describe('BuyerTab autoplay policy (WI-39774)', () => {
+  let container: HTMLDivElement;
+  let root: Root | null;
+
+  beforeEach(() => {
+    connectViewerMock.mockReset();
+    (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
+    container = document.createElement('div');
+    document.body.append(container);
+    root = createRoot(container);
+  });
+
+  afterEach(async () => {
+    if (root) await act(async () => root?.unmount());
+    root = null;
+    container.remove();
+    delete (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT;
+  });
+
+  it('renders the player muted with autoplay so policy can never hold it black', async () => {
+    connectViewerMock.mockResolvedValueOnce(viewerSession().session);
+    await act(async () => root?.render(buyer('policy-room')));
+
+    const video = container.querySelector('video');
+    expect(video).not.toBeNull();
+    expect(video?.muted).toBe(true);
+    expect(video?.autoplay).toBe(true);
+  });
+
+  it('retries a rejected play() muted instead of leaving the pane black', async () => {
+    connectViewerMock.mockResolvedValueOnce(viewerSession().session);
+    await act(async () => root?.render(buyer('policy-room')));
+
+    const video = container.querySelector('video');
+    expect(video).not.toBeNull();
+    // Simulate the pre-fix world where the element reaches onTrack unmuted
+    // (a future regression removing the attribute, or a user having unmuted
+    // before a reconnect): the first play() rejects the way Chrome's policy
+    // does, and the handler must mute and play again rather than give up.
+    video!.muted = false;
+    const play = vi
+      .spyOn(HTMLMediaElement.prototype, 'play')
+      .mockRejectedValueOnce(new DOMException('play() blocked', 'NotAllowedError'))
+      .mockResolvedValue(undefined);
+    try {
+      const onTrack = connectViewerMock.mock.calls[0]?.[0].onTrack as
+        (stream: MediaStream) => void;
+      await act(async () => { onTrack({} as MediaStream); });
+
+      expect(play).toHaveBeenCalledTimes(2);
+      expect(video!.muted).toBe(true);
+    } finally {
+      play.mockRestore();
+    }
+  });
+});

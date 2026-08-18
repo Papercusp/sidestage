@@ -221,7 +221,16 @@ export function BuyerTab({
               videoRef.current.srcObject = mediaStream;
             }
             setStreamState('live');
-            void videoRef.current?.play().catch(() => undefined);
+            // A rejected play() here is Chrome's autoplay policy (unmuted, no
+            // gesture). Silently swallowing it left the pane black while media
+            // decoded underneath (WI-39774) — force muted and play anyway; the
+            // buyer unmutes through the native controls.
+            void videoRef.current?.play().catch(() => {
+              const el = videoRef.current;
+              if (!el) return;
+              el.muted = true;
+              void el.play().catch(() => undefined);
+            });
           },
           // WI-39747: the retry below only covers "the publisher has not started
           // YET" (a WHEP 404). A stream that ARRIVES and then dies never
@@ -444,11 +453,20 @@ export function BuyerTab({
       <section className="buyer-stage-grid" aria-label="Live video and current offer">
         <div className="buyer-stage-primary">
           <div className="buyer-player-card">
+          {/*
+            `muted` + `autoPlay` are load-bearing (WI-39774): Chrome's autoplay
+            policy REJECTS an unmuted play() with no user gesture, the rejection
+            was swallowed, and the element sat paused forever — a black pane
+            with packets flowing and frames decoding underneath. Muted autoplay
+            is always policy-allowed; the native controls carry the unmute.
+          */}
           <video
             ref={videoRef}
             className="buyer-player"
             controls
             playsInline
+            muted
+            autoPlay
             poster={isRenderableThumbnailUrl(thumbnailUrl) ? thumbnailUrl : undefined}
             aria-label={`${resolvedTitle} stream`}
           />
