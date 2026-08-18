@@ -1,5 +1,5 @@
 import { useCallback, useMemo, useState } from 'react';
-import { useSyncQuery } from '@papercusp/sync';
+import { useRestSyncQuery } from '@papercusp/sync';
 import { TAB_GROUPS, tabHref, type TabId, useUrlTab } from './app-routing';
 import { ArchitectureTab } from './ArchitectureTab';
 import { AppDownloadButtons } from './components/AppDownloadButtons';
@@ -67,7 +67,10 @@ export function App() {
   /* P-118 / D-019: one live directory powers the site-wide guide. Keeping the
      query at this shell boundary means the rail and its data remain mounted as
      the user moves among Watch, Orders, Studio, History, and Tests. */
-  const guideQuery = useSyncQuery<GuideEvent>({
+  /* REST-pinned on purpose: events.guide has no Zero leaf — its rows carry
+     SERVER-COMPUTED viewers/playbackUrl that ZQL cannot derive (see
+     UNSYNCED_QUERY_REASONS in libs/zero). */
+  const guideQuery = useRestSyncQuery<GuideEvent>({
     queryName: 'events.guide',
     args: {},
     pollIntervalMs: 15_000,

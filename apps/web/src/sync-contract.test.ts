@@ -29,7 +29,9 @@ const accessPatterns: Record<AccessKind, RegExp> = {
 const legacyAccessBudget = {
   'AuctionPanel.tsx': { 'polling-timer': 1 },
   // ChannelGuide's one timer advances scheduled-event countdown copy; the
-  // directory itself arrives through useSyncQuery('events.guide').
+  // directory itself arrives through useRestSyncQuery('events.guide') — the
+  // guide is REST-pinned since WI-39855 because its rows carry server-computed
+  // viewers/playbackUrl that no Zero leaf can produce.
   'events/ChannelGuide.tsx': { 'polling-timer': 1 },
   // The ONE stage-clock pulse (D-003), and the reason this entry is here rather
   // than on the two surfaces that render it: the Studio dock panel and the

@@ -33,23 +33,14 @@ const eventPageArgs = z.object({
   limit: z.number().int().positive().max(500).default(100),
 }).strict();
 const idArg = z.object({ id: z.string().min(1) }).strict();
-const sellerArg = z.object({ sellerId: z.string().min(1) }).strict();
 
 // ── Registry ────────────────────────────────────────────────────────────────
 
 export const queries = defineQueries({
-  /** `events.guide` (public directory) / `events.mine` (seller's own). */
+  /** `events.byId` — single-event read. `events.guide`/`events.mine` are
+   * deliberately REST-only: both return SERVER-COMPUTED fields (see
+   * UNSYNCED_QUERY_REASONS). */
   events: {
-    guide: defineQuery(() =>
-      zql.event
-        .where('status', 'IN', ['scheduled', 'live', 'ended'])
-        .orderBy('status', 'asc')
-        .orderBy('startsAt', 'asc')
-        .limit(200),
-    ),
-    mine: defineQuery(sellerArg, ({ args: { sellerId } }) =>
-      zql.event.where('sellerId', sellerId).orderBy('createdAt', 'desc').limit(200),
-    ),
     byId: defineQuery(eventArg, ({ args: { eventId } }) =>
       zql.event
         .where('eventId', eventId)
@@ -222,8 +213,6 @@ export type Queries = typeof queries;
  * also the input to P-005's principal-isolation drills.
  */
 export const SYNCED_QUERY_PRINCIPAL_SCOPE = {
-  'events.guide': 'public',
-  'events.mine': 'seller',
   'events.byId': 'public',
   'event.config': 'seller',
   'event.runOfShow': 'seller',
@@ -266,6 +255,8 @@ export type SyncedQueryName = keyof typeof SYNCED_QUERY_PRINCIPAL_SCOPE;
  *    apps/web for it too.
  */
 export const UNSYNCED_QUERY_REASONS: Readonly<Record<string, string>> = {
+  'events.guide': "SERVER-COMPUTED fields (WI-39855/WI-39839): EventService.listForGuide (apps/api/src/events/event.service.ts:725) decorates every row with `viewers` (live chat presence via chat.getStats(eventId).activeUsers) and `playbackUrl` (whepPlaybackUrl(eventId)). NEITHER is a column on the Zero `event` table (libs/zero/src/schema.ts) and neither is derivable in ZQL — presence is a different table's live aggregate, and the URL is composed from runtime config. The retired Zero leaf therefore served rows with `viewers` UNDEFINED, which formatViewers rendered as a confident \"0 watching\" beside a correct \"2 watching\" from event.stats (WI-39839 symptom 3). Name-set parity cannot see this class of drift. Call sites pin the REST path via useRestSyncQuery.",
+  'events.mine': "SERVER-COMPUTED field (WI-39855): EventService.listForSeller (apps/api/src/events/event.service.ts:753) decorates every row with `withheldFromGuide` = guideWithholdReason(record) — a POLICY VERDICT computed from several fields, not a stored column, and absent from the Zero `event` table. Same class as events.guide: ZQL cannot derive it, so the retired Zero leaf silently dropped the seller's only signal for why a room is hidden from the guide (WI-39723). Call sites pin the REST path via useRestSyncQuery.",
   'build.history': 'Operational build snapshot read from a generated JSON artifact, not a Postgres table (census: no backing table, P-020).',
   'judge.latest': 'Operational judge run; a command-with-synced-result surface whose authority is the judge service, not a replicated table (census: no backing table, P-020).',
   'rehearsal.preflight': 'Operational rehearsal preflight computed on demand; no durable table (census: no backing table, P-020).',

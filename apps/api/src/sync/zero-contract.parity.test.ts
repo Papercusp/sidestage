@@ -375,8 +375,6 @@ describe('Zero contract parity with the live sync surfaces', () => {
     // The fixture map is pinned to the registry both ways, so a new leaf
     // cannot ship unguarded and a removed leaf cannot leave a stale fixture.
     const VALID_LEAF_ARGS: Readonly<Record<string, Record<string, unknown> | null>> = {
-      'events.guide': null, // no-args query — nothing to validate
-      'events.mine': { sellerId: 'seller-1' },
       'events.byId': { eventId: 'event-1' },
       'event.config': { eventId: 'event-1' },
       'event.runOfShow': { eventId: 'event-1' },

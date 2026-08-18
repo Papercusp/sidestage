@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { useSyncMutate, useSyncPrincipal, useSyncQuery } from '@papercusp/sync';
+import { useRestSyncQuery, useSyncMutate, useSyncPrincipal, useSyncQuery } from '@papercusp/sync';
 import { useDemoIdentity } from './buyer-identity';
 import { requestChatJson } from './chat-api';
 import { TabHeader } from './components/TabHeader';
@@ -258,7 +258,10 @@ export function SellerTab({
   const principal = useSyncPrincipal() ?? userId;
   const [studioView, navigateStudioView] = useUrlStudioView();
   const mobileStudio = useMobileStudioViewport();
-  const guideQuery = useSyncQuery<GuideEvent>({
+  // REST-pinned on purpose: events.guide has no Zero leaf — its rows carry
+  // SERVER-COMPUTED viewers/playbackUrl that ZQL cannot derive (see
+  // UNSYNCED_QUERY_REASONS in libs/zero).
+  const guideQuery = useRestSyncQuery<GuideEvent>({
     queryName: 'events.guide',
     args: {},
     pollIntervalMs: 15_000,
@@ -273,7 +276,10 @@ export function SellerTab({
    * query with these exact args, so the two seller boards resolve status from
    * one source rather than two that can disagree.
    */
-  const directoryQuery = useSyncQuery<SellerEventRecord>({
+  // REST-pinned on purpose: events.mine has no Zero leaf — every row carries
+  // the SERVER-COMPUTED withheldFromGuide policy verdict (see
+  // UNSYNCED_QUERY_REASONS in libs/zero).
+  const directoryQuery = useRestSyncQuery<SellerEventRecord>({
     queryName: 'events.mine',
     args: { sellerId: userId },
     pollIntervalMs: 15_000,

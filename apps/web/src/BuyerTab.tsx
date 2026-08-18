@@ -105,7 +105,11 @@ export function BuyerTab({
 }: BuyerTabProps) {
   /* The app shell owns the persistent guide. Standalone renders still read the
      same directory so the active room title and thumbnail stay authoritative. */
-  const guideQuery = useSyncQuery<GuideEvent>({
+  // REST-pinned on purpose: events.guide has no Zero leaf — its rows carry
+  // SERVER-COMPUTED viewers/playbackUrl that ZQL cannot derive (see
+  // UNSYNCED_QUERY_REASONS in libs/zero), so a transport-following
+  // useSyncQuery would serve rows missing both on the WEBSOCKETS rung.
+  const guideQuery = useRestSyncQuery<GuideEvent>({
     queryName: 'events.guide',
     args: {},
     enabled: guideEventsProp === undefined,

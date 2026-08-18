@@ -6,10 +6,12 @@ import { BuyerTab, buyerProductsFromSyncRows, buyerStatsFromSyncRows } from './B
 import type { GuideEvent } from './events/api';
 
 /**
- * catalog.page is REST-pinned via useRestSyncQuery since WI-39855 (no Zero
- * registry leaf), so the catalog read no longer flows through
- * SyncContext.useDataImpl. Mock that hook as the observable seam; every other
- * export (SyncContext included) stays original.
+ * catalog.page AND events.guide are REST-pinned via useRestSyncQuery since
+ * WI-39855 (neither has a Zero registry leaf — catalog.page is an envelope
+ * contract collision, events.guide returns server-computed viewers/playbackUrl),
+ * so neither read flows through SyncContext.useDataImpl any more. Mock that hook
+ * as the observable seam; every other export (SyncContext included) stays
+ * original.
  */
 const restSync = vi.hoisted(() => ({
   impl: undefined as ((opts: { queryName: string }) => Record<string, unknown>) | undefined,
@@ -141,8 +143,14 @@ describe('BuyerTab sync read models', () => {
       thumbnailUrl: 'data:image/png;base64,GUIDE',
       viewers: 8,
     };
-    const useDataImpl = vi.fn((options: { queryName: string }) => ({
+    // events.guide is REST-pinned (WI-39855), so the observable seam is the
+    // mocked useRestSyncQuery — NOT SyncContext.useDataImpl.
+    const restImpl = vi.fn((options: { queryName: string }) => ({
       data: options.queryName === 'events.guide' ? [guideEvent] : [],
+    }));
+    restSync.impl = restImpl;
+    const useDataImpl = vi.fn(() => ({
+      data: [],
       loading: false,
       fetching: false,
       transport: 'SSE',
@@ -156,12 +164,17 @@ describe('BuyerTab sync read models', () => {
       </SyncContext.Provider>,
     );
 
-    expect(useDataImpl).toHaveBeenCalledWith({
+    expect(restImpl).toHaveBeenCalledWith({
       queryName: 'events.guide',
       args: {},
       enabled: true,
       pollIntervalMs: 15_000,
     });
+    // The pin is the point: a transport-following read would break on the
+    // WEBSOCKETS rung, where events.guide has no registry leaf.
+    expect(useDataImpl).not.toHaveBeenCalledWith(
+      expect.objectContaining({ queryName: 'events.guide' }),
+    );
     expect(html).toContain('Renamed live room');
     expect(html).toContain('src="data:image/png;base64,GUIDE"');
     expect(fetchMock).not.toHaveBeenCalled();

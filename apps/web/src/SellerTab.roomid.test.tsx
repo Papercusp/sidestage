@@ -41,6 +41,14 @@ vi.mock('@papercusp/sync', () => ({
     captured.queries.push({ queryName: options.queryName, args: options.args ?? {} });
     return { data: [], loading: false, error: null };
   },
+  // events.guide / events.mine are REST-pinned (WI-39855) and so reach the
+  // boards through this hook instead. Captured in the SAME list on purpose:
+  // what this file asserts is which room ids the boards asked for, which must
+  // not change with the transport a given name is pinned to.
+  useRestSyncQuery: (options: { queryName: string; args?: Record<string, unknown> }) => {
+    captured.queries.push({ queryName: options.queryName, args: options.args ?? {} });
+    return { data: [], loading: false, error: null };
+  },
   useSyncMutate: (_name: string, fallback?: (input: unknown) => Promise<unknown>) => (
     (input: unknown) => (fallback ? fallback(input) : Promise.resolve(undefined))
   ),

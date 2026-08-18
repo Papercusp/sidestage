@@ -40,6 +40,8 @@ const mocks = vi.hoisted(() => ({ fetchMock: vi.fn() }));
 vi.mock('@papercusp/sync', () => ({
   useSyncPrincipal: () => 'demo-seller',
   useSyncQuery: () => ({ data: [], loading: false, fetching: false, error: null, invalidate: vi.fn() }),
+  // events.mine is REST-pinned (WI-39855), so EventManager reads it here.
+  useRestSyncQuery: () => ({ data: [], loading: false, fetching: false, error: null, invalidate: vi.fn() }),
   useSyncMutate: (_name: string, fallback: (input: unknown) => Promise<unknown>) => fallback,
   SyncContext: { Provider: ({ children }: { children: unknown }) => children },
 }));

@@ -7,7 +7,7 @@ import {
   type KeyboardEvent,
   type MouseEvent,
 } from 'react';
-import { useSyncMutate, useSyncPrincipal, useSyncQuery } from '@papercusp/sync';
+import { useRestSyncQuery, useSyncMutate, useSyncPrincipal, useSyncQuery } from '@papercusp/sync';
 import { EventSettingsPanel, type EventConfigView } from '../ConfigTab';
 import {
   eventManagerHref,
@@ -220,7 +220,10 @@ export function EventManager({
   const sellerDisplayName = sellerName?.trim() || actorId;
   const demoPrincipal = useSyncPrincipal() ?? actorId;
 
-  const directoryQuery = useSyncQuery<SellerOwnedEvent>({
+  // REST-pinned on purpose: events.mine has no Zero leaf — every row carries
+  // the SERVER-COMPUTED withheldFromGuide policy verdict (see
+  // UNSYNCED_QUERY_REASONS in libs/zero).
+  const directoryQuery = useRestSyncQuery<SellerOwnedEvent>({
     queryName: 'events.mine',
     args: { sellerId: actorId },
     enabled: initialEvents === undefined,

@@ -6,6 +6,32 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { EventManager, type SellerOwnedEvent } from './EventManager';
 import type { SellerEventItem } from './api';
 
+/**
+ * events.mine is REST-pinned via useRestSyncQuery since WI-39855 (no Zero
+ * registry leaf — every row carries the server-computed `withheldFromGuide`
+ * policy verdict), so the seller directory no longer flows through
+ * SyncContext.useDataImpl. Mock that hook as its observable seam; every other
+ * export (SyncContext included) stays original.
+ */
+const restSync = vi.hoisted(() => ({
+  impl: undefined as ((opts: { queryName: string }) => Record<string, unknown>) | undefined,
+}));
+vi.mock('@papercusp/sync', async (importOriginal) => {
+  const original = await importOriginal<typeof import('@papercusp/sync')>();
+  return {
+    ...original,
+    useRestSyncQuery: (opts: { queryName: string }) => ({
+      data: [],
+      loading: false,
+      fetching: false,
+      transport: 'SSE',
+      invalidate: vi.fn(),
+      error: null,
+      ...(restSync.impl?.(opts) ?? {}),
+    }),
+  };
+});
+
 const ITEMS: SellerEventItem[] = [{
   eventId: 'sunday-drop',
   eventItemId: 'sunday-drop:espresso',
@@ -30,6 +56,7 @@ const EVENTS: SellerOwnedEvent[] = [{
 
 describe('EventManager', () => {
   beforeEach(() => {
+    restSync.impl = undefined;
     window.history.replaceState({}, '', '/?tab=seller&studio=event-manager&manager=events');
   });
 
@@ -45,14 +72,18 @@ describe('EventManager', () => {
             guardrails: { priceChanges: true, inventoryClaims: true, buyerSensitive: true },
             updatedAt: '2026-08-14T15:00:00.000Z',
           }]
-        : options.queryName === 'event.actions.items' ? ITEMS
-          : options.queryName === 'events.mine' ? EVENTS : [],
+        : options.queryName === 'event.actions.items' ? ITEMS : [],
       loading: false,
       fetching: false,
       transport: 'SSE',
       invalidate: vi.fn(),
       error: null,
     }));
+    // The seller directory is REST-pinned, so it arrives on its own seam.
+    const restImpl = vi.fn((options: { queryName: string }) => ({
+      data: options.queryName === 'events.mine' ? EVENTS : [],
+    }));
+    restSync.impl = restImpl;
 
     const markup = renderToStaticMarkup(
       <SyncContext.Provider value={{ transport: 'SSE', useDataImpl, prefetch: vi.fn() } as never}>
@@ -68,10 +99,15 @@ describe('EventManager', () => {
       queryName: 'event.actions.items',
       args: { eventId: 'sunday-drop' },
     }));
-    expect(useDataImpl).toHaveBeenCalledWith(expect.objectContaining({
+    expect(restImpl).toHaveBeenCalledWith(expect.objectContaining({
       queryName: 'events.mine',
       args: { sellerId: 'seller-27' },
     }));
+    // The pin is the point: a transport-following read would break on the
+    // WEBSOCKETS rung, where events.mine has no registry leaf.
+    expect(useDataImpl).not.toHaveBeenCalledWith(
+      expect.objectContaining({ queryName: 'events.mine' }),
+    );
     expect(markup).toContain('Live renamed drop');
     expect(markup).toContain('My events');
     expect(markup).toContain('Barista Pro Espresso Machine');
@@ -250,8 +286,10 @@ describe('EventManager', () => {
   });
 
   it('does not query or render a phantom fallback event when the seller owns no events', () => {
-    const useDataImpl = vi.fn((options: { queryName: string }) => ({
-      data: options.queryName === 'events.mine' ? [] : undefined,
+    // events.mine answers [] on its REST seam (the mock's default), so every
+    // event-scoped query below must be DISABLED rather than merely empty.
+    const useDataImpl = vi.fn(() => ({
+      data: undefined,
       loading: false,
       fetching: false,
       transport: 'SSE',
