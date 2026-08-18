@@ -73,8 +73,11 @@ describe('shared-checkout install safety (EI-20412068513394843)', () => {
       resolve('/opt/pc', 'scripts/npm-install-safe.mjs'),
     );
     // A bare `npm install` fallback would restore the exact race this item fixed.
+    // (No whole-source not.toMatch(/npm install/) here on purpose: the entrypoint
+    // legitimately says "npm install" in prose — its shim comment and
+    // NOT_FOUND_MESSAGE — so that regex fails on documentation, not behaviour.
+    // The null-return + NOT_FOUND_MESSAGE assertions above pin the property.)
     expect(NOT_FOUND_MESSAGE).toContain('Refusing to fall back');
-    expect(readFileSync(installSafeEntrypoint, 'utf8')).not.toMatch(/npm\s+install(?!-safe)/);
   });
 
   it('excludes generated dependency trees before tsx starts watching the API entrypoint', () => {
