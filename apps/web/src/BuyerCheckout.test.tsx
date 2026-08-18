@@ -4,6 +4,7 @@ import {
   BuyerCheckoutDrawer,
   type BuyerCheckoutDrawerProps,
   type CheckoutDraft,
+  shouldRequestShippingMeter,
 } from './BuyerCheckout';
 import type {
   BuyerCart,
@@ -142,5 +143,21 @@ describe('BuyerCheckoutDrawer', () => {
     expect(html).toContain('Payment received');
     expect(html).toContain('Order order-1 is paid');
     expect(html).toContain('href="/?tab=orders"');
+  });
+
+  // Releasing the last held item leaves a real cart carrying zero lines. The
+  // meter endpoint answers that with a 400, so the drawer must stop asking
+  // rather than log a failed resource on every release.
+  it('does not ask for a shipping meter once the cart has no lines left', () => {
+    expect(shouldRequestShippingMeter({ ...cart, items: [], subtotalCents: 0 })).toBe(false);
+  });
+
+  it('still asks for a shipping meter while the cart holds items', () => {
+    expect(shouldRequestShippingMeter(cart)).toBe(true);
+  });
+
+  it('treats a missing cart the same as an empty one', () => {
+    expect(shouldRequestShippingMeter(null)).toBe(false);
+    expect(shouldRequestShippingMeter(undefined)).toBe(false);
   });
 });
