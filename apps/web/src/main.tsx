@@ -33,12 +33,20 @@ const mutators = createMutators();
 function SideStageSyncRoot() {
   const { userId } = useDemoIdentity();
   return (
-    // WebSockets-first. The provider probes the zero-cache upgrade once per
-    // session and steps down WEBSOCKETS → SSE → bounded POLLING on reachability
-    // failure only; `restEndpoint`/`endpointOverride` stay wired so those lower
-    // rungs keep hitting the right API endpoints when they are used.
+    // SSE-first (WI-39855). The WEBSOCKETS rung resolves query names against
+    // the Zero registry (libs/zero/src/queries.ts) instead of the REST
+    // SyncQueryRegistry, and that contract is not yet row-compatible for the
+    // queries this app consumes: catalog.page/inventory.page take different
+    // args and return bare rows instead of the CatalogPage envelope, every
+    // `.one()` query returns a bare object where call sites read `data[0]`,
+    // and event.config / event.runOfShow / event.auction.active serve composed
+    // REST views that ZQL cannot reproduce. Until per-query parity is proven
+    // by test, WEBSOCKETS silently blanks those surfaces (that is what broke
+    // the buyer drop runway in prod). SSE resolves every name over REST, the
+    // contract all call sites were written against. Re-enable WEBSOCKETS only
+    // together with the cutover plan's per-query parity gate.
     <SyncProvider
-      syncType="WEBSOCKETS"
+      syncType="SSE"
       userId={userId}
       server={zeroServer}
       schema={schema}
