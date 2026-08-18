@@ -18,6 +18,7 @@
  */
 import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { join, relative, resolve } from 'node:path';
+import { addContextToQuery } from '@rocicorp/zero/bindings';
 import { describe, expect, it } from 'vitest';
 
 import {
@@ -360,6 +361,63 @@ describe('Zero contract parity with the live sync surfaces', () => {
       offenders.sort(),
       `web call sites naming an UNSYNCED_QUERY_REASONS query — each throws "Query '<name>' is not a function" the moment that client is on the WEBSOCKETS transport. Fix the call site (derive client-side, or move it to an explicit REST fetch); do not add the name to the Zero registry, and do not grow the list in KNOWN_UNSYNCED_CALL_SITES.\nCall sites found, with line numbers:\n${located.sort().join('\n')}`,
     ).toEqual(KNOWN_UNSYNCED_CALL_SITES);
+  });
+
+  it('rejects unknown argument keys on every args-taking synced query (strict validators)', () => {
+    // WI-39855: the old catalog.page Zero leaf silently STRIPPED the
+    // REST-shaped args the client sent ({availability, pageSize} against a
+    // {region, limit} validator) and served plausible-looking wrong rows.
+    // .strict() turns that drift into a loud parse failure at the server's
+    // real parse boundary — addContextToQuery, the same call
+    // zero.controller.ts makes per request. This test drives that boundary,
+    // not the leaf callable (which only captures args into a descriptor).
+    //
+    // The fixture map is pinned to the registry both ways, so a new leaf
+    // cannot ship unguarded and a removed leaf cannot leave a stale fixture.
+    const VALID_LEAF_ARGS: Readonly<Record<string, Record<string, unknown> | null>> = {
+      'events.guide': null, // no-args query — nothing to validate
+      'events.mine': { sellerId: 'seller-1' },
+      'events.byId': { eventId: 'event-1' },
+      'event.config': { eventId: 'event-1' },
+      'event.runOfShow': { eventId: 'event-1' },
+      'event.lineup.items': { eventId: 'event-1' },
+      'event.actions.items': { eventId: 'event-1' },
+      'event.auction.active': { eventId: 'event-1' },
+      'event.auction.history': { eventId: 'event-1' },
+      'event.chat.messages': { eventId: 'event-1' },
+      'event.chat.presence': { eventId: 'event-1' },
+      'event.chat.transcript': { eventId: 'event-1' },
+      'event.replay.chapters': { eventId: 'event-1' },
+      'event.copilot.proposals': { eventId: 'event-1' },
+      'event.audit.entries': { eventId: 'event-1' },
+      'catalog.byId': { id: 'product-1' },
+      'cart.byId': { cartId: 'cart-1' },
+      'orders.byCart': { cartId: 'cart-1' },
+      'orders.byId': { id: 'order-1' },
+      'policy.published': { sellerId: 'seller-1' },
+    };
+    expect(
+      Object.keys(VALID_LEAF_ARGS).sort(),
+      'VALID_LEAF_ARGS out of step with the registry — add a fixture for a new leaf / drop one for a removed leaf',
+    ).toEqual(leafPaths(queries).sort());
+
+    const ctx = { userID: 'parity-probe' } as never;
+    for (const [path, valid] of Object.entries(VALID_LEAF_ARGS)) {
+      if (valid === null) continue;
+      const leaf = resolveLeaf(path);
+      expect(typeof leaf, `${path}: fixture names a path that is not a query`).toBe('function');
+      const build = leaf as (...callArgs: unknown[]) => unknown;
+      // Control first: a fixture that no longer parses would make the probe
+      // below pass for the wrong reason (missing-key error, not strictness).
+      expect(
+        () => addContextToQuery(build(valid) as never, ctx),
+        `${path}: the VALID_LEAF_ARGS fixture itself no longer parses — fix the fixture, then re-judge strictness`,
+      ).not.toThrow();
+      expect(
+        () => addContextToQuery(build({ ...valid, __parityProbe__: true }) as never, ctx),
+        `${path}: an unknown arg key parsed silently — the validator lost .strict(), which is exactly how catalog.page served wrong rows on the WS rung (WI-39855)`,
+      ).toThrow(/Unrecognized key/);
+    }
   });
 
   it('gives every deferred table and unsynced query a non-empty reason', () => {

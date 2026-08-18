@@ -1,9 +1,38 @@
 import { renderToStaticMarkup } from 'react-dom/server';
 import { SyncContext } from '@papercusp/sync';
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { BuyerTab, buyerProductsFromSyncRows, buyerStatsFromSyncRows } from './BuyerTab';
 import type { GuideEvent } from './events/api';
+
+/**
+ * catalog.page is REST-pinned via useRestSyncQuery since WI-39855 (no Zero
+ * registry leaf), so the catalog read no longer flows through
+ * SyncContext.useDataImpl. Mock that hook as the observable seam; every other
+ * export (SyncContext included) stays original.
+ */
+const restSync = vi.hoisted(() => ({
+  impl: undefined as ((opts: { queryName: string }) => Record<string, unknown>) | undefined,
+}));
+vi.mock('@papercusp/sync', async (importOriginal) => {
+  const original = await importOriginal<typeof import('@papercusp/sync')>();
+  return {
+    ...original,
+    useRestSyncQuery: (opts: { queryName: string }) => ({
+      data: [],
+      loading: false,
+      fetching: false,
+      transport: 'SSE',
+      invalidate: vi.fn(),
+      error: null,
+      ...(restSync.impl?.(opts) ?? {}),
+    }),
+  };
+});
+
+beforeEach(() => {
+  restSync.impl = undefined;
+});
 
 /**
  * The BUYER-side cover for the event thumbnail.
@@ -175,13 +204,17 @@ describe('BuyerTab sync read models', () => {
   });
 
   it('alerts production buyers instead of rendering products when the catalog source is down', () => {
-    const useDataImpl = vi.fn((options: { queryName: string }) => ({
+    // The catalog read is REST-pinned, so the source-down error surfaces
+    // through useRestSyncQuery, not useDataImpl.
+    restSync.impl = (options) =>
+      options.queryName === 'catalog.page' ? { error: new Error('catalog unavailable') } : {};
+    const useDataImpl = vi.fn(() => ({
       data: [],
       loading: false,
       fetching: false,
       transport: 'SSE',
       invalidate: vi.fn(),
-      error: options.queryName === 'catalog.page' ? new Error('catalog unavailable') : null,
+      error: null,
     }));
 
     const html = renderToStaticMarkup(

@@ -2,13 +2,48 @@ import { readFileSync } from 'node:fs';
 
 import { SyncContext } from '@papercusp/sync';
 import { renderToStaticMarkup } from 'react-dom/server';
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { EventCreationPanel } from './EventCreationPanel';
+
+/**
+ * catalog.page / inventory.page are REST-pinned via useRestSyncQuery since
+ * WI-39855 — the Zero registry deliberately has no leaf for them, so the page
+ * read no longer flows through SyncContext.useDataImpl. That hook is the seam
+ * these tests observe: mock it, record calls, keep every other export
+ * (SyncContext included) original.
+ */
+const restSync = vi.hoisted(() => ({
+  impl: undefined as ((opts: { queryName: string }) => Record<string, unknown>) | undefined,
+  calls: [] as { queryName: string }[],
+}));
+vi.mock('@papercusp/sync', async (importOriginal) => {
+  const original = await importOriginal<typeof import('@papercusp/sync')>();
+  return {
+    ...original,
+    useRestSyncQuery: (opts: { queryName: string }) => {
+      restSync.calls.push(opts);
+      return {
+        data: [],
+        loading: false,
+        fetching: false,
+        transport: 'SSE',
+        invalidate: vi.fn(),
+        error: null,
+        ...(restSync.impl?.(opts) ?? {}),
+      };
+    },
+  };
+});
 
 const eventCreationCss = readFileSync(new URL('./event-creation.css', import.meta.url), 'utf8');
 
 describe('EventCreationPanel catalog source loss', () => {
+  beforeEach(() => {
+    restSync.impl = undefined;
+    restSync.calls.length = 0;
+  });
+
   it('builds event lineups from seller-owned inventory instead of the public catalog', () => {
     const useDataImpl = vi.fn(() => ({
       data: [],
@@ -25,11 +60,16 @@ describe('EventCreationPanel catalog source loss', () => {
       </SyncContext.Provider>,
     );
 
-    expect(useDataImpl).toHaveBeenCalledWith(expect.objectContaining({
+    expect(restSync.calls).toContainEqual(expect.objectContaining({
       queryName: 'inventory.page',
     }));
-    expect(useDataImpl).not.toHaveBeenCalledWith(expect.objectContaining({
+    expect(restSync.calls).not.toContainEqual(expect.objectContaining({
       queryName: 'catalog.page',
+    }));
+    // The page read must NOT reach the transport-following path at all — that
+    // is the WI-39855 regression this file guards against.
+    expect(useDataImpl).not.toHaveBeenCalledWith(expect.objectContaining({
+      queryName: 'inventory.page',
     }));
   });
 
@@ -44,11 +84,14 @@ describe('EventCreationPanel catalog source loss', () => {
       </SyncContext.Provider>,
     );
 
-    expect(useDataImpl).toHaveBeenCalledWith(expect.objectContaining({ queryName: 'catalog.page' }));
-    expect(useDataImpl).not.toHaveBeenCalledWith(expect.objectContaining({ queryName: 'inventory.page' }));
+    expect(restSync.calls).toContainEqual(expect.objectContaining({ queryName: 'catalog.page' }));
+    expect(restSync.calls).not.toContainEqual(expect.objectContaining({ queryName: 'inventory.page' }));
   });
 
   it('renders an honest production alert and no demo inventory', () => {
+    // The page read is REST-pinned, so the source-down error surfaces through
+    // useRestSyncQuery; other (synced) reads keep erroring via useDataImpl.
+    restSync.impl = () => ({ error: new Error('catalog unavailable') });
     const useDataImpl = vi.fn(() => ({
       data: [],
       loading: false,
