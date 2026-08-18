@@ -198,6 +198,12 @@ async function runScenario(spec: ScenarioSpec): Promise<ScenarioResult> {
 }
 
 async function main() {
+  // The timeout scenario awaits a race between a never-resolving promise (no
+  // handle) and settle()'s UNREF'D deadline timer; between provider calls the
+  // event loop can hold zero ref'd handles, and node then exits 0 mid-run with
+  // no error and no report. Hold one ref'd handle so the loop cannot drain.
+  const keepalive = setInterval(() => {}, 60_000);
+  try {
   process.stdout.write(`copilot latency benchmark — ${SAMPLES} real samples/scenario, budget ${BUDGET_MS}ms\n`);
   const scenarios: ScenarioResult[] = [];
   for (const spec of SPECS) {
@@ -221,6 +227,9 @@ async function main() {
   // A red gate is a legitimate documented outcome of this benchmark, so only a
   // genuinely unsafe run exits non-zero.
   process.exitCode = report.acceptance.verdict === 'reject-unsafe-over-budget' ? 1 : 0;
+  } finally {
+    clearInterval(keepalive);
+  }
 }
 
 void main();
