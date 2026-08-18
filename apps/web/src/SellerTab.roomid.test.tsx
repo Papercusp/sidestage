@@ -33,7 +33,12 @@ const captured = vi.hoisted(() => ({
   panels: [] as Array<Record<string, { eventId?: string } & Record<string, unknown>>>,
 }));
 
-vi.mock('@papercusp/sync', () => ({
+// Spread the real module and override only what this file controls: a
+// FULL-REPLACEMENT factory must enumerate every export the subject imports, so
+// it strands on the next new one (WI-39855 cost 13 reds that way). This form is
+// immune by construction, and sync-mock-contract.test.ts now enforces it.
+vi.mock('@papercusp/sync', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@papercusp/sync')>()),
   DEMO_PRINCIPAL_HEADER: 'x-demo-principal',
   SyncProvider: ({ children }: { children?: unknown }) => children,
   useSyncPrincipal: () => 'demo-seller',

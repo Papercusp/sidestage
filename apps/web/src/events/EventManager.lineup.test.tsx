@@ -37,7 +37,10 @@ const mocks = vi.hoisted(() => ({ fetchMock: vi.fn() }));
  * asserted, so an edit that quietly reached for the network would fail here
  * rather than pass with a mocked-away side effect.
  */
-vi.mock('@papercusp/sync', () => ({
+// Spread the real module and override only what this file controls — see the
+// note in SellerTab.roomid.test.tsx; enforced by sync-mock-contract.test.ts.
+vi.mock('@papercusp/sync', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@papercusp/sync')>()),
   useSyncPrincipal: () => 'demo-seller',
   useSyncQuery: () => ({ data: [], loading: false, fetching: false, error: null, invalidate: vi.fn() }),
   // events.mine is REST-pinned (WI-39855), so EventManager reads it here.

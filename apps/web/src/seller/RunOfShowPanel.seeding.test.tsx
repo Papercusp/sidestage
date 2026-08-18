@@ -55,7 +55,8 @@ const mocks = vi.hoisted(() => ({
   ],
 }));
 
-vi.mock('@papercusp/sync', () => ({
+vi.mock('@papercusp/sync', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@papercusp/sync')>()),
   useSyncPrincipal: () => 'demo-runner',
   useSyncQuery: ({ queryName }: { queryName: string }) => {
     const state = { loading: false, error: null, invalidate: vi.fn() };

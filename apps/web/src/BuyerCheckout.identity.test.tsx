@@ -17,7 +17,8 @@ const staleQuery = vi.hoisted(() => ({
   }],
 }));
 
-vi.mock('@papercusp/sync', () => ({
+vi.mock('@papercusp/sync', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@papercusp/sync')>()),
   useSyncQuery: () => ({
     data: staleQuery.rows,
     loading: false,
