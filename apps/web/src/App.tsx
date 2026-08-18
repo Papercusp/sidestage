@@ -20,15 +20,15 @@ import { OrdersTab } from './OrdersTab';
 import { SellerTab } from './SellerTab';
 import {
   useSellerCatalog,
+  variantsToTranscriptOptions,
   variantToSellerProduct,
-  variantToTranscriptOption,
 } from './seller-products';
 import { SystemTestsTab } from './SystemTestsTab';
 import { TestTab } from './TestTab';
 
 // Test-compat re-exports: the app shell remains the public face of these.
 export { eventWatchHref, getTabFromUrl, TAB_GROUPS, tabHref, TABS, type TabId } from './app-routing';
-export { variantToSellerProduct, variantToTranscriptOption, type CatalogProduct } from './seller-products';
+export { variantsToTranscriptOptions, variantToSellerProduct, type CatalogProduct } from './seller-products';
 export { SystemTestsTab } from './SystemTestsTab';
 export { TestTab } from './TestTab';
 
@@ -98,7 +98,7 @@ export function App() {
     [sellerVariants],
   );
   const transcriptProducts = useMemo(
-    () => sellerVariants.map(variantToTranscriptOption),
+    () => variantsToTranscriptOptions(sellerVariants),
     [sellerVariants],
   );
   const selectedProduct = sellerProducts.find((product) => product.id === selectedProductId) ?? null;
