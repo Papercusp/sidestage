@@ -229,18 +229,36 @@ describe('useLiveTranscript', () => {
     expect(currentController().suggestedProduct?.label).toBe('Arc Table Lamp');
     expect(currentController().suggestedVariantChoices?.map((choice) => choice.color))
       .toEqual(['Sage', 'Sand', 'Plum', 'Clay']);
+  });
 
-    // A single-variant product has no colourway question: the surface must get
-    // an empty list, not a one-element picker.
+  it('leaves the colourway list empty for a single-variant product', async () => {
+    // No colourway question to ask, so the surface must get an empty list
+    // rather than a one-element picker with nothing to pick.
+    const session = new FakeTranscriptionSession();
+    let controller: LiveTranscriptController | null = null;
+
+    function Harness() {
+      controller = useLiveTranscript({
+        session,
+        active: true,
+        products: PRODUCTS,
+        activeProductId: null,
+        onActiveProductChange: vi.fn(),
+      });
+      return <output>{controller.suggestedProduct?.label ?? ''}</output>;
+    }
+
+    await act(async () => root.render(<Harness />));
     await act(async () => session.emit({
-      id: 'final-2',
-      text: 'Actually show the mug.',
+      id: 'final-1',
+      text: 'Show the stoneware mug',
       isFinal: true,
       provider: 'web-speech',
-      receivedAt: 2,
+      receivedAt: 1,
     }));
-    expect(currentController().suggestedProduct?.id).toBe('mug');
-    expect(currentController().suggestedVariantChoices).toEqual([]);
+
+    expect(controller!.suggestedProduct?.id).toBe('mug');
+    expect(controller!.suggestedVariantChoices).toEqual([]);
   });
 
   it('suppresses the active product and keeps a dismissed alternative on cooldown', async () => {
