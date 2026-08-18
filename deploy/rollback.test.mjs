@@ -258,7 +258,13 @@ describe('deploy.sh records the deployed sha only after the health check', () =>
 
   it('tags built images with the sha so the release stays recoverable', () => {
     expect(deploySource).toMatch(/SIDESTAGE_SHA=\$SHA \$COMPOSE build/);
-    expect(deploySource).toMatch(/docker tag sidestage-api:\$SHA sidestage-api:latest/);
+    // SEAM, not spelling (EI-20721172349887197): what has to be true is that
+    // `latest` is moved onto the SHA-TAGGED image, so the previous sha stays
+    // recoverable. Pinning the literal `docker tag ...` invocation made the
+    // correct fix present as a test failure — the shape that kept the `curl -sf`
+    // bug alive in this same file. This still fails if the two refs stop being
+    // tagged together, but survives `docker image tag`, buildx, or podman.
+    expect(deploySource).toMatch(/sidestage-api:\$SHA\s+sidestage-api:latest/);
   });
 });
 
@@ -348,7 +354,14 @@ describe('rollback.sh trusts the running process over the recorded sha', () => {
     `], { encoding: 'utf8' });
 
     expect(selected).toBe('68874fae50c66990bc498ff9f2bed6b8ab679e77');
-    expect(rollbackSource).toMatch(/docker inspect --format '\{\{\.Config\.Image\}\}'/);
+    // The line above already proves the BEHAVIOUR by executing select_current_sha
+    // and checking what it returns, so this assertion only has to pin the DATA
+    // SOURCE — that the sha is recovered from the container's configured image.
+    // It previously pinned `docker inspect --format '{{...}}'` verbatim, which
+    // would go red for `-f`, a different template spelling, or podman, none of
+    // which changes the behaviour the test above actually verified
+    // (EI-20721172349887197).
+    expect(rollbackSource).toMatch(/\.Config\.Image/);
   });
 
   it('warns when the record and reality disagree instead of silently choosing', () => {
@@ -425,7 +438,11 @@ describe('the rsync preserves prod-side state instead of deleting it', () => {
   });
 
   it('still uses --delete, so excluding is load-bearing rather than moot', () => {
-    expect(deploySource).toMatch(/rsync -az --delete/);
+    // `--delete` is the load-bearing flag this test is NAMED for; `-az` is
+    // incidental transport tuning that has nothing to do with the property being
+    // guarded. Pinning both meant a change to compression or archive flags read
+    // as breaking the exclusion guarantee (EI-20721172349887197).
+    expect(deploySource).toMatch(/rsync[^\n]*--delete/);
   });
 
   it.each(declared)('excludes %s from the destructive rsync', (stateFile) => {
@@ -441,7 +458,11 @@ describe('the rsync preserves prod-side state instead of deleting it', () => {
 
   it('builds the rsync excludes from that same list, not a drifting duplicate', () => {
     expect(deploySource).toMatch(/RSYNC_EXCLUDES\+=\(--exclude="\/\$state_file"\)/);
-    expect(deploySource).toMatch(/rsync -az --delete "\$\{RSYNC_EXCLUDES\[@\]\}"/);
+    // The property is that the SAME array the loop builds is what reaches rsync
+    // (not a hand-maintained duplicate that drifts from it). Flag spelling and
+    // argument order are not part of that property, so they are no longer pinned
+    // (EI-20721172349887197).
+    expect(deploySource).toMatch(/rsync[^\n]*"\$\{RSYNC_EXCLUDES\[@\]\}"/);
   });
 });
 
