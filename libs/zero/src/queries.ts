@@ -51,15 +51,9 @@ export const queries = defineQueries({
   },
 
   event: {
-    /** `event.config` — the Config tab's settings document. */
-    config: defineQuery(eventArg, ({ args: { eventId } }) =>
-      zql.eventConfig.where('eventId', eventId).one(),
-    ),
-
-    /** `event.runOfShow` — advisory planned product order. */
-    runOfShow: defineQuery(eventArg, ({ args: { eventId } }) =>
-      zql.eventRunOfShow.where('eventId', eventId).one(),
-    ),
+    /** `event.config` and `event.runOfShow` are deliberately REST-only: both
+     * read payload-jsonb DOCUMENT-STORE tables, so a Zero leaf can only ever
+     * serve the opaque `payload` column (D-025). See UNSYNCED_QUERY_REASONS. */
 
     lineup: {
       /**
@@ -90,15 +84,10 @@ export const queries = defineQueries({
     },
 
     auction: {
-      /** `event.auction.active` — at most one active auction per event. */
-      active: defineQuery(eventArg, ({ args: { eventId } }) =>
-        zql.auctionState
-          .where('eventId', eventId)
-          .where('status', 'active')
-          .related('product', (q) => q.one())
-          .related('lineupItem', (q) => q.one())
-          .one(),
-      ),
+      /** `event.auction.active` is deliberately REST-only: auction_state keeps
+       * bids / allocationState / winnerOrder / startingPriceCents in a payload
+       * jsonb column (D-025). See UNSYNCED_QUERY_REASONS. */
+
       /** History for the pricing/replay surfaces. */
       history: defineQuery(eventPageArgs, ({ args: { eventId, limit } }) =>
         zql.auctionState.where('eventId', eventId).orderBy('startedAt', 'desc').limit(limit),
@@ -129,25 +118,11 @@ export const queries = defineQueries({
       ),
     },
 
-    replay: {
-      /** `event.replay.chapters` — transcript moments in playback order. */
-      chapters: defineQuery(eventArg, ({ args: { eventId } }) =>
-        zql.chatTranscriptMoment
-          .where('eventId', eventId)
-          .orderBy('startMs', 'asc')
-          .orderBy('createdAt', 'asc'),
-      ),
-    },
-
-    copilot: {
-      /** `event.copilot.proposals` — the seller Copilot review queue. */
-      proposals: defineQuery(eventArg, ({ args: { eventId } }) =>
-        zql.copilotProposal
-          .where('eventId', eventId)
-          .orderBy('createdAt', 'desc')
-          .related('sourceMessage', (q) => q.one()),
-      ),
-    },
+    /** `event.replay.chapters` is deliberately REST-only: the REST rung DERIVES
+     * chapters by merging chat_transcript_moment rows, and a derived view is not
+     * a table (D-025). `event.copilot.proposals` is deliberately REST-only:
+     * copilot_proposal keeps reply / citations / grounding in a payload jsonb
+     * column (D-025). Both: see UNSYNCED_QUERY_REASONS. */
 
     audit: {
       /** Guarded-action evidence; also the source of `event.pricingHistory`. */
@@ -169,15 +144,11 @@ export const queries = defineQueries({
     ),
   },
 
-  /** `cart.byId` — the buyer's cart document. Args mirror the REST
-   * registration ({cartId}, apps/api/src/cart/cart.service.ts), NOT the
-   * generic {id} shape — the client sends {cartId} (WI-39855 drift axis 1). */
-  cart: {
-    byId: defineQuery(
-      z.object({ cartId: z.string().min(1) }).strict(),
-      ({ args: { cartId } }) => zql.cart.where('id', cartId).one(),
-    ),
-  },
+  /** `cart.byId` is deliberately REST-only: `cart` is a payload-jsonb DOCUMENT
+   * STORE ({id, payload, updatedAt}), so a Zero leaf can only ever serve the
+   * opaque blob — items, subtotalCents, currency, buyerId, revision,
+   * eventHoldKeys and eventTerminalTransition all live inside it (D-025).
+   * See UNSYNCED_QUERY_REASONS. */
 
   /** `orders.byBuyer` — routed through the buyer's cart id. */
   orders: {
