@@ -3,6 +3,7 @@ import {
   buildDeepgramUrl,
   createTranscriptionSession,
   DEEPGRAM_RECORDER_MIME_TYPES,
+  deepgramRecorderInputStream,
   hasLiveAudioTrack,
   pickDeepgramRecorderMimeType,
   PUBLISHER_STREAM_ENDED_MESSAGE,
@@ -324,6 +325,60 @@ describe('publisher stream liveness (WI-39726)', () => {
  * a raw platform string as the only explanation, and no fallback to the Web Speech engine that
  * was configured and sitting right there.
  */
+/**
+ * WI-39774 defect B: the publisher hands its full A/V localStream to the
+ * recorder factory, and Chromium refuses an audio-only mimeType over a stream
+ * carrying a video track — `recorder.start()` threw the raw platform string on
+ * every Chromium browser in prod. The recorder must consume audio tracks only.
+ */
+describe('Deepgram recorder input stream (WI-39774)', () => {
+  const audioTrack = { kind: 'audio', readyState: 'live' } as unknown as MediaStreamTrack;
+  const videoTrack = { kind: 'video', readyState: 'live' } as unknown as MediaStreamTrack;
+
+  function publisherAvStream(): MediaStream {
+    return {
+      getTracks: () => [audioTrack, videoTrack],
+      getAudioTracks: () => [audioTrack],
+      getVideoTracks: () => [videoTrack],
+    } as unknown as MediaStream;
+  }
+
+  it('rebuilds an A/V publisher stream down to its audio tracks', () => {
+    class FakeMediaStream {
+      constructor(readonly tracks: MediaStreamTrack[]) {}
+    }
+    vi.stubGlobal('MediaStream', FakeMediaStream);
+    try {
+      const result = deepgramRecorderInputStream(publisherAvStream());
+      expect(result).toBeInstanceOf(FakeMediaStream);
+      expect((result as unknown as FakeMediaStream).tracks).toEqual([audioTrack]);
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it('returns an audio-only stream as-is', () => {
+    // POSITIVE CONTROL for the rebuild test above: same helper, no video track,
+    // so a rebuild here would mean the video check is not what gates it.
+    const stream = {
+      getTracks: () => [audioTrack],
+      getAudioTracks: () => [audioTrack],
+      getVideoTracks: () => [],
+    } as unknown as MediaStream;
+    expect(deepgramRecorderInputStream(stream)).toBe(stream);
+  });
+
+  it('keeps the original stream when there is no MediaStream constructor to rebuild with', () => {
+    vi.stubGlobal('MediaStream', undefined);
+    try {
+      const stream = publisherAvStream();
+      expect(deepgramRecorderInputStream(stream)).toBe(stream);
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+});
+
 describe('Deepgram recorder format negotiation', () => {
   it('prefers WebM/Opus on a browser that can record it', () => {
     expect(pickDeepgramRecorderMimeType(() => true)).toBe('audio/webm;codecs=opus');

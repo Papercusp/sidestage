@@ -335,4 +335,49 @@ describe('buyerCandidates derives who an offer may be addressed to', () => {
     expect(candidates).toHaveLength(1);
     expect(candidates[0]?.displayName).toBe('Ada Reborn');
   });
+
+  // WI-39774: the zero websocket path delivers lastSeenAt as EPOCH MILLISECONDS,
+  // not an ISO string. The string-only comparator threw `localeCompare is not a
+  // function` DURING RENDER, which remounted the sync subtree and tore down the
+  // live WHIP session — the "streaming dies seconds after going live" symptom.
+  it('sorts numeric epoch-ms lastSeenAt rows without throwing, most recent first', () => {
+    const candidates = buyerCandidates({
+      presence: [
+        { userId: 'buyer-a', displayName: 'Ada', role: 'buyer', lastSeenAt: 1_787_000_000_000 },
+        { userId: 'buyer-b', displayName: 'Bo', role: 'buyer', lastSeenAt: 1_787_000_005_000 },
+      ],
+    });
+    expect(candidates.map((c) => c.buyerId)).toEqual(['buyer-b', 'buyer-a']);
+  });
+
+  it('compares numeric and ISO-string lastSeenAt on the same time axis', () => {
+    const candidates = buyerCandidates({
+      presence: [
+        { userId: 'buyer-a', displayName: 'Ada', role: 'buyer', lastSeenAt: '2026-08-17T07:00:00.000Z' },
+        { userId: 'buyer-b', displayName: 'Bo', role: 'buyer', lastSeenAt: Date.parse('2026-08-17T07:00:05.000Z') },
+      ],
+    });
+    expect(candidates.map((c) => c.buyerId)).toEqual(['buyer-b', 'buyer-a']);
+  });
+
+  it('keeps the freshest duplicate when the repeat arrives as a number', () => {
+    const candidates = buyerCandidates({
+      presence: [
+        { userId: 'buyer-a', displayName: 'Ada', role: 'buyer', lastSeenAt: '2026-08-17T07:00:00.000Z' },
+        { userId: 'buyer-a', displayName: 'Ada Reborn', role: 'buyer', lastSeenAt: Date.parse('2026-08-17T07:00:09.000Z') },
+      ],
+    });
+    expect(candidates).toHaveLength(1);
+    expect(candidates[0]?.displayName).toBe('Ada Reborn');
+  });
+
+  it('sorts a row with an unparseable lastSeenAt oldest instead of throwing', () => {
+    const candidates = buyerCandidates({
+      presence: [
+        { userId: 'buyer-a', displayName: 'Ada', role: 'buyer', lastSeenAt: 'not-a-date' },
+        { userId: 'buyer-b', displayName: 'Bo', role: 'buyer', lastSeenAt: 1_787_000_005_000 },
+      ],
+    });
+    expect(candidates.map((c) => c.buyerId)).toEqual(['buyer-b', 'buyer-a']);
+  });
 });

@@ -196,11 +196,34 @@ export function pickDeepgramRecorderMimeType(
   return DEEPGRAM_RECORDER_MIME_TYPES.find((type) => supports(type)) ?? null;
 }
 
+/**
+ * The stream the Deepgram recorder actually consumes: the audio tracks only.
+ *
+ * The publisher hands its full A/V localStream to transcription, and Chromium
+ * refuses an audio-only mimeType over a stream that carries a video track —
+ * `recorder.start()` throws the raw "Failed to execute 'start' on
+ * 'MediaRecorder'" platform string (WI-39774: the prod captions death on every
+ * Chromium browser). Recording from a rebuilt audio-only stream keeps the
+ * mimeType and the tracks consistent. Rebuilding only REFERENCES the tracks:
+ * the publisher's stream is untouched, and the recorder still stops yielding
+ * data when the publisher stops those same tracks.
+ *
+ * A stream with no video tracks is returned as-is, and an environment without
+ * a `MediaStream` constructor keeps the original stream rather than gaining a
+ * new failure mode here.
+ */
+export function deepgramRecorderInputStream(stream: MediaStream): MediaStream {
+  const videoTracks = typeof stream.getVideoTracks === 'function' ? stream.getVideoTracks() : [];
+  if (videoTracks.length === 0) return stream;
+  if (typeof MediaStream === 'undefined' || typeof stream.getAudioTracks !== 'function') return stream;
+  return new MediaStream(stream.getAudioTracks());
+}
+
 function browserMediaRecorderFactory(stream: MediaStream): MediaRecorderLike {
   if (typeof MediaRecorder === 'undefined') throw new Error('MediaRecorder is unavailable in this browser.');
   const mimeType = pickDeepgramRecorderMimeType();
   if (!mimeType) throw new Error(DEEPGRAM_UNSUPPORTED_BROWSER_MESSAGE);
-  return new MediaRecorder(stream, { mimeType }) as unknown as MediaRecorderLike;
+  return new MediaRecorder(deepgramRecorderInputStream(stream), { mimeType }) as unknown as MediaRecorderLike;
 }
 
 /**
