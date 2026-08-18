@@ -119,7 +119,10 @@ interface EvidenceSummary {
 interface BuildHistorySummary {
   latestVerified: { item: BuildHistoryWorkItem; plan: BuildHistoryPlan } | null;
   completedThisWeek: number;
+  completedTotal: number;
   activePlans: number;
+  deliveredPlans: number;
+  totalPlans: number;
   lastUpdatedAt: string | null;
 }
 
@@ -272,12 +275,25 @@ export function summarizeBuildHistory(
     .filter((value): value is string => timestamp(value) !== null)
     .sort((left, right) => (timestamp(right) ?? 0) - (timestamp(left) ?? 0))[0] ?? null;
 
+  // A build HISTORY page must headline what was delivered. `activePlans` counts
+  // only NON-terminal plans, so on its own it excludes every shipped plan —
+  // i.e. it shrinks as the project succeeds, and read as "how much have we
+  // built?" it understates the archive badly (28 shown against 51 real plans,
+  // owner-reported twice). Keep it, but report it beside the totals rather than
+  // as the headline. WI-39777.
+  const activePlans = plans.filter(
+    (plan) => !TERMINAL_PLAN_STATES.has(plan.status.toLocaleLowerCase()),
+  ).length;
+
   return {
     latestVerified: verifiedItems[0] ?? null,
     completedThisWeek: allItems.filter(({ item }) => (
       (timestamp(item.completedAt) ?? Number.NEGATIVE_INFINITY) >= startOfWeek.getTime()
     )).length,
-    activePlans: plans.filter((plan) => !TERMINAL_PLAN_STATES.has(plan.status.toLocaleLowerCase())).length,
+    completedTotal: allItems.length,
+    activePlans,
+    deliveredPlans: plans.length - activePlans,
+    totalPlans: plans.length,
     lastUpdatedAt,
   };
 }
@@ -690,14 +706,14 @@ function BuildHistoryMetrics({ plans, now }: { plans: readonly BuildHistoryPlan[
           <small>{summary.latestVerified ? `${summary.latestVerified.plan.title} · ${formatBuildDate(summary.latestVerified.item.completedAt)}` : 'Waiting for evidence-backed completion'}</small>
         </div>
         <div className="build-metric">
-          <span>Completed this week</span>
-          <strong>{summary.completedThisWeek}</strong>
-          <small>Completed work-item records</small>
+          <span>Completed work items</span>
+          <strong>{summary.completedTotal}</strong>
+          <small>{summary.completedThisWeek} completed this week</small>
         </div>
         <div className="build-metric">
-          <span>Active plans</span>
-          <strong>{summary.activePlans}</strong>
-          <small>Non-terminal plan records</small>
+          <span>Plans</span>
+          <strong>{summary.totalPlans}</strong>
+          <small>{summary.deliveredPlans} delivered · {summary.activePlans} in flight</small>
         </div>
         <div className="build-metric">
           <span>Last ledger update</span>
