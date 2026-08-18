@@ -151,8 +151,13 @@ export const SYNC_QUERY_SURFACES: readonly NamedSurface[] = [
   query('event.replay.chapters', 'chat/chat.module.ts', 'replay', ['public'], ['chat_transcript_moment'], 'public event projection', 'P-017'),
   query('event.runOfShow', 'run-of-show/run-of-show.module.ts', 'event_run_of_show', ['seller-owned'], ['event_run_of_show'], 'event seller owner', 'P-019'),
   query('event.stats', 'stats/stats.module.ts', 'event-stats', ['public'], ['event', 'checkout_order', 'auction_state'], 'public projection', 'P-017'),
-  query('events.guide', 'events/event.module.ts', 'event-directory', ['public'], ['event'], 'published public projection', 'P-017'),
-  query('events.mine', 'events/event.module.ts', 'event-directory', ['seller-owned'], ['event'], 'selected seller', 'P-019'),
+  // WI-39855: `chat_presence` belongs here. listForGuide decorates every row
+  // with `viewers` from chat.getStats(eventId).activeUsers and a computed
+  // playbackUrl, so this is a multi-source read like event.stats — NOT the
+  // single-table projection this entry claimed. That understatement is what
+  // made the query look trivially Zero-able; it is now REST-only.
+  query('events.guide', 'events/event.module.ts', 'event-directory', ['public'], ['event', 'chat_presence'], 'published public projection decorated with live presence + computed playbackUrl', 'P-017'),
+  query('events.mine', 'events/event.module.ts', 'event-directory', ['seller-owned'], ['event'], 'selected seller; rows carry the computed withheldFromGuide policy verdict', 'P-019'),
   query('judge.latest', 'judge/judge.module.ts', 'judge', ['operational'], [], 'operator-visible', 'P-020'),
   query('orders.byBuyer', 'checkout/checkout.module.ts', 'orders', ['buyer-owned'], ['checkout_order'], 'selected buyer', 'P-018'),
   query('rehearsal.preflight', 'rehearsals/rehearsal.module.ts', 'rehearsal', ['seller-owned', 'operational'], [], 'event seller owner', 'P-020'),
