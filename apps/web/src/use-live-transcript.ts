@@ -47,6 +47,15 @@ export interface LiveTranscriptController {
   error: string | null;
   activeProduct: TranscriptProductOption | null;
   suggestedProduct: TranscriptProductOption | null;
+  /**
+   * Sibling variants of `suggestedProduct` that matched the seller's words
+   * equally well — carried through from the detector's `variantChoices` so the
+   * surface can OFFER the colourway instead of committing to one the seller
+   * never named. Empty when the named product ships in a single variant (or
+   * when the suggestion came from the semantic classifier, which resolves to
+   * one row by construction), which is the signal to render the plain CTA.
+   */
+  suggestedVariantChoices?: readonly TranscriptProductOption[];
   suggestionConfidence?: number | null;
   suggestionEvidenceSegmentIds?: readonly string[];
   suggestionExpiresAt?: number | null;
@@ -105,6 +114,7 @@ export function useLiveTranscript({
   const [interim, setInterim] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [suggestedProduct, setSuggestedProduct] = useState<TranscriptProductOption | null>(null);
+  const [suggestedVariantChoices, setSuggestedVariantChoices] = useState<readonly TranscriptProductOption[]>(EMPTY_PRODUCTS);
   const [suggestionConfidence, setSuggestionConfidence] = useState<number | null>(null);
   const [suggestionEvidenceSegmentIds, setSuggestionEvidenceSegmentIds] = useState<string[]>([]);
   const [suggestionExpiresAt, setSuggestionExpiresAt] = useState<number | null>(null);
@@ -129,6 +139,7 @@ export function useLiveTranscript({
     suggestedProductRef.current = null;
     suggestionExpiresAtRef.current = 0;
     setSuggestedProduct(null);
+    setSuggestedVariantChoices(EMPTY_PRODUCTS);
     setSuggestionConfidence(null);
     setSuggestionEvidenceSegmentIds([]);
     setSuggestionExpiresAt(null);
@@ -138,6 +149,7 @@ export function useLiveTranscript({
     product: TranscriptProductOption,
     confidence: number,
     evidenceSegmentIds: readonly string[],
+    variantChoices: readonly TranscriptProductOption[] = EMPTY_PRODUCTS,
   ) => {
     const now = Date.now();
     if (product.id === activeProductIdRef.current) return;
@@ -145,6 +157,7 @@ export function useLiveTranscript({
     suggestedProductRef.current = product;
     suggestionExpiresAtRef.current = now + PRODUCT_SUGGESTION_TTL_MS;
     setSuggestedProduct(product);
+    setSuggestedVariantChoices(variantChoices.length > 1 ? [...variantChoices] : EMPTY_PRODUCTS);
     setSuggestionConfidence(confidence);
     setSuggestionEvidenceSegmentIds([...evidenceSegmentIds]);
     setSuggestionExpiresAt(suggestionExpiresAtRef.current);
@@ -209,7 +222,7 @@ export function useLiveTranscript({
       });
       if (decision.kind === 'suggest') {
         classificationSequenceRef.current += 1;
-        proposeProduct(decision.product, decision.confidence, decision.evidenceSegmentIds);
+        proposeProduct(decision.product, decision.confidence, decision.evidenceSegmentIds, decision.variantChoices);
         return;
       }
       if (decision.reason === 'active-product-only') {
@@ -270,6 +283,7 @@ export function useLiveTranscript({
     error,
     activeProduct: products.find((product) => product.id === activeProductId) ?? null,
     suggestedProduct,
+    suggestedVariantChoices,
     suggestionConfidence,
     suggestionEvidenceSegmentIds,
     suggestionExpiresAt,
