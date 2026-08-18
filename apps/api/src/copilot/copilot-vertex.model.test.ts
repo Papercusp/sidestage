@@ -118,7 +118,10 @@ describe('VertexCopilotReplyModel', () => {
 
     const draft = await model.generate(request);
 
-    expect(draft).toBe(fallbackDraft);
+    // Same fallback content, but stamped with WHY: a benchmark/latency budget
+    // reading this draft must be able to tell it is not the real provider's
+    // own answer.
+    expect(draft).toEqual({ ...fallbackDraft, providerError: 'unparseable-response' });
     expect(fallback.generate).toHaveBeenCalledWith(request);
   });
 
@@ -137,7 +140,7 @@ describe('VertexCopilotReplyModel', () => {
 
     const draft = await model.generate(request);
 
-    expect(draft).toBe(fallbackDraft);
+    expect(draft).toEqual({ ...fallbackDraft, providerError: 'vertex unavailable' });
     expect(fallback.generate).toHaveBeenCalledWith(request);
   });
 });
