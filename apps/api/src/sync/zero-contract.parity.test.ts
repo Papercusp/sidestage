@@ -135,7 +135,7 @@ const KNOWN_UNSYNCED_CALL_SITES: readonly string[] = ([] as string[]).sort();
 const DEFERRED_REPLICATION: Readonly<Record<string, string>> = {
   scout_session: 'Buyer Scout session state; P-018 lane, outside the auction/chat/catalog cutover.',
   scout_memory: 'Buyer Scout memory (also carries an unpublishable tsvector); P-018 lane.',
-  policy_audit_entry: 'Backs event.pricingHistory; joins the replicated set with that query (P-002 follow-up).',
+  policy_audit_entry: 'Seller-owned/operational policy audit trail, written by the policy path (PolicyService, apps/api/src/policies/policy.service.ts INSERT :207) and read back only through PolicyService.listAudit(sellerId, filter); no Zero query leaf reads it. Deferred on its own merits, NOT via event.pricingHistory — that query never touched this table (WI-39728).',
   policy_outbox_event: 'Server-internal outbox plumbing — never client-visible.',
   policy_idempotency: 'Server-internal idempotency keys — never client-visible.',
   system_test_run: 'Operational test-harness table; operator-only surface (P-020).',
