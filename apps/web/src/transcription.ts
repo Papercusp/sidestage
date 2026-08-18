@@ -567,7 +567,20 @@ class ConfiguredProviderSession extends BaseSession {
     this.setState('connecting');
     try {
       const token = (this.options.deepgramToken ?? await this.options.deepgramTokenProvider?.())?.trim() || null;
-      const next = token
+      /*
+       * A token is necessary but NOT sufficient (WI-39774). Deepgram capture runs through
+       * MediaRecorder, and a browser that cannot record any container Deepgram decodes (Safari,
+       * every iOS browser) would take the Deepgram path and die at recorder construction — with
+       * captions configured to fall back, and a Web Speech engine sitting right there unused.
+       *
+       * This is a CAPABILITY check, not error-swallowing: it is decided before the token is
+       * spent, from the browser's own answer, with no network involved. Grant failures and
+       * network errors still surface as Deepgram errors exactly as before — see this class's
+       * header. An injected mediaRecorderFactory owns its own format choice, so it is trusted.
+       */
+      const canRecordForDeepgram = this.options.mediaRecorderFactory !== undefined
+        || pickDeepgramRecorderMimeType(this.options.isTypeSupported) !== null;
+      const next = token && canRecordForDeepgram
         ? new DeepgramSession({ ...this.options, deepgramToken: token, deepgramTokenProvider: undefined })
         : new WebSpeechSession(this.options);
       this.active = next;
