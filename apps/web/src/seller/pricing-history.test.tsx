@@ -1,6 +1,19 @@
 import { renderToStaticMarkup } from 'react-dom/server';
-import { SyncContext } from '@papercusp/sync';
+import { SyncContext, useRestSyncQuery } from '@papercusp/sync';
 import { describe, expect, it, vi } from 'vitest';
+
+// `event.pricingHistory` is an UNSYNCED query name — the Zero registry
+// deliberately has no leaf for it — so this panel reads it through
+// `useRestSyncQuery`, the REST/batch path on EVERY transport (WI-39772). That
+// hook resolves its own client and never consults the SyncContext's
+// `useDataImpl`, so stub the hook itself. Spread the real module so
+// `SyncContext` stays real and a new export never silently vanishes from a
+// hand-listed factory.
+vi.mock('@papercusp/sync', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@papercusp/sync')>()),
+  useRestSyncQuery: vi.fn(),
+}));
+
 import { PricingHistoryContent, PricingHistoryPanel, type PricingHistory } from './PricingHistoryPanel';
 
 describe('seller pricing history', () => {
@@ -8,22 +21,23 @@ describe('seller pricing history', () => {
     const history: PricingHistory = { productId: 'mug', prices: [], offers: [], auctions: [] };
     const fetchMock = vi.fn();
     vi.stubGlobal('fetch', fetchMock);
-    const useDataImpl = vi.fn().mockReturnValue({
+    const restQuery = vi.mocked(useRestSyncQuery);
+    restQuery.mockReturnValue({
       data: [history],
       loading: false,
       fetching: false,
-      transport: 'SSE',
+      transport: 'POLLING',
       invalidate: vi.fn(),
       error: null,
-    });
+    } as never);
 
     const markup = renderToStaticMarkup(
-      <SyncContext.Provider value={{ transport: 'SSE', useDataImpl, prefetch: vi.fn() } as never}>
+      <SyncContext.Provider value={{ transport: 'SSE', prefetch: vi.fn() } as never}>
         <PricingHistoryPanel eventId="Sunday drop" productId="mug/red" />
       </SyncContext.Provider>,
     );
 
-    expect(useDataImpl).toHaveBeenCalledWith({
+    expect(restQuery).toHaveBeenCalledWith({
       queryName: 'event.pricingHistory',
       args: { eventId: 'Sunday drop', productId: 'mug/red' },
       pollIntervalMs: 15_000,
@@ -33,19 +47,17 @@ describe('seller pricing history', () => {
   });
 
   it('keeps retry scoped to a real query error', () => {
+    vi.mocked(useRestSyncQuery).mockReturnValue({
+      data: [],
+      loading: false,
+      fetching: false,
+      transport: 'POLLING',
+      invalidate: vi.fn(),
+      error: new Error('sync unavailable'),
+    } as never);
+
     const markup = renderToStaticMarkup(
-      <SyncContext.Provider value={{
-        transport: 'SSE',
-        prefetch: vi.fn(),
-        useDataImpl: vi.fn().mockReturnValue({
-          data: [],
-          loading: false,
-          fetching: false,
-          transport: 'SSE',
-          invalidate: vi.fn(),
-          error: new Error('sync unavailable'),
-        }),
-      } as never}>
+      <SyncContext.Provider value={{ transport: 'SSE', prefetch: vi.fn() } as never}>
         <PricingHistoryPanel eventId="event-1" productId="mug" />
       </SyncContext.Provider>,
     );

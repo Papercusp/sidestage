@@ -1,7 +1,19 @@
 import { readFileSync } from 'node:fs';
 import { renderToStaticMarkup } from 'react-dom/server';
-import { SyncContext } from '@papercusp/sync';
+import { SyncContext, useRestSyncQuery } from '@papercusp/sync';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+
+// `build.history` is an UNSYNCED query name — the Zero registry deliberately
+// has no leaf for it — so this tab reads it through `useRestSyncQuery`, the
+// REST/batch path on EVERY transport (WI-39772). That hook resolves its own
+// client and never consults the SyncContext's `useDataImpl`, so stub the hook
+// itself. Spread the real module so `SyncContext` stays real and a new export
+// never silently vanishes from a hand-listed factory.
+vi.mock('@papercusp/sync', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@papercusp/sync')>()),
+  useRestSyncQuery: vi.fn(),
+}));
+
 import {
   BuildHistoryTab,
   BuildHistoryList,
@@ -196,22 +208,23 @@ describe('BuildHistoryTab live query', () => {
   it('renders named-query data without a normal refresh or direct fetch path', () => {
     const fetchMock = vi.fn();
     vi.stubGlobal('fetch', fetchMock);
-    const useDataImpl = vi.fn().mockReturnValue({
+    const restQuery = vi.mocked(useRestSyncQuery);
+    restQuery.mockReturnValue({
       data: HISTORY,
       loading: false,
       fetching: false,
-      transport: 'SSE',
+      transport: 'POLLING',
       invalidate: vi.fn(),
       error: null,
-    });
+    } as never);
 
     const markup = renderToStaticMarkup(
-      <SyncContext.Provider value={{ transport: 'SSE', useDataImpl, prefetch: vi.fn() } as never}>
+      <SyncContext.Provider value={{ transport: 'SSE', prefetch: vi.fn() } as never}>
         <BuildHistoryTab />
       </SyncContext.Provider>,
     );
 
-    expect(useDataImpl).toHaveBeenCalledWith({
+    expect(restQuery).toHaveBeenCalledWith({
       queryName: 'build.history',
       args: {},
       pollIntervalMs: 60_000,
@@ -225,19 +238,17 @@ describe('BuildHistoryTab live query', () => {
   });
 
   it('offers retry only when the live query reports an error', () => {
+    vi.mocked(useRestSyncQuery).mockReturnValue({
+      data: [],
+      loading: false,
+      fetching: false,
+      transport: 'POLLING',
+      invalidate: vi.fn(),
+      error: new Error('history sync unavailable'),
+    } as never);
+
     const markup = renderToStaticMarkup(
-      <SyncContext.Provider value={{
-        transport: 'SSE',
-        prefetch: vi.fn(),
-        useDataImpl: vi.fn().mockReturnValue({
-          data: [],
-          loading: false,
-          fetching: false,
-          transport: 'SSE',
-          invalidate: vi.fn(),
-          error: new Error('history sync unavailable'),
-        }),
-      } as never}>
+      <SyncContext.Provider value={{ transport: 'SSE', prefetch: vi.fn() } as never}>
         <BuildHistoryTab />
       </SyncContext.Provider>,
     );
