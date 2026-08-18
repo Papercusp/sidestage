@@ -2,7 +2,9 @@ import { describe, expect, it, vi } from 'vitest';
 import {
   buildDeepgramUrl,
   createTranscriptionSession,
+  DEEPGRAM_RECORDER_MIME_TYPES,
   hasLiveAudioTrack,
+  pickDeepgramRecorderMimeType,
   PUBLISHER_STREAM_ENDED_MESSAGE,
   requestDeepgramToken,
   type MediaRecorderLike,
