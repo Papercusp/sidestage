@@ -381,6 +381,36 @@
   color: var(--status-warning, #b45309);
 }
 
+/* A failed "Take live". This used to be an unstyled <p> and read as body copy
+   sitting in the Next card, which is how a bare "Internal server error" passed
+   for content (WI-39837). It is a message ABOUT the button above it, so it is
+   attached to the button, tinted, and offers the retry. */
+.run-of-show-stage-error {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 0.4rem;
+  padding: 0.45rem 0.55rem;
+  border: 1px solid color-mix(in srgb, var(--status-warning, #b45309) 35%, transparent);
+  border-radius: 0.5rem;
+  background: color-mix(in srgb, var(--status-warning, #b45309) 8%, transparent);
+}
+
+.run-of-show-stage-error > p {
+  margin: 0;
+  flex: 1 1 10rem;
+  color: var(--status-warning, #b45309);
+  font-size: 0.72rem;
+  line-height: 1.4;
+}
+
+.run-of-show-stage-retry {
+  flex: 0 0 auto;
+  padding: 0.25rem 0.6rem;
+  font-size: 0.7rem;
+}
+
 .run-of-show-later-card {
   padding: 0;
 }

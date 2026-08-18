@@ -62,11 +62,18 @@ vi.mock('@papercusp/sync', () => ({
   useSyncMutate: (_name: string, fallback: (input: unknown) => Promise<unknown>) => fallback,
 }));
 
-vi.mock('../events/api', () => ({
+/*
+ * Only the two TRANSPORT functions are stubbed. `describeSellerActionFailure`
+ * and `EventApiError` are the real ones on purpose: the failure copy the seller
+ * reads is decided by that classifier, so a stub of it would test the stub.
+ */
+vi.mock('../events/api', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../events/api')>()),
   startSellerAuction: mocks.startSellerAuction,
   executeSellerAction: mocks.executeSellerAction,
 }));
 
+import { EventApiError } from '../events/api';
 import { RunOfShowPanel } from './RunOfShowPanel';
 /*
  * The panel reads the ONE shared clock (D-003) rather than taking a log as a
@@ -148,8 +155,9 @@ describe('RunOfShowPanel integration', () => {
     // The regression this pins: advancing selection on a refused push puts the
     // dock and the D-005 server-truth clock into disagreement — the seller sees
     // a card that is not on stage and a clock that never starts.
+    // A REFUSAL is a 4xx: the server judged this command and said why.
     mocks.executeSellerAction.mockImplementation(async () => {
-      throw new Error('The event policy does not allow push actions.');
+      throw new EventApiError('The event policy does not allow push actions.', 409);
     });
     const onActiveProductChange = vi.fn();
     const { container, root, button } = await mountAndFindTakeLive(onActiveProductChange);
@@ -163,6 +171,47 @@ describe('RunOfShowPanel integration', () => {
       expect(mocks.itemsInvalidate).not.toHaveBeenCalled();
       // The server's own refusal is surfaced verbatim rather than restated.
       expect(container.textContent).toContain('The event policy does not allow push actions.');
+      // Nothing to retry: the server will refuse the identical command again.
+      expect([...container.querySelectorAll('button')].map((node) => node.textContent))
+        .not.toContain('Try again');
+    } finally {
+      await act(async () => root.unmount());
+      delete (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT;
+    }
+  });
+
+  it('never puts a 5xx body on screen — a server FAULT gets our copy and a retry (WI-39837)', async () => {
+    /*
+     * The bug this pins, verbatim from prod: the push hit a 23505 on
+     * `event_lineup_item_one_on_stage`, Nest answered with its generic
+     * "Internal server error", and the panel printed that string into the Next
+     * card as body text. A 500 is not a sentence written for a seller — it says
+     * nothing about what happened and nothing about what to do.
+     */
+    mocks.executeSellerAction.mockImplementation(async () => {
+      throw new EventApiError('Internal server error', 500);
+    });
+    const onActiveProductChange = vi.fn();
+    const { container, root, button } = await mountAndFindTakeLive(onActiveProductChange);
+    try {
+      await act(async () => {
+        button?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+      });
+
+      expect(container.textContent).not.toContain('Internal server error');
+      expect(container.textContent).toContain('This item could not be taken live.');
+      // A fault says what did NOT happen, so the seller knows the stage is intact.
+      expect(container.textContent).toContain('Nothing changed on stage.');
+      // The command was well formed, so re-sending it is a sensible offer.
+      const retry = [...container.querySelectorAll('button')]
+        .find((candidate) => candidate.textContent === 'Try again');
+      expect(retry).toBeDefined();
+      await act(async () => {
+        retry?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+      });
+      expect(mocks.executeSellerAction).toHaveBeenCalledTimes(2);
+      // Local selection still never advances on a failed push (D-005).
+      expect(onActiveProductChange).not.toHaveBeenCalled();
     } finally {
       await act(async () => root.unmount());
       delete (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT;

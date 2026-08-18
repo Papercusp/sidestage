@@ -65,6 +65,7 @@ export function MarkdownControl({
     [currentPriceCents, parsed, policy, productId, step],
   );
 
+  const proposedPriceCents = verdict?.proposedPriceCents ?? null;
   const ceiling = stop ?? 100;
   const setPercent = (next: number) => {
     const clamped = Math.min(ceiling, Math.max(0, next));
@@ -139,15 +140,32 @@ export function MarkdownControl({
         </button>
       </div>
 
+      {/*
+        * A was→now line is a CLAIM that the price moved. At 0% — the resting
+        * state of this control, and what a seller sees most of the time — the
+        * proposed price IS the current price, so the old unconditional preview
+        * struck through a number and pointed at the same number:
+        * "$5843.93 → $5843.93" (WI-39837's sibling, WI-39838). A no-op dressed
+        * as a markdown, mid-show, on the seller's own price.
+        *
+        * So the arrow is drawn only when there is something to point at. The
+        * region itself stays mounted and keeps its id + aria-live, because
+        * `aria-describedby` on the input targets it and a screen reader needs
+        * the same node to announce into when the percent changes.
+        */}
       <p className="markdown-control-preview" id={previewId} aria-live="polite">
-        <span className="markdown-control-was">{formatPrice(currentPriceCents)}</span>
-        <span className="markdown-control-arrow" aria-hidden="true">→</span>
-        <strong className="markdown-control-now">
-          {verdict?.proposedPriceCents == null ? formatPrice(currentPriceCents) : formatPrice(verdict.proposedPriceCents)}
-        </strong>
-        {verdict?.savingCents ? (
-          <span className="markdown-control-saving">save {formatPrice(verdict.savingCents)}</span>
-        ) : null}
+        {proposedPriceCents === null || proposedPriceCents === currentPriceCents ? (
+          <strong className="markdown-control-now">{formatPrice(currentPriceCents)}</strong>
+        ) : (
+          <>
+            <span className="markdown-control-was">{formatPrice(currentPriceCents)}</span>
+            <span className="markdown-control-arrow" aria-hidden="true">→</span>
+            <strong className="markdown-control-now">{formatPrice(proposedPriceCents)}</strong>
+            {verdict?.savingCents ? (
+              <span className="markdown-control-saving">save {formatPrice(verdict.savingCents)}</span>
+            ) : null}
+          </>
+        )}
       </p>
 
       {stopAt === null ? null : (

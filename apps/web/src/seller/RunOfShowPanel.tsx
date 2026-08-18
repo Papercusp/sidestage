@@ -10,8 +10,10 @@ import {
 } from '../run-of-show';
 import { useStageClock, useStageNow } from './stage-clock';
 import {
+  describeSellerActionFailure,
   executeSellerAction,
   startSellerAuction,
+  type SellerActionFailure,
   type SellerActionResult,
   type SellerAuction,
   type SellerEventItem,
@@ -620,7 +622,7 @@ export function RunOfShowPanel({
     } catch (caught) {
       setAuctionFeedback({
         tone: 'error',
-        text: caught instanceof Error ? caught.message : 'The auction could not be started.',
+        text: describeSellerActionFailure(caught, 'The auction could not be started. Nothing was listed.').text,
       });
     } finally {
       setAuctionBusy(false);
