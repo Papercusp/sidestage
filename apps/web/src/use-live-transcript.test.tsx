@@ -189,6 +189,60 @@ describe('useLiveTranscript', () => {
     expect(onFinalSegment).toHaveBeenLastCalledWith(confirmation);
   });
 
+  it('carries the sibling colourways through to the surface instead of only the best guess', async () => {
+    // Four rows of ONE product: the seller who says "the arc table lamp" has
+    // not named a colourway, so the controller must hand the surface all four.
+    const COLOURWAYS: readonly TranscriptProductOption[] = [
+      { id: 'lamp-v1', groupKey: 'lamp', label: 'Arc Table Lamp', color: 'Sage' },
+      { id: 'lamp-v2', groupKey: 'lamp', label: 'Arc Table Lamp', color: 'Sand' },
+      { id: 'lamp-v3', groupKey: 'lamp', label: 'Arc Table Lamp', color: 'Plum' },
+      { id: 'lamp-v4', groupKey: 'lamp', label: 'Arc Table Lamp', color: 'Clay' },
+      { id: 'mug', groupKey: 'mug', label: 'Stoneware mug', aliases: ['mug'] },
+    ];
+    const session = new FakeTranscriptionSession();
+    let controller: LiveTranscriptController | null = null;
+    const currentController = () => {
+      if (!controller) throw new Error('Expected the transcript controller to be mounted.');
+      return controller;
+    };
+
+    function Harness() {
+      controller = useLiveTranscript({
+        session,
+        active: true,
+        products: COLOURWAYS,
+        activeProductId: null,
+        onActiveProductChange: vi.fn(),
+      });
+      return <output>{controller.suggestedProduct?.label ?? ''}</output>;
+    }
+
+    await act(async () => root.render(<Harness />));
+    await act(async () => session.emit({
+      id: 'final-1',
+      text: "Now let's switch to the arc table lamp.",
+      isFinal: true,
+      provider: 'web-speech',
+      receivedAt: 1,
+    }));
+
+    expect(currentController().suggestedProduct?.label).toBe('Arc Table Lamp');
+    expect(currentController().suggestedVariantChoices?.map((choice) => choice.color))
+      .toEqual(['Sage', 'Sand', 'Plum', 'Clay']);
+
+    // A single-variant product has no colourway question: the surface must get
+    // an empty list, not a one-element picker.
+    await act(async () => session.emit({
+      id: 'final-2',
+      text: 'Actually show the mug.',
+      isFinal: true,
+      provider: 'web-speech',
+      receivedAt: 2,
+    }));
+    expect(currentController().suggestedProduct?.id).toBe('mug');
+    expect(currentController().suggestedVariantChoices).toEqual([]);
+  });
+
   it('suppresses the active product and keeps a dismissed alternative on cooldown', async () => {
     const session = new FakeTranscriptionSession();
     let controller: LiveTranscriptController | null = null;

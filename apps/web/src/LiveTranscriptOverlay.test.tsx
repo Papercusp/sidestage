@@ -125,3 +125,87 @@ describe('LiveTranscriptOverlay', () => {
     expect(container.querySelector('[aria-expanded="true"]')?.textContent).toBe('Close transcript');
   });
 });
+
+describe('LiveTranscriptOverlay colourway suggestion', () => {
+  const ARC_LAMP_COLOURWAYS = [
+    { id: 'lamp-v1', label: 'Arc Table Lamp', price: '$189.00', color: 'Sage' },
+    { id: 'lamp-v2', label: 'Arc Table Lamp', price: '$189.00', color: 'Sand' },
+    { id: 'lamp-v3', label: 'Arc Table Lamp', price: '$189.00', color: 'Plum' },
+    { id: 'lamp-v4', label: 'Arc Table Lamp', price: '$189.00', color: 'Clay' },
+  ] as const;
+
+  function variantButtons(): HTMLButtonElement[] {
+    return Array.from(container.querySelectorAll<HTMLButtonElement>('.live-transcript-variant'));
+  }
+
+  it('asks WHICH colourway instead of staging one the seller never named', async () => {
+    const stageProduct = vi.fn();
+    const transcript = transcriptFixture({
+      state: 'listening',
+      // The detector's best single candidate — arbitrary among equal siblings.
+      suggestedProduct: ARC_LAMP_COLOURWAYS[0],
+      suggestedVariantChoices: ARC_LAMP_COLOURWAYS,
+      stageProduct,
+    });
+
+    await act(async () => root.render(<LiveTranscriptOverlay transcript={transcript} />));
+
+    // The blind call-to-action must be GONE: clicking it was the bug.
+    expect(Array.from(container.querySelectorAll('button'))
+      .some((button) => button.textContent?.includes('Make Arc Table Lamp active'))).toBe(false);
+
+    expect(container.textContent).toContain('Which Arc Table Lamp?');
+    expect(variantButtons().map((button) => button.textContent))
+      .toEqual(['Sage$189.00', 'Sand$189.00', 'Plum$189.00', 'Clay$189.00']);
+
+    // The choices are one labelled group, so a screen reader reads the question.
+    const group = container.querySelector('[role="group"]');
+    const prompt = document.getElementById(group?.getAttribute('aria-labelledby') ?? '');
+    expect(prompt?.textContent).toContain('Which Arc Table Lamp?');
+
+    // `product` is the PRESELECTION — marked, never auto-staged.
+    expect(variantButtons().map((button) => button.getAttribute('aria-pressed')))
+      .toEqual(['true', 'false', 'false', 'false']);
+    expect(stageProduct).not.toHaveBeenCalled();
+
+    // Picking a colourway stages THAT row, not the detector's guess.
+    await act(async () => variantButtons()[2]?.click());
+    expect(stageProduct).toHaveBeenCalledWith('lamp-v3');
+  });
+
+  it('keeps the one-click action when the named product ships a single variant', async () => {
+    const stageProduct = vi.fn();
+    await act(async () => root.render(<LiveTranscriptOverlay transcript={transcriptFixture({
+      state: 'listening',
+      suggestedProduct: { id: 'mug', label: 'Stoneware mug', price: '$24.00' },
+      stageProduct,
+    })} />));
+
+    expect(variantButtons()).toHaveLength(0);
+    const stageButton = Array.from(container.querySelectorAll('button'))
+      .find((button) => button.textContent?.includes('Make Stoneware mug active'));
+    await act(async () => stageButton?.click());
+    expect(stageProduct).toHaveBeenCalledWith('mug');
+  });
+
+  it('falls back to the one-click action when the colourways cannot be told apart', async () => {
+    // No colour and no SKU: every button would read "Arc Table Lamp", which is
+    // a question the seller cannot answer. Asking it is worse than not asking.
+    await act(async () => root.render(<LiveTranscriptOverlay transcript={transcriptFixture({
+      state: 'listening',
+      suggestedProduct: { id: 'lamp-v1', label: 'Arc Table Lamp' },
+      suggestedVariantChoices: [
+        { id: 'lamp-v1', label: 'Arc Table Lamp' },
+        { id: 'lamp-v2', label: 'Arc Table Lamp' },
+      ],
+      stageProduct: () => undefined,
+    })} />));
+
+    expect(variantButtons()).toHaveLength(0);
+    expect(container.textContent).toContain('Make Arc Table Lamp active');
+  });
+
+  it('styles the preselected colourway distinctly, so a spoken "yes" stages what the screen already shows', () => {
+    expect(overlayCss).toContain('.live-transcript-variant.is-preselected');
+  });
+});
