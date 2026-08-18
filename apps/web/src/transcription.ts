@@ -102,6 +102,11 @@ export interface TranscriptionOptions {
   webSocketFactory?: WebSocketFactory;
   mediaRecorderFactory?: MediaRecorderFactory;
   speechRecognitionFactory?: SpeechRecognitionFactory;
+  /**
+   * Override the browser recording-capability probe (`MediaRecorder.isTypeSupported`).
+   * Tests inject it to simulate a browser; production leaves it undefined.
+   */
+  isTypeSupported?: (type: string) => boolean;
 }
 
 export const DEFAULT_DEEPGRAM_URL = 'wss://api.deepgram.com/v1/listen';
@@ -142,9 +147,60 @@ function browserWebSocketFactory(url: string, protocols?: string | string[]): We
   return new WebSocket(url, protocols) as unknown as WebSocketLike;
 }
 
+/**
+ * Containers Deepgram's live endpoint decodes from a MediaRecorder stream, best first.
+ *
+ * `buildDeepgramUrl` sets NO `encoding`/`container` parameter, so Deepgram SNIFFS the container
+ * — which only works for the ones it actually understands. Every entry here is Opus in a
+ * container Deepgram documents support for.
+ *
+ * ⚠ `audio/mp4` — what Safari/iOS produce, and the ONLY thing they produce — is DELIBERATELY
+ * ABSENT. Safari's MediaRecorder emits fragmented MP4/AAC, and nobody has yet measured whether
+ * Deepgram's live endpoint decodes that from a chunked socket. Adding it unverified would trade
+ * a LOUD failure for a SILENT one (a socket that opens and returns no transcripts) — which is
+ * the exact symptom WI-39774 exists to remove. Until someone measures it against a real grant
+ * token, a browser that can only record MP4 is routed to Web Speech instead (see
+ * ConfiguredProviderSession.start) rather than sent to Deepgram to fail quietly.
+ */
+export const DEEPGRAM_RECORDER_MIME_TYPES = [
+  'audio/webm;codecs=opus',
+  'audio/webm',
+  'audio/ogg;codecs=opus',
+  'audio/ogg',
+] as const;
+
+/** What a browser with no Deepgram-compatible container must say instead of a raw platform string. */
+export const DEEPGRAM_UNSUPPORTED_BROWSER_MESSAGE =
+  'This browser cannot record audio in a format Deepgram accepts. Use Chrome, Edge or Firefox for Deepgram captions.';
+
+/**
+ * The first Deepgram-compatible mimeType this browser can actually record, or `null` if none.
+ *
+ * Before WI-39774 the recorder was constructed with a HARDCODED `audio/webm;codecs=opus`, so on
+ * any browser without WebM (Safari, every iOS browser) `new MediaRecorder(...)` threw
+ * NotSupportedError the instant the Deepgram socket opened — no captions, and a raw platform
+ * string as the only explanation.
+ *
+ * A browser with no `isTypeSupported` to ask keeps the previous behaviour (the preferred type)
+ * rather than being refused: the probe is there to catch a browser that says NO, never to reject
+ * one that cannot answer.
+ */
+export function pickDeepgramRecorderMimeType(
+  isTypeSupported?: (type: string) => boolean,
+): string | null {
+  const supports = isTypeSupported
+    ?? (typeof MediaRecorder !== 'undefined' && typeof MediaRecorder.isTypeSupported === 'function'
+      ? (type: string) => MediaRecorder.isTypeSupported(type)
+      : null);
+  if (!supports) return DEEPGRAM_RECORDER_MIME_TYPES[0];
+  return DEEPGRAM_RECORDER_MIME_TYPES.find((type) => supports(type)) ?? null;
+}
+
 function browserMediaRecorderFactory(stream: MediaStream): MediaRecorderLike {
   if (typeof MediaRecorder === 'undefined') throw new Error('MediaRecorder is unavailable in this browser.');
-  return new MediaRecorder(stream, { mimeType: 'audio/webm;codecs=opus' }) as unknown as MediaRecorderLike;
+  const mimeType = pickDeepgramRecorderMimeType();
+  if (!mimeType) throw new Error(DEEPGRAM_UNSUPPORTED_BROWSER_MESSAGE);
+  return new MediaRecorder(stream, { mimeType }) as unknown as MediaRecorderLike;
 }
 
 /**
