@@ -31,6 +31,10 @@ const mocks = vi.hoisted(() => ({ fetchMock: vi.fn() }));
 vi.mock('@papercusp/sync', () => ({
   useSyncPrincipal: () => 'demo-seller',
   useSyncQuery: () => ({ data: [], loading: false, fetching: false, error: null, invalidate: vi.fn() }),
+  // The catalog reads under this tree name UNSYNCED queries and so call
+  // useRestSyncQuery (WI-39772). This factory does not spread the real module,
+  // so an omitted export is `undefined` at the call site, not a fallback.
+  useRestSyncQuery: () => ({ data: [], loading: false, fetching: false, error: null, invalidate: vi.fn() }),
   useSyncMutate: (_name: string, fallback: (input: unknown) => Promise<unknown>) => fallback,
   SyncContext: { Provider: ({ children }: { children: unknown }) => children },
 }));

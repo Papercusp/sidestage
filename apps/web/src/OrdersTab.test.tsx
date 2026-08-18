@@ -1,6 +1,18 @@
 import { renderToStaticMarkup } from 'react-dom/server';
-import { SyncContext } from '@papercusp/sync';
+import { SyncContext, useRestSyncQuery } from '@papercusp/sync';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+
+// `orders.byBuyer` is an UNSYNCED query name — the Zero registry deliberately
+// has no leaf for it — so OrdersTab reads it through `useRestSyncQuery`, the
+// REST/batch path on EVERY transport (WI-39772). That hook resolves its own
+// client and never consults the SyncContext's `useDataImpl`, so stub the hook
+// itself. Spread the real module so `SyncContext` and the principal hooks stay
+// real and a new export never silently vanishes from a hand-listed factory.
+vi.mock('@papercusp/sync', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@papercusp/sync')>()),
+  useRestSyncQuery: vi.fn(),
+}));
+
 import {
   filterAndSortOrders,
   formatOrderMoney,
@@ -181,22 +193,23 @@ describe('OrdersTab', () => {
   it('binds the selected buyer identity to the live orders query without a direct fetch', () => {
     const fetchMock = vi.fn();
     vi.stubGlobal('fetch', fetchMock);
-    const useDataImpl = vi.fn().mockReturnValue({
+    const restQuery = vi.mocked(useRestSyncQuery);
+    restQuery.mockReturnValue({
       data: [order],
       loading: false,
       fetching: false,
-      transport: 'SSE',
+      transport: 'POLLING',
       invalidate: vi.fn(),
       error: null,
-    });
+    } as never);
 
     const html = renderToStaticMarkup(
-      <SyncContext.Provider value={{ transport: 'SSE', useDataImpl, prefetch: vi.fn() } as never}>
+      <SyncContext.Provider value={{ transport: 'SSE', prefetch: vi.fn() } as never}>
         <OrdersTab />
       </SyncContext.Provider>,
     );
 
-    expect(useDataImpl).toHaveBeenCalledWith({
+    expect(restQuery).toHaveBeenCalledWith({
       queryName: 'orders.byBuyer',
       args: { buyerId: 'buyer-demo-server-render' },
       staleTime: 0,
@@ -209,25 +222,22 @@ describe('OrdersTab', () => {
   });
 
   it('preserves explicit loading, empty, and query-error recovery states', () => {
-    const renderState = (state: Record<string, unknown>) => renderToStaticMarkup(
-      <SyncContext.Provider
-        value={{
-          transport: 'SSE',
-          prefetch: vi.fn(),
-          useDataImpl: vi.fn().mockReturnValue({
-            data: [],
-            loading: false,
-            fetching: false,
-            transport: 'SSE',
-            invalidate: vi.fn(),
-            error: null,
-            ...state,
-          }),
-        } as never}
-      >
-        <OrdersTab />
-      </SyncContext.Provider>,
-    );
+    const renderState = (state: Record<string, unknown>) => {
+      vi.mocked(useRestSyncQuery).mockReturnValue({
+        data: [],
+        loading: false,
+        fetching: false,
+        transport: 'POLLING',
+        invalidate: vi.fn(),
+        error: null,
+        ...state,
+      } as never);
+      return renderToStaticMarkup(
+        <SyncContext.Provider value={{ transport: 'SSE', prefetch: vi.fn() } as never}>
+          <OrdersTab />
+        </SyncContext.Provider>,
+      );
+    };
 
     expect(renderState({ loading: true })).toContain('Loading orders for buyer-demo-server-render…');
     expect(renderState({})).toContain('No orders yet');

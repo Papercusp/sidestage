@@ -119,11 +119,28 @@ describe('BuildHistoryList', () => {
   it('shows the release digest while leaving plan work unmounted by default', () => {
     const markup = renderToStaticMarkup(<BuildHistoryList plans={HISTORY} now={NOW} />);
     expect(markup).toContain('Latest verified');
-    expect(markup).toContain('Completed this week');
+    expect(markup).toContain('1 completed this week');
     expect(markup).toContain('SideStage checkout');
     expect(markup).toContain('1 completed item');
     expect(markup).not.toContain('Ship checkout</h3>');
     expect(markup).not.toContain('&quot;testsRun&quot;');
+  });
+
+  it('headlines the whole archive, never a count that hides delivered plans', () => {
+    // WI-39777. The headline plan metric used to be `activePlans` — NON-terminal
+    // plans only — so every shipped plan was excluded from the one number a
+    // reader treats as "how much was built". It shrank as the project succeeded
+    // (28 shown against 51 real plans in production, owner-reported twice).
+    // HISTORY fixture: 'sidestage-checkout' is active, 'sidestage-theme-r3' is
+    // shipped — so a headline of 2 can only come from counting BOTH.
+    const markup = renderToStaticMarkup(<BuildHistoryList plans={HISTORY} now={NOW} />);
+    expect(markup).toContain('<span>Plans</span><strong>2</strong>');
+    expect(markup).toContain('1 delivered · 1 in flight');
+
+    // Control: the shipped plan must really be terminal, or "delivered" above
+    // would read 1 for reasons unrelated to terminal-state classification.
+    const shipped = HISTORY.filter((plan) => plan.status === 'shipped');
+    expect(shipped).toHaveLength(1);
   });
 
   it('opens on the full archive rather than a rolling date window', () => {
