@@ -152,6 +152,31 @@ export function stageStartHint(status: ActiveEventStatus): string | null {
 }
 
 /**
+ * What the badge INSIDE the camera pane may say when this tab holds no room.
+ *
+ * The fourth face of the same trap (WI-39839). That badge renders the room id,
+ * and the room id comes from the LOCAL publisher session (`room?.eventId`) — so
+ * with no camera attached in this tab it fell back to the literal string
+ * "room not started". On a live event that is simply false, and it is false
+ * INCHES BELOW the `stage-event-status` badge correctly reading
+ * "Live - visible to buyers": the owner reported seeing both at once and
+ * reasonably read the pane, which is where the video is, as the authority.
+ *
+ * The two facts are genuinely different — an event can be live for buyers with
+ * nobody on camera in THIS tab — so the fix keeps them different and stops the
+ * pane from reporting the event's lifecycle at all. It reports the only thing
+ * it knows: whether YOUR camera is attached here. `stageStartHint` already
+ * makes the same distinction for the button, in the same words.
+ */
+export function stageRoomBadgeLabel(
+  roomEventId: string | null | undefined,
+  status: ActiveEventStatus,
+): string {
+  if (roomEventId) return roomEventId;
+  return status.status === 'live' ? 'Live - your camera is not on' : 'room not started';
+}
+
+/**
  * The seller-facing warning for a publish-on-start that did NOT succeed.
  *
  * "Start event" now takes the event live before it starts the media room
