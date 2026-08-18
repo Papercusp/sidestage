@@ -16,7 +16,7 @@ export const BUILD_HISTORY_SNAPSHOT = {
     "workspace": "papercusp-workspace",
     "harness": "sidestage",
     "planPrefix": null,
-    "generatedAt": "2026-08-18T16:50:07.812Z",
+    "generatedAt": "2026-08-18T18:50:07.087Z",
     "generator": "papercusp project-history generate",
     "planCount": 52
   },
@@ -2087,6 +2087,18 @@ export const BUILD_HISTORY_SNAPSHOT = {
           },
           "commits": [
             {
+              "sha": "c5def54e88d3a6dbe11f6ff5fcd0061bc9b9c8e2",
+              "url": "https://github.com/Papercusp/sidestage/commit/c5def54e88d3a6dbe11f6ff5fcd0061bc9b9c8e2",
+              "subject": "sync(web): BuyerTab.streaming.test.tsx, BuyerTab.tsx (2 files, +84/-1) [skip ci]",
+              "committedAt": "2026-08-18T13:24:28-04:00",
+              "files": [
+                "apps/web/src/BuyerTab.streaming.test.tsx",
+                "apps/web/src/BuyerTab.tsx"
+              ],
+              "remoteStatus": "confirmed",
+              "attribution": "body-reference"
+            },
+            {
               "sha": "79857c32b1b8351d9eebe47efbfc523f66642b7c",
               "url": "https://github.com/Papercusp/sidestage/commit/79857c32b1b8351d9eebe47efbfc523f66642b7c",
               "subject": "sync(web): EventChat.tsx (1 file, +8/-1) [skip ci]",
@@ -2094,7 +2106,7 @@ export const BUILD_HISTORY_SNAPSHOT = {
               "files": [
                 "apps/web/src/EventChat.tsx"
               ],
-              "remoteStatus": "local-only",
+              "remoteStatus": "confirmed",
               "attribution": "body-reference"
             },
             {
@@ -2108,7 +2120,7 @@ export const BUILD_HISTORY_SNAPSHOT = {
                 "apps/web/src/transcription.test.ts",
                 "apps/web/src/transcription.ts"
               ],
-              "remoteStatus": "local-only",
+              "remoteStatus": "confirmed",
               "attribution": "body-reference"
             },
             {
