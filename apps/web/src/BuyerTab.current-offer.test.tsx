@@ -32,7 +32,6 @@ vi.mock('./AuctionPanel', () => ({
     return null;
   },
 }));
-vi.mock('./ReplayChapters', () => ({ ReplayChapters: () => null }));
 vi.mock('./streaming', async (importOriginal) => {
   const actual = await importOriginal<typeof import('./streaming')>();
   return { ...actual, connectViewer: vi.fn(async () => { throw new Error('no stream in this test'); }) };

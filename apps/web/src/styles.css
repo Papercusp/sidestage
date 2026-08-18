@@ -651,18 +651,6 @@ a.app-badge:active { transform: translateY(1px); box-shadow: 0 2px 0 color-mix(i
 .buyer-player-overlay { position: absolute; right: 1rem; bottom: 1rem; left: 1rem; display: flex; align-items: center; gap: .75rem; padding: .7rem .8rem; border: 1px solid var(--border); border-radius: .65rem; background: color-mix(in srgb, var(--video-inset-bg) 82%, transparent); backdrop-filter: blur(14px); }
 .buyer-player-overlay p { flex: 1; margin: 0; color: var(--muted); font-size: .74rem; line-height: 1.45; }
 .buyer-player-overlay .button { flex: 0 0 auto; padding: .52rem .72rem; font-size: .72rem; }
-.replay-chapters { margin-top: .8rem; padding: .9rem; border: 1px solid var(--border); border-radius: .75rem; background: var(--surface-glass); }
-.replay-chapters-heading { display: flex; align-items: flex-end; justify-content: space-between; gap: 1rem; }
-.replay-chapters-heading .eyebrow { margin: 0 0 .35rem; }
-.replay-chapters-heading h3 { margin: 0; font-size: 1rem; letter-spacing: -.025em; }
-.replay-chapters-heading > span { color: var(--muted); font-size: .68rem; }
-.replay-chapters ol { display: grid; gap: .45rem; margin: .75rem 0 0; padding: 0; list-style: none; }
-.replay-chapters button { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: start; gap: .7rem; width: 100%; border: 1px solid var(--border); border-radius: .6rem; padding: .65rem; color: var(--text); background: var(--surface-sunken); text-align: left; cursor: pointer; }
-.replay-chapters button:hover { border-color: color-mix(in srgb, var(--brand-red) 55%, transparent); background: var(--surface-hover); }
-.replay-chapter-time { min-width: 3rem; border-radius: .4rem; padding: .3rem .4rem; color: var(--on-brand-red); background: var(--brand-red); font-size: .68rem; font-weight: 750; text-align: center; }
-.replay-chapters button > span:last-child { display: grid; gap: .2rem; min-width: 0; }
-.replay-chapters strong { font-size: .8rem; }
-.replay-chapters small { overflow: hidden; color: var(--muted); font-size: .68rem; line-height: 1.35; text-overflow: ellipsis; white-space: nowrap; }
 /* P-109b: one quiet metadata row, not three equal-weight metric cards. The
    card chrome competed with the buying action for space above the fold
    (design report, Buyer §"Recommended design" 3). Mirrors the mockup's

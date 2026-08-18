@@ -35,7 +35,6 @@ vi.mock('@papercusp/sync', async (importOriginal) => {
 });
 
 vi.mock('./AuctionPanel', () => ({ AuctionPanel: () => null }));
-vi.mock('./ReplayChapters', () => ({ ReplayChapters: () => null }));
 vi.mock('./VideoEngagementOverlay', () => ({
   remoteTranscriptPresentation: () => ({
     state: 'idle',

@@ -30,7 +30,6 @@ import {
 import { EventThumbnail } from './event-creation/EventThumbnail';
 import { isRenderableThumbnailUrl } from './event-creation/thumbnail';
 import type { GuideEvent } from './events/api';
-import { ReplayChapters } from './ReplayChapters';
 import { type BuyerCheckoutActions, useBuyerCheckout } from './BuyerCheckout';
 import { useDemoIdentity } from './buyer-identity';
 import {
@@ -578,8 +577,6 @@ export function BuyerTab({
 
       <div className="buyer-lower-grid">
         <div className="buyer-shop-panel">
-          <ReplayChapters eventId={eventId} videoRef={videoRef} apiBaseUrl={resolveApiBaseUrl()} />
-
           <section className="buyer-drop-runway" aria-labelledby="buyer-drop-runway-title">
             <header className="buyer-products-heading">
               <div>
