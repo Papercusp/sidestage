@@ -181,8 +181,12 @@ export function RunOfShowPanelView({
   nextAuctionLauncher?: ReactNode;
   /** True while the guarded push is in flight, so the button cannot double-fire. */
   stageBusy?: boolean;
-  /** The server's own refusal, shown verbatim — it is the authority, not us. */
-  stageError?: string | null;
+  /**
+   * A failed push, already classified: a refusal carries the server's own words
+   * (it is the authority), a fault carries ours plus a retry. Never the raw
+   * body of a 500 — see describeSellerActionFailure (WI-39837).
+   */
+  stageError?: SellerActionFailure | null;
 }) {
   const {
     slots,
@@ -299,7 +303,19 @@ export function RunOfShowPanelView({
                         {stageBusy ? 'Taking live…' : 'Take live'}
                       </button>
                       {stageError ? (
-                        <p className="run-of-show-stage-error" role="status">{stageError}</p>
+                        <div className="run-of-show-stage-error" role="alert">
+                          <p>{stageError.text}</p>
+                          {stageError.retryable ? (
+                            <button
+                              className="button ghost run-of-show-stage-retry"
+                              type="button"
+                              disabled={stageBusy}
+                              onClick={() => onStageNext(slot.productId)}
+                            >
+                              Try again
+                            </button>
+                          ) : null}
+                        </div>
                       ) : null}
                     </div>
                   ) : (
@@ -410,7 +426,7 @@ export function RunOfShowPanel({
   const [durationSec, setDurationSec] = useState(90);
   const [auctionBusy, setAuctionBusy] = useState(false);
   const [stageBusy, setStageBusy] = useState(false);
-  const [stageError, setStageError] = useState<string | null>(null);
+  const [stageError, setStageError] = useState<SellerActionFailure | null>(null);
   const [auctionFeedback, setAuctionFeedback] = useState<NextAuctionLauncherProps['feedback']>(null);
 
   const loaded = !planQuery.loading && !itemsQuery.loading;
@@ -539,7 +555,7 @@ export function RunOfShowPanel({
       itemsQuery.invalidate();
       onActiveProductChange(productId);
     } catch (caught) {
-      setStageError(caught instanceof Error ? caught.message : 'This item could not be taken live.');
+      setStageError(describeSellerActionFailure(caught, 'This item could not be taken live. Nothing changed on stage.'));
     } finally {
       setStageBusy(false);
     }
@@ -580,10 +596,11 @@ export function RunOfShowPanel({
       itemsQuery.invalidate();
       setCommerceNote({ tone: 'success', text: success });
     } catch (caught) {
-      // The server's refusal, verbatim — it is the authority, not our mirror.
+      // A refusal is the server's own words — it is the authority, not our
+      // mirror. A fault is ours to phrase: see describeSellerActionFailure.
       setCommerceNote({
         tone: 'error',
-        text: caught instanceof Error ? caught.message : 'That change was not applied.',
+        text: describeSellerActionFailure(caught, 'That change was not applied. The price is unchanged.').text,
       });
     } finally {
       setCommerceBusy(false);

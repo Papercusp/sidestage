@@ -69,6 +69,98 @@ describe('PgActionItemStore transaction boundary', () => {
   });
 });
 
+/**
+ * WI-39837 — "Take live" 500'd on `event_lineup_item_one_on_stage`.
+ *
+ * The index is PARTIAL UNIQUE, so it is checked per-statement and cannot be
+ * deferred; a stage handover applied claim-first leaves two rows on stage for
+ * the length of one statement, which is all it takes to raise 23505. The store
+ * — not the caller — owns the ordering, so the guard lives here.
+ */
+describe('PgActionItemStore stage handover ordering', () => {
+  function row(overrides: Record<string, unknown>) {
+    return {
+      event_item_id: 'event-1:mug',
+      event_id: 'event-1',
+      product_id: 'mug',
+      position: 0,
+      reference_price_cents: 1_500,
+      current_price_cents: 1_500,
+      listed_quantity: 5,
+      current_quantity: 5,
+      stage_state: 'queued',
+      title: 'Blue mug',
+      description: null,
+      attributes: {},
+      version: 1,
+      created_at: '2026-08-18T00:00:00.000Z',
+      updated_at: '2026-08-18T00:00:00.000Z',
+      ...overrides,
+    };
+  }
+
+  /** Two lineup rows: `onStageProduct` holds the stage, `queuedProduct` waits. */
+  function handoverPool() {
+    const lineup = [
+      row({ event_item_id: 'event-1:bearing', product_id: 'bearing', stage_state: 'on-stage', position: 0 }),
+      row({ event_item_id: 'event-1:mug', product_id: 'mug', stage_state: 'queued', position: 1 }),
+    ];
+    return transactionalPool((sql, params) => {
+      if (sql.includes('FROM event\n')) return { rows: [{ event_id: 'event-1' }] };
+      if (sql.startsWith('UPDATE event_lineup_item')) {
+        return { rows: [row({ product_id: String(params?.[1]), stage_state: String(params?.[6]), version: 2 })] };
+      }
+      return { rows: lineup };
+    });
+  }
+
+  /** The change set applyOnce builds for a push: the CLAIM first, release after. */
+  function pushChanges() {
+    return [
+      {
+        expectedVersion: 1,
+        item: { ...draft('event-1', 'mug'), stageState: 'on-stage' as const, onStage: true },
+      },
+      {
+        expectedVersion: 1,
+        item: { ...draft('event-1', 'bearing'), stageState: 'queued' as const, onStage: false },
+      },
+    ];
+  }
+
+  it('applies the stage RELEASE before the stage CLAIM, whatever order the caller sent', async () => {
+    const harness = handoverPool();
+
+    await new PgActionItemStore(harness.pool).write('event-1', pushChanges());
+
+    const updates = harness.query.mock.calls
+      .filter(([sql]) => String(sql).startsWith('UPDATE event_lineup_item'))
+      .map(([, params]) => ({ productId: (params as unknown[])[1], stageState: (params as unknown[])[6] }));
+    expect(updates).toEqual([
+      { productId: 'bearing', stageState: 'queued' },
+      { productId: 'mug', stageState: 'on-stage' },
+    ]);
+  });
+
+  it('reports a one-on-stage violation as a conflict, never as a server fault', async () => {
+    const harness = transactionalPool((sql) => {
+      if (sql.includes('FROM event\n')) return { rows: [{ event_id: 'event-1' }] };
+      if (sql.startsWith('UPDATE event_lineup_item')) {
+        throw Object.assign(new Error('duplicate key value violates unique constraint'), {
+          code: '23505',
+          constraint: 'event_lineup_item_one_on_stage',
+        });
+      }
+      return { rows: [row({ product_id: 'mug', stage_state: 'queued' })] };
+    });
+
+    await expect(new PgActionItemStore(harness.pool).write('event-1', [{
+      expectedVersion: 1,
+      item: { ...draft('event-1', 'mug'), stageState: 'on-stage' as const, onStage: true },
+    }])).rejects.toBeInstanceOf(ConflictException);
+  });
+});
+
 describe.runIf(process.env.SIDESTAGE_PG_INTEGRATION === '1')('PgActionItemStore against Postgres', () => {
   it('survives a store restart and rejects a stale cross-process write', async () => {
     const pool = new Pool({ connectionString: process.env.DATABASE_URL ?? DEFAULT_DATABASE_URL, max: 3 });

@@ -64,6 +64,15 @@ function postgresCode(error: unknown): string | undefined {
     : undefined;
 }
 
+function postgresConstraint(error: unknown): string | undefined {
+  return error && typeof error === 'object' && 'constraint' in error && typeof error.constraint === 'string'
+    ? error.constraint
+    : undefined;
+}
+
+/** db/schema.sql:892 — UNIQUE (event_id) WHERE stage_state = 'on-stage'. */
+const ONE_ON_STAGE_INDEX = 'event_lineup_item_one_on_stage';
+
 /** Postgres production authority for event lineup items. */
 export class PgActionItemStore implements ActionItemStore {
   constructor(private readonly pool: Pool) {}
@@ -127,6 +136,28 @@ export class PgActionItemStore implements ActionItemStore {
   }
 
   async write(eventId: string, changes: readonly ActionItemChange[]): Promise<StoredActionEventItem[]> {
+    try {
+      return await this.writeWithin(eventId, changes);
+    } catch (error) {
+      /*
+       * A raw 23505 escaping this method reaches the seller as Nest's bare
+       * "Internal server error" (WI-39837). The stage handover below makes that
+       * unreachable, but the mapping stays as the backstop: a lineup write is a
+       * CONFLICT, never a server fault, and the seller is entitled to be told
+       * which.
+       */
+      if (postgresCode(error) === '23505') {
+        throw new ConflictException(
+          postgresConstraint(error) === ONE_ON_STAGE_INDEX
+            ? 'Only one lineup item may be on stage for an event'
+            : 'Event lineup write conflicts with an existing item',
+        );
+      }
+      throw error;
+    }
+  }
+
+  private async writeWithin(eventId: string, changes: readonly ActionItemChange[]): Promise<StoredActionEventItem[]> {
     return this.transaction(async (client) => {
       const current = await this.lockEvent(client, eventId);
       const byProduct = new Map(current.map((item) => [item.productId, item]));
@@ -149,7 +180,35 @@ export class PgActionItemStore implements ActionItemStore {
       if ([...projected.values()].filter((item) => item.stageState === 'on-stage').length > 1) {
         throw new ConflictException('Only one lineup item may be on stage for an event');
       }
-      for (const change of changes) {
+      /*
+       * ONE SAFE ORDER, and the caller does not supply it.
+       *
+       * `event_lineup_item_one_on_stage` is a partial UNIQUE INDEX, so Postgres
+       * checks it per-statement and it cannot be deferred (only CONSTRAINTS
+       * defer, and a partial unique index cannot be declared as one). A change
+       * set that hands the stage from one item to another is therefore only
+       * applicable RELEASE-FIRST: claiming first leaves two rows at
+       * stage_state = 'on-stage' for the length of one statement, which is all
+       * the index needs to raise 23505.
+       *
+       * That is exactly what "Take live" did (WI-39837): applyOnce builds
+       * [the pushed item (claim), ...clear-the-previous-stage (release)] and
+       * this loop applied it verbatim. Ordering here rather than at the caller
+       * makes the invariant a property of the store — the layer that knows the
+       * index exists — so a future caller cannot reintroduce the 500 by
+       * assembling its change set in the natural reading order.
+       *
+       * `sort` is stable, so changes of equal rank keep the caller's order.
+       */
+      const stageRank = (change: ActionItemChange): number => {
+        const before = byProduct.get(change.item.productId)?.stageState;
+        const after = change.item.stageState;
+        if (before === 'on-stage' && after !== 'on-stage') return 0;
+        if (before !== 'on-stage' && after === 'on-stage') return 2;
+        return 1;
+      };
+      const ordered = [...changes].sort((left, right) => stageRank(left) - stageRank(right));
+      for (const change of ordered) {
         const result = await client.query<ActionItemRow>(
           `UPDATE event_lineup_item
               SET current_price_cents = $4,

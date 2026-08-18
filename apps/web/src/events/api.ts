@@ -113,6 +113,37 @@ export class EventApiError extends Error {
   }
 }
 
+/** A failed seller action, classified for the seller rather than quoted at them. */
+export interface SellerActionFailure {
+  /** What to put on screen. */
+  readonly text: string;
+  /** True when re-sending the same command is a sensible thing to offer. */
+  readonly retryable: boolean;
+}
+
+/**
+ * Split a server REFUSAL from a server FAULT, because they are owed different
+ * copy.
+ *
+ * A 4xx is the server refusing a specific command for a stated reason ("Close
+ * the current auction before starting another"). That sentence was written for
+ * the seller, it tells them what to do, and it is the authority — so it is
+ * shown verbatim, and there is nothing to retry.
+ *
+ * A 5xx or a transport failure is different in kind. Nest answers an unhandled
+ * exception with the bare string "Internal server error": not a sentence anyone
+ * chose to show a seller, not their fault, and not actionable. WI-39837 leaked
+ * exactly that into the run of show mid-show. So a fault gets our own copy —
+ * naming what did not happen — and a retry, since the command itself was well
+ * formed and the next attempt may simply work.
+ */
+export function describeSellerActionFailure(caught: unknown, faultText: string): SellerActionFailure {
+  if (caught instanceof EventApiError && caught.status >= 400 && caught.status < 500) {
+    return { text: caught.message, retryable: false };
+  }
+  return { text: faultText, retryable: true };
+}
+
 /** Carry the app-wide demo principal across seller-private request fallbacks. */
 export function sellerPrivateRequestHeaders(principal?: string): Record<string, string> {
   const normalizedPrincipal = principal?.trim();
