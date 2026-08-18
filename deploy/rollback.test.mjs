@@ -442,7 +442,15 @@ describe('the rsync preserves prod-side state instead of deleting it', () => {
     // incidental transport tuning that has nothing to do with the property being
     // guarded. Pinning both meant a change to compression or archive flags read
     // as breaking the exclusion guarantee (EI-20721172349887197).
-    expect(deploySource).toMatch(/rsync[^\n]*--delete/);
+    //
+    // ⚠ ANCHORED to the start of a line ON PURPOSE. The obvious broadening,
+    // /rsync[^\n]*--delete/, is VACUOUS here: deploy.sh carries the comment
+    // "# ... so `rsync --delete` deletes every one of them unless excluded",
+    // which satisfies it even when the real invocation loses the flag. Measured,
+    // not assumed — a copy-out mutation stripping --delete from the actual rsync
+    // SURVIVED the unanchored form and is CAUGHT by this one. That is the same
+    // comment-satisfiable trap WI-38905 found in this file; keep the anchor.
+    expect(deploySource).toMatch(/^\s*rsync[^\n]*--delete/m);
   });
 
   it.each(declared)('excludes %s from the destructive rsync', (stateFile) => {
@@ -462,7 +470,10 @@ describe('the rsync preserves prod-side state instead of deleting it', () => {
     // (not a hand-maintained duplicate that drifts from it). Flag spelling and
     // argument order are not part of that property, so they are no longer pinned
     // (EI-20721172349887197).
-    expect(deploySource).toMatch(/rsync[^\n]*"\$\{RSYNC_EXCLUDES\[@\]\}"/);
+    // Line-anchored for the same reason as the --delete guard above: an
+    // unanchored source-text match can be satisfied by prose describing the
+    // behaviour instead of the code performing it.
+    expect(deploySource).toMatch(/^\s*rsync[^\n]*"\$\{RSYNC_EXCLUDES\[@\]\}"/m);
   });
 });
 
