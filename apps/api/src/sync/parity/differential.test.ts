@@ -171,6 +171,74 @@ describe('diffQueryShape', () => {
     expect(diff.findings).toEqual([]);
   });
 
+  it('REGRESSION — does not treat a constant filter column as a row identity', () => {
+    // Found by the harness's own first armed run against `event.chat.presence`:
+    // both rungs returned 2 rows, `eventId` was a candidate identity key, and it
+    // is CONSTANT across a result set — so all rows collapsed onto one key, 0
+    // rows were compared, and the diff reported no findings. A silent
+    // "everything matched" produced by comparing nothing is the worst possible
+    // failure for this harness, so the value drift below must be reported.
+    const restRows = [
+      { eventId: 'e1', userId: 'u1', displayName: 'One' },
+      { eventId: 'e1', userId: 'u2', displayName: 'Two' },
+    ];
+    const zeroRows = [
+      { eventId: 'e1', userId: 'u1', displayName: 'One' },
+      { eventId: 'e1', userId: 'u2', displayName: 'CHANGED' },
+    ];
+
+    const diff = diffQueryShape({ ...base, restRows, zeroResult: zeroRows, minRows: 2 });
+
+    expect(diff.comparedRows).toBe(2);
+    expect(diff.findings.join('\n')).toContain('displayName');
+  });
+
+  it('says so loudly when both rungs returned rows but none could be paired', () => {
+    // The reachable shape: `id` IS a usable identity on both sides (present and
+    // unique), but the two id SETS are disjoint — so the identity path pairs
+    // nothing and no value comparison happens at all. Without this guard that
+    // silence reads as parity.
+    const unpairable = diffQueryShape({
+      ...base,
+      restRows: [{ id: 'a' }, { id: 'b' }],
+      zeroResult: [{ id: 'c' }, { id: 'd' }],
+      minRows: 2,
+    });
+    expect(unpairable.comparedRows).toBe(0);
+    expect(unpairable.findings.join('\n')).toContain('NOTHING COMPARED');
+  });
+
+  it('does not cry NOTHING COMPARED when one rung simply returned no rows', () => {
+    // That case is already reported as a row-count/minRows finding; adding a
+    // second alarm for it would be noise.
+    const diff = diffQueryShape({ ...base, restRows: [{ a: 1 }], zeroResult: [] });
+    expect(diff.findings.join('\n')).not.toContain('NOTHING COMPARED');
+  });
+
+  it('duplicate ids fall back to positional pairing rather than comparing nothing', () => {
+    // A duplicated id disqualifies `id` as an identity; positional pairing is
+    // the honest fallback and must still compare the rows.
+    const diff = diffQueryShape({
+      ...base,
+      restRows: [{ id: 'a', n: 1 }, { id: 'a', n: 2 }],
+      zeroResult: [{ id: 'a', n: 1 }, { id: 'a', n: 2 }],
+      minRows: 2,
+    });
+    expect(diff.comparedRows).toBe(2);
+    expect(diff.findings).toEqual([]);
+  });
+
+  it('falls back to positional pairing when rows carry no identity key', () => {
+    const diff = diffQueryShape({
+      ...base,
+      restRows: [{ label: 'x' }, { label: 'y' }],
+      zeroResult: [{ label: 'x' }, { label: 'y' }],
+      minRows: 2,
+    });
+    expect(diff.comparedRows).toBe(2);
+    expect(diff.findings).toEqual([]);
+  });
+
   it('reports a genuine value mismatch on a shared key', () => {
     const diff = diffQueryShape({
       ...base,

@@ -147,9 +147,14 @@ export const PARITY_FIXTURES: Readonly<Record<string, ParityFixture>> = {
     minRows: 2,
   },
   'event.replay.chapters': {
+    // minRows 1, not 2: the REST rung DERIVES chapters from transcript moments
+    // and may merge several into one, so its row count is deliberately not 1:1
+    // with the seeded moments. The Zero leaf reads the moment rows straight, so
+    // the resulting count difference is a genuine cardinality finding — this
+    // floor only stops the seed's own expectation from being reported as drift.
     args: (r) => ({ eventId: r.eventId }),
     principal: () => null,
-    minRows: 2,
+    minRows: 1,
   },
   'event.copilot.proposals': {
     args: (r) => ({ eventId: r.eventId }),
@@ -260,33 +265,49 @@ function normalizeZeroRows(zeroResult: unknown): { rows: unknown[]; singular: bo
 }
 
 /**
- * Pair rows across the two rungs. By `id` when both sides carry one — the rungs
- * order independently, so positional pairing would manufacture value mismatches
- * out of an ordering difference — else positionally, which is the honest
- * fallback for a row with no identity.
+ * Candidate row-identity keys, most specific first. `eventId` is deliberately
+ * ABSENT: it is the FILTER every one of these queries is scoped by, so it holds
+ * the same value on every row. Treating it as an identity silently collapses a
+ * whole result set onto one key — measured on `event.chat.presence`, where both
+ * rungs returned 2 rows and the pairing compared 0 of them while reporting no
+ * mismatch. A key that identifies nothing is worse than no key, because the
+ * resulting "no findings" reads as parity.
+ */
+const IDENTITY_KEYS = ['id', 'eventItemId', 'userId', 'productId'] as const;
+
+/**
+ * Pair rows across the two rungs. The rungs order independently, so positional
+ * pairing would manufacture value mismatches out of a mere ordering difference —
+ * but an identity key is only usable if it actually identifies. A key qualifies
+ * only when it is present on EVERY row of BOTH sides and its values are UNIQUE
+ * within each side; otherwise we fall back to positional pairing, which is the
+ * honest answer for rows with no identity.
  */
 function pairRows(
   restRows: readonly unknown[],
   zeroRows: readonly unknown[],
 ): { rest: unknown; zero: unknown; label: string }[] {
-  const identity = (row: unknown): string | undefined => {
-    if (!isRow(row)) return undefined;
-    for (const key of ['id', 'eventItemId', 'eventId', 'userId']) {
-      const value = row[key];
-      if (typeof value === 'string' || typeof value === 'number') return `${key}=${value}`;
+  const usableIdentity = (key: string): boolean => {
+    const values = (rows: readonly unknown[]) =>
+      rows.map((row) => (isRow(row) ? row[key] : undefined));
+    for (const side of [restRows, zeroRows]) {
+      const side_values = values(side);
+      const scalar = side_values.filter((v) => typeof v === 'string' || typeof v === 'number');
+      if (scalar.length !== side.length) return false;
+      if (new Set(scalar.map(String)).size !== side.length) return false;
     }
-    return undefined;
+    return true;
   };
 
-  const restIds = restRows.map(identity);
-  const zeroIds = zeroRows.map(identity);
-  const everyRowIdentified = restIds.every(Boolean) && zeroIds.every(Boolean);
+  const key = IDENTITY_KEYS.find((candidate) => usableIdentity(candidate));
 
-  if (everyRowIdentified) {
-    const zeroById = new Map(zeroRows.map((row, i) => [zeroIds[i] as string, row]));
-    return restRows.flatMap((rest, i) => {
-      const key = restIds[i] as string;
-      return zeroById.has(key) ? [{ rest, zero: zeroById.get(key), label: key }] : [];
+  if (key) {
+    const zeroByKey = new Map(
+      zeroRows.map((row) => [String((row as Record<string, unknown>)[key]), row]),
+    );
+    return restRows.flatMap((rest) => {
+      const id = String((rest as Record<string, unknown>)[key]);
+      return zeroByKey.has(id) ? [{ rest, zero: zeroByKey.get(id), label: `${key}=${id}` }] : [];
     });
   }
 
@@ -380,6 +401,19 @@ export function diffQueryShape(input: {
   // (c) Value equality, on the keys both sides actually carry.
   const sharedKeys = [...restKeys].filter((k) => zeroKeys.has(k)).sort();
   const pairs = pairRows(restRows, zeroRows);
+
+  // Structural guard on the comparison itself. Both rungs returning rows while
+  // NOTHING got paired means the values were never compared — and with no
+  // finding to show for it that reads as parity. This is not hypothetical: an
+  // earlier revision keyed on `eventId` (constant across a result set) and
+  // compared 0 of `event.chat.presence`'s 2+2 rows in exactly this silence.
+  if (restRows.length > 0 && zeroRows.length > 0 && pairs.length === 0) {
+    findings.push(
+      `NOTHING COMPARED: REST returned ${restRows.length} row(s) and Zero ${zeroRows.length}, but no row ` +
+        `could be paired — the two rungs share no usable identity key, so value equality was never checked. ` +
+        `Treat this as unverified, never as parity.`,
+    );
+  }
   for (const { rest, zero, label } of pairs) {
     if (!isRow(rest) || !isRow(zero)) {
       const a = JSON.stringify(canonicalize(rest));
