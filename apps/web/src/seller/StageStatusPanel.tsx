@@ -3,7 +3,12 @@ import { streamLabel, type StreamState } from '../hooks';
 import { liveTranscriptPresentation } from '../LiveTranscriptOverlay';
 import type { LiveTranscriptController } from '../use-live-transcript';
 import { VideoEngagementOverlay } from '../VideoEngagementOverlay';
-import { stageStartHint, stageStartLabel, type ActiveEventStatus } from './active-event-status';
+import {
+  stageRoomBadgeLabel,
+  stageStartHint,
+  stageStartLabel,
+  type ActiveEventStatus,
+} from './active-event-status';
 
 export interface StageStatusPanelProps {
   /** Headline for the live console — the event currently on stage. */
@@ -106,7 +111,7 @@ export function StageStatusPanel({
       <div className="seller-stream-preview">
         <video ref={videoRef} className="stream-video" autoPlay muted playsInline aria-label="Seller camera preview" />
         <div className="stream-video-overlay">
-          <span className="live-badge">{roomEventId ?? 'room not started'}</span>
+          <span className="live-badge">{stageRoomBadgeLabel(roomEventId, eventStatus)}</span>
           <p>{streamError ?? (streamState === 'live' ? 'Your camera and microphone are live.' : 'Camera preview appears here after you start the event.')}</p>
         </div>
         <VideoEngagementOverlay

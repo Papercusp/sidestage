@@ -25,16 +25,40 @@ export interface VideoEngagementOverlayProps {
   className?: string;
 }
 
+/** What the buyer's transcript panel needs besides the moments themselves. */
+export interface RemoteTranscriptInputs {
+  /**
+   * Is the buyer's video actually playing right now?
+   *
+   * Required, and deliberately not defaulted (WI-39839). This feed is a poll of
+   * PERSISTED moments, so `moments.length > 0` proves only that this event has
+   * captions stored — a fact about the past. Reading that as liveness is what
+   * put a green "Transcript live" pill on a buyer view that was simultaneously
+   * stuck on "Waiting for the seller to start their camera…": both statements
+   * were true about their own subject, and the overlay presented them as one
+   * verdict. A default here would let a future call site re-acquire the same
+   * false claim by omission, which is exactly how it arrived.
+   */
+  videoLive: boolean;
+  error?: unknown;
+  loading?: boolean;
+}
+
 /** Convert the persisted seller feed into the same presentation used by live capture. */
 export function remoteTranscriptPresentation(
   moments: readonly EventTranscriptMoment[],
-  error?: unknown,
-  loading = false,
+  { videoLive, error, loading = false }: RemoteTranscriptInputs,
 ): TranscriptOverlayPresentation {
   const latestProduct = [...moments].reverse().find((moment) => moment.productId && moment.productTitle);
   const unavailable = !loading && Boolean(error) && moments.length === 0;
+  const hasCaptions = moments.length > 0;
+  // "Live" is the conjunction, never either half: captions exist AND the video
+  // they caption is playing. `state` moves with the label because the pill's
+  // green is `state-listening`, so relabelling alone would leave the colour
+  // making the claim the words had just given up.
+  const live = hasCaptions && videoLive;
   return {
-    state: unavailable ? 'error' : moments.length > 0 ? 'listening' : 'idle',
+    state: unavailable ? 'error' : live ? 'listening' : 'idle',
     segments: moments,
     error: unavailable ? 'The live transcript is temporarily unavailable.' : null,
     activeProduct: latestProduct ? {
@@ -43,9 +67,11 @@ export function remoteTranscriptPresentation(
     } : null,
     statusLabel: unavailable
       ? 'Transcript unavailable'
-      : moments.length > 0
+      : live
         ? 'Transcript live'
-        : 'Waiting for captions',
+        : hasCaptions
+          ? 'Captions from earlier in this event'
+          : 'Waiting for captions',
     emptyLabel: 'Seller captions will appear here as the event unfolds.',
   };
 }

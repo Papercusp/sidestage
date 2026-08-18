@@ -150,14 +150,9 @@ export function BuyerTab({
     transcriptErrorStreakRef.current = next.streak;
     setConfirmedTranscriptError(next.confirmed);
   }, [transcriptQuery.error]);
-  const transcript = useMemo(
-    () => remoteTranscriptPresentation(
-      transcriptQuery.data ?? [],
-      confirmedTranscriptError,
-      transcriptQuery.loading,
-    ),
-    [transcriptQuery.data, confirmedTranscriptError, transcriptQuery.loading],
-  );
+  // NOTE: the transcript presentation is built further down, after
+  // `useStreamSession` — it needs that hook's `streamState` to decide whether
+  // the captions it holds may call themselves live (WI-39839).
   // The event's product rail comes from the ONE catalog source (P-102): the
   // API read model when reachable; explicit development builds may use the
   // shared fixture, while production source loss renders no inventory.
@@ -201,6 +196,14 @@ export function BuyerTab({
     start: startStream,
     stop: stopStream,
   } = stream;
+  const transcript = useMemo(
+    () => remoteTranscriptPresentation(transcriptQuery.data ?? [], {
+      videoLive: streamState === 'live',
+      error: confirmedTranscriptError,
+      loading: transcriptQuery.loading,
+    }),
+    [transcriptQuery.data, confirmedTranscriptError, transcriptQuery.loading, streamState],
+  );
   const selectedRoomRef = useRef(room);
   selectedRoomRef.current = room;
   // D-013: this is deliberately an auth-free demo identity. Every buyer-side

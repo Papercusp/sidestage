@@ -16,7 +16,7 @@ describe('VideoEngagementOverlay', () => {
       startMs: 12_000,
       productId: 'mug',
       productTitle: 'Stoneware mug',
-    }]);
+    }], { videoLive: true });
     const markup = renderToStaticMarkup(
       <VideoEngagementOverlay chat={<p>Room message</p>} transcript={transcript} />,
     );
@@ -35,7 +35,7 @@ describe('VideoEngagementOverlay', () => {
     const markup = renderToStaticMarkup(
       <VideoEngagementOverlay
         chat={<p>Subscribed chat</p>}
-        transcript={remoteTranscriptPresentation([], new Error('offline'))}
+        transcript={remoteTranscriptPresentation([], { videoLive: false, error: new Error('offline') })}
         chatOpen={false}
       />,
     );
@@ -48,7 +48,10 @@ describe('VideoEngagementOverlay', () => {
   });
 
   it('keeps an empty transcript in its loading state while the principal-scoped query rebinds', () => {
-    const transcript = remoteTranscriptPresentation([], new Error('stale principal error'), true);
+    const transcript = remoteTranscriptPresentation(
+      [],
+      { videoLive: false, error: new Error('stale principal error'), loading: true },
+    );
 
     expect(transcript).toMatchObject({
       state: 'idle',
@@ -64,13 +67,42 @@ describe('VideoEngagementOverlay', () => {
           id: 'moment-2',
           text: 'This jacket is the current item.',
           startMs: 24_000,
-        }])}
+        }], { videoLive: true })}
       />,
     );
 
     expect(markup).toContain('This jacket is the current item.');
     expect(markup).not.toContain('video-engagement-chat-panel');
     expect(markup).not.toContain('video-engagement-chat-toggle');
+  });
+
+  it('never claims "Transcript live" while the buyer has no video (WI-39839)', () => {
+    // The owner's screenshot: a green "Transcript live" pill on a buyer view
+    // that was, at the same moment, stuck on "Waiting for the seller to start
+    // their camera…". Stored moments prove captions EXIST, never that anything
+    // is live now.
+    const moments = [{
+      id: 'moment-1',
+      text: 'Center front.',
+      startMs: 12_000,
+      productId: 'bag',
+      productTitle: 'Medication Bag',
+    }];
+
+    const stalled = remoteTranscriptPresentation(moments, { videoLive: false });
+    expect(stalled.statusLabel).toBe('Captions from earlier in this event');
+    // The pill's green is `state-listening`, so this is half the assertion, not
+    // a restatement of the line above.
+    expect(stalled.state).toBe('idle');
+
+    // The captions themselves are still shown — they are real, and withholding
+    // them would trade a false claim for a lost one.
+    expect(stalled.segments).toEqual(moments);
+
+    // And the live case is untouched.
+    const playing = remoteTranscriptPresentation(moments, { videoLive: true });
+    expect(playing.statusLabel).toBe('Transcript live');
+    expect(playing.state).toBe('listening');
   });
 
   it('forgives a single transient transcript-poll failure (EI-20538641531453022)', () => {

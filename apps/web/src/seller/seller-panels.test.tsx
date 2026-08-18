@@ -81,6 +81,26 @@ describe('StageStatusPanel', () => {
     expect(markup).toContain('>Transcript</button>');
   });
 
+  it('never lets the camera pane call a live event "room not started" (WI-39839)', () => {
+    // The wiring half of the fix, and the half a pure-function test cannot
+    // reach: stageRoomBadgeLabel shipped correct-but-uncalled once already, so
+    // this asserts through the rendered pane rather than the helper.
+    const live = renderToStaticMarkup(
+      <StageStatusPanel {...stageProps({ eventStatus: activeEventStatus('demo-room', ownedEvent('live'), false) })} />,
+    );
+    expect(live).toContain('<span class="live-badge">Live - your camera is not on</span>');
+    expect(live).not.toContain('room not started');
+
+    // The badge still reports the attached room id when this tab holds one.
+    const attached = renderToStaticMarkup(
+      <StageStatusPanel {...stageProps({
+        eventStatus: activeEventStatus('demo-room', ownedEvent('live'), false),
+        roomEventId: 'demo-room',
+      })} />,
+    );
+    expect(attached).toContain('<span class="live-badge">demo-room</span>');
+  });
+
   it('labels each stream state and offers Start before a session exists', () => {
     expect(renderToStaticMarkup(<StageStatusPanel {...stageProps()} />)).toContain('Preview ready');
     expect(renderToStaticMarkup(<StageStatusPanel {...stageProps({ streamState: 'live' })} />))

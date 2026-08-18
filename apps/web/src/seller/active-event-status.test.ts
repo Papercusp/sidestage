@@ -5,6 +5,7 @@ import type { EventLifecycleStatus } from '../events/event-lifecycle';
 import {
   activeEventStatus,
   publishOnStartWarning,
+  stageRoomBadgeLabel,
   stageStartHint,
   stageStartLabel,
 } from './active-event-status';
@@ -107,6 +108,38 @@ describe('stage CTA lifecycle state', () => {
     // An unlisted room is not live either, and its warning is the publish
     // failure — the CTA stays the plain one.
     expect(stageStartLabel(activeEventStatus('nope', [], false))).toBe('Start event');
+  });
+});
+
+describe('camera-pane room badge', () => {
+  it('stops the pane calling a live event "room not started" (WI-39839)', () => {
+    // The owner's screenshot: the camera pane read "room not started" inches
+    // below a badge correctly reading "Live - visible to buyers", and the pane
+    // is where the video is, so that is the one they believed.
+    const live = activeEventStatus('potato', [record({ eventId: 'potato', status: 'live' })], false);
+
+    expect(stageRoomBadgeLabel(null, live)).toBe('Live - your camera is not on');
+    expect(stageRoomBadgeLabel(null, live)).not.toContain('room not started');
+  });
+
+  it('reports the attached room id whenever this tab holds one', () => {
+    // The badge's real job. It is unchanged by the fix, on every status.
+    for (const status of ALL_STATUSES) {
+      const resolved = activeEventStatus('sunday-drop', [record({ status })], false);
+      expect(stageRoomBadgeLabel('sunday-drop', resolved)).toBe('sunday-drop');
+    }
+  });
+
+  it('keeps "room not started" wherever it is still true', () => {
+    for (const status of ALL_STATUSES.filter((candidate) => candidate !== 'live')) {
+      const resolved = activeEventStatus('sunday-drop', [record({ status })], false);
+      expect(stageRoomBadgeLabel(null, resolved)).toBe('room not started');
+    }
+    // Loading and unlisted carry no lifecycle status, so the pane cannot claim
+    // the event is live — asserting it here would trade one false badge for
+    // another.
+    expect(stageRoomBadgeLabel(null, activeEventStatus('sunday-drop', [], true))).toBe('room not started');
+    expect(stageRoomBadgeLabel(null, activeEventStatus('nope', [], false))).toBe('room not started');
   });
 });
 
