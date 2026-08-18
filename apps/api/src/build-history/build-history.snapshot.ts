@@ -16,7 +16,7 @@ export const BUILD_HISTORY_SNAPSHOT = {
     "workspace": "papercusp-workspace",
     "harness": "sidestage",
     "planPrefix": null,
-    "generatedAt": "2026-08-18T14:50:04.448Z",
+    "generatedAt": "2026-08-18T16:50:07.812Z",
     "generator": "papercusp project-history generate",
     "planCount": 52
   },
@@ -2086,6 +2086,31 @@ export const BUILD_HISTORY_SNAPSHOT = {
             "contentHash": "20e16d013ddb38bb79ecab2650c453575972d503b5907f2c9241ef3f1f7fb4ba"
           },
           "commits": [
+            {
+              "sha": "79857c32b1b8351d9eebe47efbfc523f66642b7c",
+              "url": "https://github.com/Papercusp/sidestage/commit/79857c32b1b8351d9eebe47efbfc523f66642b7c",
+              "subject": "sync(web): EventChat.tsx (1 file, +8/-1) [skip ci]",
+              "committedAt": "2026-08-18T12:45:44-04:00",
+              "files": [
+                "apps/web/src/EventChat.tsx"
+              ],
+              "remoteStatus": "local-only",
+              "attribution": "body-reference"
+            },
+            {
+              "sha": "cd157eceb995524a2e699ecaeb23226dbfbe43fb",
+              "url": "https://github.com/Papercusp/sidestage/commit/cd157eceb995524a2e699ecaeb23226dbfbe43fb",
+              "subject": "sync(web): apps/web (4 files, +164/-8) [skip ci]",
+              "committedAt": "2026-08-18T12:35:45-04:00",
+              "files": [
+                "apps/web/src/seller/offer-guard.test.ts",
+                "apps/web/src/seller/offer-guard.ts",
+                "apps/web/src/transcription.test.ts",
+                "apps/web/src/transcription.ts"
+              ],
+              "remoteStatus": "local-only",
+              "attribution": "body-reference"
+            },
             {
               "sha": "852c688889bcb825bee1c0a5f6f8968a9be05283",
               "url": "https://github.com/Papercusp/sidestage/commit/852c688889bcb825bee1c0a5f6f8968a9be05283",
