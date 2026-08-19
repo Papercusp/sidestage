@@ -2,10 +2,13 @@ import { existsSync } from 'node:fs';
 import { describe, expect, it, vi } from 'vitest';
 
 import {
+  generateBuildHistorySnapshot,
   mobileRepoCandidates,
   mobileRepoRoot,
   projectHistoryArgs,
   projectHistoryCommand,
+  rejectedExtraRepo,
+  withoutExtraRepo,
 } from './generate-build-history-snapshot.mjs';
 
 describe('SideStage Project History adapter', () => {
@@ -69,6 +72,63 @@ describe('sidestage-mobile commit coverage (WI-39898)', () => {
     expect(candidates.length).toBeGreaterThan(1);
     expect(candidates).toContain('/home/someone/papercupai-workspace/sidestage-mobile');
     expect(candidates).toContain('/home/someone/.papercusp/hives/sidestage-mobile');
+  });
+
+  it('strips only the --extra-repo pair, in both spellings', () => {
+    expect(withoutExtraRepo(['--repo', '/a', '--extra-repo', '/b', '--format', 'json']))
+      .toEqual(['--repo', '/a', '--format', 'json']);
+    expect(withoutExtraRepo(['--extra-repo=/b', '--format', 'json']))
+      .toEqual(['--format', 'json']);
+  });
+
+  it('recognises the released CLI refusal it must recover from', () => {
+    expect(rejectedExtraRepo('fatal: project-history generate: unknown argument --extra-repo')).toBe(true);
+    expect(rejectedExtraRepo('fatal: something else entirely')).toBe(false);
+    expect(rejectedExtraRepo(undefined)).toBe(false);
+  });
+
+  /**
+   * THE GUARD THAT MATTERS. `papercusp project-history` dispatches into papercup-release,
+   * so this repo's generator upgrades before the CLI does. Verified live 2026-08-19: the
+   * released CLI answers `unknown argument --extra-repo` and exits non-zero. Without this
+   * retry the periodic snapshot refresh would break outright during the skew window.
+   */
+  it('retries WITHOUT --extra-repo when the installed CLI predates the flag', () => {
+    const warn = vi.spyOn(process.stderr, 'write').mockImplementation(() => true);
+    const calls = [];
+    const run = (_command, args) => {
+      calls.push(args);
+      return args.includes('--extra-repo')
+        ? { status: 1, stderr: 'fatal: project-history generate: unknown argument --extra-repo' }
+        : { status: 0, stderr: '' };
+    };
+    try {
+      const status = generateBuildHistorySnapshot([], { HOME: '/home/someone' }, run);
+      expect(status).toBe(0);
+      expect(calls).toHaveLength(2);
+      expect(calls[1]).not.toContain('--extra-repo');
+      // The primary repo must survive the retry — dropping it would emit an empty history.
+      expect(calls[1]).toContain('--repo');
+    } finally {
+      warn.mockRestore();
+    }
+  });
+
+  it('does NOT retry when the failure is unrelated to the flag', () => {
+    const warn = vi.spyOn(process.stderr, 'write').mockImplementation(() => true);
+    const calls = [];
+    const run = (_command, args) => {
+      calls.push(args);
+      return { status: 3, stderr: 'fatal: work_items:export resolved 0 work items' };
+    };
+    try {
+      generateBuildHistorySnapshot([], { HOME: '/home/someone' }, run);
+      // A real generation failure must stay loud, not be masked by a second attempt.
+      expect(calls).toHaveLength(1);
+    } finally {
+      warn.mockRestore();
+      process.exitCode = 0;
+    }
   });
 
   it('resolves the real sidestage-mobile checkout on this box', () => {
