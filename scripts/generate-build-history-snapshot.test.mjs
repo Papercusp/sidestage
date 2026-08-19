@@ -103,7 +103,7 @@ describe('sidestage-mobile commit coverage (WI-39898)', () => {
         : { status: 0, stderr: '' };
     };
     try {
-      const status = generateBuildHistorySnapshot([], { HOME: '/home/someone' }, run);
+      const status = generateBuildHistorySnapshot([], { HOME: '/home/someone' }, run, () => true);
       expect(status).toBe(0);
       expect(calls).toHaveLength(2);
       expect(calls[1]).not.toContain('--extra-repo');
@@ -122,7 +122,7 @@ describe('sidestage-mobile commit coverage (WI-39898)', () => {
       return { status: 3, stderr: 'fatal: work_items:export resolved 0 work items' };
     };
     try {
-      generateBuildHistorySnapshot([], { HOME: '/home/someone' }, run);
+      generateBuildHistorySnapshot([], { HOME: '/home/someone' }, run, () => true);
       // A real generation failure must stay loud, not be masked by a second attempt.
       expect(calls).toHaveLength(1);
     } finally {

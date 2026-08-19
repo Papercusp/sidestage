@@ -101,9 +101,14 @@ export function rejectedExtraRepo(stderr) {
  * that mobile commits are missing. Self-healing — it simply starts working once the
  * release carries the flag, with no second change needed here.
  */
-export function generateBuildHistorySnapshot(argv = process.argv.slice(2), env = process.env, run = spawnSync) {
+export function generateBuildHistorySnapshot(
+  argv = process.argv.slice(2),
+  env = process.env,
+  run = spawnSync,
+  exists = existsSync,
+) {
   const command = projectHistoryCommand(env);
-  const args = projectHistoryArgs(argv, env);
+  const args = projectHistoryArgs(argv, env, exists);
   // stdout stays inherited so progress still streams; stderr is piped ONLY so the
   // skew above can be detected, then forwarded verbatim so nothing is swallowed.
   const spawnOptions = { cwd: repoRoot, env, encoding: 'utf8', stdio: ['inherit', 'inherit', 'pipe'] };
