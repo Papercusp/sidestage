@@ -129,6 +129,8 @@ interface BuildHistorySummary {
 const LIVE_SITE_URL = 'https://sidestage.papercusp.com';
 const PLAN_PAGE_SIZE = 12;
 const ITEM_PAGE_SIZE = 12;
+/** Commits shown on the plan card before the "Show N more commits" expansion. */
+const PLAN_COMMIT_PREVIEW = 6;
 const HISTORY_DOCUMENT_STATE = '__sidestageHistoryDocument';
 const TERMINAL_PLAN_STATES = new Set(['archived', 'cancelled', 'canceled', 'complete', 'completed', 'done', 'shipped', 'superseded']);
 const buildDateFormatter = new Intl.DateTimeFormat('en-US', {
@@ -400,6 +402,31 @@ function commitRemoteLabel(status: BuildHistoryCommit['remoteStatus']): string {
   return 'Remote unknown';
 }
 
+function CommitRow({ commit }: { commit: BuildHistoryCommit }) {
+  const shortSha = commit.sha.slice(0, 7);
+  const title = commit.subject ?? `Commit ${shortSha}`;
+  const confirmedUrl = commit.remoteStatus === 'confirmed' ? commit.url : null;
+
+  return (
+    <li>
+      <div className="build-commit-title">
+        {confirmedUrl ? (
+          <a href={confirmedUrl} target="_blank" rel="noreferrer">
+            <span>{title}</span>
+            <small>View commit ↗</small>
+          </a>
+        ) : <strong>{title}</strong>}
+        <code title={commit.sha}>{shortSha}</code>
+      </div>
+      <div className="build-commit-meta">
+        <span>{commitAttributionLabel(commit.attribution)}</span>
+        <span className={`is-${commit.remoteStatus}`}>{commitRemoteLabel(commit.remoteStatus)}</span>
+        <span>{commit.files.length} {commit.files.length === 1 ? 'file' : 'files'}</span>
+      </div>
+    </li>
+  );
+}
+
 function BuildItemCommits({ item }: { item: BuildHistoryWorkItem }) {
   if (item.commits.length === 0) return null;
 
@@ -410,30 +437,59 @@ function BuildItemCommits({ item }: { item: BuildHistoryWorkItem }) {
         <span>{item.commits.length}</span>
       </header>
       <ul>
-        {item.commits.map((commit) => {
-          const shortSha = commit.sha.slice(0, 7);
-          const title = commit.subject ?? `Commit ${shortSha}`;
-          const confirmedUrl = commit.remoteStatus === 'confirmed' ? commit.url : null;
-          return (
-            <li key={commit.sha}>
-              <div className="build-commit-title">
-                {confirmedUrl ? (
-                  <a href={confirmedUrl} target="_blank" rel="noreferrer">
-                    <span>{title}</span>
-                    <small>View commit ↗</small>
-                  </a>
-                ) : <strong>{title}</strong>}
-                <code title={commit.sha}>{shortSha}</code>
-              </div>
-              <div className="build-commit-meta">
-                <span>{commitAttributionLabel(commit.attribution)}</span>
-                <span className={`is-${commit.remoteStatus}`}>{commitRemoteLabel(commit.remoteStatus)}</span>
-                <span>{commit.files.length} {commit.files.length === 1 ? 'file' : 'files'}</span>
-              </div>
-            </li>
-          );
-        })}
+        {item.commits.map((commit) => <CommitRow commit={commit} key={commit.sha} />)}
       </ul>
+    </section>
+  );
+}
+
+/**
+ * Every commit across a plan's completed items, deduped by sha and newest first.
+ * The same sha can be linked from several items; keep the strongest attribution.
+ */
+export function planCommits(plan: BuildHistoryPlan): BuildHistoryCommit[] {
+  const bySha = new Map<string, BuildHistoryCommit>();
+  for (const item of plan.completedItems) {
+    for (const commit of item.commits) {
+      const existing = bySha.get(commit.sha);
+      if (!existing || (existing.attribution !== 'authoritative' && commit.attribution === 'authoritative')) {
+        bySha.set(commit.sha, commit);
+      }
+    }
+  }
+  return [...bySha.values()].sort((left, right) => {
+    const byTime = (right.committedAt ?? '').localeCompare(left.committedAt ?? '');
+    return byTime || left.sha.localeCompare(right.sha);
+  });
+}
+
+/**
+ * Plan-level commit list. The per-ITEM list below is two disclosures deep (plan card ->
+ * "View N work items" -> item), which is why the GitHub links read as missing entirely
+ * (WI-39898). This surfaces the same links one click from the plan card.
+ */
+function BuildPlanCommits({ plan }: { plan: BuildHistoryPlan }) {
+  const commits = useMemo(() => planCommits(plan), [plan]);
+  const [expanded, setExpanded] = useState(false);
+  if (commits.length === 0) return null;
+
+  const visible = expanded ? commits : commits.slice(0, PLAN_COMMIT_PREVIEW);
+  const hidden = commits.length - visible.length;
+
+  return (
+    <section className="build-item-commits build-plan-commits" aria-label={`Commits for ${plan.slug}`}>
+      <header>
+        <h4>Commits</h4>
+        <span>{commits.length}</span>
+      </header>
+      <ul>
+        {visible.map((commit) => <CommitRow commit={commit} key={commit.sha} />)}
+      </ul>
+      {hidden > 0 ? (
+        <button className="button ghost small build-show-more" type="button" onClick={() => setExpanded(true)}>
+          Show {hidden} more {hidden === 1 ? 'commit' : 'commits'}
+        </button>
+      ) : null}
     </section>
   );
 }
@@ -528,7 +584,18 @@ function BuildPlanDetails({
           Read full plan
         </a>
         <CopyLinkButton href={planHref} label="Copy plan link" />
+        {plan.project.repository?.webUrl ? (
+          <a
+            className="button ghost small"
+            href={plan.project.repository.webUrl}
+            target="_blank"
+            rel="noreferrer"
+          >
+            View repository ↗
+          </a>
+        ) : null}
       </div>
+      <BuildPlanCommits plan={plan} />
       <details className="build-work-items-disclosure" open={showItems} onToggle={(event) => setShowItems(event.currentTarget.open)}>
         <summary>{showItems ? 'Hide' : 'View'} {items.length} {items.length === 1 ? 'work item' : 'work items'}</summary>
         {showItems ? (

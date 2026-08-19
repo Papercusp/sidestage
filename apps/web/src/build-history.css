@@ -475,6 +475,19 @@
   border-top: 1px solid var(--border);
 }
 
+/* Plan-level commit list — same chrome as the per-item one, but mounted directly on
+   the expanded plan card so the GitHub links are one click deep instead of three
+   (WI-39898). `.build-show-more` centres via justify-self in its grid parent; this
+   section is not a grid, so centre it explicitly. */
+.build-plan-commits {
+  margin-top: .75rem;
+}
+
+.build-plan-commits .build-show-more {
+  display: block;
+  margin: .65rem auto 0;
+}
+
 .build-commit-title {
   justify-content: space-between;
   min-width: 0;
@@ -497,10 +510,24 @@
   text-decoration: none;
 }
 
-.build-commit-title a:hover span {
+/* A commit anchor previously inherited body colour with no underline, so it was
+   visually indistinguishable from the un-linked <strong> fallback beside it —
+   the whole feature read as "the GitHub links are gone" (WI-39898). The link
+   affordance is now resting state, not hover-only. */
+.build-commit-title a span {
   color: var(--red-text);
   text-decoration: underline;
+  text-decoration-thickness: from-font;
   text-underline-offset: 3px;
+}
+
+.build-commit-title a:hover span,
+.build-commit-title a:focus-visible span {
+  text-decoration-thickness: 2px;
+}
+
+.build-commit-title a small {
+  color: var(--red-text);
 }
 
 .build-commit-title small,
