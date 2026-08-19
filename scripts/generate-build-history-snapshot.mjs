@@ -1,5 +1,6 @@
 import { spawnSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
+import { homedir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
@@ -17,20 +18,41 @@ export function projectHistoryCommand(env = process.env) {
  * links at all — which read as the links having been removed (WI-39898). Include that
  * repo's commits too; the CLI resolves its own origin, so they link to the right project.
  *
- * Resolved as a SIBLING of this checkout, overridable via SIDESTAGE_MOBILE_REPO. A
- * missing path yields no flag rather than a hard failure: a box without the mobile
- * checkout must still be able to regenerate the primary history.
+ * ⚠ A plain `<repoRoot>/../sidestage-mobile` sibling guess DOES NOT WORK here and was
+ * measured returning null: `papercupai-workspace/sidestage` is a SYMLINK into
+ * `~/.papercusp/hives/sidestage`, and Node resolves module paths through symlinks, so
+ * repoRoot is the hives path while the mobile checkout sits beside the WORKSPACE path.
+ * Both layouts are therefore probed. Order matters: an explicit override wins, then the
+ * true sibling, then each known workspace root.
  */
-export function mobileRepoRoot(env = process.env, exists = existsSync) {
+export function mobileRepoCandidates(env = process.env) {
   const configured = env.SIDESTAGE_MOBILE_REPO?.trim();
-  const candidate = configured
-    ? resolve(configured)
-    : resolve(repoRoot, '..', 'sidestage-mobile');
-  return exists(join(candidate, '.git')) ? candidate : null;
+  if (configured) return [resolve(configured)];
+  const home = env.HOME ?? homedir();
+  return [
+    resolve(repoRoot, '..', 'sidestage-mobile'),
+    join(home, 'papercupai-workspace', 'sidestage-mobile'),
+    join(home, '.papercusp', 'hives', 'sidestage-mobile'),
+  ];
+}
+
+export function mobileRepoRoot(env = process.env, exists = existsSync) {
+  return mobileRepoCandidates(env).find((candidate) => exists(join(candidate, '.git'))) ?? null;
 }
 
 export function projectHistoryArgs(argv = [], env = process.env, exists = existsSync) {
   const mobileRepo = mobileRepoRoot(env, exists);
+  // Never let this go missing SILENTLY. A dropped repo shows up only as work items with
+  // no commits — indistinguishable from work that genuinely had none, which is the very
+  // confusion this flag exists to end.
+  if (!mobileRepo) {
+    process.stderr.write(
+      'generate-build-history-snapshot: sidestage-mobile checkout not found; its commits '
+      + 'will be ABSENT from the snapshot. Looked in:\n'
+      + mobileRepoCandidates(env).map((candidate) => `  - ${candidate}\n`).join('')
+      + 'Set SIDESTAGE_MOBILE_REPO to point at it.\n',
+    );
+  }
   return [
     'project-history',
     'generate',
