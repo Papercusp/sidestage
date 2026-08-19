@@ -29,9 +29,9 @@ const item: ActionEventItem = {
   eventItemId: 'event-1:mug',
   productId: 'mug',
   title: 'Blue mug',
-  priceCents: 1_500,
-  availableQty: 5,
-  quantity: 5,
+  currentPriceCents: 1_500,
+  currentQuantity: 5,
+  listedQuantity: 5,
   attributes: { color: 'blue' },
 };
 
@@ -112,9 +112,9 @@ describe('GuardedActionService', () => {
       productId: 'mug',
       title: 'Blue mug',
       referencePriceCents: 1_500,
-      priceCents: 1_500,
-      quantity: 5,
-      availableQty: 5,
+      currentPriceCents: 1_500,
+      listedQuantity: 5,
+      currentQuantity: 5,
       position: 0,
       stageState: 'queued',
       imageUrl: '/mug-blue.webp',
@@ -171,14 +171,14 @@ describe('GuardedActionService', () => {
       action: { kind: 'markdown', productId: 'mug', priceCents: 1_200, reason: 'Live viewer asked for a small discount' },
     });
 
-    expect(applied.state.priceCents).toBe(1_200);
+    expect(applied.state.currentPriceCents).toBe(1_200);
     const audit = await actions.getAudit(applied.auditId);
     expect(audit.kind).toBe('markdown');
-    expect(audit.before.item.priceCents).toBe(1_500);
-    expect(audit.after.item.priceCents).toBe(1_200);
+    expect(audit.before.item.currentPriceCents).toBe(1_500);
+    expect(audit.after.item.currentPriceCents).toBe(1_200);
 
     const rollback = await actions.rollback(applied.auditId, 'seller-1', 'Undo test markdown');
-    expect(rollback.state.priceCents).toBe(1_500);
+    expect(rollback.state.currentPriceCents).toBe(1_500);
     expect(await actions.listAudit('event-1')).toHaveLength(2);
     expect((await actions.getAudit(applied.auditId)).rolledBackAt).toBeDefined();
     expect((await actions.getAudit(rollback.auditId)).kind).toBe('rollback');
@@ -205,7 +205,7 @@ describe('GuardedActionService', () => {
     expect(retry).toEqual(first);
     expect(await actions.listAudit('event-1')).toHaveLength(1);
     expect(await actions.listOffersForBuyer('buyer-9')).toHaveLength(1);
-    expect((await actions.listItems('event-1'))[0]?.availableQty).toBe(4);
+    expect((await actions.listItems('event-1'))[0]?.currentQuantity).toBe(4);
   });
 
   it('adjusts price and quantity in one audited write while respecting availability', async () => {
@@ -216,7 +216,7 @@ describe('GuardedActionService', () => {
       action: { kind: 'price-adjust', productId: 'mug', priceCents: 1_400, quantity: 3, reason: 'Limit the live drop quantity' },
     });
 
-    expect(result.state).toMatchObject({ priceCents: 1_400, quantity: 3, availableQty: 5 });
+    expect(result.state).toMatchObject({ currentPriceCents: 1_400, listedQuantity: 3, currentQuantity: 5 });
     expect((await actions.getAudit(result.auditId)).kind).toBe('price-adjust');
     await expect(actions.apply({
       eventId: 'event-1',
@@ -239,9 +239,9 @@ describe('GuardedActionService', () => {
       expect.objectContaining({ id: result.offer?.id, buyerId: 'buyer-9', createdAt: expect.any(String) }),
     ]);
     expect(await actions.listOffersForBuyer('buyer-other')).toEqual([]);
-    expect(result.state.availableQty).toBe(3);
+    expect(result.state.currentQuantity).toBe(3);
     const rollback = await actions.rollback(result.auditId, 'seller-1');
-    expect(rollback.state.availableQty).toBe(5);
+    expect(rollback.state.currentQuantity).toBe(5);
     expect((await actions.getAudit(result.auditId)).after.offers).toHaveLength(1);
     expect((await actions.getAudit(rollback.auditId)).after.offers).toHaveLength(0);
   });
@@ -271,7 +271,7 @@ describe('GuardedActionService', () => {
 
     await actions.cancelOffer(first.id, 'buyer-9');
     await actions.cancelOffer(first.id, 'buyer-9');
-    expect((await actions.listItems('event-1'))[0]?.availableQty).toBe(5);
+    expect((await actions.listItems('event-1'))[0]?.currentQuantity).toBe(5);
     expect((await actions.findOffer(first.id))?.status).toBe('cancelled');
   });
 
@@ -303,7 +303,7 @@ describe('GuardedActionService', () => {
       actorId: 'seller-1',
       action: { kind: 'markdown', productId: 'mug', priceCents: 900, reason: 'Unsafe discount' },
     })).rejects.toThrow('floor');
-    expect((await actions.listItems('event-1'))[0]?.priceCents).toBe(1_500);
+    expect((await actions.listItems('event-1'))[0]?.currentPriceCents).toBe(1_500);
     expect(await actions.listAudit('event-1')).toEqual([]);
   });
 
@@ -329,7 +329,7 @@ describe('GuardedActionService', () => {
 
     await expect(restarted.rollback(applied.auditId, 'seller-1')).resolves.toMatchObject({
       rolledBackAuditId: applied.auditId,
-      state: { priceCents: 1_500 },
+      state: { currentPriceCents: 1_500 },
     });
     expect(await restarted.listAudit('event-1')).toHaveLength(2);
 
@@ -364,17 +364,17 @@ describe('GuardedActionService', () => {
       actorId: 'seller-1',
       action: { kind: 'push', productId: 'mug', reason: 'Mug takes the stage' },
     });
-    expect(pushed.state.onStage).toBe(true);
+    expect(pushed.state.stageState).toBe('on-stage');
 
     const swapped = await actions.apply({
       eventId: 'event-1',
       actorId: 'seller-1',
       action: { kind: 'swap', productId: 'mug', swapToProductId: 'cup', reason: 'Cup up next' },
     });
-    expect(swapped.state.onStage).toBe(false);
+    expect(swapped.state.stageState).toBe('queued');
     const items = await actions.listItems('event-1');
-    expect(items.find((entry) => entry.productId === 'cup')?.onStage).toBe(true);
-    expect(items.find((entry) => entry.productId === 'mug')?.onStage).toBe(false);
+    expect(items.find((entry) => entry.productId === 'cup')?.stageState).toBe('on-stage');
+    expect(items.find((entry) => entry.productId === 'mug')?.stageState).toBe('queued');
 
     await expect(actions.apply({
       eventId: 'event-1',
@@ -390,8 +390,8 @@ describe('GuardedActionService', () => {
       actorId: 'seller-1',
       action: { kind: 'stock-adjust', productId: 'mug', quantity: 2, reason: 'Held two back for the auction' },
     });
-    expect(adjusted.state.quantity).toBe(2);
-    expect(adjusted.state.priceCents).toBe(1_500);
+    expect(adjusted.state.listedQuantity).toBe(2);
+    expect(adjusted.state.currentPriceCents).toBe(1_500);
 
     await expect(actions.apply({
       eventId: 'event-1',
@@ -449,7 +449,7 @@ describe('config-authoritative policy resolution (WI-38673)', () => {
       actorId: 'seller-1',
       action: { kind: 'markdown', productId: 'mug', priceCents: 1_100, reason: 'Inside the config floor' },
     });
-    expect(applied.state.priceCents).toBe(1_100);
+    expect(applied.state.currentPriceCents).toBe(1_100);
   });
 
   it('anchors derived floors to the registration price across successive markdowns', async () => {
@@ -467,7 +467,7 @@ describe('config-authoritative policy resolution (WI-38673)', () => {
     });
     await actions.registerEvent('event-1', {
       policy: derivedPolicy,
-      items: [{ ...item, priceCents: 10_000 }],
+      items: [{ ...item, currentPriceCents: 10_000 }],
     });
 
     await actions.apply({
@@ -483,7 +483,7 @@ describe('config-authoritative policy resolution (WI-38673)', () => {
 
     expect((await actions.listItems('event-1'))[0]).toMatchObject({
       referencePriceCents: 10_000,
-      priceCents: 7_500,
+      currentPriceCents: 7_500,
     });
     expect(resolvedPrices).toEqual([10_000, 10_000]);
   });
@@ -496,6 +496,6 @@ describe('config-authoritative policy resolution (WI-38673)', () => {
       actorId: 'seller-1',
       action: { kind: 'markdown', productId: 'mug', priceCents: 1_250, reason: 'Registered policy governs' },
     });
-    expect(applied.state.priceCents).toBe(1_250);
+    expect(applied.state.currentPriceCents).toBe(1_250);
   });
 });

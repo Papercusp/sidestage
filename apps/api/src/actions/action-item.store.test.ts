@@ -9,11 +9,10 @@ function draft(overrides: Partial<ActionItemDraft> = {}): ActionItemDraft {
     productId: 'mug',
     position: 0,
     referencePriceCents: 1_500,
-    priceCents: 1_500,
-    quantity: 5,
-    availableQty: 5,
+    currentPriceCents: 1_500,
+    listedQuantity: 5,
+    currentQuantity: 5,
     stageState: 'queued',
-    onStage: false,
     title: 'Blue mug',
     attributes: { color: 'blue' },
     ...overrides,
@@ -50,8 +49,8 @@ describe('InMemoryActionItemStore parity adapter', () => {
     const [refreshed] = await store.register('event-1', [draft({
       eventItemId: 'caller-tried-to-replace-it',
       referencePriceCents: 999,
-      priceCents: 1_250,
-      availableQty: 4,
+      currentPriceCents: 1_250,
+      currentQuantity: 4,
       title: 'Updated title',
     })]);
 
@@ -59,8 +58,8 @@ describe('InMemoryActionItemStore parity adapter', () => {
       eventItemId: first!.eventItemId,
       referencePriceCents: first!.referencePriceCents,
       createdAt: first!.createdAt,
-      priceCents: 1_250,
-      availableQty: 4,
+      currentPriceCents: 1_250,
+      currentQuantity: 4,
       title: 'Updated title',
       version: 2,
     });
@@ -71,32 +70,32 @@ describe('InMemoryActionItemStore parity adapter', () => {
     const [registered] = await store.register('event-1', [draft()]);
     await store.write('event-1', [{
       expectedVersion: registered!.version,
-      item: { ...registered!, priceCents: 1_400 },
+      item: { ...registered!, currentPriceCents: 1_400 },
     }]);
 
     await expect(store.write('event-1', [{
       expectedVersion: registered!.version,
-      item: { ...registered!, priceCents: 1_200 },
+      item: { ...registered!, currentPriceCents: 1_200 },
     }])).rejects.toBeInstanceOf(ConflictException);
     await expect(store.list('event-1')).resolves.toMatchObject([
-      { priceCents: 1_400, version: 2 },
+      { currentPriceCents: 1_400, version: 2 },
     ]);
   });
 
   it('enforces one on-stage row per event across registration and writes', async () => {
     const store = new InMemoryActionItemStore();
     await expect(store.register('event-1', [
-      draft({ stageState: 'on-stage', onStage: true }),
-      draft({ eventItemId: 'event-1:cup', productId: 'cup', stageState: 'on-stage', onStage: true }),
+      draft({ stageState: 'on-stage' }),
+      draft({ eventItemId: 'event-1:cup', productId: 'cup', stageState: 'on-stage' }),
     ])).rejects.toBeInstanceOf(ConflictException);
 
     const rows = await store.register('event-1', [
-      draft({ stageState: 'on-stage', onStage: true }),
+      draft({ stageState: 'on-stage' }),
       draft({ eventItemId: 'event-1:cup', productId: 'cup', position: 1 }),
     ]);
     await expect(store.write('event-1', [{
       expectedVersion: rows[1]!.version,
-      item: { ...rows[1]!, stageState: 'on-stage', onStage: true },
+      item: { ...rows[1]!, stageState: 'on-stage' },
     }])).rejects.toBeInstanceOf(ConflictException);
   });
 });

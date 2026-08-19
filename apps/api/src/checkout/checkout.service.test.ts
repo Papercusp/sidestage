@@ -369,8 +369,8 @@ describe('CheckoutService', () => {
     const eventItems = new InMemoryActionItemStore();
     await eventItems.register('event-checkout', [{
       eventId: 'event-checkout', eventItemId: 'event-checkout:mug', productId: 'mug',
-      title: 'Checkout mug', referencePriceCents: 2_000, priceCents: 1_500,
-      quantity: 2, availableQty: 2, position: 0, stageState: 'on-stage', onStage: true,
+      title: 'Checkout mug', referencePriceCents: 2_000, currentPriceCents: 1_500,
+      listedQuantity: 2, currentQuantity: 2, position: 0, stageState: 'on-stage',
       attributes: {},
     }]);
     const inventory = new InMemoryAuctionInventory();
@@ -420,7 +420,7 @@ describe('CheckoutService', () => {
     await expect(carts.findCart(cart.id)).resolves.toMatchObject({
       items: [], eventTerminalTransition: expect.objectContaining({ state: 'released' }),
     });
-    await expect(eventItems.list('event-checkout')).resolves.toMatchObject([{ availableQty: 2 }]);
+    await expect(eventItems.list('event-checkout')).resolves.toMatchObject([{ currentQuantity: 2 }]);
     await expect(inventory.get('mug')).resolves.toMatchObject({ reservedQty: 0, availableQty: 2 });
 
     await expect(checkout.createSession({

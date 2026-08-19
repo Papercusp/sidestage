@@ -294,9 +294,9 @@ describe('seller Copilot integration', () => {
         eventItemId: 'event-live:mug',
         productId: 'mug',
         title: 'Blue mug',
-        priceCents: 1_500,
-        availableQty: 5,
-        quantity: 5,
+        currentPriceCents: 1_500,
+        currentQuantity: 5,
+        listedQuantity: 5,
         attributes: { color: 'blue' },
       }],
     });

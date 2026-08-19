@@ -11,10 +11,10 @@ const ITEMS: SellerEventItem[] = [{
   eventItemId: 'sunday-drop:mug',
   productId: 'mug',
   title: 'Aurora mug',
-  priceCents: 2_000,
-  availableQty: 4,
-  quantity: 2,
-  onStage: true,
+  currentPriceCents: 2_000,
+  currentQuantity: 4,
+  listedQuantity: 2,
+  stageState: 'on-stage',
   attributes: { brand: 'Northstar', sku: 'MUG-1' },
 }];
 

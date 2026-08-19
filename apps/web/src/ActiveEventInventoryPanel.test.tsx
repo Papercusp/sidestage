@@ -11,11 +11,11 @@ import type { SellerEventItem } from './events/api';
 const ITEMS: SellerEventItem[] = [
   {
     eventId: 'event-1', eventItemId: 'event-1:mug', productId: 'mug', title: 'Cobalt mug',
-    priceCents: 4_800, availableQty: 12, quantity: 3, attributes: { sku: 'MUG-COBALT' },
+    currentPriceCents: 4_800, currentQuantity: 12, listedQuantity: 3, attributes: { sku: 'MUG-COBALT' },
   },
   {
     eventId: 'event-1', eventItemId: 'event-1:tray', productId: 'tray', title: 'Terrazzo tray',
-    priceCents: 3_600, availableQty: 20, quantity: 8, attributes: { sku: 'TRAY-01' },
+    currentPriceCents: 3_600, currentQuantity: 20, listedQuantity: 8, attributes: { sku: 'TRAY-01' },
   },
 ];
 
@@ -42,12 +42,12 @@ describe('ActiveEventInventoryPanel', () => {
   it('uses the documented three-unit low-stock threshold', () => {
     expect(ACTIVE_EVENT_LOW_STOCK_THRESHOLD).toBe(3);
     expect(activeEventLowStockCount(ITEMS)).toBe(1);
-    expect(activeEventLowStockCount([{ quantity: 4 }, { quantity: 5 }])).toBe(0);
+    expect(activeEventLowStockCount([{ listedQuantity: 4 }, { listedQuantity: 5 }])).toBe(0);
   });
 
   it('clamps draft quantities to verified event bounds', () => {
-    expect(clampActiveEventQuantity({ availableQty: 7 }, -1)).toBe(0);
-    expect(clampActiveEventQuantity({ availableQty: 7 }, 4.9)).toBe(4);
-    expect(clampActiveEventQuantity({ availableQty: 7 }, 20)).toBe(7);
+    expect(clampActiveEventQuantity({ currentQuantity: 7 }, -1)).toBe(0);
+    expect(clampActiveEventQuantity({ currentQuantity: 7 }, 4.9)).toBe(4);
+    expect(clampActiveEventQuantity({ currentQuantity: 7 }, 20)).toBe(7);
   });
 });

@@ -57,9 +57,9 @@ function item(productId: string, title: string, overrides: Partial<SellerEventIt
     eventItemId: `sunday-drop:${productId}`,
     productId,
     title,
-    priceCents: 4_000,
-    availableQty: 9,
-    quantity: 4,
+    currentPriceCents: 4_000,
+    currentQuantity: 9,
+    listedQuantity: 4,
     attributes: {},
     ...overrides,
   };

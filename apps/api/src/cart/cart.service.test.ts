@@ -84,8 +84,8 @@ describe('CartService', () => {
     const eventItems = new InMemoryActionItemStore();
     await eventItems.register('event-live', [{
       eventId: 'event-live', eventItemId: 'event-live:mug', productId: 'mug',
-      title: 'Authoritative mug', referencePriceCents: 2_000, priceCents: 1_500,
-      quantity: 2, availableQty: 2, position: 0, stageState: 'on-stage', onStage: true,
+      title: 'Authoritative mug', referencePriceCents: 2_000, currentPriceCents: 1_500,
+      listedQuantity: 2, currentQuantity: 2, position: 0, stageState: 'on-stage',
       attributes: {},
     }]);
     const events = new InMemoryEventStore([eventRecord('event-live', 'live')]);
@@ -117,7 +117,7 @@ describe('CartService', () => {
       eventHoldKeys: ['hold-1'],
     });
     expect(replay).toEqual(held);
-    await expect(eventItems.list('event-live')).resolves.toMatchObject([{ availableQty: 1 }]);
+    await expect(eventItems.list('event-live')).resolves.toMatchObject([{ currentQuantity: 1 }]);
     await expect(inventory.get('mug')).resolves.toMatchObject({ reservedQty: 1, availableQty: 1 });
     expect(published.map(({ name }) => name)).toEqual(expect.arrayContaining([
       'cart.byId', 'event.lineup.items', 'event.actions.items', 'inventory.snapshot', 'catalog.page',
@@ -129,8 +129,8 @@ describe('CartService', () => {
     const eventItems = new InMemoryActionItemStore();
     await eventItems.register('event-draft', [{
       eventId: 'event-draft', eventItemId: 'event-draft:mug', productId: 'mug',
-      title: 'Draft mug', referencePriceCents: 2_000, priceCents: 1_500,
-      quantity: 2, availableQty: 2, position: 0, stageState: 'queued', onStage: false,
+      title: 'Draft mug', referencePriceCents: 2_000, currentPriceCents: 1_500,
+      listedQuantity: 2, currentQuantity: 2, position: 0, stageState: 'queued',
       attributes: {},
     }]);
     const inventory = new InMemoryAuctionInventory();
@@ -151,7 +151,7 @@ describe('CartService', () => {
     await expect(carts.holdItem(base)).rejects.toThrow('Event item is not available');
     await expect(carts.holdItem({ ...base, eventId: 'missing' })).rejects.toThrow('Event item is not available');
     await expect(carts.holdItem({ ...base, eventItemId: 'foreign:item' })).rejects.toThrow('Event item is not available');
-    await expect(eventItems.list('event-draft')).resolves.toMatchObject([{ availableQty: 2 }]);
+    await expect(eventItems.list('event-draft')).resolves.toMatchObject([{ currentQuantity: 2 }]);
     await expect(inventory.get('mug')).resolves.toMatchObject({ reservedQty: 0, availableQty: 2 });
   });
 
@@ -159,8 +159,8 @@ describe('CartService', () => {
     const eventItems = new InMemoryActionItemStore();
     await eventItems.register('event-quantity', [{
       eventId: 'event-quantity', eventItemId: 'event-quantity:mug', productId: 'mug',
-      title: 'Event mug', referencePriceCents: 2_000, priceCents: 1_500,
-      quantity: 3, availableQty: 3, position: 0, stageState: 'on-stage', onStage: true,
+      title: 'Event mug', referencePriceCents: 2_000, currentPriceCents: 1_500,
+      listedQuantity: 3, currentQuantity: 3, position: 0, stageState: 'on-stage',
       attributes: {},
     }]);
     const inventory = new InMemoryAuctionInventory();
@@ -182,11 +182,11 @@ describe('CartService', () => {
       items: [expect.objectContaining({ quantity: 2 })],
       subtotalCents: 3_000,
     });
-    await expect(eventItems.list('event-quantity')).resolves.toMatchObject([{ availableQty: 1 }]);
+    await expect(eventItems.list('event-quantity')).resolves.toMatchObject([{ currentQuantity: 1 }]);
     await expect(inventory.get('mug')).resolves.toMatchObject({ reservedQty: 2, availableQty: 1 });
 
     await expect(carts.removeItem(held.id, 'mug')).resolves.toMatchObject({ items: [], subtotalCents: 0 });
-    await expect(eventItems.list('event-quantity')).resolves.toMatchObject([{ availableQty: 3 }]);
+    await expect(eventItems.list('event-quantity')).resolves.toMatchObject([{ currentQuantity: 3 }]);
     await expect(inventory.get('mug')).resolves.toMatchObject({ reservedQty: 0, availableQty: 3 });
   });
 
@@ -196,8 +196,8 @@ describe('CartService', () => {
     const eventItems = new InMemoryActionItemStore();
     await eventItems.register('event-terminal', [{
       eventId: 'event-terminal', eventItemId: 'event-terminal:mug', productId: 'mug',
-      title: 'Event mug', referencePriceCents: 2_000, priceCents: 1_500,
-      quantity: 2, availableQty: 2, position: 0, stageState: 'on-stage', onStage: true,
+      title: 'Event mug', referencePriceCents: 2_000, currentPriceCents: 1_500,
+      listedQuantity: 2, currentQuantity: 2, position: 0, stageState: 'on-stage',
       attributes: {},
     }]);
     const inventory = new InMemoryAuctionInventory();
@@ -220,7 +220,7 @@ describe('CartService', () => {
 
     vi.advanceTimersByTime(BUYER_HOLD_DURATION_MS + 1);
     await expect(carts.findCart(expiring.id)).resolves.toMatchObject({ items: [], subtotalCents: 0 });
-    await expect(eventItems.list('event-terminal')).resolves.toMatchObject([{ availableQty: 2 }]);
+    await expect(eventItems.list('event-terminal')).resolves.toMatchObject([{ currentQuantity: 2 }]);
     await expect(inventory.get('mug')).resolves.toMatchObject({ reservedQty: 0, availableQty: 2 });
 
     const paid = await carts.holdItem({
@@ -231,7 +231,7 @@ describe('CartService', () => {
       eventTerminalTransition: expect.objectContaining({ state: 'committed', eventId: 'event-terminal' }),
     });
     await expect(carts.commit(paid.id)).resolves.toMatchObject({ items: [] });
-    await expect(eventItems.list('event-terminal')).resolves.toMatchObject([{ availableQty: 1 }]);
+    await expect(eventItems.list('event-terminal')).resolves.toMatchObject([{ currentQuantity: 1 }]);
     await expect(inventory.get('mug')).resolves.toMatchObject({ reservedQty: 1, availableQty: 1 });
     await expect(carts.release(paid.id)).rejects.toThrow('already committed');
   });

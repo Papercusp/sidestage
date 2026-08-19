@@ -45,9 +45,9 @@ function item(productId: string, overrides: Partial<SellerEventItem> = {}): Sell
     eventItemId: `ei-${productId}`,
     productId,
     title: TITLES[productId] ?? productId,
-    priceCents: 4_000,
-    availableQty: 9,
-    quantity: 4,
+    currentPriceCents: 4_000,
+    currentQuantity: 9,
+    listedQuantity: 4,
     attributes: {},
     ...overrides,
   };
@@ -83,7 +83,7 @@ function render(props: Partial<Parameters<typeof LineupTimelineView>[0]> = {}): 
       drafts={drafts()}
       showPace
       saveStatus="idle"
-      items={[item('p-kettle', { onStage: true }), item('p-mug'), item('p-tray')]}
+      items={[item('p-kettle', { stageState: 'on-stage' }), item('p-mug'), item('p-tray')]}
       openProductId={null}
       onDraftChange={() => {}}
       onMove={() => {}}
@@ -170,7 +170,7 @@ describe('LineupTimelineView', () => {
     // The clock says p-kettle is active, but the SERVER says p-mug is staged.
     // The chip must follow the server, or the chip and the Push button below it
     // would tell the seller different stories.
-    const html = render({ items: [item('p-kettle'), item('p-mug', { onStage: true }), item('p-tray')] });
+    const html = render({ items: [item('p-kettle'), item('p-mug', { stageState: 'on-stage' }), item('p-tray')] });
     const kettleRow = html.slice(html.indexOf('lineup-slot-p-kettle'), html.indexOf('lineup-slot-p-mug'));
     const mugRow = html.slice(html.indexOf('lineup-slot-p-mug'));
     expect(mugRow).toContain('On stage');
@@ -184,7 +184,7 @@ describe('LineupTimelineView', () => {
     // keyed the chip off `slot.state` would put it on the kettle BOTH times and
     // could not produce these two opposite results. Only reading the server flag
     // does.
-    const html = render({ items: [item('p-kettle', { onStage: true }), item('p-mug'), item('p-tray')] });
+    const html = render({ items: [item('p-kettle', { stageState: 'on-stage' }), item('p-mug'), item('p-tray')] });
     const kettleRow = html.slice(html.indexOf('lineup-slot-p-kettle'), html.indexOf('lineup-slot-p-mug'));
     const mugRow = html.slice(html.indexOf('lineup-slot-p-mug'));
     expect(kettleRow).toContain('On stage');

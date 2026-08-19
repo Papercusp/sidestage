@@ -28,9 +28,9 @@ const item: ActionEventItem = {
   eventItemId: `${EVENT_ID}:mug`,
   productId: 'mug',
   title: 'Blue mug',
-  priceCents: 1_500,
-  availableQty: 5,
-  quantity: 5,
+  currentPriceCents: 1_500,
+  currentQuantity: 5,
+  listedQuantity: 5,
   attributes: { color: 'blue' },
 };
 
@@ -116,7 +116,7 @@ describe('ActionController event ownership', () => {
     expect(audit).toMatchObject({ actorId: 'seller-alpha' });
     expect(audit).not.toHaveProperty('rolledBackAt');
     expect(await actions.listItems(EVENT_ID)).toEqual([
-      expect.objectContaining({ productId: 'mug', priceCents: 1_200 }),
+      expect.objectContaining({ productId: 'mug', currentPriceCents: 1_200 }),
     ]);
   });
 

@@ -60,11 +60,11 @@ function resolveQuery(queryName: string) {
       data: [
         {
           eventId: 'demo-room', eventItemId: 'demo-room:planned-a', productId: 'planned-a',
-          title: 'Aurora Cup', priceCents: 4_200, availableQty: 3, quantity: 3, attributes: {},
+          title: 'Aurora Cup', currentPriceCents: 4_200, currentQuantity: 3, listedQuantity: 3, attributes: {},
         },
         {
           eventId: 'demo-room', eventItemId: 'demo-room:planned-b', productId: 'planned-b',
-          title: 'Beacon Mug', priceCents: 2_400, availableQty: 6, quantity: 6, attributes: {},
+          title: 'Beacon Mug', currentPriceCents: 2_400, currentQuantity: 6, listedQuantity: 6, attributes: {},
         },
       ],
     };

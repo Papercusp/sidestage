@@ -67,7 +67,7 @@ describe('seller event API orchestration', () => {
       items: [{ catalogId: 'mug', groupId: 'mugs', eventPriceCents: 1_500, quantityLimit: 3 }],
     }, SELLER);
 
-    expect(result.items[0]).toMatchObject({ productId: 'mug', priceCents: 1_500, quantity: 3 });
+    expect(result.items[0]).toMatchObject({ productId: 'mug', currentPriceCents: 1_500, listedQuantity: 3 });
     expect(calls.some((call) => call.url.endsWith('/inventory/mug/hold'))).toBe(true);
     const configPut = calls.find((call) => call.url.endsWith('/events/sunday-drop/config') && call.init?.method === 'PUT');
     const configGet = calls.find((call) => call.url.endsWith('/events/sunday-drop/config') && !call.init?.method);
@@ -146,13 +146,13 @@ describe('seller event API orchestration', () => {
         };
         expect(body.actorId).toBe('seller-stock-27');
         expect(body.action.quantity).toBe(2);
-        return json({ auditId: 'audit-1', status: 'executed', state: { ...ITEM, quantity: 2 } });
+        return json({ auditId: 'audit-1', status: 'executed', state: { ...ITEM, listedQuantity: 2 } });
       }
       throw new Error(`Unexpected URL ${url}`);
     }));
 
     const result = await adjustSellerEventStock('drop', 'seller-stock-27', ITEM, 2, undefined, 'demo-27');
-    expect(result.state.quantity).toBe(2);
+    expect(result.state.listedQuantity).toBe(2);
     expect(urls).toEqual([
       'http://localhost:3100/inventory/mug/hold',
       'http://localhost:3100/actions/events/drop/execute',
@@ -179,9 +179,9 @@ describe('seller event API orchestration', () => {
       eventItemId: 'avi-real-test:event-demo-01-v2',
       productId: 'event-demo-01-v2',
       title: 'Harbor Kettle',
-      priceCents: 4_200,
-      availableQty: 1,
-      quantity: 1,
+      currentPriceCents: 4_200,
+      currentQuantity: 1,
+      listedQuantity: 1,
       attributes: {},
     };
     vi.stubGlobal('fetch', vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
@@ -194,7 +194,7 @@ describe('seller event API orchestration', () => {
       // Decrease to 0 takes the release leg — the exact call that returned 404.
       if (url.endsWith('/inventory/event-demo-01-v2/release')) return json({ released: true });
       if (url.endsWith('/actions/events/avi-real-test/execute')) {
-        return json({ auditId: 'a-1', status: 'executed', state: { ...eventItem, quantity: 0 } });
+        return json({ auditId: 'a-1', status: 'executed', state: { ...eventItem, listedQuantity: 0 } });
       }
       throw new Error(`Unexpected URL ${url}`);
     }));
@@ -205,7 +205,7 @@ describe('seller event API orchestration', () => {
       'avi-real-test', 'seller-JHGLDS', loaded, 0, undefined, 'demo-avi',
     );
 
-    expect(result.state.quantity).toBe(0);
+    expect(result.state.listedQuantity).toBe(0);
     expect(urls).toContain('http://localhost:3100/inventory/event-demo-01-v2/release');
     // No variant id is invented or substituted anywhere on the way through.
     expect(urls.some((url) => url.includes('seller-listing-'))).toBe(false);
@@ -317,9 +317,9 @@ const ITEM: SellerEventItem = {
   eventItemId: 'drop:mug',
   productId: 'mug',
   title: 'Aurora mug',
-  priceCents: 1_500,
-  availableQty: 5,
-  quantity: 3,
+  currentPriceCents: 1_500,
+  currentQuantity: 5,
+  listedQuantity: 3,
   attributes: {},
 };
 

@@ -133,7 +133,7 @@ describe('CopilotProposalService', () => {
       policy: context.policy,
       items: [{
         eventId: 'event-1', eventItemId: 'event-1:mug', productId: 'mug', title: 'Blue mug',
-        priceCents: 1_500, availableQty: 97, quantity: 97, attributes: { color: 'blue' },
+        currentPriceCents: 1_500, currentQuantity: 97, listedQuantity: 97, attributes: { color: 'blue' },
       }],
     });
     const retriever = new SideStageGroundingRetriever(
@@ -423,7 +423,7 @@ describe('CopilotProposalService', () => {
       policy: context.policy,
       items: [{
         eventId: 'event-1', eventItemId: 'event-1:mug', productId: 'mug', title: 'Blue mug',
-        priceCents: 1_500, availableQty: 5, quantity: 5, attributes: { color: 'blue' },
+        currentPriceCents: 1_500, currentQuantity: 5, listedQuantity: 5, attributes: { color: 'blue' },
       }],
     });
     const action: ActionResult = {

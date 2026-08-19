@@ -16,11 +16,10 @@ function draft(eventId: string, productId: string, overrides: Partial<ActionItem
     productId,
     position: 0,
     referencePriceCents: 1_500,
-    priceCents: 1_500,
-    quantity: 5,
-    availableQty: 5,
+    currentPriceCents: 1_500,
+    listedQuantity: 5,
+    currentQuantity: 5,
     stageState: 'queued',
-    onStage: false,
     title: 'Blue mug',
     attributes: { color: 'blue' },
     ...overrides,
@@ -119,11 +118,11 @@ describe('PgActionItemStore stage handover ordering', () => {
     return [
       {
         expectedVersion: 1,
-        item: { ...draft('event-1', 'mug'), stageState: 'on-stage' as const, onStage: true },
+        item: { ...draft('event-1', 'mug'), stageState: 'on-stage' as const },
       },
       {
         expectedVersion: 1,
-        item: { ...draft('event-1', 'bearing'), stageState: 'queued' as const, onStage: false },
+        item: { ...draft('event-1', 'bearing'), stageState: 'queued' as const },
       },
     ];
   }
@@ -156,7 +155,7 @@ describe('PgActionItemStore stage handover ordering', () => {
 
     await expect(new PgActionItemStore(harness.pool).write('event-1', [{
       expectedVersion: 1,
-      item: { ...draft('event-1', 'mug'), stageState: 'on-stage' as const, onStage: true },
+      item: { ...draft('event-1', 'mug'), stageState: 'on-stage' as const },
     }])).rejects.toBeInstanceOf(ConflictException);
   });
 });
@@ -191,17 +190,17 @@ describe.runIf(process.env.SIDESTAGE_PG_INTEGRATION === '1')('PgActionItemStore 
 
       const restartedProcess = new PgActionItemStore(pool);
       await expect(restartedProcess.list(eventId)).resolves.toMatchObject([
-        { productId, priceCents: 1_500, availableQty: 5, version: 1 },
+        { productId, currentPriceCents: 1_500, currentQuantity: 5, version: 1 },
       ]);
       const [updated] = await restartedProcess.write(eventId, [{
         expectedVersion: registered!.version,
-        item: { ...registered!, priceCents: 1_250, availableQty: 4 },
+        item: { ...registered!, currentPriceCents: 1_250, currentQuantity: 4 },
       }]);
-      expect(updated).toMatchObject({ priceCents: 1_250, availableQty: 4, version: 2 });
+      expect(updated).toMatchObject({ currentPriceCents: 1_250, currentQuantity: 4, version: 2 });
 
       await expect(firstProcess.write(eventId, [{
         expectedVersion: registered!.version,
-        item: { ...registered!, priceCents: 1_100 },
+        item: { ...registered!, currentPriceCents: 1_100 },
       }])).rejects.toBeInstanceOf(ConflictException);
       await expect(firstProcess.list(eventId)).resolves.toMatchObject([
         { priceCents: 1_250, availableQty: 4, version: 2 },

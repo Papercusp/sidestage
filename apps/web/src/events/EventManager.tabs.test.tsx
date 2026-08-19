@@ -46,9 +46,9 @@ const ITEMS: SellerEventItem[] = [{
   eventItemId: 'sunday-drop:espresso',
   productId: 'espresso',
   title: 'Barista Pro Espresso',
-  priceCents: 4_000,
-  availableQty: 9,
-  quantity: 4,
+  currentPriceCents: 4_000,
+  currentQuantity: 9,
+  listedQuantity: 4,
   attributes: {},
 }];
 

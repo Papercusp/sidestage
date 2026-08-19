@@ -37,10 +37,10 @@ const ITEMS: SellerEventItem[] = [{
   eventItemId: 'sunday-drop:espresso',
   productId: 'espresso',
   title: 'Barista Pro Espresso Machine',
-  priceCents: 47_500,
-  availableQty: 12,
-  quantity: 3,
-  onStage: true,
+  currentPriceCents: 47_500,
+  currentQuantity: 12,
+  listedQuantity: 3,
+  stageState: 'on-stage',
   attributes: { brand: 'BrewHaus', sku: 'BH-ESP-200-NEW', basePriceCents: 49_999 },
 }];
 
