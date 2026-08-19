@@ -29,11 +29,14 @@ export function mobileRepoCandidates(env = process.env) {
   const configured = env.SIDESTAGE_MOBILE_REPO?.trim();
   if (configured) return [resolve(configured)];
   const home = env.HOME ?? homedir();
-  return [
+  // Deduped: on a box where the checkout already sits under one of the known roots the
+  // sibling guess repeats it, and a probe list that reports the same path twice reads as
+  // broader coverage than it is.
+  return [...new Set([
     resolve(repoRoot, '..', 'sidestage-mobile'),
     join(home, 'papercupai-workspace', 'sidestage-mobile'),
     join(home, '.papercusp', 'hives', 'sidestage-mobile'),
-  ];
+  ])];
 }
 
 export function mobileRepoRoot(env = process.env, exists = existsSync) {
