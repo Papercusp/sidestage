@@ -16,11 +16,20 @@ const MESSAGE: ChatMessage = {
   displayName: 'Maya',
   role: 'buyer',
   text: 'Is the blue mug available?',
-  createdAt: '2026-08-14T18:00:00.000Z',
+  createdAt: Date.parse('2026-08-14T18:00:00.000Z'),
   grounding: { status: 'seller-queue' },
   clientRequestId: 'chat:req-1',
   moderatedAt: null,
 };
+
+/**
+ * D-026: the contract carries epoch millis, but a timestamp crosses into SQL as
+ * a `Date` — node-pg renders one as a millisecond-precision timestamptz literal,
+ * whereas a bare number would be sent as an integer and rejected by the column.
+ * These helpers keep the ISO literals readable while asserting the real shapes.
+ */
+const CUTOFF_ISO = '2026-08-14T18:00:00.000Z';
+const CUTOFF_MS = Date.parse(CUTOFF_ISO);
 
 function row(message: ChatMessage = MESSAGE) {
   return {
@@ -32,7 +41,10 @@ function row(message: ChatMessage = MESSAGE) {
     text: message.text,
     grounding: message.grounding ?? null,
     client_request_id: message.clientRequestId ?? null,
-    created_at: message.createdAt,
+    // node-pg decodes a timestamptz column to a `Date`, so the fake row carries
+    // one — the mapper's epoch-millis decode (D-026) is what turns it back into
+    // the contract's number.
+    created_at: new Date(message.createdAt),
     // D-029: every read path selects moderated_at so `toMessage` can emit the
     // key. It is null on every delivered row (each query carries
     // `moderated_at IS NULL`), which is exactly what this fake row reproduces.
@@ -52,7 +64,7 @@ describe('PgChatStore durable authority', () => {
     const harness = transactionalPool((sql) => {
       if (sql.includes('INSERT INTO chat_message')) return { rows: [row()] };
       if (sql.includes('INSERT INTO chat_presence')) {
-        return { rows: [{ event_id: MESSAGE.eventId, user_id: 'buyer-1', display_name: 'Maya', role: 'buyer', last_seen_at: MESSAGE.createdAt }] };
+        return { rows: [{ event_id: MESSAGE.eventId, user_id: 'buyer-1', display_name: 'Maya', role: 'buyer', last_seen_at: new Date(MESSAGE.createdAt) }] };
       }
       return { rows: [] };
     });
@@ -101,9 +113,9 @@ describe('PgChatStore durable authority', () => {
 
   it('returns chronological pages with an opaque-cursor boundary', async () => {
     const messages = [
-      { ...MESSAGE, id: 'chat-3', createdAt: '2026-08-14T18:00:03.000Z' },
-      { ...MESSAGE, id: 'chat-2', createdAt: '2026-08-14T18:00:02.000Z' },
-      { ...MESSAGE, id: 'chat-1', createdAt: '2026-08-14T18:00:01.000Z' },
+      { ...MESSAGE, id: 'chat-3', createdAt: Date.parse('2026-08-14T18:00:03.000Z') },
+      { ...MESSAGE, id: 'chat-2', createdAt: Date.parse('2026-08-14T18:00:02.000Z') },
+      { ...MESSAGE, id: 'chat-1', createdAt: Date.parse('2026-08-14T18:00:01.000Z') },
     ];
     const query = vi.fn().mockResolvedValue({ rows: messages.map(row) });
 
@@ -116,9 +128,9 @@ describe('PgChatStore durable authority', () => {
 
   it('pages persisted seller-queue questions oldest first for durable Copilot catch-up', async () => {
     const messages = [
-      { ...MESSAGE, id: 'chat-1', createdAt: '2026-08-14T18:00:01.000Z' },
-      { ...MESSAGE, id: 'chat-2', createdAt: '2026-08-14T18:00:02.000Z' },
-      { ...MESSAGE, id: 'chat-3', createdAt: '2026-08-14T18:00:03.000Z' },
+      { ...MESSAGE, id: 'chat-1', createdAt: Date.parse('2026-08-14T18:00:01.000Z') },
+      { ...MESSAGE, id: 'chat-2', createdAt: Date.parse('2026-08-14T18:00:02.000Z') },
+      { ...MESSAGE, id: 'chat-3', createdAt: Date.parse('2026-08-14T18:00:03.000Z') },
     ];
     const query = vi.fn().mockResolvedValue({ rows: messages.map(row) });
 
@@ -166,7 +178,7 @@ describe('PgChatStore presence expiry', () => {
   it('reads presence without writing — expiry is not a side effect of a read', async () => {
     const harness = pool(() => ({ rows: [] }));
 
-    await new PgChatStore(harness.pool).listPresence('event-1', '2026-08-14T18:00:00.000Z');
+    await new PgChatStore(harness.pool).listPresence('event-1', CUTOFF_MS);
 
     const statements = harness.query.mock.calls.map(([sql]) => sql.replace(/\s+/g, ' ').trim());
     expect(statements).toHaveLength(1);
@@ -175,12 +187,12 @@ describe('PgChatStore presence expiry', () => {
     // replicated chat_presence table directly never triggers this path, so any
     // pruning that lived here was invisible to it.
     expect(statements.some((sql) => sql.includes('DELETE'))).toBe(false);
-    expect(harness.query.mock.calls[0]?.[1]).toEqual(['event-1', '2026-08-14T18:00:00.000Z']);
+    expect(harness.query.mock.calls[0]?.[1]).toEqual(['event-1', new Date(CUTOFF_MS)]);
   });
 
   it('bounds the presence read by the freshness cutoff', async () => {
     const harness = pool(() => ({
-      rows: [{ event_id: 'event-1', user_id: 'buyer-1', display_name: 'Maya', role: 'buyer', last_seen_at: '2026-08-14T18:00:30.000Z' }],
+      rows: [{ event_id: 'event-1', user_id: 'buyer-1', display_name: 'Maya', role: 'buyer', last_seen_at: new Date(Date.parse('2026-08-14T18:00:30.000Z')) }],
     }));
 
     // `eventId` is asserted explicitly (D-029): the Zero rung replicates
@@ -188,8 +200,8 @@ describe('PgChatStore presence expiry', () => {
     // that omitted it drifted from the WS rung. Note toEqual would NOT have
     // caught its absence — it treats an undefined-valued key as missing — so
     // the fake row must carry event_id for this to pin anything.
-    await expect(new PgChatStore(harness.pool).listPresence('event-1', '2026-08-14T18:00:00.000Z')).resolves.toEqual([
-      { eventId: 'event-1', userId: 'buyer-1', displayName: 'Maya', role: 'buyer', lastSeenAt: '2026-08-14T18:00:30.000Z' },
+    await expect(new PgChatStore(harness.pool).listPresence('event-1', CUTOFF_MS)).resolves.toEqual([
+      { eventId: 'event-1', userId: 'buyer-1', displayName: 'Maya', role: 'buyer', lastSeenAt: Date.parse('2026-08-14T18:00:30.000Z') },
     ]);
     expect(harness.query.mock.calls[0]?.[0]).toContain('last_seen_at >= $2');
   });
@@ -199,19 +211,19 @@ describe('PgChatStore presence expiry', () => {
       rows: [{ event_id: 'event-1' }, { event_id: 'event-2' }, { event_id: 'event-1' }],
     }));
 
-    await expect(new PgChatStore(harness.pool).expireStalePresence('2026-08-14T18:00:00.000Z'))
+    await expect(new PgChatStore(harness.pool).expireStalePresence(CUTOFF_MS))
       .resolves.toEqual(['event-1', 'event-2']);
 
     const [sql, params] = harness.query.mock.calls[0] ?? [];
     expect(sql?.replace(/\s+/g, ' ').trim())
       .toBe('DELETE FROM chat_presence WHERE last_seen_at < $1 RETURNING event_id');
-    expect(params).toEqual(['2026-08-14T18:00:00.000Z']);
+    expect(params).toEqual([new Date(CUTOFF_MS)]);
   });
 
   it('reports no affected events when nothing was stale', async () => {
     const harness = pool(() => ({ rows: [] }));
 
-    await expect(new PgChatStore(harness.pool).expireStalePresence('2026-08-14T18:00:00.000Z')).resolves.toEqual([]);
+    await expect(new PgChatStore(harness.pool).expireStalePresence(CUTOFF_MS)).resolves.toEqual([]);
   });
 });
 

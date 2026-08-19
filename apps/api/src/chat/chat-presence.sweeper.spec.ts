@@ -44,7 +44,7 @@ describe('ChatPresenceSweeper', () => {
     const swept = await new ChatPresenceSweeper(service).sweep();
 
     expect(swept).toEqual(['demo-event']);
-    expect(await store.listPresence('demo-event', new Date(0).toISOString())).toEqual([]);
+    expect(await store.listPresence('demo-event', 0)).toEqual([]);
     vi.useRealTimers();
   });
 

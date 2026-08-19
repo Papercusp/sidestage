@@ -32,8 +32,10 @@ export interface ActionEventItem extends EventItemContext {
   stageState?: ActionItemStageState;
   /** Optimistic-concurrency version supplied by the lineup authority. */
   version?: number;
-  createdAt?: string;
-  updatedAt?: string;
+  /** D-026: integer epoch milliseconds — see StoredActionEventItem. */
+  createdAt?: number;
+  /** D-026: integer epoch milliseconds — see StoredActionEventItem. */
+  updatedAt?: number;
 }
 
 export interface TargetedOffer {

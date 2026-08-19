@@ -86,7 +86,13 @@ export class CopilotProposalService {
       buyerId: message.userId,
       buyerName: message.displayName,
       text: message.text,
-      createdAt: message.createdAt,
+      // D-026 makes `ChatMessage.createdAt` epoch millis on the SYNC CONTRACT.
+      // The copilot proposal store is not on that contract — D-025 demoted
+      // `event.copilot.proposals` to REST-only because the proposal lives in a
+      // `payload` jsonb column, so no Zero rung serves it and nothing forces its
+      // encoding. It keeps ISO strings (which its own SQL and ordering use), and
+      // this is the one boundary between the two.
+      createdAt: new Date(message.createdAt).toISOString(),
     });
   }
 

@@ -12,8 +12,13 @@ export interface ActionItemDraft extends ActionEventItem {
 
 export interface StoredActionEventItem extends ActionItemDraft {
   version: number;
-  createdAt: string;
-  updatedAt: string;
+  /**
+   * D-026: integer epoch milliseconds, not an ISO string — `event.actions.items`
+   * serves these straight onto the sync contract, and the Zero rung maps the
+   * `event_lineup_item` timestamptz(3) columns to numbers inside the library.
+   */
+  createdAt: number;
+  updatedAt: number;
 }
 
 export interface ActionItemChange {
@@ -64,7 +69,7 @@ export class InMemoryActionItemStore implements ActionItemStore {
       throw new ConflictException('Only one lineup item may be on stage for an event');
     }
     const next = new Map(this.items);
-    const now = new Date().toISOString();
+    const now = Date.now();
     if (drafts.some((item) => item.stageState === 'on-stage')) {
       for (const [itemKey, item] of next) {
         if (item.eventId === eventId && item.stageState === 'on-stage') {
@@ -104,7 +109,7 @@ export class InMemoryActionItemStore implements ActionItemStore {
 
   async write(eventId: string, changes: readonly ActionItemChange[]): Promise<StoredActionEventItem[]> {
     const next = new Map(this.items);
-    const now = new Date().toISOString();
+    const now = Date.now();
     for (const change of changes) {
       const itemKey = key(eventId, change.item.productId);
       const current = next.get(itemKey);

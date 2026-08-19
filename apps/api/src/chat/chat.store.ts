@@ -4,7 +4,8 @@ import type { ChatMessage, ChatPresence, TranscriptMoment } from './chat.service
 export const CHAT_STORE = Symbol('CHAT_STORE');
 
 export interface ChatCursor {
-  createdAt: string;
+  /** D-026: epoch milliseconds, matching `ChatMessage.createdAt`. */
+  createdAt: number;
   id: string;
 }
 
@@ -25,11 +26,11 @@ export interface ChatStore {
   patchMessageGrounding(eventId: string, messageId: string, patch: Partial<NonNullable<ChatMessage['grounding']>>): Promise<ChatMessage | undefined>;
   listTranscript(eventId: string, limit: number): Promise<TranscriptMoment[]>;
   appendTranscript(eventId: string, moment: TranscriptMoment): Promise<TranscriptMoment>;
-  listPresence(eventId: string, cutoffIso: string): Promise<ChatPresence[]>;
+  listPresence(eventId: string, cutoffMs: number): Promise<ChatPresence[]>;
   touchPresence(eventId: string, presence: ChatPresence): Promise<ChatPresence>;
   removePresence(eventId: string, userId: string): Promise<boolean>;
   /**
-   * Delete every presence row last seen before `cutoffIso`, across all events,
+   * Delete every presence row last seen before `cutoffMs`, across all events,
    * and return the distinct event ids that lost at least one row.
    *
    * Presence liveness must be a property of the STORE, not of whoever happens
@@ -40,7 +41,7 @@ export interface ChatStore {
    * sweeper (chat-presence.sweeper.ts) drives this on a timer so Postgres stays
    * the sole authority for who is in the room.
    */
-  expireStalePresence(cutoffIso: string): Promise<string[]>;
+  expireStalePresence(cutoffMs: number): Promise<string[]>;
   countMessages(eventId: string): Promise<number>;
   moderateMessage(eventId: string, messageId: string, moderatorId: string, reason: string): Promise<boolean>;
 }
@@ -63,7 +64,8 @@ interface MemoryEvent {
 }
 
 interface ModerationRecord {
-  moderatedAt: string;
+  /** D-026: epoch millis, mirroring the `moderated_at` timestamptz(3) column. */
+  moderatedAt: number;
   moderatedBy: string;
   moderationReason: string;
 }
@@ -154,20 +156,20 @@ export class InMemoryChatStore implements ChatStore {
     return { ...moment };
   }
 
-  async listPresence(eventId: string, cutoffIso: string): Promise<ChatPresence[]> {
+  async listPresence(eventId: string, cutoffMs: number): Promise<ChatPresence[]> {
     // A pure read: expiry belongs to expireStalePresence, so every reader —
     // REST or a direct reader of the replicated table — sees the same set.
     return [...this.event(eventId).presence.values()]
-      .filter((presence) => presence.lastSeenAt >= cutoffIso)
+      .filter((presence) => presence.lastSeenAt >= cutoffMs)
       .map((presence) => ({ ...presence }));
   }
 
-  async expireStalePresence(cutoffIso: string): Promise<string[]> {
+  async expireStalePresence(cutoffMs: number): Promise<string[]> {
     const expired: string[] = [];
     for (const [eventId, state] of this.events) {
       let removed = false;
       for (const [userId, presence] of state.presence) {
-        if (presence.lastSeenAt < cutoffIso) {
+        if (presence.lastSeenAt < cutoffMs) {
           state.presence.delete(userId);
           removed = true;
         }
@@ -203,7 +205,7 @@ export class InMemoryChatStore implements ChatStore {
     const message = state.messages.find((candidate) => candidate.id === messageId);
     if (!message || state.moderated.has(messageId)) return false;
     state.moderated.set(messageId, {
-      moderatedAt: new Date().toISOString(),
+      moderatedAt: Date.now(),
       moderatedBy: moderatorId,
       moderationReason: reason,
     });
@@ -220,12 +222,16 @@ export class InMemoryChatStore implements ChatStore {
   }
 }
 
+// D-026: `createdAt` is epoch millis, so ordering is numeric. Math.sign keeps
+// these comparators returning -1/0/1 the way the previous localeCompare pair
+// did, because both call sites read the SIGN (`< 0`, `> 0`) rather than the
+// magnitude — and a raw millisecond difference is a large number, not a sign.
 function compareMessages(left: ChatMessage, right: ChatMessage): number {
-  return left.createdAt.localeCompare(right.createdAt) || left.id.localeCompare(right.id);
+  return Math.sign(left.createdAt - right.createdAt) || left.id.localeCompare(right.id);
 }
 
 function compareCursor(message: ChatMessage, cursor: ChatCursor): number {
-  return message.createdAt.localeCompare(cursor.createdAt) || message.id.localeCompare(cursor.id);
+  return Math.sign(message.createdAt - cursor.createdAt) || message.id.localeCompare(cursor.id);
 }
 
 function cloneMessage(message: ChatMessage): ChatMessage {

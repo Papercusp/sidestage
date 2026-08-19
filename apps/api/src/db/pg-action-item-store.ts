@@ -30,8 +30,14 @@ const SELECT_COLUMNS = `event_item_id, event_id, product_id, position,
   reference_price_cents, current_price_cents, listed_quantity, current_quantity,
   stage_state, title, description, attributes, version, created_at, updated_at`;
 
-function iso(value: Date | string): string {
-  return value instanceof Date ? value.toISOString() : new Date(value).toISOString();
+/**
+ * D-026: the sync contract's timestamp encoding is integer epoch milliseconds.
+ * Every write here sets the column with SQL `now()`, and the column is
+ * `timestamptz(3)`, so Postgres truncates to the millisecond and this decode is
+ * integral for the same reason the replicated value is.
+ */
+function epochMillis(value: Date | string): number {
+  return value instanceof Date ? value.getTime() : new Date(value).getTime();
 }
 
 function mapRow(row: ActionItemRow): StoredActionEventItem {
@@ -53,8 +59,8 @@ function mapRow(row: ActionItemRow): StoredActionEventItem {
     ...(row.description === null ? {} : { description: row.description }),
     attributes: { ...attributes },
     version: Number(row.version),
-    createdAt: iso(row.created_at),
-    updatedAt: iso(row.updated_at),
+    createdAt: epochMillis(row.created_at),
+    updatedAt: epochMillis(row.updated_at),
   };
 }
 

@@ -52,7 +52,7 @@ export class PgChatStore implements ChatStore {
           AND ($2::timestamptz IS NULL OR (created_at, id) < ($2::timestamptz, $3::text))
         ORDER BY created_at DESC, id DESC
         LIMIT $4`,
-      [eventId, before?.createdAt ?? null, before?.id ?? '', limit + 1],
+      [eventId, before ? atMillis(before.createdAt) : null, before?.id ?? '', limit + 1],
     );
     const newestFirst = result.rows.map(toMessage);
     const hasOlder = newestFirst.length > limit;
@@ -73,7 +73,7 @@ export class PgChatStore implements ChatStore {
           AND ($2::timestamptz IS NULL OR (created_at, id) > ($2::timestamptz, $3::text))
         ORDER BY created_at ASC, id ASC
         LIMIT $4`,
-      [eventId, after?.createdAt ?? null, after?.id ?? '', limit + 1],
+      [eventId, after ? atMillis(after.createdAt) : null, after?.id ?? '', limit + 1],
     );
     const items = result.rows.map(toMessage);
     const hasMore = items.length > limit;
@@ -96,7 +96,7 @@ export class PgChatStore implements ChatStore {
            WHERE client_request_id IS NOT NULL DO NOTHING
          RETURNING id, event_id, user_id, display_name, role, text, grounding, client_request_id, created_at, moderated_at`,
         [message.id, message.eventId, message.userId, message.displayName, message.role, message.text,
-          message.grounding ? JSON.stringify(message.grounding) : null, message.clientRequestId ?? null, message.createdAt],
+          message.grounding ? JSON.stringify(message.grounding) : null, message.clientRequestId ?? null, atMillis(message.createdAt)],
       );
       let persisted = inserted.rows[0] ? toMessage(inserted.rows[0]) : undefined;
       if (!persisted && message.clientRequestId) {
@@ -154,12 +154,12 @@ export class PgChatStore implements ChatStore {
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
        RETURNING id, event_id, text, start_ms, end_ms, product_id, product_title, created_at`,
       [moment.id, eventId, moment.text, moment.startMs ?? null, moment.endMs ?? null,
-        moment.productId ?? null, moment.productTitle ?? null, moment.createdAt],
+        moment.productId ?? null, moment.productTitle ?? null, atMillis(moment.createdAt)],
     );
     return toTranscript(result.rows[0]);
   }
 
-  async listPresence(eventId: string, cutoffIso: string): Promise<ChatPresence[]> {
+  async listPresence(eventId: string, cutoffMs: number): Promise<ChatPresence[]> {
     // A pure read. Expiry is the sweeper's job (expireStalePresence) so that a
     // client reading the replicated chat_presence table directly sees the same
     // live set this endpoint returns, instead of rows that only a REST read
@@ -167,15 +167,15 @@ export class PgChatStore implements ChatStore {
     const result = await this.pool.query<PresenceRow>(
       `SELECT event_id, user_id, display_name, role, last_seen_at
          FROM chat_presence WHERE event_id = $1 AND last_seen_at >= $2 ORDER BY user_id`,
-      [eventId, cutoffIso],
+      [eventId, atMillis(cutoffMs)],
     );
     return result.rows.map(toPresence);
   }
 
-  async expireStalePresence(cutoffIso: string): Promise<string[]> {
+  async expireStalePresence(cutoffMs: number): Promise<string[]> {
     const result = await this.pool.query<{ event_id: string }>(
       'DELETE FROM chat_presence WHERE last_seen_at < $1 RETURNING event_id',
-      [cutoffIso],
+      [atMillis(cutoffMs)],
     );
     return [...new Set(result.rows.map((row) => row.event_id))];
   }
@@ -212,7 +212,7 @@ export class PgChatStore implements ChatStore {
        ON CONFLICT (event_id, user_id) DO UPDATE
          SET display_name = EXCLUDED.display_name, role = EXCLUDED.role, last_seen_at = EXCLUDED.last_seen_at
        RETURNING event_id, user_id, display_name, role, last_seen_at`,
-      [eventId, presence.userId, presence.displayName, presence.role, presence.lastSeenAt],
+      [eventId, presence.userId, presence.displayName, presence.role, atMillis(presence.lastSeenAt)],
     );
     return toPresence(result.rows[0]);
   }
@@ -233,8 +233,21 @@ export class PgChatStore implements ChatStore {
   }
 }
 
-function iso(value: Date | string): string {
-  return value instanceof Date ? value.toISOString() : String(value);
+/**
+ * D-026: the sync contract's timestamp encoding is integer epoch milliseconds,
+ * so the REST rung decodes the `timestamptz(3)` column the same way Zero's
+ * replication does. `Date.prototype.getTime` is integral by definition, and the
+ * columns are `timestamptz(3)`, so both rungs land on the same integer — this is
+ * NOT the `Math.trunc` half-fix D-026 rejects, which would have left Zero
+ * fractional and turned a type mismatch into a value mismatch.
+ */
+function epochMillis(value: Date | string): number {
+  return value instanceof Date ? value.getTime() : new Date(value).getTime();
+}
+
+/** Timestamps cross into SQL as `Date`; node-pg renders one as a millisecond-precision timestamptz literal. */
+function atMillis(value: number): Date {
+  return new Date(value);
 }
 
 /**
@@ -252,10 +265,10 @@ function toMessage(row: MessageRow): ChatMessage {
   const grounding = typeof row.grounding === 'string' ? JSON.parse(row.grounding) as ChatMessage['grounding'] : row.grounding;
   return {
     id: row.id, eventId: row.event_id, userId: row.user_id, displayName: row.display_name,
-    role: row.role, text: row.text, createdAt: iso(row.created_at),
+    role: row.role, text: row.text, createdAt: epochMillis(row.created_at),
     grounding: grounding ?? null,
     clientRequestId: row.client_request_id ?? null,
-    moderatedAt: row.moderated_at === null ? null : iso(row.moderated_at),
+    moderatedAt: row.moderated_at === null ? null : epochMillis(row.moderated_at),
   };
 }
 
@@ -266,12 +279,12 @@ function toTranscript(row: TranscriptRow): TranscriptMoment {
     endMs: row.end_ms === null ? null : Number(row.end_ms),
     productId: row.product_id,
     productTitle: row.product_title,
-    createdAt: iso(row.created_at),
+    createdAt: epochMillis(row.created_at),
   };
 }
 
 function toPresence(row: PresenceRow): ChatPresence {
-  return { eventId: row.event_id, userId: row.user_id, displayName: row.display_name, role: row.role, lastSeenAt: iso(row.last_seen_at) };
+  return { eventId: row.event_id, userId: row.user_id, displayName: row.display_name, role: row.role, lastSeenAt: epochMillis(row.last_seen_at) };
 }
 
 function sameMutation(left: ChatMessage, right: ChatMessage): boolean {

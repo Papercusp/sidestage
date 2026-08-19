@@ -27,8 +27,15 @@ export type ChatRole = 'buyer' | 'seller';
  * `moderatedBy`/`moderationReason` are deliberately absent from BOTH rungs
  * (D-027): they are withheld from the publication so a public per-room query
  * cannot leak a moderator's identity.
+ *
+ * D-026: every timestamp on this contract is INTEGER EPOCH MILLISECONDS, not an
+ * ISO string. The direction is forced rather than preferred — Zero maps
+ * `timestamptz` to a number inside the library (libs/zero/src/schema.ts declares
+ * each one `number()`) and D-024 establishes there is no projection seam in
+ * which to re-encode it, so the REST rung is the side that can move. The columns
+ * are `timestamptz(3)` so the replicated value is integral by construction.
  */
-export interface ChatMessage { id: string; eventId: string; userId: string; displayName: string; role: ChatRole; text: string; createdAt: string; grounding: ChatGrounding | null; clientRequestId: string | null; moderatedAt: string | null; }
+export interface ChatMessage { id: string; eventId: string; userId: string; displayName: string; role: ChatRole; text: string; createdAt: number; grounding: ChatGrounding | null; clientRequestId: string | null; moderatedAt: number | null; }
 export type ChatGroundingStatus = 'not-routed' | 'seller-queue' | 'answered' | 'skipped' | 'blocked';
 export interface ChatGrounding {
   status: ChatGroundingStatus;
@@ -45,11 +52,11 @@ export interface ChatGrounding {
   citation?: { transcriptId: string; label: string; quote: string; startMs?: number; };
 }
 export interface TranscriptMomentInput { text?: unknown; startMs?: unknown; endMs?: unknown; productId?: unknown; productTitle?: unknown; }
-/** D-029: full key-set parity with the `chatTranscriptMoment` Zero table — see ChatMessage. */
-export interface TranscriptMoment { id: string; eventId: string; text: string; startMs: number | null; endMs: number | null; productId: string | null; productTitle: string | null; createdAt: string; }
+/** D-029 key-set parity + D-026 epoch-millis `createdAt` with the `chatTranscriptMoment` Zero table — see ChatMessage. */
+export interface TranscriptMoment { id: string; eventId: string; text: string; startMs: number | null; endMs: number | null; productId: string | null; productTitle: string | null; createdAt: number; }
 export interface ReplayChapter { id: string; productId: string; productTitle: string; startMs: number; endMs?: number; previewText: string; evidenceKind?: 'condition'; evidenceLabel?: string; }
-/** D-029: full key-set parity with the `chatPresence` Zero table — see ChatMessage. */
-export interface ChatPresence { eventId: string; userId: string; displayName: string; role: ChatRole; lastSeenAt: string; }
+/** D-029 key-set parity + D-026 epoch-millis `lastSeenAt` with the `chatPresence` Zero table — see ChatMessage. */
+export interface ChatPresence { eventId: string; userId: string; displayName: string; role: ChatRole; lastSeenAt: number; }
 export interface ChatStats { activeUsers: number; buyers: number; sellers: number; totalMessages: number; }
 export interface ChatMessageInput { userId?: unknown; displayName?: unknown; role?: unknown; text?: unknown; clientRequestId?: unknown; }
 export interface CopilotReplyInput {
@@ -116,7 +123,7 @@ export class ChatService {
   async getQueuedQuestions(eventId: string): Promise<ChatMessage[]> {
     this.assertEventId(eventId);
     const questions: ChatMessage[] = [];
-    let cursor: { createdAt: string; id: string } | undefined;
+    let cursor: { createdAt: number; id: string } | undefined;
     do {
       const page = await this.store.listQueuedQuestions(eventId, COPILOT_QUEUE_PAGE_SIZE, cursor);
       questions.push(...page.items);
@@ -134,7 +141,7 @@ export class ChatService {
 
   async getPresence(eventId: string): Promise<ChatPresence[]> {
     this.assertEventId(eventId);
-    return this.store.listPresence(eventId, new Date(Date.now() - PRESENCE_TTL_MS).toISOString());
+    return this.store.listPresence(eventId, Date.now() - PRESENCE_TTL_MS);
   }
 
   async getStats(eventId: string): Promise<ChatStats> {
@@ -162,7 +169,7 @@ export class ChatService {
     const text = this.readBoundedString(input.text, 'text', MAX_MESSAGE_LENGTH);
     const role = this.readRole(input.role);
     const clientRequestId = this.readOptionalBoundedString(input.clientRequestId, 'clientRequestId', 160);
-    const message: ChatMessage = { id: `chat_${randomUUID()}`, eventId, userId, displayName, role, text, createdAt: new Date().toISOString(), grounding: null, clientRequestId: clientRequestId ?? null, moderatedAt: null };
+    const message: ChatMessage = { id: `chat_${randomUUID()}`, eventId, userId, displayName, role, text, createdAt: Date.now(), grounding: null, clientRequestId: clientRequestId ?? null, moderatedAt: null };
     if (role === 'buyer') {
       const route = classifyBuyerMessage(text);
       message.grounding = {
@@ -185,7 +192,7 @@ export class ChatService {
       displayName: 'Host',
       role: 'seller',
       text: this.readBoundedString(input.text, 'text', MAX_MESSAGE_LENGTH),
-      createdAt: new Date().toISOString(),
+      createdAt: Date.now(),
       clientRequestId: `copilot-proposal:${proposalId}`,
       moderatedAt: null,
       grounding: {
@@ -221,7 +228,7 @@ export class ChatService {
   private async persistMessage(message: ChatMessage): Promise<ChatMessage> {
     const persisted = await this.store.appendMessage(message);
     if (!persisted.created) { this.metrics.idempotentReplays += 1; return { ...persisted.message }; }
-    this.metrics.messagesCreated += 1; this.metrics.lastPersistedAt = persisted.message.createdAt;
+    this.metrics.messagesCreated += 1; this.metrics.lastPersistedAt = new Date(persisted.message.createdAt).toISOString();
     this.emitInvalidation(message.eventId, 'event.chat.messages'); this.emitInvalidation(message.eventId, 'event.chat.presence'); this.emitInvalidation(message.eventId, 'event.chat.stats');
     this.messages.next({ ...persisted.message });
     return { ...persisted.message };
@@ -229,7 +236,7 @@ export class ChatService {
 
   async addTranscriptMoment(eventId: string, input: TranscriptMomentInput): Promise<TranscriptMoment> {
     this.assertEventId(eventId);
-    const moment: TranscriptMoment = { id: `transcript_${randomUUID()}`, eventId, text: this.readBoundedString(input.text, 'text', MAX_MESSAGE_LENGTH), startMs: this.readOptionalMilliseconds(input.startMs, 'startMs') ?? null, endMs: this.readOptionalMilliseconds(input.endMs, 'endMs') ?? null, productId: this.readOptionalBoundedString(input.productId, 'productId', MAX_USER_ID_LENGTH) ?? null, productTitle: this.readOptionalBoundedString(input.productTitle, 'productTitle', MAX_DISPLAY_NAME_LENGTH) ?? null, createdAt: new Date().toISOString() };
+    const moment: TranscriptMoment = { id: `transcript_${randomUUID()}`, eventId, text: this.readBoundedString(input.text, 'text', MAX_MESSAGE_LENGTH), startMs: this.readOptionalMilliseconds(input.startMs, 'startMs') ?? null, endMs: this.readOptionalMilliseconds(input.endMs, 'endMs') ?? null, productId: this.readOptionalBoundedString(input.productId, 'productId', MAX_USER_ID_LENGTH) ?? null, productTitle: this.readOptionalBoundedString(input.productTitle, 'productTitle', MAX_DISPLAY_NAME_LENGTH) ?? null, createdAt: Date.now() };
     const persisted = await this.store.appendTranscript(eventId, moment);
     this.metrics.transcriptMomentsCreated += 1; this.metrics.lastPersistedAt = new Date().toISOString();
     this.emitInvalidation(eventId, 'event.chat.transcript'); this.emitInvalidation(eventId, 'event.replay.chapters');
@@ -238,7 +245,7 @@ export class ChatService {
 
   async touchPresence(eventId: string, input: PresenceInput): Promise<ChatPresence> {
     this.assertEventId(eventId);
-    const presence = await this.store.touchPresence(eventId, { eventId, userId: this.readBoundedString(input.userId, 'userId', MAX_USER_ID_LENGTH), displayName: this.readBoundedString(input.displayName, 'displayName', MAX_DISPLAY_NAME_LENGTH), role: this.readRole(input.role), lastSeenAt: new Date().toISOString() });
+    const presence = await this.store.touchPresence(eventId, { eventId, userId: this.readBoundedString(input.userId, 'userId', MAX_USER_ID_LENGTH), displayName: this.readBoundedString(input.displayName, 'displayName', MAX_DISPLAY_NAME_LENGTH), role: this.readRole(input.role), lastSeenAt: Date.now() });
     this.metrics.presenceTouches += 1; this.emitInvalidation(eventId, 'event.chat.presence'); this.emitInvalidation(eventId, 'event.chat.stats'); return presence;
   }
 
@@ -250,8 +257,7 @@ export class ChatService {
    * `chat_presence` directly depends on.
    */
   async expireStalePresence(nowMs: number = Date.now()): Promise<string[]> {
-    const cutoff = new Date(nowMs - PRESENCE_TTL_MS).toISOString();
-    const eventIds = await this.store.expireStalePresence(cutoff);
+    const eventIds = await this.store.expireStalePresence(nowMs - PRESENCE_TTL_MS);
     this.metrics.presenceExpirySweeps += 1;
     this.metrics.presenceRowsExpired += eventIds.length;
     for (const eventId of eventIds) {
@@ -289,8 +295,8 @@ export class ChatService {
 
   private updatesFor(eventId: string): Subject<ChatSseEvent> { let subject = this.updatesByEvent.get(eventId); if (!subject) { subject = new Subject(); this.updatesByEvent.set(eventId, subject); } return subject; }
   private assertEventId(eventId: string): void { if (!EVENT_ID_RE.test(eventId)) throw new BadRequestException('eventId must contain 1-64 letters, numbers, hyphens, or underscores'); }
-  private encodeCursor(cursor: { createdAt: string; id: string }): string { return Buffer.from(JSON.stringify(cursor)).toString('base64url'); }
-  private decodeCursor(value: string): { createdAt: string; id: string } { try { const parsed = JSON.parse(Buffer.from(value, 'base64url').toString('utf8')) as { createdAt?: unknown; id?: unknown }; if (typeof parsed.createdAt !== 'string' || !Number.isFinite(Date.parse(parsed.createdAt)) || typeof parsed.id !== 'string' || !parsed.id) throw new Error(); return { createdAt: parsed.createdAt, id: parsed.id }; } catch { throw new BadRequestException('cursor is invalid'); } }
+  private encodeCursor(cursor: { createdAt: number; id: string }): string { return Buffer.from(JSON.stringify(cursor)).toString('base64url'); }
+  private decodeCursor(value: string): { createdAt: number; id: string } { try { const parsed = JSON.parse(Buffer.from(value, 'base64url').toString('utf8')) as { createdAt?: unknown; id?: unknown }; if (typeof parsed.createdAt !== 'number' || !Number.isFinite(parsed.createdAt) || typeof parsed.id !== 'string' || !parsed.id) throw new Error(); return { createdAt: parsed.createdAt, id: parsed.id }; } catch { throw new BadRequestException('cursor is invalid'); } }
   private readBoundedString(value: unknown, field: string, maxLength: number): string { if (typeof value !== 'string') throw new BadRequestException(`${field} is required`); const result = value.trim(); if (!result) throw new BadRequestException(`${field} is required`); if (result.length > maxLength) throw new BadRequestException(`${field} must be ${maxLength} characters or fewer`); return result; }
   private readOptionalBoundedString(value: unknown, field: string, maxLength: number): string | undefined { return value === undefined || value === null ? undefined : this.readBoundedString(value, field, maxLength); }
   private readRole(value: unknown): ChatRole { if (value === 'buyer' || value === 'seller') return value; throw new BadRequestException('role must be buyer or seller'); }

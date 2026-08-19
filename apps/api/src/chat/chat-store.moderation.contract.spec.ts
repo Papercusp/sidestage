@@ -73,7 +73,9 @@ function postgresHarness(): StoreHarness {
   };
 }
 
-function question(eventId: string, suffix: string, createdAt: string): ChatMessage {
+/** `createdAtIso` stays an ISO literal for legibility; the DTO field is D-026 epoch millis. */
+function question(eventId: string, suffix: string, createdAtIso: string): ChatMessage {
+  const createdAt = Date.parse(createdAtIso);
   return {
     id: `chat-${suffix}`,
     eventId,
