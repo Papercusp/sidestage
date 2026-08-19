@@ -73,12 +73,53 @@ export function projectHistoryArgs(argv = [], env = process.env, exists = exists
   ];
 }
 
-export function generateBuildHistorySnapshot(argv = process.argv.slice(2), env = process.env) {
-  const result = spawnSync(projectHistoryCommand(env), projectHistoryArgs(argv, env), {
-    cwd: repoRoot,
-    env,
-    stdio: 'inherit',
-  });
+/** Args with the `--extra-repo <path>` pair removed, for the compatibility retry below. */
+export function withoutExtraRepo(args) {
+  const output = [];
+  for (let index = 0; index < args.length; index += 1) {
+    if (args[index] === '--extra-repo') { index += 1; continue; }
+    if (String(args[index]).startsWith('--extra-repo=')) continue;
+    output.push(args[index]);
+  }
+  return output;
+}
+
+/** The released CLI's exact refusal when it predates --extra-repo support. */
+export function rejectedExtraRepo(stderr) {
+  return /unknown argument --extra-repo/.test(stderr ?? '');
+}
+
+/**
+ * ⚠ VERSION SKEW IS THE NORMAL CASE HERE, NOT AN EDGE CASE. `papercusp project-history`
+ * dispatches into papercup-RELEASE, so this repo's generator is upgraded the moment
+ * git-sync commits it, while the CLI that implements --extra-repo only arrives after the
+ * platform change clears green-checkpoint and deploys. In that window the released CLI
+ * fails HARD ("unknown argument --extra-repo"), which would take the whole periodic
+ * snapshot refresh down — trading a cosmetic gap for a broken History page.
+ *
+ * So the flag is best-effort: on that specific refusal, retry without it and say plainly
+ * that mobile commits are missing. Self-healing — it simply starts working once the
+ * release carries the flag, with no second change needed here.
+ */
+export function generateBuildHistorySnapshot(argv = process.argv.slice(2), env = process.env, run = spawnSync) {
+  const command = projectHistoryCommand(env);
+  const args = projectHistoryArgs(argv, env);
+  // stdout stays inherited so progress still streams; stderr is piped ONLY so the
+  // skew above can be detected, then forwarded verbatim so nothing is swallowed.
+  const spawnOptions = { cwd: repoRoot, env, encoding: 'utf8', stdio: ['inherit', 'inherit', 'pipe'] };
+
+  let result = run(command, args, spawnOptions);
+  if (result.stderr) process.stderr.write(result.stderr);
+
+  if (result.status !== 0 && rejectedExtraRepo(result.stderr) && args.includes('--extra-repo')) {
+    process.stderr.write(
+      'generate-build-history-snapshot: the installed papercusp CLI predates --extra-repo; '
+      + 'regenerating WITHOUT sidestage-mobile. Its commits are ABSENT from this snapshot '
+      + 'until the platform release carries the flag (WI-39898).\n',
+    );
+    result = run(command, withoutExtraRepo(args), spawnOptions);
+    if (result.stderr) process.stderr.write(result.stderr);
+  }
 
   if (result.error) throw result.error;
   if (result.status !== 0) process.exitCode = result.status ?? 1;
