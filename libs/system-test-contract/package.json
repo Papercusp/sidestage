@@ -24,6 +24,7 @@
     "test": "vitest run --config vitest.config.ts"
   },
   "devDependencies": {
+    "@papercusp/test-config": "*",
     "vitest": "^4.1.4"
   }
 }
