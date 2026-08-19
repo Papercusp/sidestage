@@ -50,8 +50,21 @@ vi.mock('@papercusp/sync', async (importOriginal) => ({
   // boards through this hook instead. Captured in the SAME list on purpose:
   // what this file asserts is which room ids the boards asked for, which must
   // not change with the transport a given name is pinned to.
+  //
+  // The directory must CONTAIN the event the URL pins (WI-39864): a URL pin
+  // outside the seller's own directory now stands the whole Studio down behind
+  // the stranded-pin identity notice, and these tests are about the normal
+  // owned case — typing into a Studio that is up. The stranded case has its
+  // own file (SellerTab.stranded.test.tsx).
   useRestSyncQuery: (options: { queryName: string; args?: Record<string, unknown> }) => {
     captured.queries.push({ queryName: options.queryName, args: options.args ?? {} });
+    if (options.queryName === 'events.mine') {
+      return {
+        data: [{ eventId: 'vintage-drop', title: 'Vintage drop', status: 'live' }],
+        loading: false,
+        error: null,
+      };
+    }
     return { data: [], loading: false, error: null };
   },
   useSyncMutate: (_name: string, fallback?: (input: unknown) => Promise<unknown>) => (

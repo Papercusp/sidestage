@@ -283,3 +283,41 @@
   font-size: 0.8rem;
   line-height: 1.55;
 }
+
+/*
+ * The stranded deep-link notice (WI-39864).
+ *
+ * It replaces the whole panel host, so it reads as a page state rather than a
+ * toast: the URL named an event this identity's directory does not contain,
+ * and every board the host would mount could only 404 about it. Warning tones
+ * for the same reason as .stage-publish-warning — the seller has to act (switch
+ * identities, or drop the pin) before the Studio is usable again.
+ */
+.studio-stranded-pin {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.55rem;
+  margin: 0.75rem 0 0;
+  border: 1px solid color-mix(in srgb, var(--warning) 45%, var(--border-strong));
+  border-radius: 0.6rem;
+  padding: 1rem 1.1rem;
+  background: color-mix(in srgb, var(--warning) 8%, var(--surface));
+}
+
+.studio-stranded-pin h3 {
+  margin: 0;
+  font-size: 0.95rem;
+}
+
+.studio-stranded-pin p {
+  margin: 0;
+  max-width: 46rem;
+  color: var(--text);
+  font-size: 0.8rem;
+  line-height: 1.55;
+}
+
+.studio-stranded-pin .button {
+  margin-top: 0.25rem;
+}

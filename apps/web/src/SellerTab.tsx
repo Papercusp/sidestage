@@ -16,6 +16,7 @@ import {
 import type { EventLifecycleAction } from './events/event-lifecycle';
 import { activeEventStatus, publishOnStartWarning } from './seller/active-event-status';
 import { retryEndEvent, runEndEvent } from './seller/end-event';
+import { strandedPinNotice, strandedUrlPin, type SellerPinSource } from './seller/stranded-pin';
 import { useStreamSession } from './hooks';
 import { studioViewHref, useUrlStudioView, type StudioView } from './app-routing';
 import { InventoryPanel } from './InventoryPanel';
@@ -232,6 +233,16 @@ export function SellerTab({
 }) {
   const [pinnedEvent, setPinnedEvent] = useState<SellerEventIdentity | null>(initialPinnedSellerEvent);
   /*
+   * Where the CURRENT pin came from (WI-39864). A pin the URL seeded may name
+   * an event this identity does not own — a deep link minted under another
+   * seller identity — and the Studio must stand down with the identity notice
+   * instead of letting every board 404. A pin the seller chose IN this session
+   * (typed room id, Event Manager navigation) must never trip that notice:
+   * typing a brand-new id then pressing Start is the create flow, and its
+   * directory-absence is narrated by the `unlisted` badge instead.
+   */
+  const [pinSource, setPinSource] = useState<SellerPinSource>('url');
+  /*
    * What the seller has TYPED into the Event room id field, when that differs
    * from the room the Studio is actually on (WI-39272).
    *
@@ -294,6 +305,19 @@ export function SellerTab({
     () => activeEventStatus(eventId, ownedEvents, directoryQuery.loading),
     [directoryQuery.loading, eventId, ownedEvents],
   );
+  /*
+   * The URL named an event this identity's directory does not contain
+   * (WI-39864). Non-null replaces every panel host with the identity notice
+   * below AND gates the stage-items poll, so the Studio stops asking the
+   * server questions whose only possible answer is the ownership guard's 404.
+   */
+  const strandedEventId = strandedUrlPin(
+    pinnedEvent?.eventId ?? null,
+    pinSource,
+    ownedEvents,
+    directoryQuery.loading,
+    directoryQuery.error,
+  );
   // The seller's own rows come FIRST: they carry drafts, which the buyer guide
   // never will, so a draft's real title reaches every panel instead of the
   // DEFAULT_EVENT_TITLE placeholder the identity falls back to.
@@ -321,6 +345,10 @@ export function SellerTab({
     queryName: 'event.actions.items',
     args: { eventId },
     pollIntervalMs: 10_000,
+    // A stranded pin still resolves as `eventId` (a pin outranks the
+    // directory), so without this gate the 10s poll would 404 against the
+    // ownership guard for as long as the notice is on screen (WI-39864).
+    enabled: strandedEventId === null,
   });
   const stagedProductId = useMemo(
     () => stageItemsQuery.data?.find(isOnStage)?.productId ?? null,
@@ -550,6 +578,9 @@ export function SellerTab({
         setEventIdDraft(nextEventId);
         const fetchable = normalizedEventId(nextEventId);
         if (!fetchable) return;
+        // Typed in this session, so it can never strand (WI-39864) — the
+        // create flow types ids the directory cannot contain yet.
+        setPinSource('user');
         setPinnedEvent((current) => (
           sellerEventIdentity(
             fetchable,
@@ -592,6 +623,7 @@ export function SellerTab({
         // over anything half-typed in the field (WI-39272) — otherwise a stale
         // draft would keep displaying a room the Studio has already left.
         setEventIdDraft(null);
+        setPinSource('user');
         setPinnedEvent(sellerEventIdentity(nextEventId, nextEventTitle));
       },
     },
@@ -644,7 +676,37 @@ export function SellerTab({
       {/* One clock above every panel host — the dock, the mobile host, and the
           Event Manager board inside them all read this same log (D-003). */}
       <StageClockProvider stagedProductId={stagedProductId}>
-        {studioView === 'inventory' ? (
+        {strandedEventId !== null ? (
+          /*
+           * The ownership/identity notice (WI-39864). It replaces EVERY panel
+           * host, not just the Active Event board: the boards all key off the
+           * same resolved event, so mounting any of them here means a wall of
+           * per-pane "not found" toasts about an event the seller may well own
+           * under another identity. One notice, with the one recovery the
+           * guard's deliberate 404 can never suggest.
+           */
+          (() => {
+            const notice = strandedPinNotice(strandedEventId, userId);
+            return (
+              <section className="studio-stranded-pin" role="alert">
+                <h3>{notice.headline}</h3>
+                <p>{notice.body}</p>
+                <p>{notice.identityHint}</p>
+                <button
+                  type="button"
+                  className="button"
+                  onClick={() => {
+                    setEventIdDraft(null);
+                    setPinnedEvent(null);
+                    setPinSource('user');
+                  }}
+                >
+                  {notice.action}
+                </button>
+              </section>
+            );
+          })()
+        ) : studioView === 'inventory' ? (
           <InventoryPanel apiBaseUrl={import.meta.env.VITE_API_URL} principal={principal} />
         ) : shouldUseMobileStudio(studioView, mobileStudio) ? (
           <SellerMobileStudio panels={panels} />
