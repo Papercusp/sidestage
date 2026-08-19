@@ -22,46 +22,58 @@ const mocks = vi.hoisted(() => ({
   })),
 }));
 
+/*
+ * One resolver behind BOTH read hooks. Which hook carries a given name is a
+ * property of the sync contract, not of this panel: `event.runOfShow` and
+ * `event.auction.active` are UNSYNCED (D-025) and so arrive via
+ * `useRestSyncQuery`, while `event.actions.items` is a registry leaf and
+ * arrives via `useSyncQuery`. Serving both from one name-keyed resolver keeps
+ * the fixture about the DATA, so a name changing rungs cannot silently drop a
+ * surface back to its loading branch here.
+ */
 vi.mock('@papercusp/sync', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@papercusp/sync')>()),
   useSyncPrincipal: () => 'demo-runner',
-  useSyncQuery: ({ queryName }: { queryName: string }) => {
-    const state = { loading: false, error: null, invalidate: vi.fn() };
-    if (queryName === 'event.runOfShow') {
-      return {
-        ...state,
-        data: [{
-          eventId: 'demo-room',
-          entries: [
-            { productId: 'planned-a', plannedDurationSec: 300, notes: 'Lead with the glaze.' },
-            { productId: 'planned-b', plannedDurationSec: 120, notes: '' },
-          ],
-        }],
-      };
-    }
-    if (queryName === 'event.actions.items') {
-      return {
-        ...state,
-        invalidate: mocks.itemsInvalidate,
-        data: [
-          {
-            eventId: 'demo-room', eventItemId: 'demo-room:planned-a', productId: 'planned-a',
-            title: 'Aurora Cup', priceCents: 4_200, availableQty: 3, quantity: 3, attributes: {},
-          },
-          {
-            eventId: 'demo-room', eventItemId: 'demo-room:planned-b', productId: 'planned-b',
-            title: 'Beacon Mug', priceCents: 2_400, availableQty: 6, quantity: 6, attributes: {},
-          },
-        ],
-      };
-    }
-    if (queryName === 'event.auction.active') {
-      return { ...state, data: [], invalidate: mocks.auctionInvalidate };
-    }
-    return { ...state, data: [] };
-  },
+  useRestSyncQuery: ({ queryName }: { queryName: string }) => resolveQuery(queryName),
+  useSyncQuery: ({ queryName }: { queryName: string }) => resolveQuery(queryName),
   useSyncMutate: (_name: string, fallback: (input: unknown) => Promise<unknown>) => fallback,
 }));
+
+function resolveQuery(queryName: string) {
+  const state = { loading: false, error: null, invalidate: vi.fn() };
+  if (queryName === 'event.runOfShow') {
+    return {
+      ...state,
+      data: [{
+        eventId: 'demo-room',
+        entries: [
+          { productId: 'planned-a', plannedDurationSec: 300, notes: 'Lead with the glaze.' },
+          { productId: 'planned-b', plannedDurationSec: 120, notes: '' },
+        ],
+      }],
+    };
+  }
+  if (queryName === 'event.actions.items') {
+    return {
+      ...state,
+      invalidate: mocks.itemsInvalidate,
+      data: [
+        {
+          eventId: 'demo-room', eventItemId: 'demo-room:planned-a', productId: 'planned-a',
+          title: 'Aurora Cup', priceCents: 4_200, availableQty: 3, quantity: 3, attributes: {},
+        },
+        {
+          eventId: 'demo-room', eventItemId: 'demo-room:planned-b', productId: 'planned-b',
+          title: 'Beacon Mug', priceCents: 2_400, availableQty: 6, quantity: 6, attributes: {},
+        },
+      ],
+    };
+  }
+  if (queryName === 'event.auction.active') {
+    return { ...state, data: [], invalidate: mocks.auctionInvalidate };
+  }
+  return { ...state, data: [] };
+}
 
 /*
  * Only the two TRANSPORT functions are stubbed. `describeSellerActionFailure`

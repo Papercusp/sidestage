@@ -43,7 +43,15 @@ import { createRequire } from 'node:module';
 import { basename, dirname, join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
-const require_ = createRequire(import.meta.url);
+/*
+ * Anchored on the working directory, NOT `import.meta.url`: this file is
+ * typechecked under the api workspace's CommonJS tsconfig, where `import.meta`
+ * is a hard error (TS1343) that fails the whole root typecheck. cwd is inside
+ * the same checkout, so it walks up to the same node_modules tree — and if it
+ * ever does not, `resolvePackageRoot` throws an INSTRUMENT failure rather than
+ * passing vacuously.
+ */
+const require_ = createRequire(join(process.cwd(), 'noop.js'));
 
 /** Methods that would give a leaf the ability to reshape a row. Their ABSENCE is D-024. */
 const PROJECTION_METHODS = ['select', 'project', 'pick', 'omit', 'map', 'transform'] as const;

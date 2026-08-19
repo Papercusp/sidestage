@@ -64,24 +64,28 @@ describe('EventManager', () => {
     const fetchMock = vi.fn();
     vi.stubGlobal('fetch', fetchMock);
     const useDataImpl = vi.fn((options: { queryName: string }) => ({
-      data: options.queryName === 'event.config'
-        ? [{
-            eventId: 'sunday-drop',
-            name: 'Live renamed drop',
-            replyTone: 'warm',
-            guardrails: { priceChanges: true, inventoryClaims: true, buyerSensitive: true },
-            updatedAt: '2026-08-14T15:00:00.000Z',
-          }]
-        : options.queryName === 'event.actions.items' ? ITEMS : [],
+      data: options.queryName === 'event.actions.items' ? ITEMS : [],
       loading: false,
       fetching: false,
       transport: 'SSE',
       invalidate: vi.fn(),
       error: null,
     }));
-    // The seller directory is REST-pinned, so it arrives on its own seam.
+    // The seller directory AND the event config are REST-pinned, so both arrive
+    // on that seam: events.mine has no registry leaf (WI-39855), and
+    // event.config is a payload-jsonb document store demoted by D-025.
     const restImpl = vi.fn((options: { queryName: string }) => ({
-      data: options.queryName === 'events.mine' ? EVENTS : [],
+      data: options.queryName === 'events.mine'
+        ? EVENTS
+        : options.queryName === 'event.config'
+          ? [{
+              eventId: 'sunday-drop',
+              name: 'Live renamed drop',
+              replyTone: 'warm',
+              guardrails: { priceChanges: true, inventoryClaims: true, buyerSensitive: true },
+              updatedAt: '2026-08-14T15:00:00.000Z',
+            }]
+          : [],
     }));
     restSync.impl = restImpl;
 
@@ -91,7 +95,7 @@ describe('EventManager', () => {
       </SyncContext.Provider>,
     );
 
-    expect(useDataImpl).toHaveBeenCalledWith(expect.objectContaining({
+    expect(restImpl).toHaveBeenCalledWith(expect.objectContaining({
       queryName: 'event.config',
       args: { eventId: 'sunday-drop' },
     }));
@@ -296,6 +300,10 @@ describe('EventManager', () => {
       invalidate: vi.fn(),
       error: null,
     }));
+    // event.config and event.auction.active are D-025 document stores, so they
+    // are disabled on the REST seam rather than this one.
+    const restImpl = vi.fn(() => ({ data: [] }));
+    restSync.impl = restImpl;
 
     const markup = renderToStaticMarkup(
       <SyncContext.Provider value={{ transport: 'SSE', useDataImpl, prefetch: vi.fn() } as never}>
@@ -303,7 +311,7 @@ describe('EventManager', () => {
       </SyncContext.Provider>,
     );
 
-    expect(useDataImpl).toHaveBeenCalledWith(expect.objectContaining({
+    expect(restImpl).toHaveBeenCalledWith(expect.objectContaining({
       queryName: 'event.config',
       enabled: false,
     }));
@@ -311,7 +319,7 @@ describe('EventManager', () => {
       queryName: 'event.actions.items',
       enabled: false,
     }));
-    expect(useDataImpl).toHaveBeenCalledWith(expect.objectContaining({
+    expect(restImpl).toHaveBeenCalledWith(expect.objectContaining({
       queryName: 'event.auction.active',
       enabled: false,
     }));

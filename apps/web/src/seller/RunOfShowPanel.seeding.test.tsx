@@ -55,17 +55,28 @@ const mocks = vi.hoisted(() => ({
   ],
 }));
 
+/*
+ * One resolver behind BOTH read hooks. `event.runOfShow` is UNSYNCED (D-025)
+ * and so arrives via `useRestSyncQuery`, while `event.actions.items` is a
+ * registry leaf and arrives via `useSyncQuery`. Keying the fixture on the NAME
+ * rather than the hook is what stops a rung change from silently starving the
+ * panel — an empty plan renders the seeded-from-lineup branch, which is a
+ * plausible screen, so these assertions would otherwise fail obscurely.
+ */
 vi.mock('@papercusp/sync', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@papercusp/sync')>()),
   useSyncPrincipal: () => 'demo-runner',
-  useSyncQuery: ({ queryName }: { queryName: string }) => {
-    const state = { loading: false, error: null, invalidate: vi.fn() };
-    if (queryName === 'event.runOfShow') return { ...state, data: mocks.planRows };
-    if (queryName === 'event.actions.items') return { ...state, data: mocks.lineup };
-    return { ...state, data: [] };
-  },
+  useRestSyncQuery: ({ queryName }: { queryName: string }) => resolveQuery(queryName),
+  useSyncQuery: ({ queryName }: { queryName: string }) => resolveQuery(queryName),
   useSyncMutate: (_name: string, fallback: (input: unknown) => Promise<unknown>) => fallback,
 }));
+
+function resolveQuery(queryName: string) {
+  const state = { loading: false, error: null, invalidate: vi.fn() };
+  if (queryName === 'event.runOfShow') return { ...state, data: mocks.planRows };
+  if (queryName === 'event.actions.items') return { ...state, data: mocks.lineup };
+  return { ...state, data: [] };
+}
 
 import { RunOfShowPanel } from './RunOfShowPanel';
 import { StageClockProvider } from './stage-clock';

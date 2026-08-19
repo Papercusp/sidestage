@@ -17,17 +17,28 @@ const staleQuery = vi.hoisted(() => ({
   }],
 }));
 
+/*
+ * `cart.byId` is a payload-jsonb document store, so it is UNSYNCED (D-025) and
+ * the provider reads it via `useRestSyncQuery`. Both read hooks return the same
+ * rows here: what this file pins is the PRINCIPAL boundary — that a stale cart
+ * from the previous buyer is dropped synchronously — not which rung carried it.
+ */
 vi.mock('@papercusp/sync', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@papercusp/sync')>()),
-  useSyncQuery: () => ({
+  useRestSyncQuery: () => staleQueryResult(),
+  useSyncQuery: () => staleQueryResult(),
+  useSyncMutate: (_path: string, fallback: (args: unknown) => unknown) => fallback,
+}));
+
+function staleQueryResult() {
+  return {
     data: staleQuery.rows,
     loading: false,
     fetching: false,
     error: null,
     invalidate: vi.fn(),
-  }),
-  useSyncMutate: (_path: string, fallback: (args: unknown) => unknown) => fallback,
-}));
+  };
+}
 
 vi.mock('./buyer-identity', () => ({
   useBuyerIdentity: () => ({ buyerId: identity.buyerId, impersonate: vi.fn() }),
