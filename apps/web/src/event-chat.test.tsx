@@ -100,7 +100,7 @@ describe('EventChat', () => {
   });
 
   it('renders every routed-question lifecycle and Copilot provenance without tagging ordinary seller messages', () => {
-    const createdAt = new Date().toISOString();
+    const createdAt = Date.now();
     const messages: EventChatMessage[] = [
       { id: 'queued', eventId: 'sunday-drop', userId: 'buyer-1', displayName: 'Maya', role: 'buyer', text: 'Is this available?', createdAt, grounding: { status: 'seller-queue' } },
       { id: 'skipped', eventId: 'sunday-drop', userId: 'buyer-2', displayName: 'Jules', role: 'buyer', text: 'Can you repeat that?', createdAt, grounding: { status: 'skipped', proposalId: 'proposal-skipped' } },
@@ -146,7 +146,7 @@ describe('EventChat', () => {
   });
 
   it('reconciles a queued question to its linked approved answer on sync refresh without remounting', async () => {
-    const createdAt = new Date().toISOString();
+    const createdAt = Date.now();
     let messages: EventChatMessage[] = [
       { id: 'question', eventId: 'sunday-drop', userId: 'buyer-1', displayName: 'Maya', role: 'buyer', text: 'How large is it?', createdAt, grounding: { status: 'seller-queue' } },
     ];
@@ -208,7 +208,7 @@ describe('EventChat', () => {
 
   it('sends a seller reply through the shared mutation fallback and echoes it locally', async () => {
     const calls: Array<{ url: string; init?: RequestInit }> = [];
-    const createdAt = new Date().toISOString();
+    const createdAt = Date.now();
     const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = String(input);
       calls.push({ url, init });

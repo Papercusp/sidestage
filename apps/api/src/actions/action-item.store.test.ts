@@ -33,8 +33,9 @@ describe('InMemoryActionItemStore parity adapter', () => {
       eventItemId: 'event-1:mug',
       referencePriceCents: 1_500,
       version: 1,
-      createdAt: expect.any(String),
-      updatedAt: expect.any(String),
+      // D-026: epoch millis, not an ISO string.
+      createdAt: expect.any(Number),
+      updatedAt: expect.any(Number),
     });
     rows[0]!.attributes.color = 'mutated outside the store';
     await expect(store.list('event-1')).resolves.toMatchObject([

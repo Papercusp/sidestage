@@ -351,7 +351,16 @@ describe.runIf(ARMED)('per-query differential Zero/REST parity', () => {
   it('actually ran the differential over the comparable queries', () => {
     // Guards the guard: if the fixture/registry intersection came back empty,
     // every per-query assertion below would vacuously pass.
-    expect(comparable.length).toBeGreaterThanOrEqual(8);
+    //
+    // The floor was 8 before D-025 demoted six queries to UNSYNCED_QUERY_REASONS
+    // (five payload-jsonb document stores plus the event.replay.chapters derived
+    // view), which took the comparable set from 11 to 5 by design. This number
+    // therefore tracks the CONTRACT and must be re-derived whenever the synced
+    // set changes deliberately — a floor left above the real count is a red that
+    // says nothing, which is how a vacuity guard stops being read at all.
+    // Current comparable set: event.lineup.items, event.actions.items,
+    // event.chat.messages, event.chat.presence, event.chat.transcript.
+    expect(comparable.length).toBeGreaterThanOrEqual(5);
     expect(diffs.size + failures.size).toBe(comparable.length);
   });
 

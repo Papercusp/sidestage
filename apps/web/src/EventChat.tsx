@@ -41,7 +41,8 @@ export interface EventChatMessage {
   displayName: string;
   role: EventChatRole;
   text: string;
-  createdAt: string;
+  /** D-026: integer epoch milliseconds on BOTH rungs — never an ISO string. */
+  createdAt: number;
   grounding?: EventChatGrounding;
 }
 
@@ -50,13 +51,14 @@ export interface EventChatPresence {
   displayName: string;
   role: EventChatRole;
   /**
-   * ISO string on the SSE/polling path, EPOCH MILLISECONDS on the zero
-   * websocket path (WI-39774). Declaring this `string` is the lie that let a
-   * `localeCompare` comparator crash the seller render mid-stream — compare it
-   * only through a coercion that admits both shapes (offer-guard.ts
-   * `lastSeenAtMs`).
+   * Epoch milliseconds. This used to be `string | number` — an ISO instant on
+   * the SSE/polling path and a number on the zero websocket path (WI-39774) —
+   * and declaring it `string` was the lie that let a `localeCompare` comparator
+   * crash the seller render mid-stream. D-026 removed the fork rather than the
+   * symptom: epoch millis is now the contract's one timestamp encoding, so both
+   * rungs deliver the same type and there is no shape left to admit.
    */
-  lastSeenAt: string | number;
+  lastSeenAt: number;
 }
 
 export interface EventChatStats {
@@ -202,10 +204,10 @@ export function useEventChatSender({
   return useSyncMutate<EventChatMessageInput, EventChatMessage>('chat.sendMessage', fallback);
 }
 
-function formatTimestamp(value: string): string {
-  const timestamp = Date.parse(value);
-  if (!Number.isFinite(timestamp)) return 'now';
-  const seconds = Math.max(0, Math.round((Date.now() - timestamp) / 1_000));
+/** `value` is D-026 epoch millis; a non-finite one renders as 'now' rather than throwing. */
+function formatTimestamp(value: number): string {
+  if (!Number.isFinite(value)) return 'now';
+  const seconds = Math.max(0, Math.round((Date.now() - value) / 1_000));
   if (seconds < 10) return 'now';
   if (seconds < 60) return `${seconds}s ago`;
   const minutes = Math.round(seconds / 60);

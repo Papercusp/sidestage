@@ -272,9 +272,9 @@ describe('evaluateOffer states the client-only conditions honestly', () => {
 
 describe('buyerCandidates derives who an offer may be addressed to', () => {
   const presence = [
-    { userId: 'buyer-a', displayName: 'Ada', role: 'buyer', lastSeenAt: '2026-08-17T07:00:00.000Z' },
-    { userId: 'buyer-b', displayName: 'Bo', role: 'buyer', lastSeenAt: '2026-08-17T07:00:05.000Z' },
-    { userId: 'seller-1', displayName: 'Avi', role: 'seller', lastSeenAt: '2026-08-17T07:00:06.000Z' },
+    { userId: 'buyer-a', displayName: 'Ada', role: 'buyer', lastSeenAt: Date.parse('2026-08-17T07:00:00.000Z') },
+    { userId: 'buyer-b', displayName: 'Bo', role: 'buyer', lastSeenAt: Date.parse('2026-08-17T07:00:05.000Z') },
+    { userId: 'seller-1', displayName: 'Avi', role: 'seller', lastSeenAt: Date.parse('2026-08-17T07:00:06.000Z') },
   ];
 
   it('keeps buyers and drops sellers', () => {
@@ -305,7 +305,7 @@ describe('buyerCandidates derives who an offer may be addressed to', () => {
 
   it('excludes the acting seller even if their row claims a buyer role', () => {
     const candidates = buyerCandidates({
-      presence: [{ userId: 'seller-1', displayName: 'Avi', role: 'buyer', lastSeenAt: '2026-08-17T07:00:00.000Z' }],
+      presence: [{ userId: 'seller-1', displayName: 'Avi', role: 'buyer', lastSeenAt: Date.parse('2026-08-17T07:00:00.000Z') }],
       excludeUserId: 'seller-1',
     });
     expect(candidates).toEqual([]);
@@ -313,14 +313,14 @@ describe('buyerCandidates derives who an offer may be addressed to', () => {
 
   it('drops rows with no usable id rather than offering a blank option', () => {
     const candidates = buyerCandidates({
-      presence: [{ userId: '  ', displayName: 'Ghost', role: 'buyer', lastSeenAt: '2026-08-17T07:00:00.000Z' }],
+      presence: [{ userId: '  ', displayName: 'Ghost', role: 'buyer', lastSeenAt: Date.parse('2026-08-17T07:00:00.000Z') }],
     });
     expect(candidates).toEqual([]);
   });
 
   it('falls back to the id when a presence row carries no display name', () => {
     const candidates = buyerCandidates({
-      presence: [{ userId: 'buyer-c', displayName: '   ', role: 'buyer', lastSeenAt: '2026-08-17T07:00:00.000Z' }],
+      presence: [{ userId: 'buyer-c', displayName: '   ', role: 'buyer', lastSeenAt: Date.parse('2026-08-17T07:00:00.000Z') }],
     });
     expect(candidates[0]?.displayName).toBe('buyer-c');
   });
@@ -328,18 +328,26 @@ describe('buyerCandidates derives who an offer may be addressed to', () => {
   it('keeps the freshest row when presence repeats a buyer', () => {
     const candidates = buyerCandidates({
       presence: [
-        { userId: 'buyer-a', displayName: 'Ada', role: 'buyer', lastSeenAt: '2026-08-17T07:00:00.000Z' },
-        { userId: 'buyer-a', displayName: 'Ada Reborn', role: 'buyer', lastSeenAt: '2026-08-17T07:00:09.000Z' },
+        { userId: 'buyer-a', displayName: 'Ada', role: 'buyer', lastSeenAt: Date.parse('2026-08-17T07:00:00.000Z') },
+        { userId: 'buyer-a', displayName: 'Ada Reborn', role: 'buyer', lastSeenAt: Date.parse('2026-08-17T07:00:09.000Z') },
       ],
     });
     expect(candidates).toHaveLength(1);
     expect(candidates[0]?.displayName).toBe('Ada Reborn');
   });
 
-  // WI-39774: the zero websocket path delivers lastSeenAt as EPOCH MILLISECONDS,
-  // not an ISO string. The string-only comparator threw `localeCompare is not a
-  // function` DURING RENDER, which remounted the sync subtree and tore down the
-  // live WHIP session — the "streaming dies seconds after going live" symptom.
+  // WI-39774: the zero websocket path delivered lastSeenAt as EPOCH MILLISECONDS
+  // while REST sent an ISO string. The string-only comparator threw
+  // `localeCompare is not a function` DURING RENDER, which remounted the sync
+  // subtree and tore down the live WHIP session — the "streaming dies seconds
+  // after going live" symptom.
+  //
+  // D-026 removed the fork itself: epoch millis is the contract's one timestamp
+  // encoding, so the two tests that pinned MIXED shapes on one axis are gone —
+  // that state is now unreachable, and the parity differential's ENCODING
+  // MISMATCH class is what keeps it unreachable. What survives is the pair that
+  // still has a referent: ordinary numeric ordering, and the render-safety
+  // property for a value that violates the contract anyway.
   it('sorts numeric epoch-ms lastSeenAt rows without throwing, most recent first', () => {
     const candidates = buyerCandidates({
       presence: [
@@ -350,31 +358,14 @@ describe('buyerCandidates derives who an offer may be addressed to', () => {
     expect(candidates.map((c) => c.buyerId)).toEqual(['buyer-b', 'buyer-a']);
   });
 
-  it('compares numeric and ISO-string lastSeenAt on the same time axis', () => {
+  it('sorts a row whose lastSeenAt is not a number oldest instead of throwing', () => {
     const candidates = buyerCandidates({
       presence: [
-        { userId: 'buyer-a', displayName: 'Ada', role: 'buyer', lastSeenAt: '2026-08-17T07:00:00.000Z' },
-        { userId: 'buyer-b', displayName: 'Bo', role: 'buyer', lastSeenAt: Date.parse('2026-08-17T07:00:05.000Z') },
-      ],
-    });
-    expect(candidates.map((c) => c.buyerId)).toEqual(['buyer-b', 'buyer-a']);
-  });
-
-  it('keeps the freshest duplicate when the repeat arrives as a number', () => {
-    const candidates = buyerCandidates({
-      presence: [
-        { userId: 'buyer-a', displayName: 'Ada', role: 'buyer', lastSeenAt: '2026-08-17T07:00:00.000Z' },
-        { userId: 'buyer-a', displayName: 'Ada Reborn', role: 'buyer', lastSeenAt: Date.parse('2026-08-17T07:00:09.000Z') },
-      ],
-    });
-    expect(candidates).toHaveLength(1);
-    expect(candidates[0]?.displayName).toBe('Ada Reborn');
-  });
-
-  it('sorts a row with an unparseable lastSeenAt oldest instead of throwing', () => {
-    const candidates = buyerCandidates({
-      presence: [
-        { userId: 'buyer-a', displayName: 'Ada', role: 'buyer', lastSeenAt: 'not-a-date' },
+        // Deliberately violates PresenceRowView: a rung serving a stale ISO
+        // string must degrade this row to last place, never crash the render.
+        // Only a cast can express that here, which is the point — the type says
+        // it cannot happen and this test says what happens when it does anyway.
+        { userId: 'buyer-a', displayName: 'Ada', role: 'buyer', lastSeenAt: '2026-08-17T09:00:00.000Z' as unknown as number },
         { userId: 'buyer-b', displayName: 'Bo', role: 'buyer', lastSeenAt: 1_787_000_005_000 },
       ],
     });

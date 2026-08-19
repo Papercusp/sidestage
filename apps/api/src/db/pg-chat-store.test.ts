@@ -271,20 +271,20 @@ describe.runIf(process.env.SIDESTAGE_PG_INTEGRATION === '1')('PgChatStore agains
          VALUES ($1, 'Presence test event', 'seller-demo', 'Demo Seller', 'live')`,
         [eventId],
       );
-      const stale = new Date(cutoff.getTime() - 60_000).toISOString();
-      const live = new Date(cutoff.getTime() + 60_000).toISOString();
+      const stale = cutoff.getTime() - 60_000;
+      const live = cutoff.getTime() + 60_000;
       await store.touchPresence(eventId, { eventId, userId: 'ghost-1', displayName: 'Ghost', role: 'buyer', lastSeenAt: stale });
       await store.touchPresence(eventId, { eventId, userId: 'live-1', displayName: 'Maya', role: 'buyer', lastSeenAt: live });
 
       // The row is gone because the sweeper ran, not because anyone read it —
       // the property a client reading the replicated table depends on.
-      await expect(store.expireStalePresence(cutoff.toISOString())).resolves.toContain(eventId);
-      await expect(store.listPresence(eventId, new Date(0).toISOString())).resolves.toEqual([
-        { userId: 'live-1', displayName: 'Maya', role: 'buyer', lastSeenAt: live },
+      await expect(store.expireStalePresence(cutoff.getTime())).resolves.toContain(eventId);
+      await expect(store.listPresence(eventId, 0)).resolves.toEqual([
+        { eventId, userId: 'live-1', displayName: 'Maya', role: 'buyer', lastSeenAt: live },
       ]);
 
       // A second sweep with nothing stale reports no affected events.
-      await expect(store.expireStalePresence(cutoff.toISOString())).resolves.not.toContain(eventId);
+      await expect(store.expireStalePresence(cutoff.getTime())).resolves.not.toContain(eventId);
     } finally {
       await pool.query('DELETE FROM event WHERE event_id = $1', [eventId]);
       await pool.end();

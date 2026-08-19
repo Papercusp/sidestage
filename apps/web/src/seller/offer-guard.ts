@@ -51,46 +51,46 @@ export interface BuyerCandidate {
    */
   source: 'room' | 'bidder';
   /**
-   * When the presence heartbeat last saw them, present for room presence only.
-   * ISO instant on the SSE/polling path, epoch milliseconds on the zero
-   * websocket path — compare via `lastSeenAtMs`, never directly.
+   * When the presence heartbeat last saw them, as D-026 epoch milliseconds.
+   * Present for room presence only — a 'bidder' row carries none — so compare
+   * via `lastSeenAtMs`, which dates an absent value rather than throwing.
    */
-  lastSeenAt?: string | number;
+  lastSeenAt?: number;
 }
 
 /**
  * The presence row shape `event.chat.presence` returns (EventChat.tsx:48).
  *
- * `lastSeenAt` is an ISO string on the SSE/polling path but EPOCH MILLISECONDS
- * on the zero websocket path (WI-39774): the number reached this module the
- * moment websockets started connecting (WI-39763) and a string-only comparator
- * threw during render, remounting the sync subtree and killing the live WHIP
- * session. Both shapes are admitted and normalised in `lastSeenAtMs`.
+ * `lastSeenAt` used to be `string | number` here — an ISO instant on the
+ * SSE/polling path and epoch milliseconds on the zero websocket path (WI-39774).
+ * The number reached this module the moment websockets started connecting
+ * (WI-39763) and a string-only comparator threw during render, remounting the
+ * sync subtree and killing the live WHIP session. D-026 removed the fork at its
+ * source rather than normalising it here: epoch millis is the contract's one
+ * timestamp encoding and both rungs now serve it, guarded by the ENCODING
+ * MISMATCH class in the parity differential.
  */
 export interface PresenceRowView {
   userId: string;
   displayName: string;
   role: string;
-  lastSeenAt: string | number;
+  lastSeenAt: number;
 }
 
 /**
- * `lastSeenAt` as epoch milliseconds, whichever wire shape delivered it.
+ * `lastSeenAt` as epoch milliseconds, total over the values that actually reach
+ * this module.
  *
- * Missing and unparseable values sort OLDEST (negative infinity) rather than
+ * Absent and non-finite values sort OLDEST (negative infinity) rather than
  * throwing or landing mid-list: a row we cannot date must never beat a row we
- * can. Never subtract two results in a comparator — both can be -Infinity and
- * the NaN would corrupt the whole sort.
+ * can, and a 'bidder' row legitimately has no `lastSeenAt` at all. That
+ * fallback also keeps a wire value that is somehow NOT a number (a rung serving
+ * a stale ISO string) degrading to last place instead of crashing the render —
+ * the failure this function was written for. Never subtract two results in a
+ * comparator: both can be -Infinity and the NaN would corrupt the whole sort.
  */
-function lastSeenAtMs(value: string | number | null | undefined): number {
-  if (typeof value === 'number') {
-    return Number.isFinite(value) ? value : Number.NEGATIVE_INFINITY;
-  }
-  if (typeof value === 'string' && value) {
-    const parsed = Date.parse(value);
-    return Number.isNaN(parsed) ? Number.NEGATIVE_INFINITY : parsed;
-  }
-  return Number.NEGATIVE_INFINITY;
+function lastSeenAtMs(value: number | null | undefined): number {
+  return typeof value === 'number' && Number.isFinite(value) ? value : Number.NEGATIVE_INFINITY;
 }
 
 /** The slice of the live auction that names a bidder (api.ts:60 SellerAuction). */
