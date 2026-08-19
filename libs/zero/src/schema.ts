@@ -435,10 +435,20 @@ export const eventRelationships = relationships(event, ({ many, one }) => ({
 
 export const eventLineupItemRelationships = relationships(eventLineupItem, ({ one }) => ({
   event: one({ sourceField: ['eventId'], destSchema: event, destField: ['eventId'] }),
-  // The buyer lineup renders price/stock from storefront_product and
-  // title/images/type from product_catalog — the same JOIN the REST
-  // `event.lineup.items` handler performs, so the Zero-rendered lineup matches
-  // the SSE-rendered one row for row.
+  // ⚠ D-036: NEITHER `event.lineup.items` NOR `event.actions.items` traverses
+  // this relationship any more, and neither should traverse it again.
+  //
+  // An earlier comment here claimed the JOIN matched what the REST handler
+  // performed, "so the Zero-rendered lineup matches the SSE-rendered one row
+  // for row". That was measured FALSE: Zero nested a `product` object while
+  // REST flattened seven catalog keys — the two rungs served different shapes
+  // for the same query. Worse, `storefront_product` is published WHOLE, so
+  // traversing this from a buyer-facing query puts `qty`, `reserved_qty`,
+  // `price_cents` and `active` on a PUBLIC read.
+  //
+  // The relationship stays declared because it is schema metadata other
+  // queries may legitimately use (auction_state relates to the same table);
+  // declaring it replicates nothing on its own.
   product: one({ sourceField: ['productId'], destSchema: storefrontProduct, destField: ['id'] }),
 }));
 
