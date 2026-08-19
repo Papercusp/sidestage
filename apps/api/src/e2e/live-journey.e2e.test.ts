@@ -56,6 +56,7 @@ interface Res<T = unknown> {
   status: number;
   body: T;
   text: string;
+  headers: Headers;
 }
 
 async function call<T = unknown>(
@@ -79,13 +80,45 @@ async function call<T = unknown>(
   } catch {
     body = text;
   }
-  return { status: response.status, body: body as T, text };
+  return { status: response.status, body: body as T, text, headers: response.headers };
 }
 
 const asSeller = (method: string, path: string, body?: unknown) =>
   call(method, path, { body, principal: SELLER });
 const asBuyer = (method: string, path: string, body?: unknown) =>
   call(method, path, { body, principal: BUYER });
+
+/**
+ * Bidding is GUEST-authenticated, and the x-demo-principal header does not
+ * satisfy it: `POST /auctions/access/guest` mints a signed HttpOnly cookie, and
+ * `POST /auctions/:id/bids` derives the bidder from that cookie (the body's
+ * `bidderId` is ignored) plus an Idempotency-Key header.
+ *
+ * Without the cookie EVERY bid 401s AUCTION_GUEST_SESSION_REQUIRED — which the
+ * "an underbid was accepted" control below reads as a PASS, because 401 >= 400.
+ * That is the false-green this file's Discipline note exists to forbid: the
+ * price rail was never exercised at all. Mint one session and carry it.
+ */
+let guestCookie = '';
+
+async function bid(auctionId: string, amountCents: number): Promise<Res> {
+  if (!guestCookie) {
+    const session = await call('POST', '/auctions/access/guest', { principal: BUYER });
+    expect(session.status, `guest session failed: ${session.text.slice(0, 300)}`).toBeLessThan(300);
+    guestCookie = (session.headers.get('set-cookie') ?? '').split(';')[0] ?? '';
+    expect(guestCookie, 'guest session issued no cookie').toContain('=');
+  }
+  return call('POST', `/auctions/${auctionId}/bids`, {
+    body: { displayName: 'E2E Buyer', amountCents },
+    principal: BUYER,
+    headers: {
+      cookie: guestCookie,
+      // 8-128 URL-safe chars, and DISTINCT per bid: a replayed key returns the
+      // first bid's result, which would mask a rail that stopped biting.
+      'idempotency-key': `e2e-${RUN}-${amountCents}-${Date.now().toString(36)}`,
+    },
+  });
+}
 
 /** Poll until `check` passes or the budget runs out. Returns the last value. */
 async function until<T>(
@@ -268,7 +301,19 @@ describe.runIf(BASE !== '')(`live journey E2E (${BASE || 'skipped'})`, () => {
       // inventory THIS seller owns and that is actually sellable. A row pointing
       // at a foreign-owned product reads as availableQty 0 and makes the copilot
       // answer "out of stock" for a fully-stocked event.
-      expect(Number(list[0].availableQty), 'lineup item has no sellable quantity').toBeGreaterThan(0);
+      // D-024 renamed the RESPONSE field too (availableQty -> currentQuantity).
+      // The request side above already sends both spellings; this assertion did
+      // not, so against a post-rename deployment it read undefined -> NaN and
+      // failed for a reason that had nothing to do with the guard. Accept either
+      // name — and if the row carries NEITHER, fail saying so, rather than let a
+      // missing field read as a quantity of zero.
+      const row = list[0];
+      const sellable = row.currentQuantity ?? row.availableQty;
+      expect(
+        sellable,
+        `lineup row exposes no sellable-quantity field (keys: ${Object.keys(row).join(',')})`,
+      ).toBeDefined();
+      expect(Number(sellable), 'lineup item has no sellable quantity').toBeGreaterThan(0);
     }, 60_000);
   });
 
@@ -469,11 +514,7 @@ describe.runIf(BASE !== '')(`live journey E2E (${BASE || 'skipped'})`, () => {
     }, 60_000);
 
     it('accepts a buyer bid above the current price', async () => {
-      const res = await asBuyer('POST', `/auctions/${auctionId}/bids`, {
-        bidderId: BUYER,
-        displayName: 'E2E Buyer',
-        amountCents: 1_500,
-      });
+      const res = await bid(auctionId, 1_500);
       expect(res.status, `bid rejected: ${res.text.slice(0, 300)}`).toBeLessThan(300);
 
       const after = await call('GET', `/auctions/${auctionId}`, { principal: BUYER });
@@ -482,12 +523,13 @@ describe.runIf(BASE !== '')(`live journey E2E (${BASE || 'skipped'})`, () => {
     }, 60_000);
 
     it('REJECTS a bid below the current price (control: the bid rail actually bites)', async () => {
-      const res = await asBuyer('POST', `/auctions/${auctionId}/bids`, {
-        bidderId: BUYER,
-        displayName: 'E2E Buyer',
-        amountCents: 100,
-      });
+      const res = await bid(auctionId, 100);
       expect(res.status, 'an underbid was accepted').toBeGreaterThanOrEqual(400);
+      // The control only means something if the rejection came from the PRICE
+      // rail. A 401 (no guest session) is also >= 400 and would pass this
+      // assertion while proving nothing — pin it out explicitly.
+      expect(res.status, `underbid rejected by auth, not the price rail: ${res.text.slice(0, 300)}`)
+        .not.toBe(401);
     }, 60_000);
 
     it('closes the auction', async () => {
