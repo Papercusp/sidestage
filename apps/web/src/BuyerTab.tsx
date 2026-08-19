@@ -229,7 +229,10 @@ export function BuyerTab({
             if (videoRef.current && videoRef.current.srcObject !== mediaStream) {
               videoRef.current.srcObject = mediaStream;
             }
-            setStreamState('live');
+            // `track` fires when the remote SDP installs its receiver, before
+            // ICE necessarily has a usable path. `connectViewer` now resolves
+            // only after the peer connection reaches `connected`, so let the
+            // surrounding stream session make that the sole `live` signal.
             // A rejected play() here is Chrome's autoplay policy (unmuted, no
             // gesture). Silently swallowing it left the pane black while media
             // decoded underneath (WI-39774) — force muted and play anyway; the
@@ -257,7 +260,7 @@ export function BuyerTab({
         attach: (viewer) => viewer.stream,
         fallbackError: 'The stream could not be connected.',
       },
-    ), [mediaBaseUrl, room, setStreamState, startStream, videoRef]);
+    ), [mediaBaseUrl, room, startStream, videoRef]);
 
   /**
    * Staying attached while the seller's camera arrives (WI-39733).

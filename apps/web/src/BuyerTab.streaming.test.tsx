@@ -166,6 +166,37 @@ describe('BuyerTab stream lifecycle', () => {
     expect(second.stop).toHaveBeenCalledOnce();
   });
 
+  it('does not present an SDP track as live before WHEP ICE establishment completes', async () => {
+    const connected = viewerSession();
+    let resolveConnection: ((session: ViewerSession) => void) | undefined;
+    connectViewerMock.mockImplementationOnce(
+      () => new Promise<ViewerSession>((resolve) => { resolveConnection = resolve; }),
+    );
+    const play = vi.spyOn(HTMLMediaElement.prototype, 'play').mockResolvedValue(undefined);
+
+    try {
+      await act(async () => root?.render(buyer('slow-ice-room')));
+      expect(container.textContent).toContain('Connecting…');
+
+      const onTrack = connectViewerMock.mock.calls[0]?.[0].onTrack as
+        (stream: MediaStream) => void;
+      await act(async () => { onTrack({} as MediaStream); });
+
+      // `track` follows setRemoteDescription and can precede a usable ICE pair.
+      // The accepted-but-black session must remain visibly connecting.
+      expect(container.textContent).toContain('Connecting…');
+      expect(container.textContent).not.toContain('Disconnect');
+
+      await act(async () => {
+        resolveConnection?.(connected.session);
+        await Promise.resolve();
+      });
+      expect(container.textContent).toContain('Disconnect');
+    } finally {
+      play.mockRestore();
+    }
+  });
+
   it('offers Retry only after an automatic connection fails', async () => {
     const recovered = viewerSession();
     connectViewerMock
