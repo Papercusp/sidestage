@@ -57,29 +57,44 @@ export const queries = defineQueries({
 
     lineup: {
       /**
-       * `event.lineup.items` — the buyer-facing lineup. Related
-       * `product` → `catalog` reproduces the JOIN the REST handler performs, so
-       * a Zero-rendered lineup matches the SSE-rendered one row for row.
+       * `event.lineup.items` — the buyer-facing lineup: exactly the replicated
+       * `event_lineup_item` row, nothing more.
+       *
+       * D-036: this deliberately does NOT relate to `product`. Two reasons, and
+       * the second is a security one:
+       *
+       * 1. Nothing needs it. The buyer surface composes catalog data from its
+       *    own `catalog.page` query (BuyerTab.tsx) — it never read this query's
+       *    catalog fields.
+       * 2. `storefront_product` is published WHOLE (db/zero-publication.sql),
+       *    including `qty`, `reserved_qty`, `price_cents` and `active` — the
+       *    seller's inventory position and base-price structure. Relating to it
+       *    from THIS query would serve that on a PUBLIC buyer read.
+       *
+       * An earlier version of this comment claimed the relation "matches the
+       * SSE-rendered one row for row". That was measured FALSE (Zero nested
+       * `product`; REST flattened seven catalog keys) and is what D-024/D-036
+       * resolved.
        */
       items: defineQuery(eventArg, ({ args: { eventId } }) =>
         zql.eventLineupItem
           .where('eventId', eventId)
           .orderBy('position', 'asc')
-          .orderBy('eventItemId', 'asc')
-          .related('product', (q) =>
-            q.one().related('catalog', (c) => c.one()).related('options', (o) => o),
-          ),
+          .orderBy('eventItemId', 'asc'),
       ),
     },
 
     actions: {
-      /** `event.actions.items` — the seller's action surface over the lineup. */
+      /**
+       * `event.actions.items` — the seller's action surface over the lineup.
+       * D-036: same shape as the buyer leaf, and for the same reasons; the
+       * `product` relation was this query's only remaining Zero/REST drift.
+       */
       items: defineQuery(eventArg, ({ args: { eventId } }) =>
         zql.eventLineupItem
           .where('eventId', eventId)
           .orderBy('position', 'asc')
-          .orderBy('eventItemId', 'asc')
-          .related('product', (q) => q.one()),
+          .orderBy('eventItemId', 'asc'),
       ),
     },
 

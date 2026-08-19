@@ -44,7 +44,6 @@ export class ActionSyncQueries implements OnModuleInit {
     @Inject(SyncQueryRegistry) private readonly queries: SyncQueryRegistry,
     @Inject(EventOwnershipGuard) private readonly ownership: EventOwnershipGuard,
     @Inject(EventVisibilityGuard) private readonly visibility: EventVisibilityGuard,
-    @Inject(CATALOG_SOURCE) private readonly catalog: CatalogSource,
   ) {}
 
   onModuleInit(): void {
@@ -55,10 +54,10 @@ export class ActionSyncQueries implements OnModuleInit {
     });
     this.queries.register('event.lineup.items', async (args) => {
       const eventId = typeof args.eventId === 'string' ? args.eventId : '';
-      // Visibility must be established before either lineup or catalog data is
-      // read so draft and unknown ids have the same non-enumerating boundary.
+      // Visibility must be established before any lineup data is read so draft
+      // and unknown ids have the same non-enumerating boundary.
       await this.visibility.assertBuyerVisible(eventId);
-      return projectBuyerLineupItems(await this.actions.listItems(eventId), this.catalog);
+      return projectBuyerLineupItems(await this.actions.listItems(eventId));
     });
   }
 }

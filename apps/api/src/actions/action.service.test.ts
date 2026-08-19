@@ -56,8 +56,7 @@ describe('GuardedActionService', () => {
       }]);
     const ownership = new EventOwnershipGuard(new EventService(eventStore, new ChatService()));
     const visibility = new EventVisibilityGuard(eventStore);
-    const catalog = new FixtureCatalogSource([]);
-    new ActionSyncQueries(actions, queries, ownership, visibility, catalog).onModuleInit();
+    new ActionSyncQueries(actions, queries, ownership, visibility).onModuleInit();
 
     await expect(queries.resolve(
       'event.actions.items',
@@ -73,7 +72,7 @@ describe('GuardedActionService', () => {
     )).rejects.toThrow('Event not found for this seller.');
   });
 
-  it('publishes a buyer-safe lineup with event authority and current catalog labels', async () => {
+  it('publishes a buyer-safe lineup that is exactly the replicated row, with no catalog enrichment (D-036)', async () => {
     const actions = await service();
     await actions.registerEvent('event-draft', {
       policy,
@@ -103,7 +102,6 @@ describe('GuardedActionService', () => {
       queries,
       new EventOwnershipGuard(events),
       new EventVisibilityGuard(eventStore),
-      catalog,
     ).onModuleInit();
 
     await expect(queries.resolve('event.lineup.items', { eventId: 'event-1' })).resolves.toEqual([{
@@ -117,20 +115,23 @@ describe('GuardedActionService', () => {
       currentQuantity: 5,
       position: 0,
       stageState: 'queued',
-      imageUrl: '/mug-blue.webp',
-      brand: 'Kiln & Coast',
-      productType: 'HOME',
-      sku: 'MUG-BLUE',
-      color: 'Ocean blue',
-      size: '12 oz',
-      condition: 'NEW',
+      // D-036: exactly the replicated `event_lineup_item` row — no catalog
+      // enrichment. The catalog fixture above deliberately carries brand,
+      // sku, imageUrl, colour and size; NONE of them may appear here.
+      attributes: { color: 'blue' },
+      version: 1,
+      createdAt: expect.any(Number),
+      updatedAt: expect.any(Number),
     }]);
     await expect(queries.resolve('event.lineup.items', { eventId: 'event-draft' }))
       .rejects.toThrow('Unknown event: event-draft');
     await expect(queries.resolve('event.lineup.items', { eventId: 'missing' }))
       .rejects.toThrow('Unknown event: missing');
     expect(listItems).toHaveBeenCalledTimes(1);
-    expect(readVariant).toHaveBeenCalledTimes(1);
+    // D-036's operative claim: the buyer lineup no longer consults the catalog
+    // at all. A future re-add of a catalog key would trip this before the
+    // parity harness has to.
+    expect(readVariant).not.toHaveBeenCalled();
   });
 
   it('invalidates the event-scoped lineup after registration, action, and rollback writes', async () => {

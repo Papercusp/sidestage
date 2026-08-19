@@ -1,8 +1,27 @@
-import type { CatalogSource, CatalogVariant } from '../catalog/catalog.types';
 import type { StoredActionEventItem } from './action-item.store';
 import type { ActionItemStageState } from './action.types';
 
-/** Public projection of one persisted event-lineup row. */
+/**
+ * Public projection of one persisted event-lineup row — exactly the replicated
+ * `event_lineup_item` row, nothing more.
+ *
+ * D-036: this deliberately carries NO catalog enrichment. It used to spread
+ * seven conditional keys off a `CatalogVariant` (imageUrl, brand, productType,
+ * sku, color, size, condition), which the Zero rung could not reproduce: ZQL
+ * has no projection layer, so its leaf served a NESTED `product` relation
+ * instead and the two transports disagreed about the shape of the same query.
+ *
+ * Catalog data reaches clients by COMPOSITION, which is what the buyer surface
+ * already does — it reads `catalog.page` as its own query (BuyerTab.tsx) and
+ * never consumed these keys. Relating this query to `storefront_product` would
+ * also have put `qty`, `reserved_qty`, `price_cents` and `active` — the
+ * seller's inventory position and base-price structure — on a PUBLIC buyer
+ * read, since that table is published whole.
+ *
+ * ⚠ Do not re-add a catalog field here without changing the Zero leaf in the
+ * same commit. The differential parity harness will catch it, but the cheaper
+ * moment to notice is now.
+ */
 export interface BuyerLineupItem {
   eventId: string;
   eventItemId: string;
@@ -21,19 +40,27 @@ export interface BuyerLineupItem {
   currentQuantity: number;
   position: number;
   stageState: ActionItemStageState;
-  imageUrl?: string;
-  brand?: string;
-  productType?: string;
-  sku?: string;
-  color?: string;
-  size?: string;
-  condition?: string | null;
+  /**
+   * D-037: the last four columns of the replicated row. REST serves them
+   * because it has no choice: `event_lineup_item` is published WITHOUT a
+   * column list, and ZQL has no projection layer — so the Zero rung serves
+   * every published column and a leaf CANNOT opt out of one. Withholding them
+   * here would just re-open the drift D-024 closed.
+   *
+   * None is sensitive: `attributes` are buyer-facing descriptors (already
+   * served on `event.actions.items`), `version` is the optimistic-concurrency
+   * token a client needs to write safely, and the timestamps are integer epoch
+   * millis per D-026. If one ever DOES become sensitive, the fix is to drop it
+   * from the publication — the publication is the privacy boundary (D-027) —
+   * not to quietly omit it from this DTO.
+   */
+  attributes: Record<string, string | number | boolean>;
+  version: number;
+  createdAt: number;
+  updatedAt: number;
 }
 
-function projectBuyerLineupItem(
-  item: StoredActionEventItem,
-  variant: CatalogVariant | undefined,
-): BuyerLineupItem {
+function projectBuyerLineupItem(item: StoredActionEventItem): BuyerLineupItem {
   return {
     eventId: item.eventId,
     eventItemId: item.eventItemId,
@@ -46,25 +73,21 @@ function projectBuyerLineupItem(
     currentQuantity: item.currentQuantity,
     position: item.position,
     stageState: item.stageState,
-    ...(variant?.imageUrl ? { imageUrl: variant.imageUrl } : {}),
-    ...(variant?.brand ? { brand: variant.brand } : {}),
-    ...(variant?.productType ? { productType: variant.productType } : {}),
-    ...(variant?.sku ? { sku: variant.sku } : {}),
-    ...(variant?.color ? { color: variant.color } : {}),
-    ...(variant?.size ? { size: variant.size } : {}),
-    ...(variant ? { condition: variant.condition } : {}),
+    attributes: { ...item.attributes },
+    version: item.version,
+    createdAt: item.createdAt,
+    updatedAt: item.updatedAt,
   };
 }
 
 /**
- * Enrich presentation only. Event price, allocation, order, and stage state
- * always come from the persisted lineup authority, never the global catalog.
+ * Event price, allocation, order, and stage state always come from the
+ * persisted lineup authority, never the global catalog. D-036 removed the
+ * catalog lookup entirely, so this no longer needs a `CatalogSource` — and is
+ * no longer async-per-row.
  */
-export async function projectBuyerLineupItems(
+export function projectBuyerLineupItems(
   items: readonly StoredActionEventItem[],
-  catalog: CatalogSource,
-): Promise<BuyerLineupItem[]> {
-  return Promise.all(items.map(async (item) => (
-    projectBuyerLineupItem(item, await catalog.variant(item.productId))
-  )));
+): BuyerLineupItem[] {
+  return items.map(projectBuyerLineupItem);
 }
