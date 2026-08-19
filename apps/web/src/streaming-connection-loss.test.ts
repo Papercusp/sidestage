@@ -24,14 +24,22 @@ const room: EventRoom = {
  * to `closed` and fires the same handler a real fault would.
  */
 function fakePeerConnection() {
+  const connectionStateListeners = new Set<() => void>();
   const pc = {
-    connectionState: 'new' as RTCPeerConnectionState,
+    // A normal connect reaches `connected` before the transport returns the
+    // session. Individual tests move this to `connecting` when exercising the
+    // accepted-but-never-established path.
+    connectionState: 'connected' as RTCPeerConnectionState,
     // 'complete' up front so `waitForIceGatheringComplete` resolves immediately;
     // these tests are about connection LOSS, not the gathering handshake.
     iceGatheringState: 'complete' as RTCIceGatheringState,
     onicegatheringstatechange: null as null | (() => void),
-    addEventListener: () => {},
-    removeEventListener: () => {},
+    addEventListener: (type: string, listener: () => void) => {
+      if (type === 'connectionstatechange') connectionStateListeners.add(listener);
+    },
+    removeEventListener: (type: string, listener: () => void) => {
+      if (type === 'connectionstatechange') connectionStateListeners.delete(listener);
+    },
     onconnectionstatechange: null as null | (() => void),
     ontrack: null as null | ((event: RTCTrackEvent) => void),
     localDescription: { type: 'offer', sdp: 'v=0' },
@@ -49,6 +57,7 @@ function fakePeerConnection() {
     transitionTo(state: RTCPeerConnectionState) {
       pc.connectionState = state;
       pc.onconnectionstatechange?.();
+      for (const listener of connectionStateListeners) listener();
     },
   };
   return pc;
@@ -69,6 +78,54 @@ const mediaDevices = {
 };
 
 describe('established-connection loss is reported', () => {
+  it('waits for the peer connection to establish before returning the accepted WHEP session', async () => {
+    const pc = fakePeerConnection();
+    pc.connectionState = 'connecting';
+
+    const connecting = connectViewer({
+      room,
+      mediaBaseUrl: 'http://media.test',
+      connectionEstablishmentTimeoutMs: 200,
+      fetchImpl: fakeFetch(),
+      peerConnectionFactory: () => pc as unknown as RTCPeerConnection,
+      mediaStreamFactory: () => ({ getTracks: () => [], addTrack: () => {} }) as unknown as MediaStream,
+    });
+
+    globalThis.setTimeout(() => pc.transitionTo('connected'), 10);
+    await expect(connecting).resolves.toMatchObject({
+      resourceUrl: 'http://media.test/whip/resource/1',
+    });
+  });
+
+  it('rejects and releases a WHEP session that MediaMTX accepted but ICE never established', async () => {
+    const pc = fakePeerConnection();
+    pc.connectionState = 'connecting';
+    const methods: Array<string | undefined> = [];
+
+    await expect(connectViewer({
+      room,
+      mediaBaseUrl: 'http://media.test',
+      connectionEstablishmentTimeoutMs: 20,
+      fetchImpl: (async (_url, init) => {
+        methods.push(init?.method);
+        return {
+          ok: true,
+          status: init?.method === 'OPTIONS' ? 204 : 201,
+          headers: new Headers(init?.method === 'POST' ? { Location: '/whep/resource/1' } : {}),
+          text: async () => 'v=0',
+        } as Response;
+      }) as typeof fetch,
+      peerConnectionFactory: () => pc as unknown as RTCPeerConnection,
+      mediaStreamFactory: () => ({ getTracks: () => [], addTrack: () => {} }) as unknown as MediaStream,
+    })).rejects.toMatchObject({
+      name: 'MediaTransportError',
+      message: expect.stringContaining('did not establish'),
+    });
+
+    expect(pc.connectionState).toBe('closed');
+    expect(methods).toEqual(['OPTIONS', 'POST', 'DELETE']);
+  });
+
   it('publisher: reports a failed connection so the seller learns the broadcast died', async () => {
     const pc = fakePeerConnection();
     const lost: RTCPeerConnectionState[] = [];

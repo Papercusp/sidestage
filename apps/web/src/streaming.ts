@@ -69,6 +69,8 @@ export interface PublisherOptions extends StreamingConfig {
   readonly mediaAcquireTimeoutMs?: number;
   /** Budget for ICE gathering before the offer is sent as-is (default 10s). */
   readonly iceGatheringTimeoutMs?: number;
+  /** Deadline for the accepted peer connection to establish (default 15s). */
+  readonly connectionEstablishmentTimeoutMs?: number;
   /**
    * Called when an ESTABLISHED publish falls over (see `isLostConnectionState`).
    * Without this the seller keeps "broadcasting" to an empty path: the
@@ -86,6 +88,8 @@ export interface ViewerOptions extends StreamingConfig {
   readonly onTrack?: (stream: MediaStream, event: RTCTrackEvent) => void;
   /** Budget for ICE gathering before the offer is sent as-is (default 10s). */
   readonly iceGatheringTimeoutMs?: number;
+  /** Deadline for the accepted peer connection to establish (default 15s). */
+  readonly connectionEstablishmentTimeoutMs?: number;
   /**
    * Called when an ESTABLISHED subscription falls over. The WHEP 404 retry only
    * covers "the publisher has not started yet"; a stream that arrives and then
@@ -242,6 +246,14 @@ export function buildMediaEndpoint(
 export const DEFAULT_ICE_GATHERING_TIMEOUT_MS = 10_000;
 
 /**
+ * How long an SDP-accepted WHIP/WHEP session may remain without an established
+ * ICE path. MediaMTX can accept the offer and return `201` even when no
+ * candidate pair ever succeeds; treating that response as "live" leaves a
+ * seller broadcasting to nobody or a buyer staring at a black player.
+ */
+export const DEFAULT_PEER_CONNECTION_ESTABLISHMENT_TIMEOUT_MS = 15_000;
+
+/**
  * Whether gathering finished, or the budget expired with candidates still
  * outstanding. `partial` is a normal, shippable outcome — not an error.
  */
@@ -293,6 +305,66 @@ export function waitForIceGatheringComplete(
     // A state transition can happen between the initial check and installing
     // the handler, especially in test doubles and fast local connections.
     if (peerConnection.iceGatheringState === 'complete') settle('complete');
+  });
+}
+
+/**
+ * A successful WHIP/WHEP POST proves only that MediaMTX accepted the SDP. It
+ * does not prove that ICE found a usable path. Wait for the browser's actual
+ * transport state before returning a session to the UI, so `useStreamSession`
+ * cannot promote an accepted-but-black connection to `live`.
+ *
+ * The feature-detection branch keeps the transport usable with deliberately
+ * small RTCPeerConnection test doubles and older embedded WebRTC shims. Real
+ * browsers expose at least one of these state properties.
+ */
+export function waitForPeerConnectionEstablished(
+  peerConnection: RTCPeerConnection,
+  timeoutMs = DEFAULT_PEER_CONNECTION_ESTABLISHMENT_TIMEOUT_MS,
+): Promise<void> {
+  const hasConnectionState = typeof peerConnection.connectionState === 'string';
+  const hasIceConnectionState = typeof peerConnection.iceConnectionState === 'string';
+  if (!hasConnectionState && !hasIceConnectionState) return Promise.resolve();
+
+  const established = () =>
+    peerConnection.connectionState === 'connected'
+    || peerConnection.iceConnectionState === 'connected'
+    || peerConnection.iceConnectionState === 'completed';
+  const terminal = () =>
+    peerConnection.connectionState === 'failed'
+    || peerConnection.connectionState === 'closed'
+    || peerConnection.iceConnectionState === 'failed'
+    || peerConnection.iceConnectionState === 'closed';
+
+  if (established()) return Promise.resolve();
+
+  return new Promise((resolve, reject) => {
+    let settled = false;
+    const failed = () => new MediaTransportError(
+      'The media server accepted the session, but the network connection did not establish. Check your firewall or VPN, then try again.',
+    );
+    const cleanup = () => {
+      globalThis.clearTimeout(timeout);
+      peerConnection.removeEventListener('connectionstatechange', check);
+      peerConnection.removeEventListener('iceconnectionstatechange', check);
+    };
+    const settle = (error?: MediaTransportError) => {
+      if (settled) return;
+      settled = true;
+      cleanup();
+      if (error) reject(error);
+      else resolve();
+    };
+    const check = () => {
+      if (established()) settle();
+      else if (terminal()) settle(failed());
+    };
+    const timeout = globalThis.setTimeout(() => settle(failed()), timeoutMs);
+
+    peerConnection.addEventListener('connectionstatechange', check);
+    peerConnection.addEventListener('iceconnectionstatechange', check);
+    // The state can change between the initial check and listener install.
+    check();
   });
 }
 
@@ -447,9 +519,18 @@ export async function connectPublisher(options: PublisherOptions): Promise<Publi
       fetchImpl,
       options.iceGatheringTimeoutMs,
     );
+    await waitForPeerConnectionEstablished(
+      peerConnection,
+      options.connectionEstablishmentTimeoutMs,
+    );
   } catch (error) {
     stopTracks(localStream);
     peerConnection.close();
+    try {
+      await deleteResource(resourceUrl, fetchImpl);
+    } catch {
+      // Preserve the connection failure; cleanup is best-effort on that path.
+    }
     throw error;
   }
 
@@ -495,8 +576,17 @@ export async function connectViewer(options: ViewerOptions): Promise<ViewerSessi
       fetchImpl,
       options.iceGatheringTimeoutMs,
     );
+    await waitForPeerConnectionEstablished(
+      peerConnection,
+      options.connectionEstablishmentTimeoutMs,
+    );
   } catch (error) {
     peerConnection.close();
+    try {
+      await deleteResource(resourceUrl, fetchImpl);
+    } catch {
+      // Preserve the connection failure; cleanup is best-effort on that path.
+    }
     throw error;
   }
 
