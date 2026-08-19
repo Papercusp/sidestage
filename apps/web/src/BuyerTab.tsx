@@ -8,11 +8,7 @@ import {
   type BuyerStats,
 } from './buyer';
 import {
-  catalogDemoDataEnabled,
-  type CatalogPage,
-  OFFLINE_FIXTURE,
   resolveApiBaseUrl,
-  variantToBuyerProduct,
 } from './catalog';
 import { EventChat } from './EventChat';
 import { DEFAULT_EVENT_ID, DEFAULT_EVENT_TITLE } from './event-identity';
@@ -60,24 +56,73 @@ export interface BuyerTabProps {
   thumbnailUrl?: string;
   /** Supplied by the shared app shell/tests; standalone embeds fetch GET /events. */
   guideEvents?: readonly GuideEvent[];
-  /** Test/embed override; production builds default false via import.meta.env.DEV. */
+  /** Legacy embed option; Watch never falls back to demo products. */
   allowDemoData?: boolean;
 }
 
 const EMPTY_BUYER_STATS: BuyerStats = { viewers: 0, itemsSold: 0, totalRaisedCents: 0 };
+const EMPTY_HOLD_OVERRIDES: Readonly<Record<string, number>> = Object.freeze({});
 export const BUYER_PRODUCT_PREVIEW_LIMIT = 3;
+
+export interface BuyerLineupItem {
+  eventId: string;
+  eventItemId: string;
+  productId: string;
+  title: string;
+  description?: string;
+  referencePriceCents: number;
+  currentPriceCents: number;
+  listedQuantity: number;
+  currentQuantity: number;
+  position: number;
+  stageState: 'queued' | 'on-stage' | 'completed';
+  attributes: Record<string, string | number | boolean>;
+  version: number;
+  createdAt: number;
+  updatedAt: number;
+}
 
 export function buyerStatsFromSyncRows(rows?: readonly BuyerStats[]): BuyerStats | null {
   return rows?.[0] ?? null;
 }
 
-export function buyerProductsFromSyncRows(
-  rows: readonly CatalogPage[] | undefined,
-  offline: boolean,
-  allowDemoData: boolean = catalogDemoDataEnabled(),
+export function lineupItemToBuyerProduct(item: BuyerLineupItem): BuyerProduct {
+  return {
+    id: item.productId,
+    eventId: item.eventId,
+    eventItemId: item.eventItemId,
+    title: item.title,
+    subtitle: item.description ?? 'Available in this event',
+    ...(item.description ? { description: item.description } : {}),
+    priceCents: item.currentPriceCents,
+    ...(item.referencePriceCents > item.currentPriceCents
+      ? { compareAtPriceCents: item.referencePriceCents }
+      : {}),
+    availableQty: item.currentQuantity,
+    ...(item.stageState === 'on-stage' ? { badge: 'Live now' } : {}),
+  };
+}
+
+export function lineupItemsForEvent(
+  rows: readonly BuyerLineupItem[] | undefined,
+  eventId: string,
+): BuyerLineupItem[] {
+  return (rows ?? [])
+    .filter((item) => item.eventId === eventId)
+    .sort((left, right) => (
+      left.position - right.position || left.eventItemId.localeCompare(right.eventItemId)
+    ));
+}
+
+export function buyerProductsFromLineupRows(
+  rows: readonly BuyerLineupItem[] | undefined,
+  eventId: string,
 ): BuyerProduct[] {
-  const variants = offline ? allowDemoData ? OFFLINE_FIXTURE : [] : rows?.[0]?.rows ?? [];
-  return variants.map(variantToBuyerProduct);
+  return lineupItemsForEvent(rows, eventId).map(lineupItemToBuyerProduct);
+}
+
+function isUnknownEventLineupError(error: Error | null): boolean {
+  return Boolean(error && /unknown event/i.test(error.message));
 }
 
 export async function openOrHoldBuyerProduct(
@@ -101,7 +146,6 @@ export function BuyerTab({
   origin,
   thumbnailUrl: thumbnailUrlProp,
   guideEvents: guideEventsProp,
-  allowDemoData = catalogDemoDataEnabled(),
 }: BuyerTabProps) {
   /* The app shell owns the persistent guide. Standalone renders still read the
      same directory so the active room title and thumbnail stay authoritative. */
@@ -153,38 +197,61 @@ export function BuyerTab({
   // NOTE: the transcript presentation is built further down, after
   // `useStreamSession` — it needs that hook's `streamState` to decide whether
   // the captions it holds may call themselves live (WI-39839).
-  // The event's product rail comes from the ONE catalog source (P-102): the
-  // API read model when reachable; explicit development builds may use the
-  // shared fixture, while production source loss renders no inventory.
-  // REST-pinned on purpose: catalog.page has no Zero leaf (contract collision
-  // — see UNSYNCED_QUERY_REASONS in libs/zero), so a transport-following
-  // useSyncQuery would break on the WEBSOCKETS rung.
-  const catalogQuery = useRestSyncQuery<CatalogPage>({
-    queryName: 'catalog.page',
-    args: { availability: 'in-stock', pageSize: 6 },
+  // D-001/D-002: Watch is an event-lineup surface, never a global catalog
+  // browse surface. This query is registered on both REST and Zero, so it must
+  // follow the active sync transport to receive seller stage changes without
+  // waiting for the polling fallback interval.
+  const lineupQuery = useSyncQuery<BuyerLineupItem>({
+    queryName: 'event.lineup.items',
+    args: { eventId },
     enabled: !productsProp,
     pollIntervalMs: 10_000,
+    staleTime: 0,
   });
-  const catalogProducts = useMemo(
-    () => buyerProductsFromSyncRows(catalogQuery.data, Boolean(catalogQuery.error), allowDemoData),
-    [allowDemoData, catalogQuery.data, catalogQuery.error],
+  // Polling intentionally retains placeholder data across args-key changes.
+  // Filter by the selected event before adapting so the old room's lineup can
+  // never flash in the new one while its request is in flight.
+  const lineupItems = useMemo(
+    () => lineupItemsForEvent(lineupQuery.data, eventId),
+    [eventId, lineupQuery.data],
   );
-  const products = productsProp ?? catalogProducts;
-  const catalogUnavailable = productsProp === undefined && Boolean(catalogQuery.error) && !allowDemoData;
+  const lineupProducts = useMemo(
+    () => lineupItems.map(lineupItemToBuyerProduct),
+    [lineupItems],
+  );
+  const lineupLoading = productsProp === undefined && (lineupQuery.loading || lineupQuery.fetching);
+  const lineupError = productsProp === undefined ? lineupQuery.error : null;
+  const lineupState = productsProp !== undefined
+    ? 'override'
+    : lineupError
+      ? isUnknownEventLineupError(lineupError) ? 'unpublished' : 'error'
+      : lineupLoading
+        ? 'loading'
+        : lineupProducts.length === 0 ? 'empty' : 'ready';
+  const products = productsProp ?? (lineupState === 'ready' ? lineupProducts : []);
   // The current room is one row in the same live guide, so its thumbnail and
   // title advance atomically when a seller republishes event config.
   const thumbnailUrl = thumbnailUrlProp ?? activeGuideEvent?.thumbnailUrl;
   const room = useMemo(() => createEventRoom(eventId, origin), [eventId, origin]);
-  const [holdNotice, setHoldNotice] = useState<string | null>(null);
+  const [holdNoticeState, setHoldNoticeState] = useState({ eventId, value: null as string | null });
+  const holdNotice = holdNoticeState.eventId === eventId ? holdNoticeState.value : null;
   /** True while the room is live but no seller is publishing to it yet. */
   const [waitingForPublisher, setWaitingForPublisher] = useState(false);
-  const [holdOverrides, setHoldOverrides] = useState<Record<string, number>>({});
-  const [showAllProducts, setShowAllProducts] = useState(false);
+  const [holdOverridesState, setHoldOverridesState] = useState({
+    eventId,
+    value: EMPTY_HOLD_OVERRIDES as Record<string, number>,
+  });
+  const holdOverrides = holdOverridesState.eventId === eventId
+    ? holdOverridesState.value
+    : EMPTY_HOLD_OVERRIDES;
+  const [showAllProductsState, setShowAllProductsState] = useState({ eventId, value: false });
+  const showAllProducts = showAllProductsState.eventId === eventId && showAllProductsState.value;
   // Which product the live auction is on. Lifted out of AuctionPanel (it owns
   // the `event.auction.active` query) because the mobile sticky CTA renders
   // OUTSIDE that slot and must name the same item as the module above it.
   // Derived server state, not user-meaningful — so useState, not nuqs.
-  const [auctionedProductId, setAuctionedProductId] = useState<string | null>(null);
+  const [auctionSelection, setAuctionSelection] = useState({ eventId, productId: null as string | null });
+  const auctionedProductId = auctionSelection.eventId === eventId ? auctionSelection.productId : null;
   const stream = useStreamSession<ViewerSession>();
   const {
     streamState,
@@ -213,10 +280,6 @@ export function BuyerTab({
   const buyerCheckout = useBuyerCheckout();
   const heldProductIds = buyerCheckout?.heldProductIds ?? [];
   const heldProductIdSet = useMemo(() => new Set(heldProductIds), [heldProductIds]);
-
-  useEffect(() => {
-    setShowAllProducts(false);
-  }, [eventId]);
 
   const connectStream = useCallback(() =>
     startStream(
@@ -385,20 +448,35 @@ export function BuyerTab({
       if (!buyerCheckout) throw new Error('Buyer checkout is unavailable');
       const outcome = await openOrHoldBuyerProduct(product, buyerCheckout);
       if (outcome === 'opened') return;
-      setHoldNotice(`${product.title} is held for you.`);
-      setHoldOverrides((current) => ({
-        ...current,
-        [product.id]: Math.max(0, (current[product.id] ?? product.availableQty) - 1),
+      setHoldNoticeState({ eventId, value: `${product.title} is held for you.` });
+      setHoldOverridesState((current) => ({
+        eventId,
+        value: {
+          ...(current.eventId === eventId ? current.value : EMPTY_HOLD_OVERRIDES),
+          [product.id]: Math.max(
+            0,
+            ((current.eventId === eventId ? current.value[product.id] : undefined) ?? product.availableQty) - 1,
+          ),
+        },
       }));
-      catalogQuery.invalidate?.();
+      lineupQuery.invalidate?.();
     } catch (error) {
       if (error instanceof Error && /insufficient available quantity/i.test(error.message)) {
-        setHoldNotice(`${product.title} just sold out.`);
-        setHoldOverrides((current) => ({ ...current, [product.id]: 0 }));
-        catalogQuery.invalidate?.();
+        setHoldNoticeState({ eventId, value: `${product.title} just sold out.` });
+        setHoldOverridesState((current) => ({
+          eventId,
+          value: {
+            ...(current.eventId === eventId ? current.value : EMPTY_HOLD_OVERRIDES),
+            [product.id]: 0,
+          },
+        }));
+        lineupQuery.invalidate?.();
         return;
       }
-      setHoldNotice('The hold could not be placed — check your connection and try again.');
+      setHoldNoticeState({
+        eventId,
+        value: 'The hold could not be placed — check your connection and try again.',
+      });
     }
   };
 
@@ -414,7 +492,17 @@ export function BuyerTab({
   const auctionedProduct = auctionedProductId
     ? productsWithLiveQuantity.find((product) => product.id === auctionedProductId) ?? null
     : null;
-  const currentProduct = auctionedProduct ?? visibleProducts[0] ?? productsWithLiveQuantity[0] ?? null;
+  const onStageProductId = productsProp === undefined
+    ? lineupItems.find((item) => item.stageState === 'on-stage')?.productId ?? null
+    : null;
+  const onStageProduct = onStageProductId
+    ? productsWithLiveQuantity.find((product) => product.id === onStageProductId) ?? null
+    : null;
+  const currentProduct = auctionedProduct
+    ?? onStageProduct
+    ?? visibleProducts[0]
+    ?? productsWithLiveQuantity[0]
+    ?? null;
   const currentProductPosition = currentProduct
     ? productsWithLiveQuantity.findIndex((product) => product.id === currentProduct.id) + 1
     : 0;
@@ -455,12 +543,6 @@ export function BuyerTab({
           </div>
         </div>
       </header>
-
-      {catalogUnavailable ? (
-        <p className="buyer-catalog-unavailable" role="alert">
-          Live inventory is unavailable. No products are shown until the durable catalog reconnects.
-        </p>
-      ) : null}
 
       <section className="buyer-stage-grid" aria-label="Live video and current offer">
         <div className="buyer-stage-primary">
@@ -532,7 +614,7 @@ export function BuyerTab({
           bidderId={userId}
           displayName={userId}
           apiBaseUrl={import.meta.env.VITE_API_URL}
-          onActiveAuctionProductChange={setAuctionedProductId}
+          onActiveAuctionProductChange={(productId) => setAuctionSelection({ eventId, productId })}
           idleContent={(
             <article
               className="buyer-current-offer"
@@ -599,7 +681,15 @@ export function BuyerTab({
               <span className="muted">
                 {currentProductPosition > 0
                   ? `Item ${currentProductPosition} of ${totalProductCount} live now`
-                  : 'The lineup is waiting to be published'}
+                  : lineupState === 'loading'
+                    ? 'Loading the event lineup'
+                    : lineupState === 'unpublished'
+                      ? 'Event unavailable'
+                      : lineupState === 'error'
+                        ? 'Lineup unavailable'
+                        : lineupState === 'empty'
+                          ? 'Published lineup is empty'
+                          : 'The lineup is waiting to be published'}
               </span>
             </header>
 
@@ -625,18 +715,34 @@ export function BuyerTab({
 
             {holdNotice && heldProductIds.length > 0 ? <p className="buyer-hold-notice" role="status">{holdNotice}</p> : null}
             <div id="buyer-event-products" className="buyer-products-shell" aria-label="Event products">
-              <BuyerProductRail
-                products={displayedProducts}
-                heldProductIds={heldProductIds}
-                sequenceByProductId={productSequenceById}
-                currentSequenceNumber={currentProductPosition}
-                totalProducts={totalProductCount}
-                ariaLabel={showAllProducts ? 'Products in sale order' : 'Upcoming products in sale order'}
-                onHold={reserveProduct}
-              />
+              {lineupState === 'loading' ? (
+                <div className="buyer-rail-empty" role="status">Loading this event’s lineup…</div>
+              ) : lineupState === 'unpublished' ? (
+                <div className="buyer-rail-empty buyer-lineup-error" role="alert">
+                  This event is not published or is no longer available.
+                </div>
+              ) : lineupState === 'error' ? (
+                <div className="buyer-rail-empty buyer-lineup-error" role="alert">
+                  The event lineup could not be loaded. Check your connection and try again.
+                </div>
+              ) : lineupState === 'empty' ? (
+                <div className="buyer-rail-empty" role="status">
+                  This published event does not have any lineup items yet.
+                </div>
+              ) : (
+                <BuyerProductRail
+                  products={displayedProducts}
+                  heldProductIds={heldProductIds}
+                  sequenceByProductId={productSequenceById}
+                  currentSequenceNumber={currentProductPosition}
+                  totalProducts={totalProductCount}
+                  ariaLabel={showAllProducts ? 'Products in sale order' : 'Upcoming products in sale order'}
+                  onHold={reserveProduct}
+                />
+              )}
             </div>
 
-            <footer className="buyer-runway-footer">
+            {lineupState === 'ready' || lineupState === 'override' ? <footer className="buyer-runway-footer">
               <p>
                 <strong>{visibleProducts.length}</strong> available
                 {upcomingProducts.length > BUYER_PRODUCT_PREVIEW_LIMIT && !showAllProducts
@@ -649,14 +755,17 @@ export function BuyerTab({
                   type="button"
                   aria-controls="buyer-event-products"
                   aria-expanded={showAllProducts}
-                  onClick={() => setShowAllProducts((current) => !current)}
+                  onClick={() => setShowAllProductsState((current) => ({
+                    eventId,
+                    value: !(current.eventId === eventId && current.value),
+                  }))}
                 >
                   {showAllProducts
                     ? `Show next ${BUYER_PRODUCT_PREVIEW_LIMIT}`
                     : `View all ${productsWithLiveQuantity.length} items`}
                 </button>
               ) : null}
-            </footer>
+            </footer> : null}
           </section>
         </div>
       </div>
