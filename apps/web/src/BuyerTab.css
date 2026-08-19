@@ -764,12 +764,8 @@
 .buyer-held-items-button { gap: .45rem; }
 .buyer-held-items-button span { display: inline-grid; place-items: center; min-width: 1.45rem; height: 1.45rem; padding: 0 .35rem; border-radius: 999px; background: var(--brand-red); color: white; font-size: .7rem; font-weight: 800; }
 
-.buyer-catalog-unavailable {
-  margin: 0;
-  padding: 0.75rem 0.9rem;
-  border: 1px solid color-mix(in srgb, var(--danger) 35%, var(--border));
-  border-radius: var(--radius-control);
+.buyer-lineup-error {
+  border-color: color-mix(in srgb, var(--danger) 35%, var(--border));
   color: var(--danger);
   background: color-mix(in srgb, var(--danger) 7%, var(--surface-raised));
-  font-size: 0.8rem;
 }
