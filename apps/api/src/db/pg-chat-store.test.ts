@@ -33,6 +33,10 @@ function row(message: ChatMessage = MESSAGE) {
     grounding: message.grounding ?? null,
     client_request_id: message.clientRequestId ?? null,
     created_at: message.createdAt,
+    // D-029: every read path selects moderated_at so `toMessage` can emit the
+    // key. It is null on every delivered row (each query carries
+    // `moderated_at IS NULL`), which is exactly what this fake row reproduces.
+    moderated_at: null,
   };
 }
 
@@ -48,7 +52,7 @@ describe('PgChatStore durable authority', () => {
     const harness = transactionalPool((sql) => {
       if (sql.includes('INSERT INTO chat_message')) return { rows: [row()] };
       if (sql.includes('INSERT INTO chat_presence')) {
-        return { rows: [{ user_id: 'buyer-1', display_name: 'Maya', role: 'buyer', last_seen_at: MESSAGE.createdAt }] };
+        return { rows: [{ event_id: MESSAGE.eventId, user_id: 'buyer-1', display_name: 'Maya', role: 'buyer', last_seen_at: MESSAGE.createdAt }] };
       }
       return { rows: [] };
     });
@@ -176,11 +180,16 @@ describe('PgChatStore presence expiry', () => {
 
   it('bounds the presence read by the freshness cutoff', async () => {
     const harness = pool(() => ({
-      rows: [{ user_id: 'buyer-1', display_name: 'Maya', role: 'buyer', last_seen_at: '2026-08-14T18:00:30.000Z' }],
+      rows: [{ event_id: 'event-1', user_id: 'buyer-1', display_name: 'Maya', role: 'buyer', last_seen_at: '2026-08-14T18:00:30.000Z' }],
     }));
 
+    // `eventId` is asserted explicitly (D-029): the Zero rung replicates
+    // chat_presence, whose primary key is (event_id, user_id), so a REST row
+    // that omitted it drifted from the WS rung. Note toEqual would NOT have
+    // caught its absence — it treats an undefined-valued key as missing — so
+    // the fake row must carry event_id for this to pin anything.
     await expect(new PgChatStore(harness.pool).listPresence('event-1', '2026-08-14T18:00:00.000Z')).resolves.toEqual([
-      { userId: 'buyer-1', displayName: 'Maya', role: 'buyer', lastSeenAt: '2026-08-14T18:00:30.000Z' },
+      { eventId: 'event-1', userId: 'buyer-1', displayName: 'Maya', role: 'buyer', lastSeenAt: '2026-08-14T18:00:30.000Z' },
     ]);
     expect(harness.query.mock.calls[0]?.[0]).toContain('last_seen_at >= $2');
   });

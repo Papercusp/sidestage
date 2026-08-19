@@ -259,6 +259,60 @@ describe('diffQueryShape', () => {
     expect(diff.findings.join('\n')).toContain('priceCents');
   });
 
+  // ── D-026: encoding drift is its own finding class ────────────────────────
+
+  it('D-026 — reports a string-vs-number key ONCE as an encoding mismatch, not once per row', () => {
+    // The real shape of the defect: every timestamp on every query. Three rows
+    // drift identically, which in the per-field value list rendered as three
+    // unrelated-looking lines whose common cause (the TYPE) had to be inferred.
+    const diff = diffQueryShape({
+      ...base,
+      restRows: [
+        { id: 'a', createdAt: '2026-08-19T00:45:56.988Z' },
+        { id: 'b', createdAt: '2026-08-19T00:45:57.988Z' },
+        { id: 'c', createdAt: '2026-08-19T00:45:58.988Z' },
+      ],
+      zeroResult: [
+        { id: 'a', createdAt: 1787100356988 },
+        { id: 'b', createdAt: 1787100357988 },
+        { id: 'c', createdAt: 1787100358988 },
+      ],
+      minRows: 3,
+    });
+    expect(diff.encodingMismatches).toEqual(['createdAt']);
+    const encodingLines = diff.findings.filter((f) => f.includes('ENCODING MISMATCH'));
+    expect(encodingLines).toHaveLength(1);
+    expect(encodingLines[0]).toContain('REST serves string, Zero serves number');
+    expect(encodingLines[0]).toContain('3 of 3');
+    // …and it must NOT ALSO appear as three per-row value lines, which is the
+    // noise this class exists to remove.
+    expect(diff.findings.filter((f) => /^id=/.test(f))).toEqual([]);
+  });
+
+  it('CONTROL — a same-type value difference is NOT an encoding mismatch', () => {
+    // Without this control the new class could be a catch-all that swallows
+    // ordinary value drift, which would make the harness quieter and weaker.
+    const diff = diffQueryShape({
+      ...base,
+      restRows: [{ id: 'a', priceCents: 1500 }],
+      zeroResult: [{ id: 'a', priceCents: 1200 }],
+    });
+    expect(diff.encodingMismatches).toEqual([]);
+    expect(diff.findings.join('\n')).toContain('priceCents');
+  });
+
+  it('CONTROL — null on one side is a VALUE difference, not an encoding mismatch', () => {
+    // A row simply having no value is not the two rungs disagreeing about the
+    // field's type; reporting it as one would blame the contract for the data.
+    const diff = diffQueryShape({
+      ...base,
+      restRows: [{ id: 'a', moderatedAt: null }],
+      zeroResult: [{ id: 'a', moderatedAt: 1787100356988 }],
+    });
+    expect(diff.encodingMismatches).toEqual([]);
+    expect(diff.findings.join('\n')).toContain('moderatedAt');
+  });
+
   it('ignores key ORDER within a row', () => {
     const diff = diffQueryShape({
       ...base,

@@ -194,6 +194,12 @@ export type ShapeDiff = {
   keysMissingOnZero: string[];
   /** Keys on Zero rows that never appear on a REST row. */
   keysMissingOnRest: string[];
+  /**
+   * D-026: shared keys whose two rungs disagree on JSON TYPE (e.g. REST serves
+   * an ISO string where Zero serves epoch millis). Reported as its own class
+   * because it is ONE fact about the encoding, not N facts about N rows.
+   */
+  encodingMismatches: string[];
   /** Human-readable findings; EMPTY means the two rungs agree. */
   findings: string[];
 };
@@ -213,6 +219,18 @@ function canonicalize(value: unknown): unknown {
 
 function isRow(value: unknown): value is Record<string, unknown> {
   return !!value && typeof value === 'object' && !Array.isArray(value);
+}
+
+/**
+ * The JSON-level type of a value, which is the granularity the two rungs
+ * actually disagree at. `null` is its own type rather than 'object' so that a
+ * genuinely-absent value is never reported as an encoding mismatch — one rung
+ * having no value for a row is a VALUE difference, not a contract difference.
+ */
+function jsonType(value: unknown): string {
+  if (value === null) return 'null';
+  if (Array.isArray(value)) return 'array';
+  return typeof value;
 }
 
 /** Union of own enumerable keys across every row-shaped entry. */
@@ -385,6 +403,22 @@ export function diffQueryShape(input: {
         `Treat this as unverified, never as parity.`,
     );
   }
+  /**
+   * D-026: an ENCODING mismatch is one fact about the contract, not one per row.
+   *
+   * Every timestamp on every query drifts this way (REST ISO-8601 string vs
+   * Zero epoch millis), so left in the per-field value list a single wrong
+   * encoding renders as N identical-looking lines that read as N unrelated
+   * bugs — and the one thing they have in common, the TYPE, is exactly what the
+   * reader has to reconstruct by eye. Aggregated by key instead, with the row
+   * count kept so a mismatch on 1 of 50 rows is still distinguishable from a
+   * systematic one.
+   *
+   * A key reported here is deliberately NOT also reported per-row below: when
+   * the types differ the value comparison is meaningless, so the extra line
+   * would restate the same finding in a noisier form.
+   */
+  const encodingDrift = new Map<string, { restType: string; zeroType: string; rows: number }>();
   for (const { rest, zero, label } of pairs) {
     if (!isRow(rest) || !isRow(zero)) {
       const a = JSON.stringify(canonicalize(rest));
@@ -394,10 +428,28 @@ export function diffQueryShape(input: {
     }
     for (const key of sharedKeys) {
       if (!(key in rest) || !(key in zero)) continue;
+      const restType = jsonType(rest[key]);
+      const zeroType = jsonType(zero[key]);
+      if (restType !== zeroType && restType !== 'null' && zeroType !== 'null') {
+        const seen = encodingDrift.get(key);
+        if (seen) seen.rows += 1;
+        else encodingDrift.set(key, { restType, zeroType, rows: 1 });
+        continue;
+      }
       const a = JSON.stringify(canonicalize(rest[key]));
       const b = JSON.stringify(canonicalize(zero[key]));
       if (a !== b) findings.push(`${label}.${key}: REST=${a} Zero=${b}`);
     }
+  }
+  const encodingMismatches = [...encodingDrift.keys()].sort();
+  for (const key of encodingMismatches) {
+    const { restType, zeroType, rows } = encodingDrift.get(key)!;
+    findings.push(
+      `ENCODING MISMATCH — ${key}: REST serves ${restType}, Zero serves ${zeroType} (${rows} of ${pairs.length} ` +
+        `compared row(s)). The two rungs disagree on the field's TYPE, so no client can consume both. ` +
+        `Per D-026 integer epoch millis is canonical and the REST rung coerces — Zero's mapping is the ` +
+        `library's and there is no projection seam to re-encode it in (D-024).`,
+    );
   }
 
   return {
@@ -409,6 +461,7 @@ export function diffQueryShape(input: {
     vacuous,
     keysMissingOnZero,
     keysMissingOnRest,
+    encodingMismatches,
     findings,
   };
 }
