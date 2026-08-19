@@ -21,35 +21,26 @@ const queryState = vi.hoisted(() => ({
 
 const checkoutState = vi.hoisted(() => ({
   heldProductIds: [] as string[],
-  holdProduct: vi.fn(async () => ({ id: 'cart-1' })),
+  holdProduct: vi.fn<(product: { id: string }) => Promise<{ id: string }>>(
+    async () => ({ id: 'cart-1' }),
+  ),
   openHeldItems: vi.fn(),
 }));
 
-vi.mock('@papercusp/sync', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@papercusp/sync')>();
-  queryState.useSyncQuery.mockImplementation((options: { queryName: string }) => ({
-    data: options.queryName === 'event.lineup.items' ? queryState.rows : [],
-    loading: options.queryName === 'event.lineup.items' && queryState.loading,
-    fetching: options.queryName === 'event.lineup.items' && queryState.fetching,
-    error: options.queryName === 'event.lineup.items' ? queryState.error : null,
-    transport: 'WEBSOCKETS',
-    invalidate: queryState.invalidate,
-  }));
-  return {
-    ...actual,
-    useSyncPrincipal: () => 'lineup-test-buyer',
-    useSyncQuery: queryState.useSyncQuery,
-    useRestSyncQuery: vi.fn(() => ({
-      data: [],
-      loading: false,
-      fetching: false,
-      error: null,
-      transport: 'POLLING',
-      invalidate: vi.fn(),
-    })),
-    useSyncMutate: (_name: string, fallback: (input: unknown) => Promise<unknown>) => fallback,
-  };
-});
+vi.mock('@papercusp/sync', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@papercusp/sync')>()),
+  useSyncPrincipal: () => 'lineup-test-buyer',
+  useSyncQuery: queryState.useSyncQuery,
+  useRestSyncQuery: vi.fn(() => ({
+    data: [],
+    loading: false,
+    fetching: false,
+    error: null,
+    transport: 'POLLING',
+    invalidate: vi.fn(),
+  })),
+  useSyncMutate: (_name: string, fallback: (input: unknown) => Promise<unknown>) => fallback,
+}));
 
 vi.mock('./BuyerCheckout', () => ({
   useBuyerCheckout: () => ({
@@ -122,6 +113,14 @@ describe('BuyerTab event lineup', () => {
     queryState.error = null;
     queryState.invalidate.mockClear();
     queryState.useSyncQuery.mockClear();
+    queryState.useSyncQuery.mockImplementation((options: { queryName: string }) => ({
+      data: options.queryName === 'event.lineup.items' ? queryState.rows : [],
+      loading: options.queryName === 'event.lineup.items' && queryState.loading,
+      fetching: options.queryName === 'event.lineup.items' && queryState.fetching,
+      error: options.queryName === 'event.lineup.items' ? queryState.error : null,
+      transport: 'WEBSOCKETS',
+      invalidate: queryState.invalidate,
+    }));
     checkoutState.heldProductIds = [];
     checkoutState.holdProduct.mockReset();
     checkoutState.holdProduct.mockImplementation(async (product: { id: string }) => {
