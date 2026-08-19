@@ -1,6 +1,6 @@
 /** @vitest-environment jsdom */
 
-import { existsSync, readFileSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
@@ -8,10 +8,14 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { LiveTranscriptOverlay, liveTranscriptStateLabel } from './LiveTranscriptOverlay';
 import type { LiveTranscriptController } from './use-live-transcript';
 
+// Resolve from THIS FILE's directory, never from process.cwd(). The stylesheet
+// is this test's sibling, so the file's own location is the one fact that holds
+// under every invocation root; a cwd-relative pair only covers the roots someone
+// thought to enumerate, and silently ENOENTs from any other (measured: running
+// vitest from libs/chat-protocol, which inherits the root config, failed both
+// this file and buyer-checkout-stripe-overlay.test.ts at collection).
 function readWebStyle(name: string): string {
-  const workspacePath = resolve(process.cwd(), 'src', name);
-  const rootPath = resolve(process.cwd(), 'apps/web/src', name);
-  return readFileSync(existsSync(workspacePath) ? workspacePath : rootPath, 'utf8');
+  return readFileSync(resolve(import.meta.dirname, name), 'utf8');
 }
 
 const overlayCss = readWebStyle('live-transcript-overlay.css');

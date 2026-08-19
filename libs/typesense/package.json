@@ -13,9 +13,13 @@
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "test": "vitest run --passWithNoTests"
+    "test": "vitest run"
   },
   "dependencies": {
     "typesense": "^3.0.5"
+  },
+  "devDependencies": {
+    "@papercusp/test-config": "*",
+    "vitest": "^4.1.4"
   }
 }

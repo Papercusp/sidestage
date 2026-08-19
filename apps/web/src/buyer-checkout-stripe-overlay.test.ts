@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import { existsSync, readFileSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 
@@ -8,13 +8,12 @@ import { afterEach, describe, expect, it } from 'vitest';
 // ships, not a copy of the selector that could drift away from it. Two things
 // rule out the tidier alternatives: a `?raw` import is stubbed out to an empty
 // module by Vitest's default `css: false`, query string included; and under
-// jsdom the global URL is jsdom's own class, which node:fs rejects. Resolving
-// from cwd with a fallback works from either invocation root — same approach as
-// LiveTranscriptOverlay.test.tsx.
+// jsdom the global URL is jsdom's own class, which node:fs rejects. Resolve from
+// THIS FILE's directory (the stylesheet is its sibling) rather than from
+// process.cwd() — same approach as LiveTranscriptOverlay.test.tsx, and see that
+// file for why the cwd-relative pair this replaced was not invocation-safe.
 function readWebStyle(name: string): string {
-  const workspacePath = resolve(process.cwd(), 'src', name);
-  const rootPath = resolve(process.cwd(), 'apps/web/src', name);
-  return readFileSync(existsSync(workspacePath) ? workspacePath : rootPath, 'utf8');
+  return readFileSync(resolve(import.meta.dirname, name), 'utf8');
 }
 
 const checkoutCss = readWebStyle('buyer-checkout.css');

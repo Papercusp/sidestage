@@ -1,5 +1,6 @@
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { sharedHostWorkerCap } from '@papercusp/test-config/vitest-config';
 import { mergeConfig } from 'vite';
 import { defineConfig } from 'vitest/config';
 import webViteConfig from './apps/web/vite.config';
@@ -31,6 +32,11 @@ export default defineConfig({
           environment: 'node',
           include: ['deploy/**/*.test.mjs', 'scripts/**/*.test.mjs'],
           exclude: sourceExclude,
+          // Every project in this topology must agree on maxWorkers — vitest 4
+          // refuses to run projects that share a sequence.groupOrder with
+          // different worker caps, and the libs projects below inherit the
+          // @papercusp/test-config cap.
+          ...sharedHostWorkerCap(),
         },
       },
       {
@@ -63,6 +69,8 @@ export default defineConfig({
            * fails that test rather than silently re-arming the flake.
            */
           env: { DATA_BACKEND: 'memory' },
+          // See the sidestage-deploy project above.
+          ...sharedHostWorkerCap(),
         },
       },
       mergeConfig(webViteConfig, {
@@ -75,9 +83,30 @@ export default defineConfig({
           sequence: { groupOrder: 2 },
           include: ['src/**/*.{test,spec}.{ts,tsx}'],
           exclude: sourceExclude,
+          // See the sidestage-deploy project above.
+          ...sharedHostWorkerCap(),
         },
       }),
 
+      /**
+       * Every workspace under libs/, via ITS OWN config file rather than a
+       * project entry written out here.
+       *
+       * Before this, the root topology was exactly the three projects above, so
+       * `npm run test:file -- libs/sync/src/useRestSyncQuery.test.tsx` answered
+       * "No test files found, exiting with code 1" for 7 files that are green
+       * when run through the package — a FALSE ABSENCE, and the reading an agent
+       * verifying a libs edit gets. Referencing the config files keeps each
+       * package's own environment and setup files (jsdom for the React hooks in
+       * libs/sync, the @papercusp/test-config builder's hermetic-env and leak
+       * ledger elsewhere) instead of re-declaring — and drifting from — them here.
+       *
+       * A new libs workspace is picked up by adding a vitest.config.ts to it;
+       * without one, a workspace-local `vitest run` silently inherits THIS file
+       * and runs the whole monorepo from that directory (measured: 236 files).
+       */
+      'libs/*/vitest.config.ts',
+      'libs/papergrid/*/vitest.config.ts',
     ],
   },
 });

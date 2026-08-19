@@ -39,7 +39,7 @@
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
     "typecheck": "tsc --noEmit -p tsconfig.json",
-    "test": "vitest run --config vitest.config.ts"
+    "test": "vitest run --config vitest.config.ts --passWithNoTests"
   },
   "dependencies": {
     "@rocicorp/zero": "^1.8.0",

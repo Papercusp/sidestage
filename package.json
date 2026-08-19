@@ -21,7 +21,7 @@
     "test:file": "vitest run",
     "history:snapshot": "node scripts/generate-build-history-snapshot.mjs",
     "test:deploy": "vitest run --project sidestage-deploy",
-    "test:libs": "npm run test --workspace @papercusp/sync && npm run test --workspace @papercusp/sse && npm run test --workspace @papercusp/scout-chat",
+    "test:libs": "vitest run --project '!sidestage-*'",
     "test:apps": "npm run test --workspace @papercusp/sidestage-api && npm run test --workspace @papercusp/sidestage-web",
     "release:probe-hygiene": "node deploy/release-probe-hygiene.mjs",
     "verify:tree-state": "node deploy/tree-state.mjs",
