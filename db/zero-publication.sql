@@ -141,7 +141,47 @@ BEGIN
       public.event_config,
       public.event_run_of_show,
       public.auction_state,
-      public.chat_message,
+      -- chat_message is published by COLUMN LIST, and the two omitted columns
+      -- are a SECURITY boundary, not a tidy-up (D-027).
+      --
+      -- event.chat.messages is a PUBLIC query: every buyer in a room reads it.
+      -- The Zero rung has no projection layer (D-024) — a Zero row's shape IS
+      -- the replicated table's shape — so whatever is published here is served
+      -- to subscribers verbatim, and no leaf, query or client can take it back.
+      -- moderated_by and moderation_reason would hand every buyer in the room
+      -- the identity of the moderator and the internal reason a peer's message
+      -- was actioned. The REST rung has never served them (the DTO in
+      -- apps/api/src/chat/chat.service.ts omits all three). So THIS LIST is the
+      -- privacy boundary, and it is the only place the boundary can live.
+      --
+      -- moderated_at IS published, deliberately, and it is not a hole:
+      --   * The leaf FILTERS on it — `.where('moderatedAt','IS',null)` in
+      --     libs/zero/src/queries.ts — so it has to replicate for the WS rung to
+      --     hide moderated messages at all. Dropping it does not harden
+      --     anything; it makes moderated messages VISIBLE.
+      --   * Both rungs return only unmoderated rows (REST does the same filter
+      --     in pg-chat-store.ts:41), so on every row a client can receive the
+      --     value is null by construction. It carries no information about who
+      --     moderated what.
+      --
+      -- Do not add moderated_by/moderation_reason back to "fix" a parity report:
+      -- the correct direction is always to change the REST DTO instead (D-029).
+      --
+      -- `id` is the primary key and must stay listed — a column-list publication
+      -- still has to carry the replica identity, or UPDATE/DELETE cannot be
+      -- described to subscribers.
+      public.chat_message (
+        id,
+        event_id,
+        user_id,
+        display_name,
+        role,
+        text,
+        grounding,
+        client_request_id,
+        created_at,
+        moderated_at
+      ),
       public.chat_presence,
       public.chat_transcript_moment,
       public.copilot_proposal,

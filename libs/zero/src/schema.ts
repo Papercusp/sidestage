@@ -146,9 +146,17 @@ export const chatMessage = table('chatMessage')
     grounding: json().optional(),
     clientRequestId: string().optional().from('client_request_id'),
     createdAt: number().from('created_at'),
+    /**
+     * Present ONLY so the `event.chat.messages` leaf can filter on it
+     * (`.where('moderatedAt','IS',null)`); on every row a client receives it is
+     * therefore null. Its siblings `moderated_by` and `moderation_reason` are
+     * DELIBERATELY ABSENT — they are withheld from zero_publication because
+     * this is a public per-room query and a Zero row's shape is the replicated
+     * table's shape (D-024/D-027). Declaring either here would either leak a
+     * moderator's identity to every buyer or declare a column that never
+     * replicates; zero-publication.parity.test.ts fails on both.
+     */
     moderatedAt: number().optional().from('moderated_at'),
-    moderatedBy: string().optional().from('moderated_by'),
-    moderationReason: string().optional().from('moderation_reason'),
   })
   .primaryKey('id');
 
@@ -612,6 +620,18 @@ export const UNPUBLISHABLE_COLUMNS: Readonly<Record<string, readonly string[]>> 
   // and it is redundant anyway: both operands are replicated, so the client
   // derives it as Math.max(0, qty - reservedQty).
   storefront_product: ['availableQty'],
+  // The only entries here that are unpublishable by POLICY rather than by type.
+  // event.chat.messages is a public per-room query and a Zero row's shape is the
+  // replicated table's shape (D-024), so publishing these would serve every
+  // buyer the moderator's identity and the internal reason a peer's message was
+  // actioned — the REST rung has never served them. The publication is the only
+  // place this boundary can be enforced (D-027).
+  //
+  // moderated_at is NOT listed: the messages leaf filters on it
+  // (`.where('moderatedAt','IS',null)`), so it must replicate for the WS rung to
+  // hide moderated messages at all, and it is null on every row a client can
+  // receive because both rungs return only unmoderated rows.
+  chat_message: ['moderated_by', 'moderation_reason'],
 };
 
 // Row types

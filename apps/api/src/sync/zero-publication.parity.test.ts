@@ -32,7 +32,7 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
-import { REPLICATED_TABLES, UNPUBLISHABLE_COLUMNS } from '@papercusp/sidestage-zero';
+import { REPLICATED_TABLES, UNPUBLISHABLE_COLUMNS, schema } from '@papercusp/sidestage-zero';
 
 const REPO_ROOT = resolve(__dirname, '../../../..');
 const PUBLICATION_SQL = readFileSync(resolve(REPO_ROOT, 'db/zero-publication.sql'), 'utf8');
@@ -61,14 +61,26 @@ function parsePublishedTables(sql: string): PublishedTable[] {
     throw new Error('db/zero-publication.sql no longer contains a CREATE PUBLICATION zero_publication statement');
   }
 
-  const body = sql.slice(start + 'CREATE PUBLICATION zero_publication FOR TABLE'.length);
+  // Strip `--` comments FIRST, before any structural scan. Both scans below are
+  // punctuation-driven — `;` ends the statement, `,` separates entries — and the
+  // comments in this file carry prose, which has both. Stripping afterwards (as
+  // this did originally, per-entry) let a comment silently truncate the parse:
+  // a `;` inside one cut the statement short so most tables read as UNPUBLISHED,
+  // and a `,` cut an entry in half, surfacing as
+  // `could not parse publication entry: "and the two omitted columns"`. Both
+  // present as the SQL being wrong when the parser is.
+  const body = sql
+    .slice(start + 'CREATE PUBLICATION zero_publication FOR TABLE'.length)
+    .replace(/--[^\n]*/g, '');
   const end = body.indexOf(';');
   if (end === -1) throw new Error('unterminated CREATE PUBLICATION statement');
+
+  const statement = body.slice(0, end);
 
   const entries: string[] = [];
   let depth = 0;
   let current = '';
-  for (const ch of body.slice(0, end)) {
+  for (const ch of statement) {
     if (ch === '(') depth += 1;
     if (ch === ')') depth -= 1;
     if (ch === ',' && depth === 0) {
@@ -81,7 +93,7 @@ function parsePublishedTables(sql: string): PublishedTable[] {
   entries.push(current);
 
   return entries
-    .map((entry) => entry.replace(/--[^\n]*/g, '').trim())
+    .map((entry) => entry.trim())
     .filter((entry) => entry.length > 0)
     .map((entry) => {
       const match = /^(?:public\.)?([a-z_][a-z0-9_]*)\s*(?:\(([\s\S]*)\))?$/i.exec(entry);
@@ -177,6 +189,64 @@ describe('zero_publication <-> Zero contract parity', () => {
         ).not.toBeNull();
       }
     }
+  });
+
+  /**
+   * The REVERSE direction of the two tests above, and the one that actually
+   * bites. They ask "is an unpublishable column absent"; this asks "is every
+   * column the contract DOES declare actually published".
+   *
+   * A narrowed table makes that a live hazard. Adding a column to a table in
+   * libs/zero/src/schema.ts is enough on its own for a whole-table publication —
+   * Postgres carries it — but for a table published by column list the new
+   * column simply never replicates. Zero then declares a field the stream never
+   * carries, so the WS rung serves it as undefined while REST serves the real
+   * value: the exact WI-39839 / WI-39855 signature, and silent, because nothing
+   * errors.
+   */
+  it('publishes every contract column of a table narrowed by a column list', () => {
+    const tables = Object.values(schema.tables) as {
+      name: string;
+      serverName?: string;
+      columns: Record<string, { serverName?: string }>;
+    }[];
+    let tablesChecked = 0;
+
+    for (const entry of published) {
+      if (!entry.columns) continue; // whole-table publication: nothing to narrow
+      const table = tables.find((t) => (t.serverName ?? t.name) === entry.name);
+      // A published table the contract does not declare is the table-parity
+      // test's failure to report, not this one's.
+      if (!table) continue;
+
+      const unpublishable = new Set(UNPUBLISHABLE_COLUMNS[entry.name] ?? []);
+      const contractColumns = Object.entries(table.columns)
+        .map(([key, def]) => def.serverName ?? key)
+        .filter((column) => !unpublishable.has(column));
+
+      const missing = contractColumns.filter((column) => !entry.columns!.includes(column));
+      expect(
+        missing,
+        `db/zero-publication.sql publishes ${entry.name} with an explicit column list that omits ` +
+          `${missing.join(', ')}, but the Zero contract declares ${missing.length === 1 ? 'it' : 'them'}. ` +
+          'A contracted column outside the publication never replicates: the WS rung serves it as ' +
+          'undefined while REST serves the real value, with no error on either side. Either add the ' +
+          `column to the list, or — if it must never reach clients — add it to UNPUBLISHABLE_COLUMNS.${entry.name} ` +
+          'and drop it from the contract.',
+      ).toEqual([]);
+
+      tablesChecked += 1;
+    }
+
+    // Positive control. Every assertion above is an ABSENCE, so a lookup that
+    // silently matched no tables would pass this test while measuring nothing —
+    // and it would do so at exactly the moment the contract's shape changed.
+    expect(
+      tablesChecked,
+      'no narrowed table was matched against the contract, so the assertions above ran on an empty ' +
+        'set. Either the publication no longer narrows any table, or the contract-table lookup broke ' +
+        '(a Zero upgrade renaming `serverName` would do it). Fix the instrument before trusting a pass.',
+    ).toBeGreaterThan(0);
   });
 
   it('keeps the publication name in sync with what the compose files pass to zero-cache', () => {
