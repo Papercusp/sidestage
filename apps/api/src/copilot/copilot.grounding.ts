@@ -4,6 +4,7 @@ import type { ActionEventItem } from '../actions/action.types';
 import { CATALOG_SOURCE, type CatalogSource, type CatalogVariant } from '../catalog/catalog.types';
 import { ChatService, type TranscriptMoment } from '../chat/chat.service';
 import { EVENT_POLICY_RESOLVER, type EventPolicyResolver } from '../config/event-policy-resolver';
+import { toEventItemContext, toPricedEventItem } from './grounding-mapping';
 import type {
   CatalogProductContext,
   EventItemContext,
@@ -13,42 +14,6 @@ import type {
   RetrievalRequest,
   TranscriptGroundingContext,
 } from './copilot.types';
-
-/**
- * D-035: THE seam between the lineup row and the copilot's grounding
- * vocabulary. `ActionEventItem` spells its fields with the
- * `event_lineup_item` column names because ZQL replicates that table verbatim
- * (D-024); `EventItemContext` spells them the way the prompt-building code
- * reads them. Those are two different jobs, so the translation is written out
- * once, here, instead of being inherited.
- *
- * Add a field to grounding? Map it in this function. Never re-couple the two
- * interfaces to avoid writing a line of mapping.
- */
-export function toEventItemContext(item: ActionEventItem): EventItemContext {
-  return {
-    eventItemId: item.eventItemId,
-    productId: item.productId,
-    title: item.title,
-    description: item.description,
-    priceCents: item.currentPriceCents,
-    availableQty: item.currentQuantity,
-    // D-024 deleted the stored `onStage` boolean; stage presence is derived
-    // from the one stage truth. `listingStateOf` (copilot.claims) reads this
-    // to tell 'on-stage' from 'listed'.
-    onStage: item.stageState === 'on-stage',
-    attributes: { ...item.attributes },
-  };
-}
-
-/**
- * The priced projection the policy resolver needs. It wants a price, not a
- * lineup row — so it gets one, rather than the resolver learning the column
- * names of a table it has no stake in.
- */
-export function toPricedEventItem(item: ActionEventItem): { productId: string; priceCents: number } {
-  return { productId: item.productId, priceCents: item.currentPriceCents };
-}
 
 /**
  * Event price/quantity remain event-scoped, while sellable availability is

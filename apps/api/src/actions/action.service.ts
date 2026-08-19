@@ -9,7 +9,7 @@ import {
 import { randomUUID } from 'node:crypto';
 import { EVENT_POLICY_RESOLVER, type EventPolicyResolver } from '../config/event-policy-resolver';
 import { PolicyActionGuard } from '../copilot/guardrail';
-import { toEventItemContext } from '../copilot/copilot.grounding';
+import { toEventItemContext } from '../copilot/grounding-mapping';
 import type { ActionExecutor, CopilotActionProposal, CopilotPolicy } from '../copilot/copilot.types';
 import { SyncInvalidationService } from '../sync/sync-invalidation.service';
 import { ORDER_STORE, type CheckoutOrder, type OrderStore } from '../checkout/order-store';

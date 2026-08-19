@@ -14,17 +14,17 @@ import './active-event-inventory.css';
 export const ACTIVE_EVENT_LOW_STOCK_THRESHOLD = 3;
 
 export function activeEventLowStockCount(
-  items: readonly Pick<SellerEventItem, 'quantity'>[],
+  items: readonly Pick<SellerEventItem, 'listedQuantity'>[],
   threshold = ACTIVE_EVENT_LOW_STOCK_THRESHOLD,
 ): number {
-  return items.filter((item) => item.quantity <= threshold).length;
+  return items.filter((item) => item.listedQuantity <= threshold).length;
 }
 
 export function clampActiveEventQuantity(
-  item: Pick<SellerEventItem, 'availableQty'>,
+  item: Pick<SellerEventItem, 'currentQuantity'>,
   quantity: number,
 ): number {
-  const maximum = Math.max(0, Math.floor(item.availableQty));
+  const maximum = Math.max(0, Math.floor(item.currentQuantity));
   const next = Number.isFinite(quantity) ? Math.floor(quantity) : 0;
   return Math.min(maximum, Math.max(0, next));
 }
@@ -92,9 +92,9 @@ export function ActiveEventInventoryPanel({
   const [message, setMessage] = useState<{ tone: 'success' | 'error'; text: string } | null>(null);
 
   const lowStockCount = activeEventLowStockCount(items);
-  const totalUnits = items.reduce((sum, item) => sum + item.quantity, 0);
+  const totalUnits = items.reduce((sum, item) => sum + item.listedQuantity, 0);
   const dirtyItems = items.filter((item) => (
-    (drafts[item.productId] ?? item.quantity) !== item.quantity
+    (drafts[item.productId] ?? item.listedQuantity) !== item.listedQuantity
   ));
 
   useEffect(() => {
@@ -139,7 +139,7 @@ export function ActiveEventInventoryPanel({
       ...current,
       [item.productId]: clampActiveEventQuantity(
         item,
-        (current[item.productId] ?? item.quantity) + delta,
+        (current[item.productId] ?? item.listedQuantity) + delta,
       ),
     }));
   };
@@ -153,7 +153,7 @@ export function ActiveEventInventoryPanel({
         eventId,
         actorId,
         item,
-        quantity: drafts[item.productId] ?? item.quantity,
+        quantity: drafts[item.productId] ?? item.listedQuantity,
       })));
       setDrafts({});
       itemsQuery.invalidate();
@@ -249,14 +249,14 @@ export function ActiveEventInventoryPanel({
       ) : (
         <ul className="active-event-inventory-list">
           {items.map((item) => {
-            const quantity = drafts[item.productId] ?? item.quantity;
-            const dirty = quantity !== item.quantity;
+            const quantity = drafts[item.productId] ?? item.listedQuantity;
+            const dirty = quantity !== item.listedQuantity;
             return (
               <li key={item.productId} className={dirty ? 'is-dirty' : undefined}>
                 <span className="active-event-inventory-mark" aria-hidden="true">{productInitials(item.title)}</span>
                 <span className="active-event-inventory-product">
                   <strong>{item.title}</strong>
-                  <small>{formatPrice(item.priceCents)} · {item.availableQty} verified available</small>
+                  <small>{formatPrice(item.currentPriceCents)} · {item.currentQuantity} verified available</small>
                 </span>
                 <span className="active-event-inventory-stepper">
                   <button
@@ -269,7 +269,7 @@ export function ActiveEventInventoryPanel({
                   <button
                     type="button"
                     aria-label={`Increase event stock for ${item.title}`}
-                    disabled={saving || quantity >= item.availableQty}
+                    disabled={saving || quantity >= item.currentQuantity}
                     onClick={() => adjustDraft(item, 1)}
                   >+</button>
                 </span>

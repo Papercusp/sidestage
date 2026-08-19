@@ -6,17 +6,40 @@ import type { EventLifecycleAction, EventLifecycleStatus } from './event-lifecyc
 
 export type SellerActionKind = 'markdown' | 'targeted-offer' | 'push' | 'swap' | 'stock-adjust';
 
+export type SellerEventStageState = 'queued' | 'on-stage' | 'completed';
+
+/**
+ * The web mirror of the API's lineup row.
+ *
+ * D-024: these field names are the `event_lineup_item` COLUMN names. The Zero
+ * rung replicates that table verbatim and ZQL has no projection layer, so the
+ * column name IS the wire name on both transports — apps/web declares its own
+ * copy of this shape and imports nothing from apps/api, which means tsc CANNOT
+ * see a mismatch here. Spelling them identically is what keeps that silent gap
+ * closed.
+ */
 export interface SellerEventItem {
   eventId: string;
   eventItemId: string;
   productId: string;
   title: string;
   description?: string;
-  priceCents: number;
-  availableQty: number;
-  quantity: number;
-  onStage?: boolean;
+  currentPriceCents: number;
+  currentQuantity: number;
+  listedQuantity: number;
+  /** D-024: the one stage truth; the former `onStage` boolean is gone. */
+  stageState?: SellerEventStageState;
   attributes: Record<string, string | number | boolean>;
+}
+
+/**
+ * D-024: stage presence is DERIVED, never stored twice. The API used to serve
+ * both `stageState` and an `onStage` boolean projection of it; carrying both
+ * let a caller read a stale flag beside a fresh state, so the boolean is gone
+ * from the wire and this is how the UI asks the question.
+ */
+export function isOnStage(item: Pick<SellerEventItem, 'stageState'>): boolean {
+  return item.stageState === 'on-stage';
 }
 
 export interface SellerEventPolicy {
@@ -308,10 +331,10 @@ function itemFromVariant(
     productId: variant.id,
     title: variant.title,
     description: variant.description,
-    priceCents,
-    availableQty: variant.availableQty,
-    quantity,
-    onStage: false,
+    currentPriceCents: priceCents,
+    currentQuantity: variant.availableQty,
+    listedQuantity: quantity,
+    stageState: 'queued',
     attributes: {
       sku: variant.sku,
       brand: variant.brand,
@@ -335,7 +358,7 @@ function policyWithVerifiedFloors(
     if (Number.isSafeInteger(floors[item.productId])) continue;
     floors[item.productId] = Math.max(
       1,
-      Math.ceil(item.priceCents * (1 - policy.maxMarkdownPercent / 100)),
+      Math.ceil(item.currentPriceCents * (1 - policy.maxMarkdownPercent / 100)),
     );
   }
   return { ...policy, priceFloorCentsByProduct: floors };
@@ -395,7 +418,7 @@ async function reserveAndRegister(
   const held: SellerEventItem[] = [];
   try {
     for (const item of items) {
-      await holdInventory(eventId, item.productId, item.quantity, apiBaseUrl, principal);
+      await holdInventory(eventId, item.productId, item.listedQuantity, apiBaseUrl, principal);
       held.push(item);
     }
     const registered = await registerItems(eventId, config.policy, items, apiBaseUrl, principal);
@@ -477,7 +500,7 @@ export async function startSellerAuction(
       quantity,
       startingPriceCents,
       ...(durationSec === undefined ? {} : { durationSec }),
-      availableQty: item.availableQty,
+      availableQty: item.currentQuantity,
     }),
   });
 }
@@ -552,7 +575,7 @@ export async function adjustSellerEventStock(
       reason: 'Seller adjusted the live-event quantity against verified inventory',
     }, apiBaseUrl, principal);
   } catch (error) {
-    await holdInventory(eventId, item.productId, item.quantity, apiBaseUrl, principal).catch(() => undefined);
+    await holdInventory(eventId, item.productId, item.listedQuantity, apiBaseUrl, principal).catch(() => undefined);
     throw error;
   }
 }

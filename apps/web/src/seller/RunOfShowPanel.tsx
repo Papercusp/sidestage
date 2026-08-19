@@ -12,6 +12,7 @@ import { useStageClock, useStageNow } from './stage-clock';
 import {
   describeSellerActionFailure,
   executeSellerAction,
+  isOnStage,
   startSellerAuction,
   type SellerActionFailure,
   type SellerActionResult,
@@ -85,7 +86,7 @@ export function NextAuctionLauncher({
   onDurationChange,
   onStart,
 }: NextAuctionLauncherProps) {
-  const available = Math.max(0, item.quantity);
+  const available = Math.max(0, item.listedQuantity);
   const buttonDisabled = busy || Boolean(disabledReason) || moneyInputToCents(startingPrice) === null;
   const readyText = disabledReason ?? 'Review before launch';
 
@@ -97,7 +98,7 @@ export function NextAuctionLauncher({
         </div>
         <div className="run-of-show-auction-copy">
           <strong>{item.title}</strong>
-          <p><b>{available} available</b><span>Retail {money(item.priceCents)}</span></p>
+          <p><b>{available} available</b><span>Retail {money(item.currentPriceCents)}</span></p>
         </div>
       </div>
 
@@ -426,7 +427,7 @@ export function RunOfShowPanel({
    * while the room is looking at another.
    */
   const stagedItem = useMemo(
-    () => lineupItems.find((item) => item.onStage) ?? null,
+    () => lineupItems.find(isOnStage) ?? null,
     [lineupItems],
   );
   const [markdownPercent, setMarkdownPercent] = useState('');
@@ -469,10 +470,10 @@ export function RunOfShowPanel({
   const currentAuction = auctionQuery.data?.[0] ?? null;
 
   useEffect(() => {
-    setStartingPrice(nextItem ? (nextItem.priceCents / 100).toFixed(2) : '');
+    setStartingPrice(nextItem ? (nextItem.currentPriceCents / 100).toFixed(2) : '');
     setDurationSec(90);
     setAuctionFeedback(null);
-  }, [nextItem?.priceCents, nextItem?.productId]);
+  }, [nextItem?.currentPriceCents, nextItem?.productId]);
 
   type StartNextAuction = {
     item: SellerEventItem;
@@ -499,7 +500,7 @@ export function RunOfShowPanel({
       ? 'Checking live auction readiness'
       : itemsQuery.error || auctionQuery.error
         ? 'Live auction readiness is unavailable'
-        : nextItem.quantity < 1
+        : nextItem.listedQuantity < 1
           ? 'No reserved event inventory is available'
           : currentAuction?.status === 'active'
             ? 'Close the current auction before starting another'
@@ -660,7 +661,7 @@ export function RunOfShowPanel({
           <MarkdownControl
             productId={stagedItem.productId}
             title={stagedItem.title}
-            currentPriceCents={stagedItem.priceCents}
+            currentPriceCents={stagedItem.currentPriceCents}
             policy={policy}
             percent={markdownPercent}
             onPercentChange={setMarkdownPercent}
@@ -679,8 +680,8 @@ export function RunOfShowPanel({
           <OfferComposer
             productId={stagedItem.productId}
             title={stagedItem.title}
-            currentPriceCents={stagedItem.priceCents}
-            availableQty={stagedItem.availableQty}
+            currentPriceCents={stagedItem.currentPriceCents}
+            availableQty={stagedItem.currentQuantity}
             policy={policy}
             blockedActionKinds={policy?.blockedActionKinds}
             candidates={offerBuyers}

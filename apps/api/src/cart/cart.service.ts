@@ -806,7 +806,7 @@ export function upsertEventCartItem(
   const next: CartItem = {
     productId: item.productId,
     title: item.title,
-    priceCents: item.priceCents,
+    priceCents: item.currentPriceCents,
     quantity: nextQuantity,
     imageUrl: input.imageUrl ?? existing?.imageUrl,
     expiresAt: input.expiresAt,

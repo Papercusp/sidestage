@@ -6,6 +6,7 @@ import { TabHeader } from './components/TabHeader';
 import { EventChat, resolveApiOrigin } from './EventChat';
 import { chatEventId, DEFAULT_EVENT_TITLE, mediaBaseUrl, normalizedEventId, resolveActiveEventId, urlEventId } from './event-identity';
 import {
+  isOnStage,
   sellerPrivateRequestHeaders,
   transitionSellerEvent,
   type GuideEvent,
@@ -322,7 +323,7 @@ export function SellerTab({
     pollIntervalMs: 10_000,
   });
   const stagedProductId = useMemo(
-    () => stageItemsQuery.data?.find((item) => item.onStage)?.productId ?? null,
+    () => stageItemsQuery.data?.find(isOnStage)?.productId ?? null,
     [stageItemsQuery.data],
   );
   const recordTranscriptMoment = useTranscriptMomentRecorder({

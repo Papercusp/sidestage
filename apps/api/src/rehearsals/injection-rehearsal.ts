@@ -55,9 +55,9 @@ async function scriptedEvent(): Promise<{ actions: GuardedActionService; eventId
     eventItemId: `${eventId}:${PRODUCT}`,
     productId: PRODUCT,
     title: 'Aurora ceramic cup',
-    priceCents: LIST_PRICE_CENTS,
-    availableQty: 12,
-    quantity: 12,
+    currentPriceCents: LIST_PRICE_CENTS,
+    currentQuantity: 12,
+    listedQuantity: 12,
     attributes: { material: 'stoneware' },
   };
   await actions.registerEvent(eventId, { policy: POLICY, items: [item] });

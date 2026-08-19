@@ -209,7 +209,7 @@ export class PgCartStore implements CartStore {
         eventItemId: item.event_item_id,
         productId: item.product_id,
         title: item.title,
-        priceCents: item.current_price_cents,
+        currentPriceCents: item.current_price_cents,
       }, input, nextQuantity);
       recordEventHoldKey(cart, input.idempotencyKey);
       cart.eventTerminalTransition = undefined;

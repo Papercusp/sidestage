@@ -46,7 +46,7 @@
  * state, the chip uses the flag, and they are the same truth reached two ways.
  */
 import { useState, type DragEvent, type KeyboardEvent } from 'react';
-import type { SellerEventItem } from '../events/api';
+import { isOnStage, type SellerEventItem } from '../events/api';
 import type { EventLineupGridProps } from '../events/EventLineupGrid';
 import { formatClock, formatPace, type RunOfShowSlotView, type RunOfShowView } from '../run-of-show';
 import { MarkdownControl } from './MarkdownControl';
@@ -270,7 +270,7 @@ export function LineupTimelineView({
             const drawerOpen = openProductId === slot.productId;
             const drawerId = `lineup-drawer-${slot.productId}`;
             const rowBusy = busy === slot.productId;
-            const onStage = item?.onStage === true;
+            const onStage = item ? isOnStage(item) : false;
             const isNextUp = view.nextUp?.productId === slot.productId;
 
             return (
@@ -374,7 +374,7 @@ export function LineupTimelineView({
                     <MarkdownControl
                       productId={item.productId}
                       title={item.title}
-                      currentPriceCents={item.priceCents}
+                      currentPriceCents={item.currentPriceCents}
                       policy={policy}
                       percent={draft.markdownPercent}
                       onPercentChange={(next) => onDraftChange(item.productId, { markdownPercent: next })}
@@ -389,7 +389,7 @@ export function LineupTimelineView({
                           type="text"
                           inputMode="numeric"
                           value={draft.stockQuantity}
-                          placeholder={String(item.quantity)}
+                          placeholder={String(item.listedQuantity)}
                           onChange={(event) =>
                             onDraftChange(item.productId, { stockQuantity: event.target.value })
                           }
@@ -399,12 +399,12 @@ export function LineupTimelineView({
                         type="button"
                         className="button"
                         disabled={rowBusy || draft.stockQuantity.trim() === ''}
-                        onClick={() => onStockAdjust(item, positiveInt(draft.stockQuantity, item.quantity))}
+                        onClick={() => onStockAdjust(item, positiveInt(draft.stockQuantity, item.listedQuantity))}
                       >
                         Set quantity
                       </button>
                       <span className="lineup-drawer-note">
-                        {item.availableQty} verified in inventory
+                        {item.currentQuantity} verified in inventory
                       </span>
                     </div>
 
@@ -467,8 +467,8 @@ export function LineupTimelineView({
                     <OfferComposer
                       productId={item.productId}
                       title={item.title}
-                      currentPriceCents={item.priceCents}
-                      availableQty={item.availableQty}
+                      currentPriceCents={item.currentPriceCents}
+                      availableQty={item.currentQuantity}
                       policy={policy}
                       blockedActionKinds={blockedActionKinds}
                       candidates={candidates}

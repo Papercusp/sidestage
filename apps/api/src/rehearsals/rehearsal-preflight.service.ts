@@ -24,7 +24,7 @@ export class RehearsalPreflightService {
     const items = (await this.actions.listItems(eventId))
       .map((item) => ({
         productId: item.productId,
-        priceCents: item.referencePriceCents ?? item.priceCents,
+        priceCents: item.referencePriceCents ?? item.currentPriceCents,
       }));
     return buildPreflightReport({
       eventId: config.eventId,

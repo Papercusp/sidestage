@@ -57,9 +57,9 @@ async function scriptedEvent(): Promise<ScriptedEvent> {
     eventItemId: `${eventId}:${REHEARSAL_PRODUCT}`,
     productId: REHEARSAL_PRODUCT,
     title: 'Aurora ceramic cup',
-    priceCents: LIST_PRICE_CENTS,
-    availableQty: 12,
-    quantity: 12,
+    currentPriceCents: LIST_PRICE_CENTS,
+    currentQuantity: 12,
+    listedQuantity: 12,
     attributes: { material: 'stoneware', finish: 'blue frost' },
   };
   await actions.registerEvent(eventId, { policy: ACTION_REHEARSAL_POLICY, items: [item] });
@@ -68,7 +68,7 @@ async function scriptedEvent(): Promise<ScriptedEvent> {
 
 async function priceOf(actions: GuardedActionService, eventId: string): Promise<number> {
   const [item] = await actions.listItems(eventId);
-  return item?.priceCents ?? -1;
+  return item?.currentPriceCents ?? -1;
 }
 
 export async function runActionRehearsal(options: { now?: () => number } = {}): Promise<RehearsalReport> {
@@ -244,18 +244,18 @@ export async function runActionRehearsal(options: { now?: () => number } = {}): 
       const audits = await actions.listAudit(eventId);
       const [audit] = audits;
       const correct = audits.length === 1
-        && audit.before.item.priceCents === LIST_PRICE_CENTS
-        && audit.after.item.priceCents === 2_400
+        && audit.before.item.currentPriceCents === LIST_PRICE_CENTS
+        && audit.after.item.currentPriceCents === 2_400
         && audit.actorId === 'rehearsal-seller'
         && audit.reason === 'Flash markdown';
       return {
         passed: correct,
         observed: correct
-          ? `One audit record: ${centsToDollars(audit.before.item.priceCents)} → ${centsToDollars(audit.after.item.priceCents)} by ${audit.actorId}.`
+          ? `One audit record: ${centsToDollars(audit.before.item.currentPriceCents)} → ${centsToDollars(audit.after.item.currentPriceCents)} by ${audit.actorId}.`
           : `Expected one complete audit record, found ${audits.length}.`,
         evidence: {
           records: audits.length,
-          ...(audit ? { before: centsToDollars(audit.before.item.priceCents), after: centsToDollars(audit.after.item.priceCents), actor: audit.actorId, reason: audit.reason } : {}),
+          ...(audit ? { before: centsToDollars(audit.before.item.currentPriceCents), after: centsToDollars(audit.after.item.currentPriceCents), actor: audit.actorId, reason: audit.reason } : {}),
         },
       };
     },

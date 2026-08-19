@@ -5,7 +5,7 @@ import { MarkdownControl } from '../seller/MarkdownControl';
 import { BuyerPicker } from '../seller/BuyerPicker';
 import type { MarkdownPolicyView } from '../seller/markdown-guard';
 import { evaluateOffer, type BuyerCandidate } from '../seller/offer-guard';
-import type { SellerEventItem } from './api';
+import { isOnStage, type SellerEventItem } from './api';
 
 export interface EventLineupGridProps {
   items: readonly SellerEventItem[];
@@ -55,7 +55,7 @@ interface CommerceDraft {
 }
 
 function defaultCommerceDraft(item: SellerEventItem): CommerceDraft {
-  const price = (item.priceCents / 100).toFixed(2);
+  const price = (item.currentPriceCents / 100).toFixed(2);
   return {
     auctionPrice: price,
     auctionQuantity: '1',
@@ -100,7 +100,7 @@ export function EventLineupGrid({
   const [markdowns, setMarkdowns] = useState<Record<string, string>>({});
   const [quantities, setQuantities] = useState<Record<string, string>>({});
   const [commerceDrafts, setCommerceDrafts] = useState<Record<string, CommerceDraft>>({});
-  const onStage = items.find((item) => item.onStage);
+  const onStage = items.find((item) => isOnStage(item));
 
   const updateCommerceDraft = (item: SellerEventItem, patch: Partial<CommerceDraft>) => {
     setCommerceDrafts((current) => ({
@@ -131,16 +131,16 @@ export function EventLineupGrid({
       header: 'Stage',
       headerText: 'Stage',
       width: 'minmax(150px, .9fr)',
-      toCopyText: (item) => item.onStage ? 'On stage' : 'Queued',
+      toCopyText: (item) => isOnStage(item) ? 'On stage' : 'Queued',
       render: ({ row }) => (
         <div className="event-row-actions">
-          <span className={`event-stage-badge${row.onStage ? ' is-live' : ''}`}>
-            {row.onStage ? 'On stage' : 'Queued'}
+          <span className={`event-stage-badge${isOnStage(row) ? ' is-live' : ''}`}>
+            {isOnStage(row) ? 'On stage' : 'Queued'}
           </span>
           <button
             className="button tertiary"
             type="button"
-            disabled={row.onStage || busyProductId === row.productId}
+            disabled={isOnStage(row) || busyProductId === row.productId}
             onClick={() => onPush(row)}
           >
             Push
@@ -148,7 +148,7 @@ export function EventLineupGrid({
           <button
             className="button tertiary"
             type="button"
-            disabled={!onStage || row.onStage || busyProductId === row.productId}
+            disabled={!onStage || isOnStage(row) || busyProductId === row.productId}
             onClick={() => onStage && onSwap(onStage, row)}
           >
             Swap
@@ -162,12 +162,12 @@ export function EventLineupGrid({
       headerText: 'Live price',
       width: 'minmax(240px, 1.2fr)',
       align: 'right',
-      toCopyText: (item) => formatPrice(item.priceCents),
+      toCopyText: (item) => formatPrice(item.currentPriceCents),
       render: ({ row }) => (
         <MarkdownControl
           productId={row.productId}
           title={row.title}
-          currentPriceCents={row.priceCents}
+          currentPriceCents={row.currentPriceCents}
           policy={policy}
           percent={markdowns[row.productId] ?? ''}
           onPercentChange={(next) => setMarkdowns((current) => ({ ...current, [row.productId]: next }))}
@@ -182,19 +182,19 @@ export function EventLineupGrid({
       headerText: 'Event stock',
       width: 'minmax(190px, 1fr)',
       align: 'right',
-      toCopyText: (item) => `${item.quantity} of ${item.availableQty}`,
+      toCopyText: (item) => `${item.listedQuantity} of ${item.currentQuantity}`,
       render: ({ row }) => (
         <div className="event-inline-action">
-          <span>{row.quantity}/{row.availableQty}</span>
+          <span>{row.listedQuantity}/{row.currentQuantity}</span>
           <label>
             <span className="sr-only">Event stock for {row.title}</span>
             <input
               aria-label={`Event stock for ${row.title}`}
               type="number"
               min={0}
-              max={row.availableQty}
+              max={row.currentQuantity}
               step={1}
-              value={quantities[row.productId] ?? String(row.quantity)}
+              value={quantities[row.productId] ?? String(row.listedQuantity)}
               onChange={(event) => setQuantities((current) => ({ ...current, [row.productId]: event.target.value }))}
             />
           </label>
@@ -202,7 +202,7 @@ export function EventLineupGrid({
             className="button tertiary"
             type="button"
             disabled={busyProductId === row.productId}
-            onClick={() => onStockAdjust(row, Number(quantities[row.productId] ?? row.quantity))}
+            onClick={() => onStockAdjust(row, Number(quantities[row.productId] ?? row.listedQuantity))}
           >
             Stock
           </button>
@@ -214,17 +214,17 @@ export function EventLineupGrid({
       header: 'Auction / offer',
       headerText: 'Auction and targeted offer creation',
       width: 'minmax(360px, 1.8fr)',
-      toCopyText: (item) => `Auction or offer ${item.quantity} reserved units`,
+      toCopyText: (item) => `Auction or offer ${item.listedQuantity} reserved units`,
       render: ({ row }) => {
         const draft = commerceDrafts[row.productId] ?? defaultCommerceDraft(row);
-        const maximum = Math.max(1, row.quantity);
+        const maximum = Math.max(1, row.listedQuantity);
         const auctionQuantity = positiveWholeNumber(draft.auctionQuantity, maximum);
         const auctionPriceCents = priceInCents(draft.auctionPrice);
         // Bounded by AVAILABILITY, not by the reserved count: the server checks
-        // `availableQty` (guardrail.ts:84), so bounding at `row.quantity` here
+        // `availableQty` (guardrail.ts:84), so bounding at `row.listedQuantity` here
         // false-blocked any offer between the two whenever availability was the
         // larger of them — the control refusing something the server allows.
-        const offerMaximum = Math.max(1, row.availableQty);
+        const offerMaximum = Math.max(1, row.currentQuantity);
         const offerQuantity = positiveWholeNumber(draft.offerQuantity, offerMaximum);
         const offerPriceCents = priceInCents(draft.offerPrice);
         const disabled = busyProductId === row.productId;
@@ -239,8 +239,8 @@ export function EventLineupGrid({
           policy,
           blockedActionKinds,
           productId: row.productId,
-          currentPriceCents: row.priceCents,
-          availableQty: row.availableQty,
+          currentPriceCents: row.currentPriceCents,
+          availableQty: row.currentQuantity,
           buyerId: offerBuyer?.buyerId ?? '',
           quantity: offerQuantity,
           priceCents: offerPriceCents,
@@ -356,7 +356,7 @@ export function EventLineupGrid({
       getRowId={(item) => item.productId}
       rowProps={({ row }) => ({
         'data-testid': `event-item-${row.productId}`,
-        'aria-label': `${row.title}, ${row.availableQty} available${row.onStage ? ', on stage' : ''}`,
+        'aria-label': `${row.title}, ${row.currentQuantity} available${isOnStage(row) ? ', on stage' : ''}`,
       })}
       topSlot={(
         <div className="event-grid-note">
