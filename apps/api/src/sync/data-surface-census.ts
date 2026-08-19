@@ -309,6 +309,7 @@ export const PROCESS_LOCAL_SURFACES: readonly SourceSurface[] = [
   local('apps/api/src/chat/chat-presence.sweeper.ts', 'timer', 'chat-presence-sweeper', ['operational'], 'bounded cleanup scheduler', 'runtime-only', 'interval handle only; no durable state', 'P-020'),
   local('apps/api/src/events/event-activation.sweeper.ts', 'timer', 'event-activation-sweeper', ['operational'], 'bounded lifecycle scheduler', 'runtime-only', 'interval handle only; the durable state is the event table, which the sweep UPDATEs in place', 'P-020'),
   local('apps/api/src/checkout/stripe-payment.provider.ts', 'client', 'stripe-client', ['operational'], 'lazily constructed external client handle', 'runtime-only', 'rebuilt on demand from configuration; no durable state', 'P-020'),
+  local('apps/api/src/chat/product-focus.classifier.ts', 'warnedDegradedInUse', 'product-focus-config-warning', ['operational'], 'one-shot log dedupe flag', 'runtime-only', 'WI-39851: guards a single WARN when the semantic classifier runs unconfigured; holds no authority, and losing it on restart only re-emits that warning', 'P-020'),
 ];
 
 export interface ModuleSurface extends SurfaceContract {

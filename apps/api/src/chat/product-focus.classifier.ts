@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger, type OnModuleInit } from '@nestjs/common';
 
 const MAX_PRODUCTS = 100;
 const MAX_SEGMENTS = 4;
@@ -153,8 +153,51 @@ function productFocusPrompt(input: ProductFocusClassificationInput): string {
   ].join('\n');
 }
 
+/**
+ * Which env vars this classifier still needs before it can run at all.
+ *
+ * Exported and pure so the answer is assertable without standing up Nest, and so
+ * the startup log and the degrade path cannot drift apart by naming different
+ * variables.
+ */
+export function productFocusClassifierConfig(env: NodeJS.ProcessEnv = process.env): {
+  configured: boolean;
+  missing: readonly string[];
+} {
+  const missing: string[] = [];
+  if (!env.OPENAI_API_KEY?.trim()) missing.push('OPENAI_API_KEY');
+  // Either name satisfies the model requirement, so report the pair, not one of them.
+  if (!(env.SIDESTAGE_PRODUCT_FOCUS_MODEL ?? env.SIDESTAGE_COPILOT_MODEL)?.trim()) {
+    missing.push('SIDESTAGE_PRODUCT_FOCUS_MODEL (or SIDESTAGE_COPILOT_MODEL)');
+  }
+  return { configured: missing.length === 0, missing };
+}
+
 @Injectable()
-export class ConfiguredProductFocusClassifier {
+export class ConfiguredProductFocusClassifier implements OnModuleInit {
+  private readonly logger = new Logger(ConfiguredProductFocusClassifier.name);
+  /** Warn on the FIRST degraded call only — this runs per utterance. */
+  private warnedDegradedInUse = false;
+
+  /**
+   * WI-39851 wall (2): this classifier's absence used to be completely silent.
+   *
+   * Unprovisioned, every call returns `unavailable` and the seller simply sees no
+   * suggestion — indistinguishable from "the model considered it and declined".
+   * That is what let prod run without OPENAI_API_KEY while the symptom was read as
+   * a matching bug. Provisioning the key is owner-gated; being loud about its
+   * absence is not, so the silence is fixed here even though the gate stands.
+   */
+  onModuleInit(): void {
+    const { configured, missing } = productFocusClassifierConfig();
+    if (configured) return;
+    this.logger.warn(
+      `Semantic product-focus classifier DISABLED — missing ${missing.join(', ')}. ` +
+        'Transcript product focus will fall back to the deterministic alias layer only, so a ' +
+        'seller phrasing that no catalog alias covers will silently produce no suggestion.',
+    );
+  }
+
   async classify(rawInput: unknown): Promise<ProductFocusClassification> {
     const input = sanitizeProductFocusInput(rawInput);
     if (!input) {
@@ -162,9 +205,22 @@ export class ConfiguredProductFocusClassifier {
         decision: 'unknown', productId: null, confidence: 0, evidenceSegmentIds: [], requestSequence: 0, source: 'error',
       };
     }
-    const apiKey = process.env.OPENAI_API_KEY?.trim();
-    const model = (process.env.SIDESTAGE_PRODUCT_FOCUS_MODEL ?? process.env.SIDESTAGE_COPILOT_MODEL)?.trim();
-    if (!apiKey || !model) return fallback(input, 'unavailable');
+    const { configured, missing } = productFocusClassifierConfig();
+    if (!configured) {
+      // Deliberately distinct from the startup line: this one proves the feature is
+      // being EXERCISED while unconfigured, which is the difference between a dark
+      // setting nobody wanted and sellers actively losing suggestions right now.
+      if (!this.warnedDegradedInUse) {
+        this.warnedDegradedInUse = true;
+        this.logger.warn(
+          `Semantic product-focus classification was REQUESTED but is unconfigured (missing ${missing.join(', ')}) — ` +
+            'returning "unavailable". Further occurrences are not logged.',
+        );
+      }
+      return fallback(input, 'unavailable');
+    }
+    const apiKey = process.env.OPENAI_API_KEY!.trim();
+    const model = (process.env.SIDESTAGE_PRODUCT_FOCUS_MODEL ?? process.env.SIDESTAGE_COPILOT_MODEL)!.trim();
 
     try {
       const base = (process.env.OPENAI_BASE_URL ?? 'https://api.openai.com').replace(/\/+$/, '');

@@ -1,7 +1,9 @@
+import { Logger } from '@nestjs/common';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import {
   ConfiguredProductFocusClassifier,
+  productFocusClassifierConfig,
   sanitizeProductFocusInput,
   validateProductFocusModelPayload,
   type ProductFocusClassificationInput,
@@ -24,6 +26,9 @@ const ORIGINAL_ENV = { ...process.env };
 afterEach(() => {
   process.env = { ...ORIGINAL_ENV };
   vi.unstubAllGlobals();
+  // The WI-39851 cases spy on Logger.prototype.warn; without this a mocked warn
+  // leaks into later tests and their "warn was not called" controls pass vacuously.
+  vi.restoreAllMocks();
 });
 
 describe('ConfiguredProductFocusClassifier', () => {
@@ -59,6 +64,98 @@ describe('ConfiguredProductFocusClassifier', () => {
     delete process.env.SIDESTAGE_COPILOT_MODEL;
     await expect(new ConfiguredProductFocusClassifier().classify(INPUT)).resolves.toMatchObject({
       decision: 'unknown', source: 'unavailable', requestSequence: 7,
+    });
+  });
+
+  describe('WI-39851 wall (2) — an unconfigured classifier must not be SILENT', () => {
+    // Prod ran without OPENAI_API_KEY and nothing said so. Every call returned
+    // `unavailable`, which a seller experiences as "no suggestion" — identical to
+    // the model having considered it and declined. That is what let the missing
+    // provisioning be read as a matching bug instead of a config gap.
+    const unconfigure = () => {
+      delete process.env.OPENAI_API_KEY;
+      delete process.env.SIDESTAGE_PRODUCT_FOCUS_MODEL;
+      delete process.env.SIDESTAGE_COPILOT_MODEL;
+    };
+
+    it('names EVERY missing variable, and treats the two model vars as one requirement', () => {
+      unconfigure();
+      expect(productFocusClassifierConfig()).toEqual({
+        configured: false,
+        missing: ['OPENAI_API_KEY', 'SIDESTAGE_PRODUCT_FOCUS_MODEL (or SIDESTAGE_COPILOT_MODEL)'],
+      });
+
+      // Either model var satisfies the requirement — reporting one as missing while
+      // the other is set would send the owner to provision something already set.
+      process.env.SIDESTAGE_COPILOT_MODEL = 'copilot-model';
+      expect(productFocusClassifierConfig().missing).toEqual(['OPENAI_API_KEY']);
+
+      // CONTROL: fully configured reports nothing, so the assertions above are not
+      // just "this function always finds something to complain about".
+      process.env.OPENAI_API_KEY = 'test-key';
+      expect(productFocusClassifierConfig()).toEqual({ configured: true, missing: [] });
+    });
+
+    it('treats a whitespace-only value as missing, not as configured', () => {
+      unconfigure();
+      process.env.OPENAI_API_KEY = '   ';
+      process.env.SIDESTAGE_PRODUCT_FOCUS_MODEL = '';
+      expect(productFocusClassifierConfig().configured).toBe(false);
+      expect(productFocusClassifierConfig().missing).toHaveLength(2);
+    });
+
+    it('warns at STARTUP, naming the missing vars and the consequence', () => {
+      unconfigure();
+      const warn = vi.spyOn(Logger.prototype, 'warn').mockImplementation(() => {});
+      new ConfiguredProductFocusClassifier().onModuleInit();
+
+      expect(warn).toHaveBeenCalledTimes(1);
+      const message = String(warn.mock.calls[0][0]);
+      expect(message).toContain('OPENAI_API_KEY');
+      expect(message).toContain('SIDESTAGE_PRODUCT_FOCUS_MODEL');
+      // The consequence matters more than the missing key: it is what tells a
+      // reader the symptom ("no suggestion") is this, and not a matching bug.
+      expect(message).toContain('deterministic alias layer');
+    });
+
+    it('CONTROL: says NOTHING at startup when it is configured', () => {
+      process.env.OPENAI_API_KEY = 'test-key';
+      process.env.SIDESTAGE_PRODUCT_FOCUS_MODEL = 'focus-model';
+      const warn = vi.spyOn(Logger.prototype, 'warn').mockImplementation(() => {});
+      new ConfiguredProductFocusClassifier().onModuleInit();
+      expect(warn).not.toHaveBeenCalled();
+    });
+
+    it('warns once more on FIRST USE — and only once, since this runs per utterance', async () => {
+      unconfigure();
+      const warn = vi.spyOn(Logger.prototype, 'warn').mockImplementation(() => {});
+      const classifier = new ConfiguredProductFocusClassifier();
+
+      await expect(classifier.classify(INPUT)).resolves.toMatchObject({ source: 'unavailable' });
+      expect(warn).toHaveBeenCalledTimes(1);
+      // Distinct from the startup line on purpose: this one proves sellers are
+      // actively losing suggestions, not merely that a setting is unset.
+      expect(String(warn.mock.calls[0][0])).toContain('REQUESTED');
+
+      // Per-utterance path — a warn per call would bury the log it is meant to raise.
+      await classifier.classify(INPUT);
+      await classifier.classify(INPUT);
+      expect(warn).toHaveBeenCalledTimes(1);
+    });
+
+    it('CONTROL: a configured classifier never emits the degraded-use warning', async () => {
+      process.env.OPENAI_API_KEY = 'test-key';
+      process.env.SIDESTAGE_PRODUCT_FOCUS_MODEL = 'focus-model';
+      const warn = vi.spyOn(Logger.prototype, 'warn').mockImplementation(() => {});
+      vi.stubGlobal('fetch', vi.fn(async () => new Response(
+        JSON.stringify({ output: [{ content: [{ text: JSON.stringify({
+          decision: 'same', productId: null, confidence: 0.9, evidenceSegmentIds: [],
+        }) }] }] }),
+        { status: 200 },
+      )));
+
+      await new ConfiguredProductFocusClassifier().classify(INPUT);
+      expect(warn).not.toHaveBeenCalled();
     });
   });
 
