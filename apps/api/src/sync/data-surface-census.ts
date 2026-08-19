@@ -273,6 +273,10 @@ export const PROCESS_LOCAL_SURFACES: readonly SourceSurface[] = [
   local('apps/api/src/copilot/copilot.service.ts', 'generationBySource', 'copilot-generation-dedupe', ['seller-owned', 'operational'], 'in-flight dedupe', 'runtime-only', 'copilot_proposal source-message uniqueness plus bounded promise cache', 'P-015 seller Copilot'),
   local('apps/api/src/copilot/copilot.service.ts', 'reconciliationByEvent', 'copilot-question-reconciliation', ['seller-owned', 'operational'], 'in-flight serializer', 'runtime-only', 'durable chat seller-queue state plus idempotent copilot_proposal reconciliation', 'P-015 seller Copilot'),
   local('apps/api/src/copilot/copilot.store.ts', 'proposals', 'copilot', ['seller-owned'], 'memory backend authority', 'replicate', 'copilot_proposal', 'P-011/P-019'),
+  // EI-20739798038041966. Not data: a one-shot latch so pool teardown is idempotent
+  // (pg throws on a second end(), and app.close() can be reached from both the
+  // failed-bootstrap path and a SIGTERM). Nothing reads it but the shutdown hook.
+  local('apps/api/src/db/database.module.ts', 'ended', 'pg-pool-lifecycle', ['operational'], 'shutdown idempotency latch, not an authority', 'runtime-only', 'none; pool teardown is process-scoped by construction', 'P-011/P-019'),
   local('apps/api/src/policies/policy.service.ts', 'revisions', 'policies', ['seller-owned'], 'memory backend authority', 'replicate', 'seller_policy_revision', 'P-011/P-019'),
   local('apps/api/src/policies/policy.service.ts', 'idem', 'policy-idempotency', ['seller-owned', 'operational'], 'memory backend authority', 'replicate', 'policy_idempotency', 'P-011/P-019'),
   local('apps/api/src/run-of-show/run-of-show.service.ts', 'plans', 'run-of-show', ['seller-owned'], 'memory backend authority', 'replicate', 'event_run_of_show', 'P-011/P-019'),
