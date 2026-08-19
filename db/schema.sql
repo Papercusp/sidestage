@@ -1850,3 +1850,116 @@ CREATE TABLE IF NOT EXISTS rehearsal_run (
 
 CREATE INDEX IF NOT EXISTS rehearsal_run_recency_idx
   ON rehearsal_run (kind, ran_at DESC);
+
+-- ── D-026 / D-030: timestamps are MILLISECOND precision by construction ──────
+--
+-- The Zero rung maps `timestamptz` to a JS number (epoch millis), and a bare
+-- `timestamptz` keeps MICROsecond precision -- so any row written by `now()`
+-- replicates as a FRACTIONAL epoch-millis value (measured: 1787100357069.433)
+-- while a row written by application code (`new Date().toISOString()`, which is
+-- millisecond precision) replicates as a whole number. An epoch-millis contract
+-- that is sometimes fractional is not one contract.
+--
+-- Narrowing the COLUMN is the fix, not a `Math.trunc` in the REST coercion:
+-- truncating on the REST side leaves Zero fractional and converts a TYPE
+-- mismatch into a VALUE mismatch, which is strictly worse because it survives
+-- the encoding guard in apps/api/src/sync/parity/differential.ts.
+--
+-- Scoped by the PROPERTY, not by a hand-list of tables (D-030). The defect
+-- belongs to every `timestamptz` column that can be written by `now()`, and a
+-- fixture that happens to supply its own timestamps makes an affected column
+-- look exempt -- which is exactly how it was previously mis-scoped to a single
+-- table. Deliberately NOT driven off `pg_publication_tables`: db-apply.sh runs
+-- this file BEFORE scripts/zero-replication-apply.sh creates the publication
+-- (deploy.sh:287 then :325), so on a fresh database that loop would match zero
+-- rows and silently leave every column microsecond-precision.
+--
+-- `atttypmod = -1` means "no declared precision", so this is a genuine no-op on
+-- every deploy after the first rather than a table rewrite each time.
+--
+-- ⚠ A COLUMN IN A PUBLICATION COLUMN LIST CANNOT BE RETYPED IN PLACE. Postgres
+-- 16 rejects it with:
+--     ERROR: cannot alter type of a column used by a publication WHERE clause
+--     DETAIL: publication of table product_catalog ... depends on column "created_at"
+-- That message is MISLEADING and cost a wrong diagnosis: it names a WHERE
+-- clause, but `zero_publication` has NO row filters at all (every
+-- pg_publication_rel.prqual is null) -- product_catalog is published with a
+-- 27-column LIST (prattrs), and chat_message gains one too (D-027, which
+-- withholds moderated_by/moderation_reason). PG 16 reuses the row-filter
+-- wording for the column-list case, so do NOT go hunting for a WHERE clause.
+--
+-- So for those tables the column list is captured, the table is dropped from
+-- the publication, the columns are retyped, and the table is re-added with the
+-- SAME list -- restoring the exact prior state rather than relying on
+-- scripts/zero-replication-apply.sh to rebuild it, because this file is also
+-- applied standalone (a local `psql < db/schema.sql`) where nothing would.
+DO $$
+DECLARE
+  target record;
+  published record;
+  column_list text;
+BEGIN
+  -- Tables whose publication column list would block the retype: detach them
+  -- first, remembering the exact list so it can be restored verbatim.
+  FOR published IN
+    SELECT c.oid AS relid,
+           n.nspname AS schema_name,
+           c.relname AS table_name,
+           pr.prattrs AS attrs
+      FROM pg_publication p
+      JOIN pg_publication_rel pr ON pr.prpubid = p.oid
+      JOIN pg_class c ON c.oid = pr.prrelid
+      JOIN pg_namespace n ON n.oid = c.relnamespace
+     WHERE p.pubname = 'zero_publication'
+       AND pr.prattrs IS NOT NULL
+       AND EXISTS (
+         SELECT 1
+           FROM pg_attribute a
+           JOIN pg_type t ON t.oid = a.atttypid
+          WHERE a.attrelid = c.oid AND a.attnum > 0 AND NOT a.attisdropped
+            AND t.typname = 'timestamptz' AND a.atttypmod = -1
+       )
+  LOOP
+    SELECT string_agg(format('%I', a.attname), ', ' ORDER BY x.ord)
+      INTO column_list
+      FROM unnest(published.attrs) WITH ORDINALITY AS x(attnum, ord)
+      JOIN pg_attribute a ON a.attrelid = published.relid AND a.attnum = x.attnum;
+
+    EXECUTE format('ALTER PUBLICATION zero_publication DROP TABLE %I.%I',
+                   published.schema_name, published.table_name);
+
+    FOR target IN
+      SELECT a.attname AS column_name
+        FROM pg_attribute a
+        JOIN pg_type t ON t.oid = a.atttypid
+       WHERE a.attrelid = published.relid AND a.attnum > 0 AND NOT a.attisdropped
+         AND t.typname = 'timestamptz' AND a.atttypmod = -1
+       ORDER BY a.attname
+    LOOP
+      EXECUTE format('ALTER TABLE %I.%I ALTER COLUMN %I TYPE timestamptz(3)',
+                     published.schema_name, published.table_name, target.column_name);
+    END LOOP;
+
+    EXECUTE format('ALTER PUBLICATION zero_publication ADD TABLE %I.%I (%s)',
+                   published.schema_name, published.table_name, column_list);
+  END LOOP;
+
+  -- Everything else: a plain retype, no publication surgery needed.
+  FOR target IN
+    SELECT n.nspname AS schema_name, c.relname AS table_name, a.attname AS column_name
+      FROM pg_class c
+      JOIN pg_namespace n ON n.oid = c.relnamespace
+      JOIN pg_attribute a ON a.attrelid = c.oid AND a.attnum > 0 AND NOT a.attisdropped
+      JOIN pg_type t ON t.oid = a.atttypid
+     WHERE n.nspname = 'public'
+       AND c.relkind = 'r'
+       AND t.typname = 'timestamptz'
+       AND a.atttypmod = -1
+     ORDER BY c.relname, a.attname
+  LOOP
+    EXECUTE format(
+      'ALTER TABLE %I.%I ALTER COLUMN %I TYPE timestamptz(3)',
+      target.schema_name, target.table_name, target.column_name
+    );
+  END LOOP;
+END $$;
