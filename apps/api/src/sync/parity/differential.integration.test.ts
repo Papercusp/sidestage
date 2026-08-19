@@ -45,6 +45,7 @@ import { Pool } from 'pg';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import { AppModule } from '../../app.module';
+import { EVENT_DEMO_COLLECTION } from '../../catalog/catalog.sources';
 import { DEFAULT_DATABASE_URL } from '../../db/database.module';
 import { SyncQueryRegistry } from '../sync-query.registry';
 import { createSseQueryRunner, createZeroQueryRunner } from './harness';
@@ -110,10 +111,21 @@ async function seed(pool: Pool): Promise<void> {
     JSON.stringify({ plannedOrder: [refs.eventItemId, `${refs.eventItemId}-b`] }),
   ]);
 
+  // `properties.sidestageCollection` is REQUIRED, not decoration. Outside
+  // production PgCatalogSource is built with collection = EVENT_DEMO_COLLECTION
+  // (catalog.module.ts:67) and every variant read is filtered by
+  // `c.properties @> {'sidestageCollection': …}`. Without it `catalog.variant()`
+  // resolves to undefined for every lineup row, and because
+  // buyer-lineup.dto.ts spreads its seven catalog-derived keys CONDITIONALLY
+  // (`...(variant?.imageUrl ? … : {})`), all seven silently vanish from the REST
+  // rows — so the differential compared a lineup row that production never
+  // serves and under-reported the drift by seven fields. Same defect class as
+  // D-029: a key set that depends on the DATA rather than on the contract.
   await pool.query(
-    `insert into product_catalog (group_id, region, product_type, title, description, brand)
-     values ($1, 'US', 'mug', $2, 'Parity harness catalog row', 'ParityBrand')`,
-    [`${refs.productId}-group`, 'Parity mug'],
+    `insert into product_catalog (group_id, region, product_type, title, description, brand, properties)
+     values ($1, 'US', 'mug', $2, 'Parity harness catalog row', 'ParityBrand',
+             jsonb_build_object('sidestageCollection', $3::text))`,
+    [`${refs.productId}-group`, 'Parity mug', EVENT_DEMO_COLLECTION],
   );
 
   for (const [index, id] of [refs.productId, `${refs.productId}-b`].entries()) {
