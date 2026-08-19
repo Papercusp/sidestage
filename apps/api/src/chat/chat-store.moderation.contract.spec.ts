@@ -84,6 +84,7 @@ function question(eventId: string, suffix: string, createdAt: string): ChatMessa
     createdAt,
     grounding: { status: 'seller-queue' },
     clientRequestId: `chat:req-${suffix}`,
+    moderatedAt: null,
   };
 }
 

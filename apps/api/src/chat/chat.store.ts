@@ -120,6 +120,7 @@ export class InMemoryChatStore implements ChatStore {
     }
     state.messages.push(cloneMessage(message));
     state.presence.set(message.userId, {
+      eventId: message.eventId,
       userId: message.userId,
       displayName: message.displayName,
       role: message.role,

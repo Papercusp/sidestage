@@ -19,6 +19,7 @@ const MESSAGE: ChatMessage = {
   createdAt: '2026-08-14T18:00:00.000Z',
   grounding: { status: 'seller-queue' },
   clientRequestId: 'chat:req-1',
+  moderatedAt: null,
 };
 
 function row(message: ChatMessage = MESSAGE) {
@@ -251,8 +252,8 @@ describe.runIf(process.env.SIDESTAGE_PG_INTEGRATION === '1')('PgChatStore agains
       );
       const stale = new Date(cutoff.getTime() - 60_000).toISOString();
       const live = new Date(cutoff.getTime() + 60_000).toISOString();
-      await store.touchPresence(eventId, { userId: 'ghost-1', displayName: 'Ghost', role: 'buyer', lastSeenAt: stale });
-      await store.touchPresence(eventId, { userId: 'live-1', displayName: 'Maya', role: 'buyer', lastSeenAt: live });
+      await store.touchPresence(eventId, { eventId, userId: 'ghost-1', displayName: 'Ghost', role: 'buyer', lastSeenAt: stale });
+      await store.touchPresence(eventId, { eventId, userId: 'live-1', displayName: 'Maya', role: 'buyer', lastSeenAt: live });
 
       // The row is gone because the sweeper ran, not because anyone read it —
       // the property a client reading the replicated table depends on.

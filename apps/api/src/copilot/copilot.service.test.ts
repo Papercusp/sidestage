@@ -46,6 +46,8 @@ const question: ChatMessage = {
   text: 'Is the blue mug still available?',
   createdAt: '2026-08-14T15:00:00.000Z',
   grounding: { status: 'seller-queue' },
+  clientRequestId: null,
+  moderatedAt: null,
 };
 
 function response(action?: ActionResult): CopilotResponse {

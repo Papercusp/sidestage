@@ -11,7 +11,24 @@ import { CHAT_STORE, InMemoryChatStore, type ChatMessagePage, type ChatStore } f
 export { classifyBuyerMessage, isBuyerQuestion } from './buyer-question-routing';
 
 export type ChatRole = 'buyer' | 'seller';
-export interface ChatMessage { id: string; eventId: string; userId: string; displayName: string; role: ChatRole; text: string; createdAt: string; grounding?: ChatGrounding; clientRequestId?: string; }
+/**
+ * D-029: every key the `chatMessage` Zero table declares is emitted here
+ * EXPLICITLY, as `null` when absent — never omitted and never `undefined`.
+ *
+ * The Zero rung replicates a table, so it sends `null` for an empty column; a
+ * REST DTO that drops the key instead makes the two rungs disagree on their key
+ * SET, which is real drift (differential.integration.test.ts compares key sets,
+ * and `undefined` would additionally vanish through `JSON.stringify` on the
+ * wire even though the in-process harness would still see the key).
+ *
+ * `moderatedAt` is always `null` on a delivered row — both rungs filter
+ * moderated messages out — but the key must still be present, because the Zero
+ * table declares it so the messages leaf can filter on it. Its siblings
+ * `moderatedBy`/`moderationReason` are deliberately absent from BOTH rungs
+ * (D-027): they are withheld from the publication so a public per-room query
+ * cannot leak a moderator's identity.
+ */
+export interface ChatMessage { id: string; eventId: string; userId: string; displayName: string; role: ChatRole; text: string; createdAt: string; grounding: ChatGrounding | null; clientRequestId: string | null; moderatedAt: string | null; }
 export type ChatGroundingStatus = 'not-routed' | 'seller-queue' | 'answered' | 'skipped' | 'blocked';
 export interface ChatGrounding {
   status: ChatGroundingStatus;
@@ -28,9 +45,11 @@ export interface ChatGrounding {
   citation?: { transcriptId: string; label: string; quote: string; startMs?: number; };
 }
 export interface TranscriptMomentInput { text?: unknown; startMs?: unknown; endMs?: unknown; productId?: unknown; productTitle?: unknown; }
-export interface TranscriptMoment { id: string; text: string; startMs?: number; endMs?: number; productId?: string; productTitle?: string; }
+/** D-029: full key-set parity with the `chatTranscriptMoment` Zero table — see ChatMessage. */
+export interface TranscriptMoment { id: string; eventId: string; text: string; startMs: number | null; endMs: number | null; productId: string | null; productTitle: string | null; createdAt: string; }
 export interface ReplayChapter { id: string; productId: string; productTitle: string; startMs: number; endMs?: number; previewText: string; evidenceKind?: 'condition'; evidenceLabel?: string; }
-export interface ChatPresence { userId: string; displayName: string; role: ChatRole; lastSeenAt: string; }
+/** D-029: full key-set parity with the `chatPresence` Zero table — see ChatMessage. */
+export interface ChatPresence { eventId: string; userId: string; displayName: string; role: ChatRole; lastSeenAt: string; }
 export interface ChatStats { activeUsers: number; buyers: number; sellers: number; totalMessages: number; }
 export interface ChatMessageInput { userId?: unknown; displayName?: unknown; role?: unknown; text?: unknown; clientRequestId?: unknown; }
 export interface CopilotReplyInput {
@@ -127,10 +146,10 @@ export class ChatService {
     const chapters: ReplayChapter[] = [];
     let activeChapter: ReplayChapter | undefined;
     for (const moment of await this.getTranscript(eventId)) {
-      if (!moment.productId || !moment.productTitle || moment.startMs === undefined) { activeChapter = undefined; continue; }
+      if (!moment.productId || !moment.productTitle || moment.startMs === null) { activeChapter = undefined; continue; }
       const evidenceLabel = conditionEvidenceLabel(moment.text);
       if (activeChapter?.productId === moment.productId && !evidenceLabel) { activeChapter.endMs = moment.endMs ?? activeChapter.endMs; continue; }
-      activeChapter = { id: moment.id, productId: moment.productId, productTitle: moment.productTitle, startMs: moment.startMs, endMs: moment.endMs, previewText: moment.text, evidenceKind: evidenceLabel ? 'condition' : undefined, evidenceLabel };
+      activeChapter = { id: moment.id, productId: moment.productId, productTitle: moment.productTitle, startMs: moment.startMs, endMs: moment.endMs ?? undefined, previewText: moment.text, evidenceKind: evidenceLabel ? 'condition' : undefined, evidenceLabel };
       chapters.push(activeChapter);
     }
     return chapters;
@@ -143,7 +162,7 @@ export class ChatService {
     const text = this.readBoundedString(input.text, 'text', MAX_MESSAGE_LENGTH);
     const role = this.readRole(input.role);
     const clientRequestId = this.readOptionalBoundedString(input.clientRequestId, 'clientRequestId', 160);
-    const message: ChatMessage = { id: `chat_${randomUUID()}`, eventId, userId, displayName, role, text, createdAt: new Date().toISOString(), ...(clientRequestId ? { clientRequestId } : {}) };
+    const message: ChatMessage = { id: `chat_${randomUUID()}`, eventId, userId, displayName, role, text, createdAt: new Date().toISOString(), grounding: null, clientRequestId: clientRequestId ?? null, moderatedAt: null };
     if (role === 'buyer') {
       const route = classifyBuyerMessage(text);
       message.grounding = {
@@ -168,6 +187,7 @@ export class ChatService {
       text: this.readBoundedString(input.text, 'text', MAX_MESSAGE_LENGTH),
       createdAt: new Date().toISOString(),
       clientRequestId: `copilot-proposal:${proposalId}`,
+      moderatedAt: null,
       grounding: {
         status: 'answered',
         sourceMessageId,
@@ -209,7 +229,7 @@ export class ChatService {
 
   async addTranscriptMoment(eventId: string, input: TranscriptMomentInput): Promise<TranscriptMoment> {
     this.assertEventId(eventId);
-    const moment: TranscriptMoment = { id: `transcript_${randomUUID()}`, text: this.readBoundedString(input.text, 'text', MAX_MESSAGE_LENGTH), startMs: this.readOptionalMilliseconds(input.startMs, 'startMs'), endMs: this.readOptionalMilliseconds(input.endMs, 'endMs'), productId: this.readOptionalBoundedString(input.productId, 'productId', MAX_USER_ID_LENGTH), productTitle: this.readOptionalBoundedString(input.productTitle, 'productTitle', MAX_DISPLAY_NAME_LENGTH) };
+    const moment: TranscriptMoment = { id: `transcript_${randomUUID()}`, eventId, text: this.readBoundedString(input.text, 'text', MAX_MESSAGE_LENGTH), startMs: this.readOptionalMilliseconds(input.startMs, 'startMs') ?? null, endMs: this.readOptionalMilliseconds(input.endMs, 'endMs') ?? null, productId: this.readOptionalBoundedString(input.productId, 'productId', MAX_USER_ID_LENGTH) ?? null, productTitle: this.readOptionalBoundedString(input.productTitle, 'productTitle', MAX_DISPLAY_NAME_LENGTH) ?? null, createdAt: new Date().toISOString() };
     const persisted = await this.store.appendTranscript(eventId, moment);
     this.metrics.transcriptMomentsCreated += 1; this.metrics.lastPersistedAt = new Date().toISOString();
     this.emitInvalidation(eventId, 'event.chat.transcript'); this.emitInvalidation(eventId, 'event.replay.chapters');
@@ -218,7 +238,7 @@ export class ChatService {
 
   async touchPresence(eventId: string, input: PresenceInput): Promise<ChatPresence> {
     this.assertEventId(eventId);
-    const presence = await this.store.touchPresence(eventId, { userId: this.readBoundedString(input.userId, 'userId', MAX_USER_ID_LENGTH), displayName: this.readBoundedString(input.displayName, 'displayName', MAX_DISPLAY_NAME_LENGTH), role: this.readRole(input.role), lastSeenAt: new Date().toISOString() });
+    const presence = await this.store.touchPresence(eventId, { eventId, userId: this.readBoundedString(input.userId, 'userId', MAX_USER_ID_LENGTH), displayName: this.readBoundedString(input.displayName, 'displayName', MAX_DISPLAY_NAME_LENGTH), role: this.readRole(input.role), lastSeenAt: new Date().toISOString() });
     this.metrics.presenceTouches += 1; this.emitInvalidation(eventId, 'event.chat.presence'); this.emitInvalidation(eventId, 'event.chat.stats'); return presence;
   }
 

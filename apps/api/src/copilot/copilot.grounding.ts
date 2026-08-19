@@ -73,10 +73,10 @@ function relevantTranscript(question: string, moments: readonly TranscriptMoment
     .map(({ moment }) => ({
       transcriptId: moment.id,
       text: moment.text,
-      startMs: moment.startMs,
-      endMs: moment.endMs,
-      productId: moment.productId,
-      productTitle: moment.productTitle,
+      startMs: moment.startMs ?? undefined,
+      endMs: moment.endMs ?? undefined,
+      productId: moment.productId ?? undefined,
+      productTitle: moment.productTitle ?? undefined,
     }));
 }
 

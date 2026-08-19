@@ -13,18 +13,28 @@ interface MessageRow {
   grounding: ChatMessage['grounding'] | string | null;
   client_request_id: string | null;
   created_at: Date | string;
+  /**
+   * D-029: selected purely so `toMessage` can emit the key. Every read path
+   * here also carries `moderated_at IS NULL`, so it is null on every delivered
+   * row — but reading the real column keeps the DTO honest if that filter ever
+   * changes, instead of hard-coding an invariant in a second place.
+   */
+  moderated_at: Date | string | null;
 }
 
 interface TranscriptRow {
   id: string;
+  event_id: string;
   text: string;
   start_ms: number | null;
   end_ms: number | null;
   product_id: string | null;
   product_title: string | null;
+  created_at: Date | string;
 }
 
 interface PresenceRow {
+  event_id: string;
   user_id: string;
   display_name: string;
   role: 'buyer' | 'seller';
@@ -36,7 +46,7 @@ export class PgChatStore implements ChatStore {
 
   async listMessages(eventId: string, limit: number, before?: ChatCursor): Promise<ChatMessagePage> {
     const result = await this.pool.query<MessageRow>(
-      `SELECT id, event_id, user_id, display_name, role, text, grounding, client_request_id, created_at
+      `SELECT id, event_id, user_id, display_name, role, text, grounding, client_request_id, created_at, moderated_at
          FROM chat_message
         WHERE event_id = $1 AND moderated_at IS NULL
           AND ($2::timestamptz IS NULL OR (created_at, id) < ($2::timestamptz, $3::text))
@@ -56,7 +66,7 @@ export class PgChatStore implements ChatStore {
 
   async listQueuedQuestions(eventId: string, limit: number, after?: ChatCursor): Promise<ChatMessagePage> {
     const result = await this.pool.query<MessageRow>(
-      `SELECT id, event_id, user_id, display_name, role, text, grounding, client_request_id, created_at
+      `SELECT id, event_id, user_id, display_name, role, text, grounding, client_request_id, created_at, moderated_at
          FROM chat_message
         WHERE event_id = $1 AND role = 'buyer' AND moderated_at IS NULL
           AND grounding->>'status' = 'seller-queue'
@@ -84,14 +94,14 @@ export class PgChatStore implements ChatStore {
          VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb, $8, $9)
          ON CONFLICT (event_id, user_id, client_request_id)
            WHERE client_request_id IS NOT NULL DO NOTHING
-         RETURNING id, event_id, user_id, display_name, role, text, grounding, client_request_id, created_at`,
+         RETURNING id, event_id, user_id, display_name, role, text, grounding, client_request_id, created_at, moderated_at`,
         [message.id, message.eventId, message.userId, message.displayName, message.role, message.text,
           message.grounding ? JSON.stringify(message.grounding) : null, message.clientRequestId ?? null, message.createdAt],
       );
       let persisted = inserted.rows[0] ? toMessage(inserted.rows[0]) : undefined;
       if (!persisted && message.clientRequestId) {
         const replay = await client.query<MessageRow>(
-          `SELECT id, event_id, user_id, display_name, role, text, grounding, client_request_id, created_at
+          `SELECT id, event_id, user_id, display_name, role, text, grounding, client_request_id, created_at, moderated_at
              FROM chat_message
             WHERE event_id = $1 AND user_id = $2 AND client_request_id = $3
             FOR UPDATE`,
@@ -104,7 +114,7 @@ export class PgChatStore implements ChatStore {
       if (!persisted) throw new Error('Chat message was not persisted');
       if (inserted.rows.length > 0) {
         await this.upsertPresence(client, message.eventId, {
-          userId: message.userId, displayName: message.displayName, role: message.role, lastSeenAt: message.createdAt,
+          eventId: message.eventId, userId: message.userId, displayName: message.displayName, role: message.role, lastSeenAt: message.createdAt,
         });
       }
       return { message: persisted, created: inserted.rows.length > 0 };
@@ -121,7 +131,7 @@ export class PgChatStore implements ChatStore {
           SET grounding = COALESCE(grounding, '{}'::jsonb) || $3::jsonb
         WHERE event_id = $1 AND id = $2 AND moderated_at IS NULL
           AND grounding IS DISTINCT FROM (COALESCE(grounding, '{}'::jsonb) || $3::jsonb)
-        RETURNING id, event_id, user_id, display_name, role, text, grounding, client_request_id, created_at`,
+        RETURNING id, event_id, user_id, display_name, role, text, grounding, client_request_id, created_at, moderated_at`,
       [eventId, messageId, JSON.stringify(patch)],
     );
     return result.rows[0] ? toMessage(result.rows[0]) : undefined;
@@ -129,7 +139,7 @@ export class PgChatStore implements ChatStore {
 
   async listTranscript(eventId: string, limit: number): Promise<TranscriptMoment[]> {
     const result = await this.pool.query<TranscriptRow>(
-      `SELECT id, text, start_ms, end_ms, product_id, product_title
+      `SELECT id, event_id, text, start_ms, end_ms, product_id, product_title, created_at
          FROM chat_transcript_moment WHERE event_id = $1
         ORDER BY created_at DESC, id DESC LIMIT $2`,
       [eventId, limit],
@@ -140,11 +150,11 @@ export class PgChatStore implements ChatStore {
   async appendTranscript(eventId: string, moment: TranscriptMoment): Promise<TranscriptMoment> {
     const result = await this.pool.query<TranscriptRow>(
       `INSERT INTO chat_transcript_moment
-         (id, event_id, text, start_ms, end_ms, product_id, product_title)
-       VALUES ($1, $2, $3, $4, $5, $6, $7)
-       RETURNING id, text, start_ms, end_ms, product_id, product_title`,
+         (id, event_id, text, start_ms, end_ms, product_id, product_title, created_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+       RETURNING id, event_id, text, start_ms, end_ms, product_id, product_title, created_at`,
       [moment.id, eventId, moment.text, moment.startMs ?? null, moment.endMs ?? null,
-        moment.productId ?? null, moment.productTitle ?? null],
+        moment.productId ?? null, moment.productTitle ?? null, moment.createdAt],
     );
     return toTranscript(result.rows[0]);
   }
@@ -155,7 +165,7 @@ export class PgChatStore implements ChatStore {
     // live set this endpoint returns, instead of rows that only a REST read
     // would have pruned.
     const result = await this.pool.query<PresenceRow>(
-      `SELECT user_id, display_name, role, last_seen_at
+      `SELECT event_id, user_id, display_name, role, last_seen_at
          FROM chat_presence WHERE event_id = $1 AND last_seen_at >= $2 ORDER BY user_id`,
       [eventId, cutoffIso],
     );
@@ -201,7 +211,7 @@ export class PgChatStore implements ChatStore {
        VALUES ($1, $2, $3, $4, $5)
        ON CONFLICT (event_id, user_id) DO UPDATE
          SET display_name = EXCLUDED.display_name, role = EXCLUDED.role, last_seen_at = EXCLUDED.last_seen_at
-       RETURNING user_id, display_name, role, last_seen_at`,
+       RETURNING event_id, user_id, display_name, role, last_seen_at`,
       [eventId, presence.userId, presence.displayName, presence.role, presence.lastSeenAt],
     );
     return toPresence(result.rows[0]);
@@ -227,28 +237,41 @@ function iso(value: Date | string): string {
   return value instanceof Date ? value.toISOString() : String(value);
 }
 
+/**
+ * D-029: these three mappers emit EVERY contract key unconditionally, using
+ * `null` for an absent value.
+ *
+ * They previously spread the key away when the column was null
+ * (`...(x === null ? {} : { x })`), which made the REST rung's key set depend on
+ * the DATA rather than on the contract: a row with a null column produced an
+ * object missing that key, while the Zero rung — replicating the table — always
+ * sends it as null. That is real drift, and it is invisible in any fixture whose
+ * rows happen to populate the column.
+ */
 function toMessage(row: MessageRow): ChatMessage {
   const grounding = typeof row.grounding === 'string' ? JSON.parse(row.grounding) as ChatMessage['grounding'] : row.grounding;
   return {
     id: row.id, eventId: row.event_id, userId: row.user_id, displayName: row.display_name,
     role: row.role, text: row.text, createdAt: iso(row.created_at),
-    ...(grounding ? { grounding } : {}),
-    ...(row.client_request_id ? { clientRequestId: row.client_request_id } : {}),
+    grounding: grounding ?? null,
+    clientRequestId: row.client_request_id ?? null,
+    moderatedAt: row.moderated_at === null ? null : iso(row.moderated_at),
   };
 }
 
 function toTranscript(row: TranscriptRow): TranscriptMoment {
   return {
-    id: row.id, text: row.text,
-    ...(row.start_ms === null ? {} : { startMs: Number(row.start_ms) }),
-    ...(row.end_ms === null ? {} : { endMs: Number(row.end_ms) }),
-    ...(row.product_id === null ? {} : { productId: row.product_id }),
-    ...(row.product_title === null ? {} : { productTitle: row.product_title }),
+    id: row.id, eventId: row.event_id, text: row.text,
+    startMs: row.start_ms === null ? null : Number(row.start_ms),
+    endMs: row.end_ms === null ? null : Number(row.end_ms),
+    productId: row.product_id,
+    productTitle: row.product_title,
+    createdAt: iso(row.created_at),
   };
 }
 
 function toPresence(row: PresenceRow): ChatPresence {
-  return { userId: row.user_id, displayName: row.display_name, role: row.role, lastSeenAt: iso(row.last_seen_at) };
+  return { eventId: row.event_id, userId: row.user_id, displayName: row.display_name, role: row.role, lastSeenAt: iso(row.last_seen_at) };
 }
 
 function sameMutation(left: ChatMessage, right: ChatMessage): boolean {
