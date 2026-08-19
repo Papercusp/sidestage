@@ -106,6 +106,25 @@ async function until<T>(
   return last;
 }
 
+/**
+ * Collection envelopes are NOT uniform across this API, and guessing wrong
+ * yields an empty array that reads as "nothing there" instead of "wrong key" —
+ * the false-absence trap. Measured 2026-08-19: `/catalog` returns `{ rows }`,
+ * `/chat/.../messages` returns `{ items }`, `/actions/.../items` returns
+ * `{ items }`. Accept the known envelopes, then FAIL loudly if none matched.
+ */
+function collection(body: unknown, ...keys: string[]): Record<string, unknown>[] {
+  if (Array.isArray(body)) return body as Record<string, unknown>[];
+  const record = (body ?? {}) as Record<string, unknown>;
+  for (const key of keys) {
+    if (Array.isArray(record[key])) return record[key] as Record<string, unknown>[];
+  }
+  return [];
+}
+
+const catalogRows = (body: unknown) => collection(body, 'rows', 'variants', 'items');
+const chatItems = (body: unknown) => collection(body, 'items', 'messages');
+
 interface OwnedProduct {
   productId: string;
   priceCents: number;
@@ -134,19 +153,16 @@ describe.runIf(BASE !== '')(`live journey E2E (${BASE || 'skipped'})`, () => {
     it('lists the source catalog (control: a non-empty catalog, or every later step is vacuous)', async () => {
       const res = await asSeller('GET', '/catalog?limit=5');
       expect(res.status).toBe(200);
-      const variants = (res.body as { variants?: unknown[] })?.variants ?? (res.body as unknown[]);
-      expect(Array.isArray(variants)).toBe(true);
-      expect((variants as unknown[]).length, 'empty source catalog — onboarding cannot be tested').toBeGreaterThan(0);
+      const rows = catalogRows(res.body);
+      expect(Array.isArray(rows)).toBe(true);
+      expect(rows.length, 'empty source catalog — onboarding cannot be tested').toBeGreaterThan(0);
     }, 60_000);
 
     it('exposes at least one product this seller OWNS, onboarding one if needed', async () => {
       // Prefer an already-owned product: re-onboarding the same catalog variant
       // hits UNIQUE (seller_id, group_id, region, option_signature).
-      const items = await asSeller('GET', `/actions/events/${EVENT_SCHEDULED}/items`);
-      void items; // event does not exist yet; the real lookup is the catalog below
-
       const catalog = await asSeller('GET', '/catalog?limit=25');
-      const variants = ((catalog.body as { variants?: Record<string, unknown>[] })?.variants ?? []) as Record<string, unknown>[];
+      const variants = catalogRows(catalog.body);
       expect(variants.length).toBeGreaterThan(0);
 
       // Walk candidates until one onboards OR is already owned.
@@ -285,7 +301,7 @@ describe.runIf(BASE !== '')(`live journey E2E (${BASE || 'skipped'})`, () => {
       const res = await asSeller('POST', '/transcription/deepgram-token', {});
       expect(res.status, `deepgram token endpoint failed: ${res.text.slice(0, 200)}`).toBeLessThan(400);
       const body = res.body as Record<string, unknown>;
-      const token = String(body.token ?? body.key ?? body.access_token ?? '');
+      const token = String(body.accessToken ?? body.token ?? body.key ?? body.access_token ?? '');
       expect(token.length, 'token endpoint returned 2xx but no usable token — STT would fail live').toBeGreaterThan(10);
     }, 60_000);
   });
@@ -317,7 +333,8 @@ describe.runIf(BASE !== '')(`live journey E2E (${BASE || 'skipped'})`, () => {
 
       const read = await asSeller('GET', `/chat/events/${EVENT_SCHEDULED}/messages?limit=20`);
       expect(read.status).toBe(200);
-      const messages = ((read.body as { messages?: Record<string, unknown>[] }).messages ?? []) as Record<string, unknown>[];
+      const messages = chatItems(read.body);
+      expect(messages.length, 'chat read returned no rows at all — wrong envelope or a broken read').toBeGreaterThan(0);
       expect(messages.some((m) => m.text === 'hello from the e2e journey'), 'sent message did not come back').toBe(true);
     }, 60_000);
   });

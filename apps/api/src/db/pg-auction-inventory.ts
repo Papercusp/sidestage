@@ -7,6 +7,9 @@ import type {
 } from '../auction/auction.service';
 import { sellerListingId } from '../auction/auction.service';
 
+/** Postgres SQLSTATE for unique_violation. */
+const UNIQUE_VIOLATION = '23505';
+
 interface VariantRow {
   productId: string;
   qty: number;
@@ -95,7 +98,18 @@ export class PgAuctionInventory implements AuctionInventory {
     );
     const identity = source.rows[0];
     if (!identity) return undefined;
-    const targetId = this.listingIdFor(owner, identity);
+    // EI-20739798038041966 / prod 500, 2026-08-19. The derived id is a function
+    // of (seller, group, region, signature) — the SAME tuple that
+    // `storefront_product_seller_group_signature_unique` covers — so onboarding
+    // twice normally collides on the PRIMARY KEY and the guarded ON CONFLICT (id)
+    // below absorbs it. It does NOT absorb a row holding that natural key under a
+    // DIFFERENT id, which is what every hand-seeded listing is (e.g.
+    // `sidestage-onboarding-harbor-kettle-v1`). That raised a bare 23505 out of
+    // the driver and Nest rendered it as `500 Internal server error` — an
+    // ordinary "you already stock this" reported as the server being broken.
+    // Targeting the row that already holds the natural key makes the operation
+    // idempotent instead, which is what "onboard with this qty and price" means.
+    const targetId = await this.existingListingId(owner, identity) ?? this.listingIdFor(owner, identity);
     // slug+region and region+SKU are global uniqueness boundaries, so the
     // qualifier must carry BOTH hashes from sellerListingId. Using only its
     // trailing source hash makes two sellers cloning the same public variant
@@ -144,7 +158,19 @@ export class PgAuctionInventory implements AuctionInventory {
        SELECT "productId", qty, "reservedQty", "availableQty", "priceCents"
          FROM upserted`,
       [sourceId, targetId, qualifier, priceCents, quantity, owner],
-    );
+    ).catch((error: unknown) => {
+      // Belt and braces for the class above: ANY residual unique violation is a
+      // statement about the CALLER's request ("you already stock this"), never
+      // about the server. Letting the driver's 23505 escape renders it as a bare
+      // 500, which is indistinguishable from an outage to the UI and to anyone
+      // reading logs — the exact failure this endpoint shipped with.
+      if ((error as { code?: unknown } | null)?.code === UNIQUE_VIOLATION) {
+        throw new ConflictException(
+          `This seller already stocks catalog variant ${sourceId}; onboarding it again would duplicate that listing.`,
+        );
+      }
+      throw error;
+    });
     if (result.rows[0]) return result.rows[0];
     const current = await this.pool.query<{ reservedQty: number }>(
       'SELECT reserved_qty AS "reservedQty" FROM storefront_product WHERE id = $1 AND seller_id = $2',
@@ -179,6 +205,30 @@ export class PgAuctionInventory implements AuctionInventory {
       [productId, sellerId],
     );
     return owned.rows.length > 0;
+  }
+
+  /**
+   * The id this seller ALREADY holds for the source's product identity, if any.
+   *
+   * `storefront_product_seller_group_signature_unique` — not the primary key —
+   * is the real "one listing per product per seller" rule, and a row can satisfy
+   * it under an id this class never derived (anything hand-seeded or imported).
+   * Reading it first is what keeps onboarding idempotent for those rows.
+   */
+  private async existingListingId(
+    sellerId: string,
+    identity: ListingIdentityRow,
+  ): Promise<string | undefined> {
+    const existing = await this.pool.query<{ id: string }>(
+      `SELECT id FROM storefront_product
+        WHERE seller_id = $1
+          AND group_id IS NOT DISTINCT FROM $2
+          AND region = $3
+          AND option_signature = $4
+        LIMIT 1`,
+      [sellerId, identity.groupId, identity.region, identity.optionSignature],
+    );
+    return existing.rows[0]?.id;
   }
 
   /** Must match onboardOwned's target so a hold finds the row onboarding created. */

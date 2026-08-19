@@ -10,12 +10,18 @@ describe('PgAuctionInventory hold lifecycle', () => {
   it('clones metadata and options into one deterministic seller-owned listing', async () => {
     const identity = { id: 'source-1', groupId: 'group-1', region: 'US', optionSignature: 'color=black' };
     const row = { productId: 'seller-listing-id', qty: 3, reservedQty: 0, availableQty: 3, priceCents: 2_500 };
+    // Each onboardOwned is now THREE queries: resolve the source identity,
+    // look for a listing this seller already holds for that identity
+    // (EI-20739798038041966), then upsert. No existing listing here.
     const query = vi.fn()
       .mockResolvedValueOnce({ rows: [identity] })
+      .mockResolvedValueOnce({ rows: [] })
       .mockResolvedValueOnce({ rows: [row] })
       .mockResolvedValueOnce({ rows: [identity] })
+      .mockResolvedValueOnce({ rows: [] })
       .mockResolvedValueOnce({ rows: [row] })
       .mockResolvedValueOnce({ rows: [identity] })
+      .mockResolvedValueOnce({ rows: [] })
       .mockResolvedValueOnce({ rows: [row] });
     const inventory = new PgAuctionInventory({ query } as never);
 
@@ -23,9 +29,9 @@ describe('PgAuctionInventory hold lifecycle', () => {
     await expect(inventory.onboardOwned('source-1', 3, 2_500, 'seller-alpha')).resolves.toEqual(row);
     await expect(inventory.onboardOwned('source-1', 3, 2_500, 'seller-beta')).resolves.toEqual(row);
 
-    const [firstSql, firstParams] = query.mock.calls[1] as [string, unknown[]];
-    const [, secondParams] = query.mock.calls[3] as [string, unknown[]];
-    const [, otherSellerParams] = query.mock.calls[5] as [string, unknown[]];
+    const [firstSql, firstParams] = query.mock.calls[2] as [string, unknown[]];
+    const [, secondParams] = query.mock.calls[5] as [string, unknown[]];
+    const [, otherSellerParams] = query.mock.calls[8] as [string, unknown[]];
     expect(firstSql).toContain('INSERT INTO storefront_product');
     expect(firstSql).toContain('source.variant_images');
     expect(firstSql).toContain('INSERT INTO storefront_product_option');
