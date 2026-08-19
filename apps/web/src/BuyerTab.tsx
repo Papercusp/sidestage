@@ -252,6 +252,13 @@ export function BuyerTab({
   // Derived server state, not user-meaningful — so useState, not nuqs.
   const [auctionSelection, setAuctionSelection] = useState({ eventId, productId: null as string | null });
   const auctionedProductId = auctionSelection.eventId === eventId ? auctionSelection.productId : null;
+  const handleActiveAuctionProductChange = useCallback((productId: string | null) => {
+    setAuctionSelection((current) => (
+      current.eventId === eventId && current.productId === productId
+        ? current
+        : { eventId, productId }
+    ));
+  }, [eventId]);
   const stream = useStreamSession<ViewerSession>();
   const {
     streamState,
@@ -614,7 +621,7 @@ export function BuyerTab({
           bidderId={userId}
           displayName={userId}
           apiBaseUrl={import.meta.env.VITE_API_URL}
-          onActiveAuctionProductChange={(productId) => setAuctionSelection({ eventId, productId })}
+          onActiveAuctionProductChange={handleActiveAuctionProductChange}
           idleContent={(
             <article
               className="buyer-current-offer"
