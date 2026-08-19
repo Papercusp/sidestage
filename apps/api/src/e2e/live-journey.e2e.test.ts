@@ -165,8 +165,9 @@ describe.runIf(BASE !== '')(`live journey E2E (${BASE || 'skipped'})`, () => {
       const variants = catalogRows(catalog.body);
       expect(variants.length).toBeGreaterThan(0);
 
-      // Walk candidates until one onboards OR is already owned.
+      // Walk candidates until one onboards.
       let resolved: OwnedProduct | undefined;
+      let lastRejection = '(no candidate was attempted)';
       for (const variant of variants.slice(0, 8)) {
         const sourceId = String(variant.id ?? variant.productId ?? '');
         if (!sourceId) continue;
@@ -174,6 +175,14 @@ describe.runIf(BASE !== '')(`live journey E2E (${BASE || 'skipped'})`, () => {
           quantity: 25,
           priceCents: Number(variant.priceCents ?? 4_999),
         });
+        // REGRESSION GUARD (EI-20739798038041966): onboarding a product the seller
+        // already stocks is an ORDINARY outcome — the seeded-listing natural-key
+        // collision. It must be idempotent (2xx) or an honest 409. Prod answered
+        // 500 here on 2026-08-19, which is indistinguishable from an outage.
+        expect(
+          onboard.status,
+          `onboard returned ${onboard.status} — a re-onboard must never be a 5xx: ${onboard.text.slice(0, 200)}`,
+        ).toBeLessThan(500);
         if (onboard.status >= 200 && onboard.status < 300) {
           const payload = onboard.body as { productId?: string; snapshot?: Record<string, unknown> };
           const productId = String(payload.productId ?? payload.snapshot?.productId ?? '');
@@ -187,21 +196,17 @@ describe.runIf(BASE !== '')(`live journey E2E (${BASE || 'skipped'})`, () => {
             break;
           }
         }
-        // A conflict means this seller already owns it — fine, look it up.
-        const owned = await asSeller('GET', `/inventory/${sourceId}`);
-        if (owned.status === 200) {
-          const snapshot = owned.body as Record<string, unknown>;
-          resolved = {
-            productId: String(snapshot.productId ?? sourceId),
-            priceCents: Number(snapshot.priceCents ?? variant.priceCents ?? 4_999),
-            quantity: Number(snapshot.quantity ?? 25),
-            title: String(snapshot.title ?? variant.title ?? 'E2E product'),
-          };
-          break;
-        }
+        // Deliberately NO fallback to `GET /inventory/:sourceId`: that returns the
+        // SOURCE catalog row, whose id this seller does not own. Feeding it onward
+        // fails three steps later as "Event item … was not found" and buries the
+        // real cause. Skip the candidate; if none onboards, fail loudly below.
+        lastRejection = `${sourceId} -> ${onboard.status} ${onboard.text.slice(0, 160)}`;
       }
 
-      expect(resolved, 'no catalog variant could be onboarded OR resolved as already-owned').toBeDefined();
+      expect(
+        resolved,
+        `no catalog variant could be onboarded for ${SELLER}. Last rejection: ${lastRejection}`,
+      ).toBeDefined();
       product = resolved!;
       expect(product.productId.length).toBeGreaterThan(0);
     }, 120_000);
@@ -234,13 +239,22 @@ describe.runIf(BASE !== '')(`live journey E2E (${BASE || 'skipped'})`, () => {
             eventId: EVENT_SCHEDULED,
             productId: product.productId,
             title: product.title,
+            // D-024 renamed the lineup's wire fields (priceCents -> currentPriceCents,
+            // quantity -> currentQuantity, onStage -> stageState). A deployment may be
+            // either side of that rename — measured 2026-08-19: prod still answered
+            // `priceCents`/`quantity`/`onStage` while the tree had the new names. Send
+            // BOTH so this suite tests the DEPLOYMENT rather than asserting its version;
+            // the receiving side ignores whichever pair it does not know.
+            priceCents: product.priceCents,
             currentPriceCents: product.priceCents,
+            quantity: product.quantity,
             currentQuantity: product.quantity,
             listedQuantity: product.quantity,
             referencePriceCents: product.priceCents,
             attributes: {},
             position: 0,
             stageState: 'queued',
+            onStage: false,
           },
         ],
       });

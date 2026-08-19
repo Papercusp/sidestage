@@ -62,6 +62,7 @@ describe('ConfiguredProductFocusClassifier', () => {
     delete process.env.OPENAI_API_KEY;
     delete process.env.SIDESTAGE_PRODUCT_FOCUS_MODEL;
     delete process.env.SIDESTAGE_COPILOT_MODEL;
+    delete process.env.GOOGLE_CLOUD_PROJECT;
     await expect(new ConfiguredProductFocusClassifier().classify(INPUT)).resolves.toMatchObject({
       decision: 'unknown', source: 'unavailable', requestSequence: 7,
     });
@@ -76,24 +77,41 @@ describe('ConfiguredProductFocusClassifier', () => {
       delete process.env.OPENAI_API_KEY;
       delete process.env.SIDESTAGE_PRODUCT_FOCUS_MODEL;
       delete process.env.SIDESTAGE_COPILOT_MODEL;
+      // GOOGLE_CLOUD_PROJECT is set for real on the dev box, and the Vertex leg
+      // now wins the provider choice — leaving it set makes "unconfigured" tests
+      // dial Vertex for real (measured: 5s timeouts) instead of asserting the
+      // degraded path.
+      delete process.env.GOOGLE_CLOUD_PROJECT;
     };
 
     it('names EVERY missing variable, and treats the two model vars as one requirement', () => {
       unconfigure();
       expect(productFocusClassifierConfig()).toEqual({
         configured: false,
-        missing: ['OPENAI_API_KEY', 'SIDESTAGE_PRODUCT_FOCUS_MODEL (or SIDESTAGE_COPILOT_MODEL)'],
+        provider: null,
+        missing: [
+          'OPENAI_API_KEY',
+          'SIDESTAGE_PRODUCT_FOCUS_MODEL (or SIDESTAGE_COPILOT_MODEL)',
+          // The cheaper remedy is named too: on a box already holding Vertex
+          // credentials for the copilot, this one variable turns the leg on.
+          'or GOOGLE_CLOUD_PROJECT for the Vertex leg',
+        ],
       });
 
       // Either model var satisfies the requirement — reporting one as missing while
       // the other is set would send the owner to provision something already set.
       process.env.SIDESTAGE_COPILOT_MODEL = 'copilot-model';
-      expect(productFocusClassifierConfig().missing).toEqual(['OPENAI_API_KEY']);
+      expect(productFocusClassifierConfig().missing).toEqual([
+        'OPENAI_API_KEY',
+        'or GOOGLE_CLOUD_PROJECT for the Vertex leg',
+      ]);
 
       // CONTROL: fully configured reports nothing, so the assertions above are not
       // just "this function always finds something to complain about".
       process.env.OPENAI_API_KEY = 'test-key';
-      expect(productFocusClassifierConfig()).toEqual({ configured: true, missing: [] });
+      expect(productFocusClassifierConfig()).toEqual({
+        configured: true, provider: 'openai', missing: [],
+      });
     });
 
     it('treats a whitespace-only value as missing, not as configured', () => {
@@ -101,7 +119,7 @@ describe('ConfiguredProductFocusClassifier', () => {
       process.env.OPENAI_API_KEY = '   ';
       process.env.SIDESTAGE_PRODUCT_FOCUS_MODEL = '';
       expect(productFocusClassifierConfig().configured).toBe(false);
-      expect(productFocusClassifierConfig().missing).toHaveLength(2);
+      expect(productFocusClassifierConfig().missing).toHaveLength(3);
     });
 
     it('warns at STARTUP, naming the missing vars and the consequence', () => {

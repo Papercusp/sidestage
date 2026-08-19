@@ -1,4 +1,6 @@
 import { Injectable, Logger, type OnModuleInit } from '@nestjs/common';
+import { createVertexAdapter } from '../llm/vertex-adapter';
+import { VertexProductFocusClassifier } from './product-focus-vertex.classifier';
 
 const MAX_PRODUCTS = 100;
 const MAX_SEGMENTS = 4;
@@ -141,7 +143,7 @@ export function validateProductFocusModelPayload(
   };
 }
 
-function productFocusPrompt(input: ProductFocusClassificationInput): string {
+export function productFocusPrompt(input: ProductFocusClassificationInput): string {
   return [
     'TRANSCRIPT_PRODUCT_FOCUS_V1',
     'Classify the seller\'s CURRENT conversational product focus from finalized transcript context.',
@@ -160,17 +162,35 @@ function productFocusPrompt(input: ProductFocusClassificationInput): string {
  * the startup log and the degrade path cannot drift apart by naming different
  * variables.
  */
+export type ProductFocusProvider = 'vertex' | 'openai';
+
 export function productFocusClassifierConfig(env: NodeJS.ProcessEnv = process.env): {
   configured: boolean;
+  provider: ProductFocusProvider | null;
   missing: readonly string[];
 } {
+  // VERTEX FIRST — it is this project's decided provider, and the copilot and
+  // judge seams already route through createVertexAdapter. Its gate is exactly
+  // the adapter's: GOOGLE_CLOUD_PROJECT. The model name is optional because
+  // createVertexAdapter substitutes DEFAULT_VERTEX_MODEL, which is why an empty
+  // SIDESTAGE_PRODUCT_FOCUS_VERTEX_MODEL is NOT reported as missing.
+  if (env.GOOGLE_CLOUD_PROJECT?.trim()) {
+    return { configured: true, provider: 'vertex', missing: [] };
+  }
   const missing: string[] = [];
   if (!env.OPENAI_API_KEY?.trim()) missing.push('OPENAI_API_KEY');
   // Either name satisfies the model requirement, so report the pair, not one of them.
   if (!(env.SIDESTAGE_PRODUCT_FOCUS_MODEL ?? env.SIDESTAGE_COPILOT_MODEL)?.trim()) {
     missing.push('SIDESTAGE_PRODUCT_FOCUS_MODEL (or SIDESTAGE_COPILOT_MODEL)');
   }
-  return { configured: missing.length === 0, missing };
+  if (missing.length === 0) return { configured: true, provider: 'openai', missing: [] };
+  // Name the cheaper remedy too: on a box that already has Vertex credentials
+  // for the copilot, GOOGLE_CLOUD_PROJECT alone turns this on.
+  return {
+    configured: false,
+    provider: null,
+    missing: [...missing, 'or GOOGLE_CLOUD_PROJECT for the Vertex leg'],
+  };
 }
 
 @Injectable()
@@ -178,6 +198,8 @@ export class ConfiguredProductFocusClassifier implements OnModuleInit {
   private readonly logger = new Logger(ConfiguredProductFocusClassifier.name);
   /** Warn on the FIRST degraded call only — this runs per utterance. */
   private warnedDegradedInUse = false;
+  /** Built once when the Vertex leg is the configured provider. */
+  private vertex: VertexProductFocusClassifier | undefined;
 
   /**
    * WI-39851 wall (2): this classifier's absence used to be completely silent.
@@ -189,8 +211,22 @@ export class ConfiguredProductFocusClassifier implements OnModuleInit {
    * absence is not, so the silence is fixed here even though the gate stands.
    */
   onModuleInit(): void {
-    const { configured, missing } = productFocusClassifierConfig();
-    if (configured) return;
+    const { configured, provider, missing } = productFocusClassifierConfig();
+    if (configured) {
+      // Which ENGINE is live is not inferable from the replies (a wrong verdict
+      // and an unconfigured one both surface as "no suggestion"), so state it
+      // once at boot rather than leaving it to be reverse-engineered from env.
+      this.logger.log(`Semantic product-focus classifier ACTIVE on the ${provider} leg.`);
+      if (provider === 'vertex') {
+        this.vertex = new VertexProductFocusClassifier(
+          createVertexAdapter(
+            process.env.SIDESTAGE_PRODUCT_FOCUS_VERTEX_MODEL
+              ?? process.env.SIDESTAGE_COPILOT_VERTEX_MODEL,
+          )!,
+        );
+      }
+      return;
+    }
     this.logger.warn(
       `Semantic product-focus classifier DISABLED — missing ${missing.join(', ')}. ` +
         'Transcript product focus will fall back to the deterministic alias layer only, so a ' +
@@ -205,7 +241,7 @@ export class ConfiguredProductFocusClassifier implements OnModuleInit {
         decision: 'unknown', productId: null, confidence: 0, evidenceSegmentIds: [], requestSequence: 0, source: 'error',
       };
     }
-    const { configured, missing } = productFocusClassifierConfig();
+    const { configured, provider, missing } = productFocusClassifierConfig();
     if (!configured) {
       // Deliberately distinct from the startup line: this one proves the feature is
       // being EXERCISED while unconfigured, which is the difference between a dark
@@ -219,6 +255,23 @@ export class ConfiguredProductFocusClassifier implements OnModuleInit {
       }
       return fallback(input, 'unavailable');
     }
+
+    if (provider === 'vertex') {
+      // Lazily built when onModuleInit did not run (a directly-constructed
+      // instance in a test, or an env that changed after boot).
+      this.vertex ??= new VertexProductFocusClassifier(
+        createVertexAdapter(
+          process.env.SIDESTAGE_PRODUCT_FOCUS_VERTEX_MODEL
+            ?? process.env.SIDESTAGE_COPILOT_VERTEX_MODEL,
+        )!,
+      );
+      const verdict = await this.vertex.classify(input);
+      // A null verdict is a PROVIDER failure, not a considered "no". It must
+      // surface as `error`, never as `unknown`-from-the-model, or a broken
+      // Vertex leg becomes indistinguishable from a model that declined.
+      return verdict ?? fallback(input, 'error');
+    }
+
     const apiKey = process.env.OPENAI_API_KEY!.trim();
     const model = (process.env.SIDESTAGE_PRODUCT_FOCUS_MODEL ?? process.env.SIDESTAGE_COPILOT_MODEL)!.trim();
 

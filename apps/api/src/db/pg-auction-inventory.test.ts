@@ -260,3 +260,83 @@ describe.runIf(process.env.SIDESTAGE_PG_INTEGRATION === '1')('PgAuctionInventory
     }
   }, 45_000);
 });
+
+/**
+ * EI-20739798038041966 — `POST /inventory/:sourceProductId/onboard` answered
+ * **500 Internal server error** on production (2026-08-19, measured against
+ * sidestage.papercusp.com).
+ *
+ * The upsert guards only `ON CONFLICT (id)`, and the derived listing id is a
+ * function of exactly (seller, group, region, signature) — the same tuple
+ * `storefront_product_seller_group_signature_unique` covers. So a re-onboard
+ * collides on the PRIMARY KEY and is absorbed... unless a row already holds that
+ * natural key under a DIFFERENT id, which is true of every hand-seeded listing
+ * (prod: `sidestage-onboarding-harbor-kettle-v1`). Then the driver raised a bare
+ * 23505 and Nest rendered "the server is broken" for "you already stock this".
+ */
+describe('onboardOwned is idempotent against a listing the seller already holds', () => {
+  const identity = { id: 'source-9', groupId: 'group-9', region: 'US', optionSignature: 'base' };
+  const row = { productId: 'seeded-legacy-id', qty: 25, reservedQty: 0, availableQty: 25, priceCents: 7_400 };
+
+  it('targets the EXISTING row id rather than minting a colliding one', async () => {
+    const query = vi.fn()
+      .mockResolvedValueOnce({ rows: [identity] })
+      // The seller already stocks this product identity under a seeded id.
+      .mockResolvedValueOnce({ rows: [{ id: 'seeded-legacy-id' }] })
+      .mockResolvedValueOnce({ rows: [row] });
+    const inventory = new PgAuctionInventory({ query } as never);
+
+    await expect(inventory.onboardOwned('source-9', 25, 7_400, 'demo-seller')).resolves.toEqual(row);
+
+    const [lookupSql, lookupParams] = query.mock.calls[1] as [string, unknown[]];
+    expect(lookupSql).toContain('option_signature');
+    expect(lookupParams).toEqual(['demo-seller', 'group-9', 'US', 'base']);
+
+    const [, upsertParams] = query.mock.calls[2] as [string, unknown[]];
+    // $2 is the target id. It must be the row that already exists, NOT a fresh
+    // derived id — using the derived id is precisely what raised 23505.
+    expect(upsertParams[1]).toBe('seeded-legacy-id');
+  });
+
+  it('control: with NO existing row it still derives the deterministic listing id', async () => {
+    // Without this the fix could "work" by always reusing something, and the
+    // deterministic-id property the hold path depends on would be untested.
+    const query = vi.fn()
+      .mockResolvedValueOnce({ rows: [identity] })
+      .mockResolvedValueOnce({ rows: [] })
+      .mockResolvedValueOnce({ rows: [row] });
+    const inventory = new PgAuctionInventory({ query } as never);
+
+    await inventory.onboardOwned('source-9', 25, 7_400, 'demo-seller');
+
+    const [, upsertParams] = query.mock.calls[2] as [string, unknown[]];
+    expect(String(upsertParams[1])).toMatch(/^seller-listing-[a-f0-9]{12}-[a-f0-9]{24}$/);
+  });
+
+  it('reports a residual unique violation as 409, never letting a 23505 become a 500', async () => {
+    const violation = Object.assign(new Error('duplicate key value violates unique constraint'), {
+      code: '23505',
+    });
+    const query = vi.fn()
+      .mockResolvedValueOnce({ rows: [identity] })
+      .mockResolvedValueOnce({ rows: [] })
+      .mockRejectedValueOnce(violation);
+    const inventory = new PgAuctionInventory({ query } as never);
+
+    await expect(inventory.onboardOwned('source-9', 25, 7_400, 'demo-seller'))
+      .rejects.toMatchObject({ status: 409 });
+  });
+
+  it('control: a NON-unique database failure still propagates unchanged', async () => {
+    // A 409 for everything would hide real outages behind a client-error code.
+    const outage = Object.assign(new Error('connection terminated'), { code: '08006' });
+    const query = vi.fn()
+      .mockResolvedValueOnce({ rows: [identity] })
+      .mockResolvedValueOnce({ rows: [] })
+      .mockRejectedValueOnce(outage);
+    const inventory = new PgAuctionInventory({ query } as never);
+
+    await expect(inventory.onboardOwned('source-9', 25, 7_400, 'demo-seller'))
+      .rejects.toThrow('connection terminated');
+  });
+});
