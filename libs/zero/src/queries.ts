@@ -63,9 +63,8 @@ export const queries = defineQueries({
        * D-036: this deliberately does NOT relate to `product`. Two reasons, and
        * the second is a security one:
        *
-       * 1. Nothing needs it. The buyer surface composes catalog data from its
-       *    own `catalog.page` query (BuyerTab.tsx) — it never read this query's
-       *    catalog fields.
+       * 1. Nothing needs it. BuyerTab renders this event-authoritative row
+       *    directly and does not fall back to global catalog selection.
        * 2. `storefront_product` is published WHOLE (db/zero-publication.sql),
        *    including `qty`, `reserved_qty`, `price_cents` and `active` — the
        *    seller's inventory position and base-price structure. Relating to it

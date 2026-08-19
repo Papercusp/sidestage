@@ -11,12 +11,11 @@ import type { ActionItemStageState } from './action.types';
  * has no projection layer, so its leaf served a NESTED `product` relation
  * instead and the two transports disagreed about the shape of the same query.
  *
- * Catalog data reaches clients by COMPOSITION, which is what the buyer surface
- * already does — it reads `catalog.page` as its own query (BuyerTab.tsx) and
- * never consumed these keys. Relating this query to `storefront_product` would
- * also have put `qty`, `reserved_qty`, `price_cents` and `active` — the
- * seller's inventory position and base-price structure — on a PUBLIC buyer
- * read, since that table is published whole.
+ * BuyerTab intentionally renders this authoritative lineup projection without
+ * a catalog fallback. Relating this query to `storefront_product` would put
+ * `qty`, `reserved_qty`, `price_cents` and `active` — the seller's inventory
+ * position and base-price structure — on a PUBLIC buyer read, since that table
+ * is published whole.
  *
  * ⚠ Do not re-add a catalog field here without changing the Zero leaf in the
  * same commit. The differential parity harness will catch it, but the cheaper

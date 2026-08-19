@@ -2,16 +2,13 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { SyncContext } from '@papercusp/sync';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { BuyerTab, buyerProductsFromSyncRows, buyerStatsFromSyncRows } from './BuyerTab';
+import { BuyerTab, buyerStatsFromSyncRows } from './BuyerTab';
 import type { GuideEvent } from './events/api';
 
 /**
- * catalog.page AND events.guide are REST-pinned via useRestSyncQuery since
- * WI-39855 (neither has a Zero registry leaf — catalog.page is an envelope
- * contract collision, events.guide returns server-computed viewers/playbackUrl),
- * so neither read flows through SyncContext.useDataImpl any more. Mock that hook
- * as the observable seam; every other export (SyncContext included) stays
- * original.
+ * events.guide is REST-pinned via useRestSyncQuery since WI-39855 because it
+ * returns server-computed viewers/playbackUrl. The event lineup now follows the
+ * active sync transport and is covered in BuyerTab.lineup.test.tsx.
  */
 const restSync = vi.hoisted(() => ({
   impl: undefined as ((opts: { queryName: string }) => Record<string, unknown>) | undefined,
@@ -186,58 +183,4 @@ describe('BuyerTab sync read models', () => {
     expect(buyerStatsFromSyncRows([])).toBeNull();
   });
 
-  it('maps a catalog page and gates the transport-failure fixture to development', () => {
-    const synced = buyerProductsFromSyncRows([{
-      rows: [{
-        id: 'variant-1',
-        groupId: 'product-1',
-        title: 'Stoneware mug',
-        brand: 'Northstar',
-        productType: 'HOME',
-        sku: 'MUG-1',
-        condition: 'NEW',
-        handlingDays: 2,
-        priceCents: 2_400,
-        qty: 3,
-        reservedQty: 0,
-        availableQty: 3,
-      }],
-      page: 1,
-      pageSize: 6,
-      total: 1,
-      totalIsFloor: false,
-    }], false);
-
-    expect(synced).toEqual([
-      expect.objectContaining({ id: 'variant-1', title: 'Stoneware mug', priceCents: 2_400, availableQty: 3 }),
-    ]);
-    expect(buyerProductsFromSyncRows(undefined, false)).toEqual([]);
-    expect(buyerProductsFromSyncRows(undefined, true, true).length).toBeGreaterThan(0);
-    expect(buyerProductsFromSyncRows(undefined, true, false)).toEqual([]);
-  });
-
-  it('alerts production buyers instead of rendering products when the catalog source is down', () => {
-    // The catalog read is REST-pinned, so the source-down error surfaces
-    // through useRestSyncQuery, not useDataImpl.
-    restSync.impl = (options) =>
-      options.queryName === 'catalog.page' ? { error: new Error('catalog unavailable') } : {};
-    const useDataImpl = vi.fn(() => ({
-      data: [],
-      loading: false,
-      fetching: false,
-      transport: 'SSE',
-      invalidate: vi.fn(),
-      error: null,
-    }));
-
-    const html = renderToStaticMarkup(
-      <SyncContext.Provider value={{ transport: 'SSE', useDataImpl, prefetch: vi.fn() } as never}>
-        <BuyerTab eventId="live-room" stats={STATS} guideEvents={[]} allowDemoData={false} />
-      </SyncContext.Provider>,
-    );
-
-    expect(html).toContain('role="alert"');
-    expect(html).toContain('Live inventory is unavailable');
-    expect(html).not.toContain('demo-espresso-matte-black');
-  });
 });
