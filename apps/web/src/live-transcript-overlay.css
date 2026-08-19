@@ -79,6 +79,11 @@
 .live-transcript-state.state-error { color: var(--danger); }
 .live-transcript-active { overflow: hidden; margin-left: auto; white-space: nowrap; }
 .live-transcript-active strong { overflow: hidden; color: var(--on-video); text-overflow: ellipsis; }
+/* WI-39868: a past-tense product must not keep the present-tense emphasis, or the
+   styling goes on making the claim the words just gave up (the WI-39839 lesson:
+   the pill's colour had to move with its label for the same reason). */
+.live-transcript-active.is-past { opacity: .72; }
+.live-transcript-active.is-past strong { font-weight: 500; }
 
 .live-transcript-history-toggle,
 .live-transcript-dismiss,

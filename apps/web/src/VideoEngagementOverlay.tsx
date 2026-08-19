@@ -61,9 +61,15 @@ export function remoteTranscriptPresentation(
     state: unavailable ? 'error' : live ? 'listening' : 'idle',
     segments: moments,
     error: unavailable ? 'The live transcript is temporarily unavailable.' : null,
+    // WI-39868: `latestProduct` is the last PERSISTED moment naming a product, so
+    // it proves the event featured it at some point — never that it is on stage
+    // now. Reusing the same `live` conjunction as the pill keeps the two halves of
+    // the toolbar from disagreeing: a green "Transcript live" beside a past-tense
+    // product, or the reverse, is the split-subject bug all over again.
     activeProduct: latestProduct ? {
       id: latestProduct.productId!,
       label: latestProduct.productTitle!,
+      live,
     } : null,
     statusLabel: unavailable
       ? 'Transcript unavailable'

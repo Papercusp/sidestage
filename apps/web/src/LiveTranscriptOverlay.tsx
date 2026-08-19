@@ -28,13 +28,39 @@ export interface TranscriptOverlayProduct {
   variantLabel?: string;
 }
 
+/**
+ * A product this surface is attributing to the event, plus WHICH claim it is making
+ * about it.
+ *
+ * `live` is carried ON the product rather than beside it, and is deliberately not
+ * optional (WI-39868, the last face of the WI-39839 liveness-claim trap). Both
+ * choices are load-bearing:
+ *
+ *  - Not optional, because the bug was a surface asserting the strong claim by
+ *    DEFAULT. A `live?: boolean` would let the next call site re-acquire "On stage"
+ *    by simply not thinking about it, which is exactly how the original arrived.
+ *  - On the product, so the requirement lands exactly where the claim is made. A
+ *    sibling field on the presentation would be required of every caller including
+ *    the many that never name a product at all — stranding fixtures that have no
+ *    opinion to record, which is the pressure that turns a required field optional
+ *    again.
+ */
+export interface TranscriptOverlayActiveProduct extends TranscriptOverlayProduct {
+  /**
+   * True: this product is on stage RIGHT NOW. False: it is simply the last one
+   * this event featured — worth telling a buyer who arrives mid-replay, but not a
+   * statement about the present.
+   */
+  live: boolean;
+}
+
 /** Role-neutral transcript data rendered by the shared video engagement surface. */
 export interface TranscriptOverlayPresentation {
   state: LiveTranscriptController['state'];
   segments: readonly TranscriptOverlaySegment[];
   interim?: string;
   error?: string | null;
-  activeProduct?: TranscriptOverlayProduct | null;
+  activeProduct?: TranscriptOverlayActiveProduct | null;
   suggestedProduct?: TranscriptOverlayProduct | null;
   /**
    * Sibling colourways of `suggestedProduct` that matched the seller's words
@@ -104,7 +130,12 @@ export function liveTranscriptPresentation(
     segments: transcript.finalSegments,
     interim: transcript.interim,
     error: transcript.error,
-    activeProduct: transcript.activeProduct,
+    // live: true is a genuine claim here, not a default. The seller controller's
+    // activeProduct IS the product the seller has staged — their own action, read
+    // back — not an inference from what the captions happened to mention. That is
+    // precisely the distinction the buyer path (remoteTranscriptPresentation)
+    // cannot make, which is why it must compute this rather than assert it.
+    activeProduct: transcript.activeProduct ? { ...transcript.activeProduct, live: true } : transcript.activeProduct,
     suggestedProduct: transcript.suggestedProduct,
     suggestedVariantChoices: transcript.suggestedVariantChoices?.map(overlayVariantChoice),
     onStageProduct: transcript.stageProduct,
@@ -204,7 +235,12 @@ export function TranscriptOverlayView({ transcript, toolbarActions }: Transcript
           <span className={`live-transcript-state state-${transcript.state}`}>
             <span aria-hidden="true" /> {statusLabel}
           </span>
-          {transcript.activeProduct ? <span className="live-transcript-active">On stage: <strong>{transcript.activeProduct.label}</strong></span> : null}
+          {transcript.activeProduct ? (
+            <span className={`live-transcript-active${transcript.activeProduct.live ? '' : ' is-past'}`}>
+              {transcript.activeProduct.live ? 'On stage: ' : 'Last shown: '}
+              <strong>{transcript.activeProduct.label}</strong>
+            </span>
+          ) : null}
           <button
             type="button"
             className="live-transcript-history-toggle"

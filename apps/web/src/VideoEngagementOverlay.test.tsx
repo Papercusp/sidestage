@@ -1,6 +1,8 @@
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
 
+import { liveTranscriptPresentation, TranscriptOverlayView } from './LiveTranscriptOverlay';
+import type { LiveTranscriptController } from './use-live-transcript';
 import {
   nextTranscriptErrorState,
   remoteTranscriptPresentation,
@@ -103,6 +105,84 @@ describe('VideoEngagementOverlay', () => {
     const playing = remoteTranscriptPresentation(moments, { videoLive: true });
     expect(playing.statusLabel).toBe('Transcript live');
     expect(playing.state).toBe('listening');
+  });
+
+  it('says "Last shown", not "On stage", once the buyer\'s video stops (WI-39868)', () => {
+    // The other half of the owner's screenshot: beside the green pill WI-39839
+    // fixed, the toolbar still read "On stage: Medication Bag" — asserting a
+    // product was being presented at that moment. The feed is a poll of PERSISTED
+    // moments, so it can only ever prove the event featured it at SOME point.
+    const moments = [{
+      id: 'moment-1',
+      text: 'Center front.',
+      startMs: 12_000,
+      productId: 'bag',
+      productTitle: 'Medication Bag',
+    }];
+
+    const stalled = remoteTranscriptPresentation(moments, { videoLive: false });
+    // The product is NOT dropped — a buyer arriving mid-replay still learns what
+    // was featured. The fix is to stop overclaiming, not to withhold.
+    expect(stalled.activeProduct).toEqual({ id: 'bag', label: 'Medication Bag', live: false });
+
+    // Asserted on the RENDERED MARKUP on purpose: WI-39839's first symptom shipped
+    // as a correct-but-never-called helper, which a presentation-object test
+    // cannot catch.
+    const markup = renderToStaticMarkup(
+      <VideoEngagementOverlay chat={<p>Room message</p>} transcript={stalled} />,
+    );
+    expect(markup).toContain('Last shown: <strong>Medication Bag</strong>');
+    expect(markup).not.toContain('On stage');
+    // The styling has to give up the claim with the words — the same reason
+    // WI-39839 had to move the pill's colour and not just its label.
+    expect(markup).toContain('live-transcript-active is-past');
+  });
+
+  it('CONTROL: the same moments DO say "On stage" while the video is playing', () => {
+    // Without this the test above passes for a build that simply never renders a
+    // product at all.
+    const moments = [{
+      id: 'moment-1',
+      text: 'Center front.',
+      startMs: 12_000,
+      productId: 'bag',
+      productTitle: 'Medication Bag',
+    }];
+
+    const playing = remoteTranscriptPresentation(moments, { videoLive: true });
+    expect(playing.activeProduct).toEqual({ id: 'bag', label: 'Medication Bag', live: true });
+
+    const markup = renderToStaticMarkup(
+      <VideoEngagementOverlay chat={<p>Room message</p>} transcript={playing} />,
+    );
+    expect(markup).toContain('On stage: <strong>Medication Bag</strong>');
+    expect(markup).not.toContain('Last shown');
+    expect(markup).not.toContain('is-past');
+  });
+
+  it('leaves the SELLER capture path claiming "On stage" (WI-39868 blast radius)', () => {
+    // `TranscriptOverlayView` is shared by both roles, so the buyer fix must not
+    // reach the seller. Their activeProduct is the product THEY staged — their own
+    // action read back, not an inference from what the captions mentioned — so the
+    // present-tense claim is theirs to make and stays true even between utterances.
+    const controller: LiveTranscriptController = {
+      provider: 'deepgram',
+      state: 'listening',
+      finalSegments: [],
+      interim: '',
+      error: null,
+      activeProduct: { id: 'lamp', label: 'Arc Table Lamp' },
+      suggestedProduct: null,
+      stageProduct: () => {},
+      dismissSuggestion: () => {},
+    };
+
+    const presentation = liveTranscriptPresentation(controller);
+    expect(presentation.activeProduct).toEqual({ id: 'lamp', label: 'Arc Table Lamp', live: true });
+
+    const markup = renderToStaticMarkup(<TranscriptOverlayView transcript={presentation} />);
+    expect(markup).toContain('On stage: <strong>Arc Table Lamp</strong>');
+    expect(markup).not.toContain('is-past');
   });
 
   it('forgives a single transient transcript-poll failure (EI-20538641531453022)', () => {
