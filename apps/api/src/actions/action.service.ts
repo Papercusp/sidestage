@@ -9,6 +9,7 @@ import {
 import { randomUUID } from 'node:crypto';
 import { EVENT_POLICY_RESOLVER, type EventPolicyResolver } from '../config/event-policy-resolver';
 import { PolicyActionGuard } from '../copilot/guardrail';
+import { toEventItemContext } from '../copilot/copilot.grounding';
 import type { ActionExecutor, CopilotActionProposal, CopilotPolicy } from '../copilot/copilot.types';
 import { SyncInvalidationService } from '../sync/sync-invalidation.service';
 import { ORDER_STORE, type CheckoutOrder, type OrderStore } from '../checkout/order-store';
@@ -85,9 +86,9 @@ function sameItem(left: ActionEventItem, right: ActionEventItem): boolean {
     && left.eventItemId === right.eventItemId
     && left.productId === right.productId
     && left.referencePriceCents === right.referencePriceCents
-    && left.priceCents === right.priceCents
-    && left.availableQty === right.availableQty
-    && left.quantity === right.quantity
+    && left.currentPriceCents === right.currentPriceCents
+    && left.currentQuantity === right.currentQuantity
+    && left.listedQuantity === right.listedQuantity
     && left.position === right.position
     && left.stageState === right.stageState
     && left.version === right.version;
@@ -239,7 +240,7 @@ export class GuardedActionService implements ActionExecutor {
     if (!item) throw new NotFoundException('Offer was not found');
     await this.itemStore.write(offer.eventId, [{
       expectedVersion: item.version,
-      item: { ...item, availableQty: item.availableQty + offer.quantity },
+      item: { ...item, currentQuantity: item.currentQuantity + offer.quantity },
     }]);
     this.invalidateEventItems(offer.eventId);
     this.invalidateBuyerOrders(offer.buyerId);
@@ -274,7 +275,7 @@ export class GuardedActionService implements ActionExecutor {
     }
     const items = actionItems.map((item) => ({
       productId: item.productId,
-      priceCents: item.referencePriceCents ?? item.priceCents,
+      priceCents: item.referencePriceCents ?? item.currentPriceCents,
     }));
     return this.policyResolver.resolve(eventId, items);
   }
@@ -330,8 +331,8 @@ export class GuardedActionService implements ActionExecutor {
     let offer: TargetedOffer | undefined;
     if (action.kind === 'targeted-offer') {
       const quantity = assertPositiveInteger(action.quantity ?? 0, 'quantity');
-      if (quantity > current.availableQty) throw new ConflictException(`Only ${current.availableQty} units remain available`);
-      afterItem.availableQty -= quantity;
+      if (quantity > current.currentQuantity) throw new ConflictException(`Only ${current.currentQuantity} units remain available`);
+      afterItem.currentQuantity -= quantity;
       offer = {
         id: randomUUID(),
         eventId,
@@ -344,37 +345,35 @@ export class GuardedActionService implements ActionExecutor {
         createdAt: new Date().toISOString(),
       };
     } else if (action.kind === 'markdown' || action.kind === 'price-adjust') {
-      afterItem.priceCents = assertPositiveInteger(action.priceCents ?? 0, 'priceCents');
+      afterItem.currentPriceCents = assertPositiveInteger(action.priceCents ?? 0, 'priceCents');
       if (action.kind === 'price-adjust' && action.quantity !== undefined) {
         const quantity = assertPositiveInteger(action.quantity, 'quantity');
-        if (quantity > current.availableQty) throw new ConflictException(`Quantity cannot exceed ${current.availableQty} available units`);
-        afterItem.quantity = quantity;
+        if (quantity > current.currentQuantity) throw new ConflictException(`Quantity cannot exceed ${current.currentQuantity} available units`);
+        afterItem.listedQuantity = quantity;
       }
     } else if (action.kind === 'push') {
-      // One item on stage per event: pushing clears any previous stage flag.
+      // One item on stage per event: pushing clears any previous stage state.
       for (const item of items) {
         if (item.stageState === 'on-stage' && item.productId !== current.productId) {
           extraChanges.push({
             expectedVersion: item.version,
-            item: { ...item, stageState: 'queued', onStage: false },
+            item: { ...item, stageState: 'queued' },
           });
         }
       }
       afterItem.stageState = 'on-stage';
-      afterItem.onStage = true;
     } else if (action.kind === 'swap') {
       const target = items.find((item) => item.productId === action.swapToProductId);
       if (!target) throw new NotFoundException(`Swap target ${action.swapToProductId} is not a verified event item`);
       afterItem.stageState = 'queued';
-      afterItem.onStage = false;
       extraChanges.push({
         expectedVersion: target.version,
-        item: { ...target, stageState: 'on-stage', onStage: true },
+        item: { ...target, stageState: 'on-stage' },
       });
     } else if (action.kind === 'stock-adjust') {
       const quantity = assertNonNegativeInteger(action.quantity ?? 0, 'quantity');
-      if (quantity > current.availableQty) throw new ConflictException(`Quantity cannot exceed ${current.availableQty} available units`);
-      afterItem.quantity = quantity;
+      if (quantity > current.currentQuantity) throw new ConflictException(`Quantity cannot exceed ${current.currentQuantity} available units`);
+      afterItem.listedQuantity = quantity;
     }
 
     const persisted = await this.itemStore.write(eventId, [
@@ -454,7 +453,7 @@ export class GuardedActionService implements ActionExecutor {
       action: {
         kind: original.kind === 'rollback' ? 'price-adjust' : original.kind,
         productId: original.productId,
-        priceCents: restored.priceCents,
+        priceCents: restored.currentPriceCents,
         buyerId: original.buyerId,
         reason,
       },
@@ -545,17 +544,20 @@ export class GuardedActionService implements ActionExecutor {
     const eventItemId = assertText(item.eventItemId, 'eventItemId');
     const productId = assertText(item.productId, 'productId');
     const title = assertText(item.title, 'title');
-    const priceCents = assertPositiveInteger(item.priceCents, 'priceCents');
+    const currentPriceCents = assertPositiveInteger(item.currentPriceCents, 'currentPriceCents');
     const referencePriceCents = assertPositiveInteger(
-      previous?.referencePriceCents ?? item.referencePriceCents ?? priceCents,
+      previous?.referencePriceCents ?? item.referencePriceCents ?? currentPriceCents,
       'referencePriceCents',
     );
-    const availableQty = assertNonNegativeInteger(item.availableQty, 'availableQty');
-    const quantity = assertPositiveInteger(item.quantity, 'quantity');
-    if (quantity > availableQty && availableQty > 0) throw new BadRequestException('quantity cannot exceed availableQty');
+    const currentQuantity = assertNonNegativeInteger(item.currentQuantity, 'currentQuantity');
+    const listedQuantity = assertPositiveInteger(item.listedQuantity, 'listedQuantity');
+    if (listedQuantity > currentQuantity && currentQuantity > 0) {
+      throw new BadRequestException('listedQuantity cannot exceed currentQuantity');
+    }
     const position = assertNonNegativeInteger(item.position ?? positionInput, 'position');
-    const stageState = item.stageState
-      ?? (item.onStage === true ? 'on-stage' : item.onStage === false ? 'queued' : previous?.stageState ?? 'queued');
+    // D-024: `stageState` is the only stage input. The former `onStage` boolean
+    // is gone from the registration boundary too — a caller states the state.
+    const stageState = item.stageState ?? previous?.stageState ?? 'queued';
     if (!['queued', 'on-stage', 'completed'].includes(stageState)) {
       throw new BadRequestException('stageState must be queued, on-stage, or completed');
     }
@@ -566,12 +568,11 @@ export class GuardedActionService implements ActionExecutor {
       productId,
       title,
       referencePriceCents,
-      priceCents,
-      availableQty,
-      quantity,
+      currentPriceCents,
+      currentQuantity,
+      listedQuantity,
       position,
       stageState,
-      onStage: stageState === 'on-stage',
       attributes: { ...item.attributes },
     };
   }
@@ -584,8 +585,7 @@ export class GuardedActionService implements ActionExecutor {
       productId: current.productId,
       referencePriceCents: item.referencePriceCents ?? current.referencePriceCents,
       position: item.position ?? current.position,
-      stageState: item.stageState ?? (item.onStage ? 'on-stage' : 'queued'),
-      onStage: item.stageState === 'on-stage' || item.onStage === true,
+      stageState: item.stageState ?? current.stageState,
       attributes: { ...item.attributes },
     };
   }
@@ -604,7 +604,9 @@ export class GuardedActionService implements ActionExecutor {
 
   private guardContext(eventId: string, policy: CopilotPolicy, item: ActionEventItem): ActionGuardContext {
     return {
-      eventItems: [cloneItem(item)],
+      // D-035: the guard reads grounding fields, so the lineup row is
+      // TRANSLATED here rather than passed through on a type narrowing.
+      eventItems: [toEventItemContext(item)],
       catalogProducts: [],
       policy,
       sources: [

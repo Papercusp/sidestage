@@ -15,6 +15,42 @@ import type {
 } from './copilot.types';
 
 /**
+ * D-035: THE seam between the lineup row and the copilot's grounding
+ * vocabulary. `ActionEventItem` spells its fields with the
+ * `event_lineup_item` column names because ZQL replicates that table verbatim
+ * (D-024); `EventItemContext` spells them the way the prompt-building code
+ * reads them. Those are two different jobs, so the translation is written out
+ * once, here, instead of being inherited.
+ *
+ * Add a field to grounding? Map it in this function. Never re-couple the two
+ * interfaces to avoid writing a line of mapping.
+ */
+export function toEventItemContext(item: ActionEventItem): EventItemContext {
+  return {
+    eventItemId: item.eventItemId,
+    productId: item.productId,
+    title: item.title,
+    description: item.description,
+    priceCents: item.currentPriceCents,
+    availableQty: item.currentQuantity,
+    // D-024 deleted the stored `onStage` boolean; stage presence is derived
+    // from the one stage truth. `listingStateOf` (copilot.claims) reads this
+    // to tell 'on-stage' from 'listed'.
+    onStage: item.stageState === 'on-stage',
+    attributes: { ...item.attributes },
+  };
+}
+
+/**
+ * The priced projection the policy resolver needs. It wants a price, not a
+ * lineup row — so it gets one, rather than the resolver learning the column
+ * names of a table it has no stake in.
+ */
+export function toPricedEventItem(item: ActionEventItem): { productId: string; priceCents: number } {
+  return { productId: item.productId, priceCents: item.currentPriceCents };
+}
+
+/**
  * Event price/quantity remain event-scoped, while sellable availability is
  * bounded by the current global catalog row. The action snapshot can further
  * reduce that bound (for example, a pending targeted offer), but can never
@@ -25,16 +61,13 @@ export function reconcileEventItemAvailability(
   variant: CatalogVariant | undefined,
 ): EventItemContext {
   const catalogAvailableQty = variant?.availableQty ?? 0;
+  const base = toEventItemContext(item);
   return {
-    eventItemId: item.eventItemId,
-    productId: item.productId,
-    title: item.title,
-    description: item.description,
-    priceCents: item.priceCents,
-    availableQty: Math.max(0, Math.min(item.availableQty, item.quantity, catalogAvailableQty)),
+    ...base,
+    availableQty: Math.max(0, Math.min(item.currentQuantity, item.listedQuantity, catalogAvailableQty)),
     attributes: {
-      ...item.attributes,
-      eventListedQty: item.quantity,
+      ...base.attributes,
+      eventListedQty: item.listedQuantity,
       catalogAvailableQty,
     },
   };
@@ -94,7 +127,7 @@ export class SideStageGroundingRetriever implements GroundingRetriever {
     const [variants, page, policy, transcript] = await Promise.all([
       Promise.all(actionItems.map((item) => this.catalog.variant(item.productId))),
       this.catalog.search({ q: request.query, availability: 'in-stock', pageSize: request.limit }),
-      this.policies.resolve(request.eventId, actionItems),
+      this.policies.resolve(request.eventId, actionItems.map(toPricedEventItem)),
       this.chat.getTranscript(request.eventId),
     ]);
     const eventItems = actionItems.map((item, index) => reconcileEventItemAvailability(item, variants[index]));

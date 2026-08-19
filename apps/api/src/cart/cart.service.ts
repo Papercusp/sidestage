@@ -152,7 +152,7 @@ export class InMemoryCartStore implements CartStore {
     assertEventCartScope(cart, input.eventId);
     if (hasEventHoldKey(cart, input.idempotencyKey)) return cloneCart(cart);
     const existing = cart.items.find((candidate) => candidate.eventItemId === input.eventItemId);
-    if (item.availableQty < input.quantity) {
+    if (item.currentQuantity < input.quantity) {
       throw new ConflictException(`Insufficient event allocation for ${input.eventItemId}`);
     }
 
@@ -172,7 +172,7 @@ export class InMemoryCartStore implements CartStore {
     try {
       updatedLineup = await this.eventItems.write(input.eventId, [{
         expectedVersion: item.version,
-        item: { ...item, availableQty: item.availableQty - input.quantity },
+        item: { ...item, currentQuantity: item.currentQuantity - input.quantity },
       }]);
     } catch (error) {
       if (previousQuantity > 0) {
@@ -218,7 +218,7 @@ export class InMemoryCartStore implements CartStore {
     ));
     if (!item) throw new NotFoundException('Event cart item is not available');
     const delta = input.quantity - existing.quantity;
-    if (delta > 0 && item.availableQty < delta) {
+    if (delta > 0 && item.currentQuantity < delta) {
       throw new ConflictException(`Insufficient event allocation for ${input.eventItemId}`);
     }
 
@@ -234,7 +234,7 @@ export class InMemoryCartStore implements CartStore {
     try {
       updatedLineup = await this.eventItems.write(input.eventId, [{
         expectedVersion: item.version,
-        item: { ...item, availableQty: item.availableQty - delta },
+        item: { ...item, currentQuantity: item.currentQuantity - delta },
       }]);
     } catch (error) {
       await this.inventory.reserve(input.productId, existing.quantity, source, existing.expiresAt);
@@ -248,7 +248,7 @@ export class InMemoryCartStore implements CartStore {
       if (!authoritative) throw new Error('Event lineup transaction lost its updated item');
       existing.quantity = input.quantity;
       existing.title = authoritative.title;
-      existing.priceCents = authoritative.priceCents;
+      existing.priceCents = authoritative.currentPriceCents;
     }
     const updated = summarizeCart(cart);
     await this.set(updated);
@@ -284,7 +284,7 @@ export class InMemoryCartStore implements CartStore {
         if (!item) throw new ConflictException('Event cart allocation changed; reload the cart and retry');
         return {
           expectedVersion: item.version,
-          item: { ...item, availableQty: item.availableQty + cartItem.quantity },
+          item: { ...item, currentQuantity: item.currentQuantity + cartItem.quantity },
         };
       });
       for (const item of cart.items) {
@@ -798,7 +798,7 @@ export function recordEventHoldKey(cart: Cart, idempotencyKey: string): void {
 
 export function upsertEventCartItem(
   cart: Cart,
-  item: Pick<StoredActionEventItem, 'eventId' | 'eventItemId' | 'productId' | 'title' | 'priceCents'>,
+  item: Pick<StoredActionEventItem, 'eventId' | 'eventItemId' | 'productId' | 'title' | 'currentPriceCents'>,
   input: EventCartHoldInput,
   nextQuantity: number,
 ): void {

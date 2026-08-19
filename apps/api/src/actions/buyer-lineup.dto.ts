@@ -10,9 +10,15 @@ export interface BuyerLineupItem {
   title: string;
   description?: string;
   referencePriceCents: number;
-  priceCents: number;
-  quantity: number;
-  availableQty: number;
+  /**
+   * D-024: these three carry the `event_lineup_item` column names because the
+   * Zero rung replicates that table verbatim and ZQL has no projection layer —
+   * so the REST rung must spell them the same way or the two transports serve
+   * different shapes for the same query.
+   */
+  currentPriceCents: number;
+  listedQuantity: number;
+  currentQuantity: number;
   position: number;
   stageState: ActionItemStageState;
   imageUrl?: string;
@@ -35,9 +41,9 @@ function projectBuyerLineupItem(
     title: item.title,
     ...(item.description ? { description: item.description } : {}),
     referencePriceCents: item.referencePriceCents,
-    priceCents: item.priceCents,
-    quantity: item.quantity,
-    availableQty: item.availableQty,
+    currentPriceCents: item.currentPriceCents,
+    listedQuantity: item.listedQuantity,
+    currentQuantity: item.currentQuantity,
     position: item.position,
     stageState: item.stageState,
     ...(variant?.imageUrl ? { imageUrl: variant.imageUrl } : {}),

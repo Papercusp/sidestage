@@ -7,7 +7,6 @@ export interface ActionItemDraft extends ActionEventItem {
   referencePriceCents: number;
   position: number;
   stageState: ActionItemStageState;
-  onStage: boolean;
 }
 
 export interface StoredActionEventItem extends ActionItemDraft {
@@ -76,7 +75,6 @@ export class InMemoryActionItemStore implements ActionItemStore {
           next.set(itemKey, {
             ...cloneStoredActionItem(item),
             stageState: 'queued',
-            onStage: false,
             version: item.version + 1,
             updatedAt: now,
           });
