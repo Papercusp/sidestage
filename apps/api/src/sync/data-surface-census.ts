@@ -273,6 +273,10 @@ export const PROCESS_LOCAL_SURFACES: readonly SourceSurface[] = [
   local('apps/api/src/copilot/copilot.service.ts', 'generationBySource', 'copilot-generation-dedupe', ['seller-owned', 'operational'], 'in-flight dedupe', 'runtime-only', 'copilot_proposal source-message uniqueness plus bounded promise cache', 'P-015 seller Copilot'),
   local('apps/api/src/copilot/copilot.service.ts', 'reconciliationByEvent', 'copilot-question-reconciliation', ['seller-owned', 'operational'], 'in-flight serializer', 'runtime-only', 'durable chat seller-queue state plus idempotent copilot_proposal reconciliation', 'P-015 seller Copilot'),
   local('apps/api/src/copilot/copilot.store.ts', 'proposals', 'copilot', ['seller-owned'], 'memory backend authority', 'replicate', 'copilot_proposal', 'P-011/P-019'),
+  // Not data: the memoised Vertex leg of the semantic product-focus classifier,
+  // built once when GOOGLE_CLOUD_PROJECT gates it on. Holds no rows — every
+  // verdict is validated against the CALLER's supplied catalog on each call.
+  local('apps/api/src/chat/product-focus.classifier.ts', 'vertex', 'product-focus-model-leg', ['operational'], 'memoised model client, not an authority', 'runtime-only', 'none; stateless per request', 'P-011/P-019'),
   // EI-20739798038041966. Not data: a one-shot latch so pool teardown is idempotent
   // (pg throws on a second end(), and app.close() can be reached from both the
   // failed-bootstrap path and a SIGTERM). Nothing reads it but the shutdown hook.

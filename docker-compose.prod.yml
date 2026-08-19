@@ -182,7 +182,8 @@ services:
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
       OPENAI_BASE_URL: ${OPENAI_BASE_URL:-}
       SIDESTAGE_COPILOT_MODEL: ${SIDESTAGE_COPILOT_MODEL:-}
-      # Optional Vertex configuration (Scout, Copilot, Judge share the gate).
+      # Optional Vertex configuration (Scout, Copilot, Judge and the transcript
+      # product-focus classifier share the gate).
       # A blank project keeps the tested deterministic engines; location/model
       # blanks use the factory defaults. The credentials path points inside the
       # container at the ./secrets read-only mount below.
@@ -192,6 +193,8 @@ services:
       SCOUT_VERTEX_MODEL: ${SCOUT_VERTEX_MODEL:-}
       SIDESTAGE_COPILOT_VERTEX_MODEL: ${SIDESTAGE_COPILOT_VERTEX_MODEL:-}
       SIDESTAGE_JUDGE_VERTEX_MODEL: ${SIDESTAGE_JUDGE_VERTEX_MODEL:-}
+      # Blank falls back to SIDESTAGE_COPILOT_VERTEX_MODEL, then the factory default.
+      SIDESTAGE_PRODUCT_FOCUS_VERTEX_MODEL: ${SIDESTAGE_PRODUCT_FOCUS_VERTEX_MODEL:-}
     volumes:
       # Hand-placed credential files (Vertex service-account key). Prod-side
       # state: deploy.sh excludes /secrets from the rsync --delete sweep.

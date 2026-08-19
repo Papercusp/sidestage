@@ -1,6 +1,7 @@
 import { Logger } from '@nestjs/common';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+import { VertexProductFocusClassifier } from './product-focus-vertex.classifier';
 import {
   ConfiguredProductFocusClassifier,
   productFocusClassifierConfig,
@@ -137,6 +138,7 @@ describe('ConfiguredProductFocusClassifier', () => {
     });
 
     it('CONTROL: says NOTHING at startup when it is configured', () => {
+      delete process.env.GOOGLE_CLOUD_PROJECT; // pin the OpenAI leg; Vertex wins otherwise
       process.env.OPENAI_API_KEY = 'test-key';
       process.env.SIDESTAGE_PRODUCT_FOCUS_MODEL = 'focus-model';
       const warn = vi.spyOn(Logger.prototype, 'warn').mockImplementation(() => {});
@@ -162,6 +164,7 @@ describe('ConfiguredProductFocusClassifier', () => {
     });
 
     it('CONTROL: a configured classifier never emits the degraded-use warning', async () => {
+      delete process.env.GOOGLE_CLOUD_PROJECT; // pin the OpenAI leg; Vertex wins otherwise
       process.env.OPENAI_API_KEY = 'test-key';
       process.env.SIDESTAGE_PRODUCT_FOCUS_MODEL = 'focus-model';
       const warn = vi.spyOn(Logger.prototype, 'warn').mockImplementation(() => {});
@@ -178,6 +181,7 @@ describe('ConfiguredProductFocusClassifier', () => {
   });
 
   it('uses strict structured output and validates the model response', async () => {
+    delete process.env.GOOGLE_CLOUD_PROJECT; // pin the OpenAI leg; Vertex wins otherwise
     process.env.OPENAI_API_KEY = 'test-key';
     process.env.SIDESTAGE_PRODUCT_FOCUS_MODEL = 'focus-model';
     const fetchMock = vi.fn(async (_url: string, init: RequestInit) => {
@@ -198,10 +202,106 @@ describe('ConfiguredProductFocusClassifier', () => {
   });
 
   it('turns transport and parse failures into an unknown decision', async () => {
+    delete process.env.GOOGLE_CLOUD_PROJECT; // pin the OpenAI leg; Vertex wins otherwise
     process.env.OPENAI_API_KEY = 'test-key';
     process.env.SIDESTAGE_PRODUCT_FOCUS_MODEL = 'focus-model';
     vi.stubGlobal('fetch', vi.fn(async () => new Response('bad gateway', { status: 502 })));
     await expect(new ConfiguredProductFocusClassifier().classify(INPUT)).resolves.toMatchObject({
+      decision: 'unknown', source: 'error', requestSequence: 7,
+    });
+  });
+});
+
+/**
+ * The Vertex leg. This classifier was the ONE inference seam still hardcoded to
+ * OpenAI while the copilot (copilot.module.ts) and judge (judge.module.ts) both
+ * ran on Vertex — so in production it returned `unavailable` for every utterance
+ * while working Vertex credentials sat in the same container.
+ */
+describe('semantic product-focus on the Vertex leg', () => {
+  type FakeAdapter = ConstructorParameters<typeof VertexProductFocusClassifier>[0];
+  /** Only `model` and `complete` are exercised; the rest of the adapter is irrelevant here. */
+  const adapter = (content: string): FakeAdapter => ({
+    model: 'gemini-test',
+    complete: vi.fn(async () => ({ content })),
+  } as unknown as FakeAdapter);
+  const failingAdapter = (message: string): FakeAdapter => ({
+    model: 'gemini-test',
+    complete: vi.fn(async () => { throw new Error(message); }),
+  } as unknown as FakeAdapter);
+
+  it('prefers Vertex when GOOGLE_CLOUD_PROJECT is set, even with NO OpenAI key', () => {
+    delete process.env.OPENAI_API_KEY;
+    delete process.env.SIDESTAGE_PRODUCT_FOCUS_MODEL;
+    delete process.env.SIDESTAGE_COPILOT_MODEL;
+    process.env.GOOGLE_CLOUD_PROJECT = 'test-project';
+    expect(productFocusClassifierConfig()).toEqual({
+      configured: true, provider: 'vertex', missing: [],
+    });
+  });
+
+  it('CONTROL: without GOOGLE_CLOUD_PROJECT it does NOT claim the Vertex leg', () => {
+    // Otherwise the check above would pass for a function that always says vertex.
+    delete process.env.GOOGLE_CLOUD_PROJECT;
+    delete process.env.OPENAI_API_KEY;
+    delete process.env.SIDESTAGE_PRODUCT_FOCUS_MODEL;
+    delete process.env.SIDESTAGE_COPILOT_MODEL;
+    expect(productFocusClassifierConfig().provider).toBeNull();
+  });
+
+  it('accepts a confident, in-catalog verdict', async () => {
+    const classifier = new VertexProductFocusClassifier(adapter(JSON.stringify({
+      decision: 'different', productId: 'hoodie', confidence: 0.93, evidenceSegmentIds: ['segment-1'],
+    })));
+    await expect(classifier.classify(INPUT)).resolves.toMatchObject({
+      decision: 'different', productId: 'hoodie', confidence: 0.93, source: 'model', requestSequence: 7,
+    });
+  });
+
+  it('tolerates a fenced code block, which Gemini emits freely', async () => {
+    const classifier = new VertexProductFocusClassifier(adapter(
+      '```json\n{"decision":"same","productId":null,"confidence":0.8,"evidenceSegmentIds":[]}\n```',
+    ));
+    await expect(classifier.classify(INPUT)).resolves.toMatchObject({ decision: 'same', source: 'model' });
+  });
+
+  it('applies the SAME safety validation as the OpenAI leg — an invented id cannot stage anything', async () => {
+    // The whole point of routing both legs through validateProductFocusModelPayload:
+    // switching provider must not widen what a model is able to do.
+    const classifier = new VertexProductFocusClassifier(adapter(JSON.stringify({
+      decision: 'different', productId: 'not-in-catalog', confidence: 0.99, evidenceSegmentIds: [],
+    })));
+    await expect(classifier.classify(INPUT)).resolves.toMatchObject({
+      decision: 'unknown', productId: null, confidence: 0,
+    });
+  });
+
+  it('rejects a `different` verdict below the confidence floor', async () => {
+    const classifier = new VertexProductFocusClassifier(adapter(JSON.stringify({
+      decision: 'different', productId: 'hoodie', confidence: 0.5, evidenceSegmentIds: [],
+    })));
+    await expect(classifier.classify(INPUT)).resolves.toMatchObject({ decision: 'unknown', productId: null });
+  });
+
+  it('returns NO verdict (not a considered "unknown") when the provider fails', async () => {
+    // A broken leg must stay distinguishable from a model that declined —
+    // the caller maps this to source:'error', never source:'model'.
+    await expect(new VertexProductFocusClassifier(failingAdapter('vertex 503')).classify(INPUT))
+      .resolves.toBeNull();
+  });
+
+  it('returns NO verdict when the response carries no JSON object', async () => {
+    await expect(new VertexProductFocusClassifier(adapter('I think it is the hoodie.')).classify(INPUT))
+      .resolves.toBeNull();
+  });
+
+  it('surfaces a failed Vertex call as source:error through the configured classifier', async () => {
+    process.env.GOOGLE_CLOUD_PROJECT = 'test-project';
+    const classifier = new ConfiguredProductFocusClassifier();
+    // Inject a failing leg directly — this asserts the mapping, not the adapter.
+    (classifier as unknown as { vertex: VertexProductFocusClassifier }).vertex =
+      new VertexProductFocusClassifier(failingAdapter('vertex 503'));
+    await expect(classifier.classify(INPUT)).resolves.toMatchObject({
       decision: 'unknown', source: 'error', requestSequence: 7,
     });
   });
