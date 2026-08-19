@@ -10,9 +10,6 @@
 [submodule "libs/sse"]
 	path = libs/sse
 	url = https://github.com/Papercusp/sse.git
-[submodule "libs/agent-chat"]
-	path = libs/agent-chat
-	url = https://github.com/Papercusp/agent-chat.git
 [submodule "libs/token-kit"]
 	path = libs/token-kit
 	url = https://github.com/Papercusp/token-kit.git
