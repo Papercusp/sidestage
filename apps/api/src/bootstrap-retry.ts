@@ -26,6 +26,11 @@ import { Logger } from '@nestjs/common';
 export interface BootRetryOptions {
   /** Attempts before giving up. Default Infinity — see `bootRetryMaxAttempts`. */
   maxAttempts?: number;
+  /**
+   * Attempts that may fail with EADDRINUSE before giving up, counted across the
+   * whole run. Default `DEFAULT_PORT_CONFLICT_MAX_ATTEMPTS`.
+   */
+  portConflictMaxAttempts?: number;
   /** Delay before the 2nd attempt; doubles up to `maxDelayMs`. Default 1000. */
   initialDelayMs?: number;
   /** Ceiling for the exponential backoff. Default 30_000. */
@@ -36,6 +41,23 @@ export interface BootRetryOptions {
 
 export const DEFAULT_INITIAL_DELAY_MS = 1_000;
 export const DEFAULT_MAX_DELAY_MS = 30_000;
+
+/**
+ * EI-20739798038041966. Retrying is right for a dependency an operator can repair;
+ * it is wrong for a port another process owns, because THIS process can never win —
+ * it just spins, unlistening, until someone notices. Nobody did: three duplicate API
+ * trees were found alive 1.3, 1.8 and 4.4 days, each re-running the whole bootstrap
+ * every 30s and (before the pool-teardown fix) stranding a pg Pool per attempt.
+ *
+ * A few attempts are still allowed because `tsx watch` restarts race the outgoing
+ * child for the port; past that it is a duplicate server, and exiting is the answer.
+ */
+export const DEFAULT_PORT_CONFLICT_MAX_ATTEMPTS = 5;
+
+/** `app.listen()` on a port another process holds. */
+export function isPortConflict(error: unknown): boolean {
+  return (error as { code?: unknown } | null | undefined)?.code === 'EADDRINUSE';
+}
 
 /**
  * Unbounded by default so a development box self-heals unattended. A deployment
@@ -65,6 +87,7 @@ export async function bootstrapWithRetry(
 ): Promise<void> {
   const {
     maxAttempts = bootRetryMaxAttempts(),
+    portConflictMaxAttempts = DEFAULT_PORT_CONFLICT_MAX_ATTEMPTS,
     initialDelayMs = DEFAULT_INITIAL_DELAY_MS,
     maxDelayMs = DEFAULT_MAX_DELAY_MS,
     sleep = defaultSleep,
@@ -72,6 +95,7 @@ export async function bootstrapWithRetry(
   } = options;
 
   let delayMs = initialDelayMs;
+  let portConflicts = 0;
 
   for (let attempt = 1; ; attempt += 1) {
     try {
@@ -82,6 +106,18 @@ export async function bootstrapWithRetry(
       return;
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
+      if (isPortConflict(error)) {
+        portConflicts += 1;
+        if (portConflicts >= portConflictMaxAttempts) {
+          logger.error(
+            `API bootstrap hit a port conflict on ${portConflicts} attempt(s) (${message}) — giving up. ` +
+              'Another process already owns this port, so retrying can never succeed; ' +
+              'this is a DUPLICATE API server and is exiting rather than spinning unlistening. ' +
+              'Find the owner with `ss -ltnp | grep :<port>`, or set API_PORT to a free port.',
+          );
+          throw error;
+        }
+      }
       if (attempt >= maxAttempts) {
         logger.error(`API bootstrap failed after ${attempt} attempt(s), giving up: ${message}`);
         throw error;
