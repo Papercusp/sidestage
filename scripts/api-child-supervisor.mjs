@@ -5,7 +5,7 @@ import { spawn as spawnChild } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { resolve } from 'node:path';
 
-const API_ENTRYPOINT_PATTERN = /(?:^|[\\/])src[\\/]main\.ts(?:\s|$)/;
+const API_ENTRYPOINT_PATTERN = /(?:^|[\s\\/])src[\\/]main\.ts(?:\s|$)/;
 
 export const DEFAULT_API_WATCH_ARGS = [
   'watch',
@@ -13,6 +13,12 @@ export const DEFAULT_API_WATCH_ARGS = [
   '--exclude', '../../libs/**/dist/**',
   'src/main.ts',
 ];
+
+// The API can spend more than 15 seconds in tsx/Nest bootstrap on a busy
+// development host. Keep the startup failure bounded, but leave enough room
+// for a legitimate slow start instead of turning transient load into a
+// systemd restart loop.
+export const DEFAULT_API_STARTUP_GRACE_MS = 60_000;
 
 /**
  * Read the direct children of a process on Linux without shelling out to ps.
@@ -85,7 +91,7 @@ export function superviseApiChild({
   entrypointPattern = API_ENTRYPOINT_PATTERN,
   pollMs = 100,
   missingGraceMs = 750,
-  startupGraceMs = 15_000,
+  startupGraceMs = DEFAULT_API_STARTUP_GRACE_MS,
   spawnProcess = spawnChild,
   spawnOptions = { stdio: 'inherit' },
   readChildren = readProcessChildren,
