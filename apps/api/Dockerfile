@@ -1,5 +1,7 @@
 # SideStage API — built from the repo root context (workspaces + libs needed).
-FROM node:20-alpine AS build
+# @rocicorp/zero@1.8 requires Node >=22 and @rocicorp/zero-sqlite3 supports
+# Node 22.x/24.x; keep build and production on the same supported major.
+FROM node:22-alpine AS build
 WORKDIR /app
 COPY . .
 RUN npm ci --no-audit --no-fund \
@@ -12,7 +14,7 @@ RUN npm ci --no-audit --no-fund \
   && npm run build --workspace @papercusp/sidestage-api \
   && npm prune --omit=dev
 
-FROM node:20-alpine
+FROM node:22-alpine
 WORKDIR /app
 ENV NODE_ENV=production
 COPY --from=build /app/node_modules ./node_modules

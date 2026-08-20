@@ -5,6 +5,7 @@ import { describe, expect, it } from 'vitest';
 
 interface PackageJson {
   dependencies?: Record<string, string>;
+  engines?: { node?: string };
   exports?: Record<
     string,
     string | { types?: string; import?: string; require?: string; default?: string }
@@ -18,6 +19,7 @@ interface PackageLock {
     string,
     {
       dependencies?: Record<string, string>;
+      engines?: { node?: string };
       link?: boolean;
       resolved?: string;
     }
@@ -85,6 +87,27 @@ describe('API runtime workspace packages', () => {
       );
       expect(dockerfile).toContain(
         `COPY --from=build /app/${workspacePath}/package.json ./${workspacePath}/package.json`,
+      );
+    }
+  });
+
+  it('keeps the production API image on the workspace dependency engine floor', () => {
+    const rootPackage = readJson<PackageJson>('package.json');
+    const packageLock = readJson<PackageLock>('package-lock.json');
+    const dockerfile = readFileSync(resolve(repoRoot, 'apps/api/Dockerfile'), 'utf8');
+    const nodeImages = [...dockerfile.matchAll(/^FROM node:(\d+)-alpine(?: AS build)?$/gm)].map(
+      (match) => Number(match[1]),
+    );
+
+    expect(rootPackage.engines?.node).toBe('>=22.0.0');
+    expect(packageLock.packages?.['']?.engines?.node).toBe(rootPackage.engines?.node);
+    expect(nodeImages).toEqual([22, 22]);
+
+    for (const dependency of ['@rocicorp/zero', '@rocicorp/zero-sqlite3']) {
+      const dependencyEngine = packageLock.packages?.[`node_modules/${dependency}`]?.engines?.node;
+      expect(dependencyEngine, `${dependency} must declare its Node engine`).toBeTruthy();
+      expect(nodeImages.every((major) => major >= 22), `${dependency} must run on Node >=22`).toBe(
+        true,
       );
     }
   });
