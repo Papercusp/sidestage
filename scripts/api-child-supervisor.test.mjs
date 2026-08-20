@@ -6,6 +6,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 
 import {
   DEFAULT_API_STARTUP_GRACE_MS,
+  findCgroupPid,
   superviseApiChild,
 } from './api-child-supervisor.mjs';
 
@@ -29,6 +30,29 @@ function waitForFile(path, timeoutMs = 3_000) {
 }
 
 describe('SideStage API child supervisor', () => {
+  it('keeps a reparented API child in scope and ignores an unrelated cgroup match', () => {
+    const commandLines = new Map([
+      [101, 'node /srv/sidestage/src/main.ts'],
+      [202, 'node /srv/Restart/apps/scout-service/src/main.ts'],
+    ]);
+    const cgroupProcesses = new Map([
+      ['/user.slice/sidestage-dev.service', [101]],
+      ['/user.slice/restart-scout.service', [202]],
+    ]);
+
+    const result = findCgroupPid(
+      100,
+      /(?:^|[\\s\\/])src[\\/]main\.ts(?:\\s|$)/,
+      () => '/user.slice/sidestage-dev.service',
+      (path) => cgroupProcesses.get(path) ?? [],
+      () => [],
+      (pid) => commandLines.get(pid) ?? '',
+    );
+
+    expect(result).toBe(101);
+    expect(commandLines.has(202)).toBe(true);
+  });
+
   it('recognizes the relative src/main.ts command used by tsx watch', async () => {
     const root = mkdtempSync(join(tmpdir(), 'sidestage-api-supervisor-relative-entrypoint-'));
     tempRoots.push(root);

@@ -42,6 +42,45 @@ export function readProcessCommandLine(pid) {
   }
 }
 
+/**
+ * Return the unified cgroup-v2 path for a process. systemd user services on
+ * the supported Linux development host use this path as their ownership
+ * boundary; unlike a parent/child walk, it survives a child being reparented.
+ */
+export function readProcessCgroupPath(pid) {
+  try {
+    const entry = readFileSync(`/proc/${pid}/cgroup`, 'utf8')
+      .split('\n')
+      .find((line) => line.startsWith('0::'));
+    if (!entry) return null;
+    const path = entry.slice(3).trim();
+    return path || '/';
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Read process ids directly belonging to a unified cgroup. The path comes
+ * from /proc, but reject traversal explicitly so a malformed proc fixture or
+ * future caller can never turn this into an arbitrary filesystem read.
+ */
+export function readCgroupPids(cgroupPath) {
+  if (typeof cgroupPath !== 'string' || !cgroupPath.startsWith('/')) return [];
+  const segments = cgroupPath.split('/');
+  if (segments.includes('..') || cgroupPath.includes('\0')) return [];
+
+  try {
+    const procPath = resolve('/sys/fs/cgroup', `.${cgroupPath}`, 'cgroup.procs');
+    const contents = readFileSync(procPath, 'utf8').trim();
+    return contents
+      ? contents.split(/\s+/).map(Number).filter(Number.isInteger)
+      : [];
+  } catch {
+    return [];
+  }
+}
+
 function matchesEntrypoint(commandLine, pattern) {
   if (!commandLine) return false;
   if (typeof pattern === 'function') return pattern(commandLine);
@@ -77,6 +116,73 @@ export function findDescendantPid(
 }
 
 /**
+ * Find the entrypoint inside rootPid's cgroup, preferring descendants but
+ * falling back to the cgroup membership list when the process was reparented.
+ * The root process is excluded because tsx watch itself carries src/main.ts
+ * in its command line. No process outside the owning cgroup is ever examined.
+ */
+export function findCgroupPid(
+  rootPid,
+  pattern = API_ENTRYPOINT_PATTERN,
+  readCgroupPath = readProcessCgroupPath,
+  readCgroupProcesses = readCgroupPids,
+  readChildren = readProcessChildren,
+  readCommandLine = readProcessCommandLine,
+) {
+  const cgroupPath = readCgroupPath(rootPid);
+  if (!cgroupPath) return null;
+
+  const cgroupPids = new Set(
+    readCgroupProcesses(cgroupPath).filter((pid) => Number.isInteger(pid) && pid !== rootPid),
+  );
+  if (cgroupPids.size === 0) return null;
+
+  const queue = readChildren(rootPid).filter((pid) => cgroupPids.has(pid));
+  const visited = new Set([rootPid]);
+  while (queue.length > 0) {
+    const pid = queue.shift();
+    if (!pid || visited.has(pid) || !cgroupPids.has(pid)) continue;
+    visited.add(pid);
+
+    if (matchesEntrypoint(readCommandLine(pid), pattern)) return pid;
+    queue.push(...readChildren(pid).filter((childPid) => cgroupPids.has(childPid)));
+  }
+
+  // A child can leave the process tree while remaining in the service cgroup.
+  // This is the recovery case the old descendant-only implementation missed.
+  for (const pid of cgroupPids) {
+    if (matchesEntrypoint(readCommandLine(pid), pattern)) return pid;
+  }
+  return null;
+}
+
+function findEntrypointPid(
+  rootPid,
+  pattern,
+  readCgroupPath,
+  readCgroupProcesses,
+  readChildren,
+  readCommandLine,
+) {
+  const cgroupPid = findCgroupPid(
+    rootPid,
+    pattern,
+    readCgroupPath,
+    readCgroupProcesses,
+    readChildren,
+    readCommandLine,
+  );
+  if (cgroupPid) return cgroupPid;
+
+  // Keep non-Linux/test environments usable. This fallback is still scoped to
+  // the watcher's descendants and is never a global command-line search.
+  if (!readCgroupPath(rootPid)) {
+    return findDescendantPid(rootPid, pattern, readChildren, readCommandLine);
+  }
+  return null;
+}
+
+/**
  * Run the API's tsx watcher while supervising the real API entrypoint below
  * it. tsx watch is a file watcher, not a crash supervisor: if its child is
  * killed externally, tsx remains alive and never starts the child again. Once
@@ -94,6 +200,8 @@ export function superviseApiChild({
   startupGraceMs = DEFAULT_API_STARTUP_GRACE_MS,
   spawnProcess = spawnChild,
   spawnOptions = { stdio: 'inherit' },
+  readCgroupPath = readProcessCgroupPath,
+  readCgroupProcesses = readCgroupPids,
   readChildren = readProcessChildren,
   readCommandLine = readProcessCommandLine,
   log = (message) => process.stderr.write(`${message}\n`),
@@ -137,9 +245,11 @@ export function superviseApiChild({
     const pollEntrypoint = () => {
       if (settled || !worker?.pid || guardReason) return;
 
-      const currentPid = findDescendantPid(
+      const currentPid = findEntrypointPid(
         worker.pid,
         entrypointPattern,
+        readCgroupPath,
+        readCgroupProcesses,
         readChildren,
         readCommandLine,
       );
