@@ -12,6 +12,7 @@ const apiPackage = JSON.parse(readFileSync(resolve(repoRoot, 'apps/api/package.j
 };
 
 const installSafeEntrypoint = resolve(repoRoot, 'scripts/install-safe.mjs');
+const apiChildSupervisorEntrypoint = resolve(repoRoot, 'scripts/api-child-supervisor.mjs');
 const loadInstallSafe = () =>
   import(pathToFileURL(installSafeEntrypoint).href) as Promise<{
     helperCandidates: (env?: NodeJS.ProcessEnv, home?: string) => string[];
@@ -21,6 +22,10 @@ const loadInstallSafe = () =>
       exists?: (p: string) => boolean,
     ) => string | null;
     NOT_FOUND_MESSAGE: string;
+  }>;
+const loadApiChildSupervisor = () =>
+  import(pathToFileURL(apiChildSupervisorEntrypoint).href) as Promise<{
+    DEFAULT_API_WATCH_ARGS: string[];
   }>;
 
 describe('shared-checkout install safety (EI-20412068513394843)', () => {
@@ -80,15 +85,24 @@ describe('shared-checkout install safety (EI-20412068513394843)', () => {
     expect(NOT_FOUND_MESSAGE).toContain('Refusing to fall back');
   });
 
-  it('excludes generated dependency trees before tsx starts watching the API entrypoint', () => {
+  it('supervises the API child and excludes generated dependency trees before tsx watches', async () => {
     const command = apiPackage.scripts['start:dev'];
-    expect(command).toContain("tsx watch --exclude '../../node_modules/**'");
-    expect(command).toContain("--exclude '../../libs/**/dist/**' src/main.ts");
-    expect(command.indexOf("--exclude '../../node_modules/**'")).toBeLessThan(
-      command.indexOf('src/main.ts'),
+    expect(command).toContain('node ../../scripts/api-child-supervisor.mjs');
+    expect(existsSync(apiChildSupervisorEntrypoint)).toBe(true);
+
+    const { DEFAULT_API_WATCH_ARGS } = await loadApiChildSupervisor();
+    const nodeModulesExclude = '../../node_modules/**';
+    const libraryDistExclude = '../../libs/**/dist/**';
+    expect(DEFAULT_API_WATCH_ARGS).toEqual(expect.arrayContaining([
+      '--exclude', nodeModulesExclude,
+      libraryDistExclude,
+    ]));
+    expect(DEFAULT_API_WATCH_ARGS).toContain('src/main.ts');
+    expect(DEFAULT_API_WATCH_ARGS.indexOf(nodeModulesExclude)).toBeLessThan(
+      DEFAULT_API_WATCH_ARGS.indexOf('src/main.ts'),
     );
-    expect(command.indexOf("--exclude '../../libs/**/dist/**'")).toBeLessThan(
-      command.indexOf('src/main.ts'),
+    expect(DEFAULT_API_WATCH_ARGS.indexOf(libraryDistExclude)).toBeLessThan(
+      DEFAULT_API_WATCH_ARGS.indexOf('src/main.ts'),
     );
   });
 });
