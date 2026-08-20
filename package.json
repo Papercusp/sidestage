@@ -30,7 +30,7 @@
     "clean": "npm run clean --workspaces --if-present"
   },
   "engines": {
-    "node": ">=20.19.0"
+    "node": ">=22.0.0"
   },
   "devDependencies": {
     "@papercusp/test-config": "*",
