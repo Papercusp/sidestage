@@ -31,7 +31,7 @@ that intentionally targets an isolated scratch tree may continue to use npm's
 explicit `--prefix /tmp/...` form.
 
 The web shell runs at <http://localhost:5173> and the API health endpoint is
-<http://localhost:3100/healthz>. The default demo runs without Docker; start
+<http://localhost:3110/healthz>. The default demo runs without Docker; start
 local infrastructure before using persistence, search, or live media:
 
 ```bash

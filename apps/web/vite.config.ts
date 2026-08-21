@@ -124,13 +124,13 @@ function parsePort(value: string | undefined, fallback: number, name: string): n
 
 export function resolveDevServerEnvironment(env: Record<string, string | undefined>) {
   const webPort = parsePort(env.WEB_PORT, 5173, 'WEB_PORT');
-  const apiPort = parsePort(env.API_PORT, 3100, 'API_PORT');
+  const apiPort = parsePort(env.API_PORT, 3110, 'API_PORT');
   const apiOrigin = (env.VITE_API_URL?.trim() || `http://localhost:${apiPort}`).replace(/\/+$/, '');
 
   return { apiOrigin, webPort };
 }
 
-/** Production keeps Nest under `/api`; local Nest is bare on :3100. */
+/** Production keeps Nest under `/api`; local Nest is bare on :3110. */
 export function stripDevApiPrefix(path: string): string {
   return path.replace(/^\/api(?=\/|$)/, '') || '/';
 }

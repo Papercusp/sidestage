@@ -38,7 +38,7 @@ describe('reply judge rehearsal corpus', () => {
     }));
 
     await expect(runJudgeRehearsal()).resolves.toEqual(report);
-    expect(fetchMock).toHaveBeenCalledWith('http://localhost:3100/judge/run', expect.objectContaining({
+    expect(fetchMock).toHaveBeenCalledWith('http://localhost:3110/judge/run', expect.objectContaining({
       method: 'POST',
     }));
   });

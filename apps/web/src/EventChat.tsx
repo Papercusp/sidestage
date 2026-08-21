@@ -95,7 +95,7 @@ export interface EventChatProps {
   apiBaseUrl?: string;
 }
 
-const DEFAULT_API_ORIGIN = 'http://localhost:3100';
+const DEFAULT_API_ORIGIN = 'http://localhost:3110';
 const PRESENCE_HEARTBEAT_MS = 15_000;
 
 export function resolveApiOrigin(apiBaseUrl?: string): string {

@@ -327,7 +327,7 @@ export function buildDeepgramUrl(options: Pick<TranscriptionOptions, 'deepgramUr
   return url.toString();
 }
 
-const DEFAULT_API_ORIGIN = 'http://localhost:3100';
+const DEFAULT_API_ORIGIN = 'http://localhost:3110';
 
 interface DeepgramTokenGrant {
   accessToken?: unknown;

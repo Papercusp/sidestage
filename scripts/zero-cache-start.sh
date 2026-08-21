@@ -68,7 +68,7 @@ export ZERO_APP_PUBLICATIONS="${ZERO_APP_PUBLICATIONS:-zero_publication}"
 # the two can never drift apart.
 API_ZERO_PREFIX="$(printf '%s' "${API_PREFIX:-}" | sed -E 's#^/+|/+$##g')"
 [[ -n "$API_ZERO_PREFIX" ]] && API_ZERO_PREFIX="/$API_ZERO_PREFIX"
-DEFAULT_API_ORIGIN="http://127.0.0.1:${API_PORT:-3100}"
+DEFAULT_API_ORIGIN="http://127.0.0.1:${API_PORT:-3110}"
 export ZERO_QUERY_URL="${ZERO_QUERY_URL:-${DEFAULT_API_ORIGIN}${API_ZERO_PREFIX}/zero/query}"
 export ZERO_MUTATE_URL="${ZERO_MUTATE_URL:-${DEFAULT_API_ORIGIN}${API_ZERO_PREFIX}/zero/mutate}"
 

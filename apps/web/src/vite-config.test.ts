@@ -21,7 +21,7 @@ afterEach(() => {
 describe('resolveDevServerEnvironment', () => {
   it('uses the reviewer-facing default ports', () => {
     expect(resolveDevServerEnvironment({})).toEqual({
-      apiOrigin: 'http://localhost:3100',
+      apiOrigin: 'http://localhost:3110',
       webPort: 5173,
     });
   });

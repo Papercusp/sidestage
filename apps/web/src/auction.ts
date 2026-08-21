@@ -44,7 +44,7 @@ export interface AuctionEventPayload {
   tsMs: number;
 }
 
-const DEFAULT_API_ORIGIN = 'http://localhost:3100';
+const DEFAULT_API_ORIGIN = 'http://localhost:3110';
 
 export function resolveAuctionApiOrigin(apiBaseUrl?: string): string {
   return (apiBaseUrl ?? import.meta.env.VITE_API_URL ?? DEFAULT_API_ORIGIN).replace(/\/+$/, '');

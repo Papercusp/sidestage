@@ -154,8 +154,8 @@ describe('seller event API orchestration', () => {
     const result = await adjustSellerEventStock('drop', 'seller-stock-27', ITEM, 2, undefined, 'demo-27');
     expect(result.state.listedQuantity).toBe(2);
     expect(urls).toEqual([
-      'http://localhost:3100/inventory/mug/hold',
-      'http://localhost:3100/actions/events/drop/execute',
+      'http://localhost:3110/inventory/mug/hold',
+      'http://localhost:3110/actions/events/drop/execute',
     ]);
     const executeCall = vi.mocked(fetch).mock.calls.find(([input]) => String(input).endsWith('/actions/events/drop/execute'));
     expect(new Headers(executeCall?.[1]?.headers).get(DEMO_PRINCIPAL_HEADER)).toBe('demo-27');
@@ -206,7 +206,7 @@ describe('seller event API orchestration', () => {
     );
 
     expect(result.state.listedQuantity).toBe(0);
-    expect(urls).toContain('http://localhost:3100/inventory/event-demo-01-v2/release');
+    expect(urls).toContain('http://localhost:3110/inventory/event-demo-01-v2/release');
     // No variant id is invented or substituted anywhere on the way through.
     expect(urls.some((url) => url.includes('seller-listing-'))).toBe(false);
   });
@@ -276,7 +276,7 @@ describe('seller event API orchestration', () => {
       expect(new Headers(call.init?.headers).has('authorization')).toBe(false);
     }
     expect(calls[1]).toMatchObject({
-      url: 'http://localhost:3100/auctions/auction-secure/close',
+      url: 'http://localhost:3110/auctions/auction-secure/close',
       init: { method: 'POST' },
     });
   });

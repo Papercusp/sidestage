@@ -12,7 +12,7 @@ mkdirSync(OUT, { recursive: true });
 const b = await chromium.launch({ headless: true, args: ['--no-sandbox'] });
 const p = await b.newPage({ viewport: { width: 1440, height: 900 } });
 const net = [];
-p.on('response', (r) => { if (r.status() >= 400) net.push(`${r.status()} ${r.url().replace('http://localhost:3100', 'API')}`); });
+p.on('response', (r) => { if (r.status() >= 400) net.push(`${r.status()} ${r.url().replace('http://localhost:3110', 'API')}`); });
 
 await p.goto('http://localhost:5173/?tab=buyer', { waitUntil: 'networkidle' }).catch(() => {});
 await p.waitForTimeout(1800);

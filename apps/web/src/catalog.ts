@@ -54,7 +54,7 @@ export type CatalogSearch = {
 };
 
 export function resolveApiBaseUrl(explicit?: string): string {
-  return (explicit ?? import.meta.env.VITE_API_URL ?? 'http://localhost:3100').replace(/\/$/, '');
+  return (explicit ?? import.meta.env.VITE_API_URL ?? 'http://localhost:3110').replace(/\/$/, '');
 }
 
 /**

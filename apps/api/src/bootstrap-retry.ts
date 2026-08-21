@@ -8,7 +8,7 @@ import { Logger } from '@nestjs/common';
  * `void bootstrap()` could not do that (EI-20491819050412730). The rejection
  * went unhandled, Node exited, and under `start:dev` the surviving `tsx watch`
  * parent only re-runs the entrypoint when a WATCHED FILE changes — a
- * database-only repair (`npm run db:apply`) never touches one. So :3100 passed
+ * database-only repair (`npm run db:apply`) never touches one. So :3110 passed
  * healthz at QA start, went away mid-run when the schema drifted, and never
  * came back; only an unrelated file edit revived it.
  *

@@ -21,10 +21,10 @@ async function bootstrap() {
   try {
     app.enableCors({ origin: true, credentials: true });
     // Production routes the API behind one hostname under /api (API_PREFIX=api);
-    // local dev keeps bare paths on :3100. healthz stays unprefixed for probes.
+    // local dev keeps bare paths on :3110. healthz stays unprefixed for probes.
     const prefix = (process.env.API_PREFIX ?? '').trim().replace(/^\/+|\/+$/g, '');
     if (prefix) app.setGlobalPrefix(prefix, { exclude: ['healthz'] });
-    const port = Number(process.env.API_PORT ?? 3100);
+    const port = Number(process.env.API_PORT ?? 3110);
     await app.listen(port, '0.0.0.0');
   } catch (error) {
     // EI-20739798038041966: bootstrapWithRetry re-runs this WHOLE function, so an
@@ -39,7 +39,7 @@ async function bootstrap() {
 }
 
 // EI-20491819050412730: a bare `void bootstrap()` turned a RECOVERABLE dependency
-// failure (Postgres unreachable / schema drift) into a permanently dead :3100 —
+// failure (Postgres unreachable / schema drift) into a permanently dead :3110 —
 // the rejection killed the process, and the `tsx watch` parent only re-runs on a
 // file change, so repairing the database never brought the listener back.
 void bootstrapWithRetry(bootstrap).catch((error) => {
