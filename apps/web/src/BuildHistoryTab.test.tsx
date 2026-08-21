@@ -155,6 +155,30 @@ describe('BuildHistoryList', () => {
     expect(shipped).toHaveLength(1);
   });
 
+  it('headlines total completed work, never the weekly count that resets to its smallest value', () => {
+    // EI-20740522648735057. The "Completed work items" tile used to headline
+    // `completedThisWeek` — a rolling count that resets every Monday and, on
+    // the reported day, read 35 against a real archive of 320+ (an order of
+    // magnitude gap). `completedThisWeek` alone can't distinguish "total" from
+    // "this week" when every fixture item completed inside the same week, so
+    // this fixture adds one completed item OUTSIDE the weekly window: the
+    // headline must count both, and the "this week" detail must count only one.
+    const plans: BuildHistoryPlan[] = [{
+      ...HISTORY[0],
+      completedItems: [
+        HISTORY[0].completedItems[0],
+        { ...HISTORY[0].completedItems[0], id: 'WI-10', completedAt: '2026-07-01T00:00:00Z' },
+      ],
+    }];
+    const markup = renderToStaticMarkup(<BuildHistoryList plans={plans} now={NOW} />);
+    expect(markup).toContain('<span>Completed work items</span><strong>2</strong>');
+    expect(markup).toContain('1 completed this week');
+
+    const summary = summarizeBuildHistory(plans, NOW);
+    expect(summary.completedTotal).toBe(2);
+    expect(summary.completedThisWeek).toBe(1);
+  });
+
   it('opens on the full archive rather than a rolling date window', () => {
     // WI-39771. The Date filter used to default to '30d', so the page opened
     // already-filtered and read as the whole archive while hiding most of it
