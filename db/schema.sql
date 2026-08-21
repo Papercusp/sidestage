@@ -413,6 +413,9 @@ DECLARE
   v_available integer;
   v_seller_id text;
   v_reservation_id bigint;
+  v_existing_quantity integer;
+  v_existing_state text;
+  v_incremental integer;
 BEGIN
   IF p_quantity <= 0 THEN
     RAISE EXCEPTION 'reservation quantity must be positive';
@@ -434,7 +437,33 @@ BEGIN
   FROM storefront_product
   WHERE id = p_variant_id
   FOR UPDATE;
-  IF v_available < p_quantity THEN
+
+  -- EI-20899380417535875: an exact retry (or a resize) of THIS source's own
+  -- hold is not new demand for the stock it already holds -- reserved_qty
+  -- (and so v_available above) already has it subtracted out via the
+  -- recompute. Evaluate only the quantity beyond what this exact source
+  -- currently holds, or the second call in a retried "reserve 76 of 76"
+  -- always finds availableQty=0 and raises on an operation the ON CONFLICT
+  -- upsert below would otherwise have completed as a no-op. A row already
+  -- 'committed' is left untouched by that upsert (see its CASE clauses), so
+  -- it never needs an availability check at all; a 'released'/'expired' row
+  -- (or no row) was already excluded from reserved_qty by the recompute
+  -- above, so the full requested quantity is genuinely new demand.
+  SELECT quantity, state INTO v_existing_quantity, v_existing_state
+  FROM inventory_reservation
+  WHERE source_kind = p_source_kind
+    AND source_id = p_source_id
+    AND variant_id = p_variant_id;
+
+  IF v_existing_state = 'committed' THEN
+    v_incremental := 0;
+  ELSIF v_existing_state = 'held' THEN
+    v_incremental := GREATEST(p_quantity - v_existing_quantity, 0);
+  ELSE
+    v_incremental := p_quantity;
+  END IF;
+
+  IF v_incremental > v_available THEN
     RAISE EXCEPTION 'insufficient inventory for variant %: requested %, available %',
       p_variant_id, p_quantity, v_available
       USING ERRCODE = 'P0001';

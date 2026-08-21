@@ -259,6 +259,93 @@ describe.runIf(process.env.SIDESTAGE_PG_INTEGRATION === '1')('PgAuctionInventory
       await pool.end();
     }
   }, 45_000);
+
+  /**
+   * EI-20899380417535875 — reserve_inventory() computed availableQty and
+   * raised for insufficient stock BEFORE reaching its ON CONFLICT upsert, so
+   * an exact retry of a source's own hold was compared against the FULL
+   * requested quantity rather than the incremental amount beyond what that
+   * source already held. Reproduced 2026-08-19: a variant with
+   * availableQty=76, first reserve_inventory(...76) succeeds and drives
+   * availableQty to 0, and the identical second call then raised
+   * "insufficient inventory ... requested 76, available 0" even though the
+   * upsert underneath would have been a no-op. The operation was safe
+   * (UNIQUE(source_kind, source_id, variant_id) still prevented a duplicate
+   * row / oversell) but not retry-idempotent, which breaks any caller that
+   * retries a timed-out or ambiguous reserve() call.
+   */
+  it('reserve_inventory is retry-idempotent even when the first hold consumes all stock', async () => {
+    const pool = new Pool({ connectionString: process.env.DATABASE_URL ?? DEFAULT_DATABASE_URL, max: 1 });
+    const client = await pool.connect();
+    const suffix = randomUUID();
+    const variantId = `reserve-retry-${suffix}`;
+    const source = { kind: 'cart', id: `cart-${suffix}` };
+
+    try {
+      await client.query('BEGIN');
+      await client.query(
+        `INSERT INTO storefront_product (id, slug, region, sku, price_cents, active, qty, reserved_qty, seller_id)
+         VALUES ($1, $1, 'US', $2, 1000, true, 76, 0, 'demo-seller')`,
+        [variantId, `RESERVE-RETRY-${suffix}`],
+      );
+
+      const inventory = new PgAuctionInventory(client as never);
+
+      await expect(inventory.reserve(variantId, 76, source)).resolves.toBe(true);
+      const afterFirst = await client.query<{ availableQty: number }>(
+        'SELECT "availableQty" FROM storefront_product WHERE id = $1',
+        [variantId],
+      );
+      expect(afterFirst.rows[0]?.availableQty).toBe(0);
+
+      // The exact retry: same source, same quantity, no stock left. Must
+      // succeed as a no-op, not be rejected as insufficient inventory.
+      await expect(inventory.reserve(variantId, 76, source)).resolves.toBe(true);
+
+      const afterRetry = await client.query<{ availableQty: number; reservedQty: number }>(
+        'SELECT "availableQty", reserved_qty AS "reservedQty" FROM storefront_product WHERE id = $1',
+        [variantId],
+      );
+      expect(afterRetry.rows[0]).toEqual({ availableQty: 0, reservedQty: 76 });
+
+      const reservationRows = await client.query<{ quantity: number; state: string }>(
+        'SELECT quantity, state FROM inventory_reservation WHERE variant_id = $1 AND source_kind = $2 AND source_id = $3',
+        [variantId, source.kind, source.id],
+      );
+      expect(reservationRows.rows).toEqual([{ quantity: 76, state: 'held' }]);
+
+      // Control: a DIFFERENT source is still correctly rejected -- the fix
+      // must not weaken the real oversell protection. A rejected
+      // reserve_inventory() call RAISEs, which poisons the rest of this
+      // Postgres transaction (25P02) unless rolled back to a savepoint --
+      // reserve()'s catch only swallows the "insufficient inventory" error
+      // itself, not that follow-on abort.
+      await client.query('SAVEPOINT before_other_source');
+      await expect(
+        inventory.reserve(variantId, 1, { kind: 'cart', id: `cart-other-${suffix}` }),
+      ).resolves.toBe(false);
+      await client.query('ROLLBACK TO SAVEPOINT before_other_source');
+
+      // Control: growing the SAME source's hold beyond what is actually
+      // available is still correctly rejected -- only an exact-or-shrinking
+      // retry is a no-op, not an unbounded resize.
+      await client.query('SAVEPOINT before_grow');
+      await expect(inventory.reserve(variantId, 77, source)).resolves.toBe(false);
+      await client.query('ROLLBACK TO SAVEPOINT before_grow');
+
+      // Control: shrinking the SAME source's hold frees the difference.
+      await expect(inventory.reserve(variantId, 30, source)).resolves.toBe(true);
+      const afterShrink = await client.query<{ availableQty: number; reservedQty: number }>(
+        'SELECT "availableQty", reserved_qty AS "reservedQty" FROM storefront_product WHERE id = $1',
+        [variantId],
+      );
+      expect(afterShrink.rows[0]).toEqual({ availableQty: 46, reservedQty: 30 });
+    } finally {
+      await client.query('ROLLBACK');
+      client.release();
+      await pool.end();
+    }
+  }, 45_000);
 });
 
 /**
