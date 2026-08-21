@@ -7,6 +7,7 @@ const read = (relativePath: string) =>
 describe('public landing-page performance policy', () => {
   it('keeps non-landing workspaces behind route-level dynamic imports', () => {
     const source = read('./App.tsx');
+    const main = read('./main.tsx');
     for (const component of [
       'ArchitectureTab',
       'BuildHistoryTab',
@@ -18,6 +19,8 @@ describe('public landing-page performance policy', () => {
       expect(source).toContain(`import('./${component}')`);
     }
     expect(source).not.toContain("from './TestTab'");
+    expect(main).not.toMatch(/^import \{ ActiveNowComparison/m);
+    expect(main).toContain("import('./ActiveNowComparison')");
   });
 
   it('loads seller inventory only inside the Studio route', () => {
@@ -40,6 +43,22 @@ describe('public landing-page performance policy', () => {
     expect(stripe).not.toMatch(
       /^import \{[^}]*loadStripe[^}]*\} from '@stripe\/stripe-js';/m,
     );
+  });
+
+  it('does not ship the WebSocket-only Zero registry in the fixed-SSE entry', () => {
+    const main = read('./main.tsx');
+    expect(main).toContain('syncType="SSE"');
+    expect(main).not.toContain("from '@papercusp/sidestage-zero'");
+    for (const prop of ['schema', 'queries', 'mutators']) {
+      expect(main).not.toMatch(new RegExp('\\s' + prop + '=\\{'));
+    }
+  });
+
+  it('does not lay out closed drawer bodies on the landing page', () => {
+    const scout = read('./BuyerScoutDrawer.tsx');
+    const cart = read('./BuyerCartDrawer.tsx');
+    expect(scout).toContain('{({ close, otherOpen, open }) => open ? (');
+    expect(cart).toContain('{open ? <BuyerCartPanel {...panel} /> : null}');
   });
 
   it('ships crawl metadata and the measured contrast repairs', () => {

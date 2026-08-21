@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
 import { BuyerCartPanel, type BuyerCartPanelProps } from './BuyerCartDrawer';
@@ -50,6 +51,11 @@ function props(overrides: Partial<BuyerCartPanelProps> = {}): BuyerCartPanelProp
 }
 
 describe('BuyerCartPanel', () => {
+  it('does not mount the full held-items panel while its drawer is closed', () => {
+    const source = readFileSync(new URL('./BuyerCartDrawer.tsx', import.meta.url), 'utf8');
+    expect(source).toContain('{open ? <BuyerCartPanel {...panel} /> : null}');
+  });
+
   it('reviews held items with the live per-hold countdown in the item slot', () => {
     const html = renderToStaticMarkup(<BuyerCartPanel {...props()} />);
     expect(html).toContain('Reserved for 2 minutes');

@@ -1,12 +1,6 @@
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { SyncProvider } from '@papercusp/sync';
-// ONE package imported identically by the browser and by the API's zero-cache
-// /query and /mutate handlers — importing the same module on both sides of the
-// sync boundary is what makes schema/query/mutator drift impossible by
-// construction rather than by review.
-import { schema, queries, createMutators } from '@papercusp/sidestage-zero';
-import { ActiveNowComparison, isActiveNowComparisonPath } from './ActiveNowComparison';
 import { App } from './App';
 import { resolveApiBaseUrl, resolveZeroServerUrl } from './catalog';
 import { useDemoIdentity } from './buyer-identity';
@@ -26,10 +20,6 @@ applyGridTheme();
 const syncEndpoint = `${resolveApiBaseUrl()}/sync`;
 const zeroServer = resolveZeroServerUrl();
 
-// Pure registry construction — no connection, no side effects. Built once at
-// module scope so the mutator object identity is stable across re-renders.
-const mutators = createMutators();
-
 function SideStageSyncRoot() {
   const { userId } = useDemoIdentity();
   return (
@@ -43,15 +33,15 @@ function SideStageSyncRoot() {
     // REST views that ZQL cannot reproduce. Until per-query parity is proven
     // by test, WEBSOCKETS silently blanks those surfaces (that is what broke
     // the buyer drop runway in prod). SSE resolves every name over REST, the
-    // contract all call sites were written against. Re-enable WEBSOCKETS only
-    // together with the cutover plan's per-query parity gate.
+    // contract all call sites were written against. SyncProvider uses
+    // schema/queries/mutators only for WEBSOCKETS, so importing the Zero
+    // registry into this fixed-SSE entry would execute and ship dead runtime
+    // code on every public visit. Re-enable those props only together with the
+    // cutover plan's per-query parity gate.
     <SyncProvider
       syncType="SSE"
       userId={userId}
       server={zeroServer}
-      schema={schema}
-      queries={queries}
-      mutators={mutators}
       restEndpoint={syncEndpoint}
       endpointOverride={`${syncEndpoint}/sse`}
       pollIntervalMs={10_000}
@@ -61,10 +51,15 @@ function SideStageSyncRoot() {
   );
 }
 
-createRoot(document.getElementById('root')!).render(
-  <StrictMode>
-    {isActiveNowComparisonPath(window.location.pathname)
-      ? <ActiveNowComparison />
-      : <SideStageSyncRoot />}
-  </StrictMode>,
-);
+const root = createRoot(document.getElementById('root')!);
+const normalizedPath = window.location.pathname.length > 1
+  ? window.location.pathname.replace(/\/+$/, '')
+  : window.location.pathname;
+
+if (normalizedPath === '/design/channel-guide-active-now') {
+  void import('./ActiveNowComparison').then(({ ActiveNowComparison }) => {
+    root.render(<StrictMode><ActiveNowComparison /></StrictMode>);
+  });
+} else {
+  root.render(<StrictMode><SideStageSyncRoot /></StrictMode>);
+}

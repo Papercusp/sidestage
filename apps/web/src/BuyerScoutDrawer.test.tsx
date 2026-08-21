@@ -43,6 +43,12 @@ describe('BuyerScoutDrawer contract', () => {
     expect(productRendererSpansEveryResultColumn(styles)).toBe(true);
   });
 
+  it('does not mount the full chat surface while its drawer is closed', () => {
+    const drawer = read('./BuyerScoutDrawer.tsx');
+    expect(drawer).toContain('{({ close, otherOpen, open }) => open ? (');
+    expect(drawer).toMatch(/open \? \(\s*<ScoutChat[\s\S]*?\) : null}/);
+  });
+
   it('restores only the matching buyer conversation across A → B → A switches', () => {
     const buyerA = buyerScoutResources('buyer-switch-a');
     const buyerB = buyerScoutResources('buyer-switch-b');

@@ -124,7 +124,7 @@ export function BuyerScoutDrawer({
         </>
       )}
     >
-      {({ close, otherOpen }) => (
+      {({ close, otherOpen, open }) => open ? (
         <ScoutChat
           key={buyerId}
           transport={transport}
@@ -155,7 +155,7 @@ export function BuyerScoutDrawer({
           renderProducts={renderProducts}
           onAppEvent={(event) => handleBuyerScoutAppEvent(event, onOpenHeldItems)}
         />
-      )}
+      ) : null}
     </ScoutChatDrawer>
   );
 }

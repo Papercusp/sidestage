@@ -263,7 +263,7 @@ export function BuyerCartDrawer({ open, onOpenChange, heldItemCount, ...panel }:
         ) : null
       )}
     >
-      <BuyerCartPanel {...panel} />
+      {open ? <BuyerCartPanel {...panel} /> : null}
     </CartDrawerShell>
   );
 }
