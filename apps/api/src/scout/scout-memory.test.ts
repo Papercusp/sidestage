@@ -66,6 +66,30 @@ describe('memoryRelevanceTokens', () => {
   it('drops filler while preserving the product subject', () => {
     expect(memoryRelevanceTokens('Please find me some computers')).toEqual(['computers']);
   });
+
+  it('drops question-opener filler the same way regardless of phrasing (EI-20485951717260287)', () => {
+    // "Can you share the Harbor Kettle price?" used to leak "can" and "share"
+    // through as significant catalog-search tokens (they were absent from
+    // MEMORY_FILLER_TOKENS), diluting the ts_rank ranking on a large catalog
+    // and dropping the Harbor Kettle out of the retrieved page entirely — so
+    // Copilot had nothing to ground on, even though these three questions are
+    // asking for the exact same thing.
+    const askShare = memoryRelevanceTokens('Can you share the Harbor Kettle price?').sort();
+    const askHowMuch = memoryRelevanceTokens('How much is the Harbor Kettle?').sort();
+    const askWhatPrice = memoryRelevanceTokens('What is the price of the Harbor Kettle?').sort();
+
+    expect(askShare).toEqual(['harbor', 'kettle', 'price']);
+    // "much" is intent vocabulary specific to the "how much" phrasing, so the
+    // sets are not byte-identical, but every phrasing must resolve to the
+    // SAME product-identifying core: no opener/filler token survives.
+    expect(askHowMuch).toEqual(['harbor', 'kettle', 'much']);
+    expect(askWhatPrice).toEqual(['harbor', 'kettle', 'price']);
+    for (const token of ['can', 'share', 'how', 'what', 'is', 'the', 'of']) {
+      expect(askShare).not.toContain(token);
+      expect(askHowMuch).not.toContain(token);
+      expect(askWhatPrice).not.toContain(token);
+    }
+  });
 });
 
 describe('memoryTokens', () => {

@@ -32,10 +32,29 @@ export function memoryTokens(text: string): string[] {
   return text.toLowerCase().match(/[a-z0-9]+/g) ?? [];
 }
 
+/**
+ * EI-20485951717260287: this list previously covered shopping-intent phrasing
+ * ("looking for", "want", "need") but not NATURAL QUESTION phrasing ("Can you
+ * share the X price?"). "can" and "share" leaked through as significant
+ * lexemes into catalog search (catalogSearchTokens in catalog.sources.ts),
+ * diluting/derailing the ts_rank ranking on a large catalog so the
+ * asked-about product fell out of the retrieved page entirely — the copilot
+ * then had no grounding source to cite ("insufficient verified context")
+ * even though the semantically identical "How much is the Harbor Kettle?"
+ * and "What is the price of the Harbor Kettle?" grounded fine. This now
+ * includes every question-opener verb already recognized as filler
+ * elsewhere in this codebase for the SAME buyer-question domain
+ * (QUESTION_OPENER in buyer-question-routing.ts; STOP_WORDS in
+ * copilot.relevance.ts) so the same class of question phrasing cannot
+ * silently regress catalog retrieval again.
+ */
 const MEMORY_FILLER_TOKENS = new Set([
-  'a', 'an', 'any', 'about', 'are', 'buy', 'do', 'find', 'for', 'get', 'have',
-  'i', 'im', 'in', 'is', 'it', 'looking', 'me', 'my', 'need', 'of', 'please',
-  'show', 'some', 'something', 'the', 'there', 'to', 'want', 'with', 'you',
+  'a', 'an', 'any', 'about', 'are', 'buy', 'can', 'could', 'did', 'do', 'does',
+  'find', 'for', 'get', 'has', 'have', 'how', 'i', 'im', 'in', 'is', 'it',
+  'looking', 'may', 'me', 'my', 'need', 'of', 'please', 'share', 'should',
+  'show', 'some', 'something', 'tell', 'the', 'there', 'to', 'want', 'was',
+  'were', 'what', 'when', 'where', 'who', 'why', 'will', 'with', 'would',
+  'you',
 ]);
 
 /** Tokens that carry enough subject meaning to justify recalling another turn. */
