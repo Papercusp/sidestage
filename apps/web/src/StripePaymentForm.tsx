@@ -1,6 +1,10 @@
 import { FormEvent, useMemo, useState } from 'react';
 import { Elements, PaymentElement, useElements, useStripe } from '@stripe/react-stripe-js';
-import { loadStripe, type Stripe } from '@stripe/stripe-js';
+import type { Stripe } from '@stripe/stripe-js';
+// The default @stripe/stripe-js entry injects Stripe.js as soon as this module
+// is evaluated. The pure entry keeps the third-party script off every landing
+// page and loads it only when the payment step actually requests a client.
+import { loadStripe } from '@stripe/stripe-js/pure';
 import type { BuyerPaymentSession } from './buyer-checkout-api';
 
 const stripeClients = new Map<string, Promise<Stripe | null>>();

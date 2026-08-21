@@ -1,7 +1,9 @@
 import {
   createContext,
   type FormEvent,
+  lazy,
   type PropsWithChildren,
+  Suspense,
   useCallback,
   useContext,
   useEffect,
@@ -34,8 +36,10 @@ import { useBuyerIdentity } from './buyer-identity';
 import { BuyerCartDrawer } from './BuyerCartDrawer';
 import { BuyerScoutDrawer } from './BuyerScoutDrawer';
 import { holdRemainingMs, type BuyerCartAdapter } from './buyer-cart-adapter';
-import { StripePaymentForm } from './StripePaymentForm';
 import './buyer-checkout.css';
+
+const StripePaymentForm = lazy(() => import('./StripePaymentForm')
+  .then((module) => ({ default: module.StripePaymentForm })));
 
 /**
  * The held-items review is no longer a step here — it is the shared cart drawer
@@ -221,7 +225,9 @@ export function BuyerCheckoutDrawer(props: BuyerCheckoutDrawerProps) {
                 <p>Payment configuration must be completed on the server before this order can be paid.</p>
               </div>
             ) : checkout ? (
-              <StripePaymentForm session={checkout.session} busy={busy} onSubmitted={onPaymentSubmitted} onError={onError} />
+              <Suspense fallback={<p role="status">Loading secure payment fields…</p>}>
+                <StripePaymentForm session={checkout.session} busy={busy} onSubmitted={onPaymentSubmitted} onError={onError} />
+              </Suspense>
             ) : (
               <div className="buyer-checkout-state" role="status">
                 <strong>{sourceOrder.paymentState === 'payment_failed' ? 'Payment failed' : 'Payment required'}</strong>

@@ -223,7 +223,7 @@ button { cursor: pointer; }
 .papercusp-cusp { color: #17324a; }
 .papercusp-cup-letter { display: inline-block; overflow: visible; width: .82em; height: .94em; margin: 0 .008em; vertical-align: -.2em; filter: drop-shadow(0 1px 2px rgb(56 189 248 / 30%)); }
 .papercusp-tagline { color: #205c6d; font-size: .52rem; font-weight: 820; letter-spacing: .075em; text-transform: uppercase; }
-.papercusp-tagline strong { color: #127f76; font-weight: 900; }
+.papercusp-tagline strong { color: #11786f; font-weight: 900; }
 .connection-pill { display: inline-flex; align-items: center; gap: .45rem; color: var(--muted); font-size: .72rem; white-space: nowrap; }
 .topbar-status-group { position: relative; z-index: 1; display: flex; flex: 0 0 auto; align-items: center; justify-content: flex-end; gap: .65rem; }
 .topbar-held-items { min-height: 2.35rem; white-space: nowrap; }
@@ -540,7 +540,7 @@ a.app-badge:hover { transform: translateY(-2px); box-shadow: 0 5px 0 color-mix(i
 a.app-badge[data-platform="ios"]:hover { background: var(--brand-red-hover); }
 a.app-badge[data-platform="android"]:hover { background: var(--brand-yellow-hover); }
 a.app-badge:active { transform: translateY(1px); box-shadow: 0 2px 0 color-mix(in srgb, var(--text) 22%, transparent); }
-.app-badge-hint { color: inherit; font-size: .52rem; font-weight: 850; text-transform: uppercase; letter-spacing: .08em; opacity: .82; }
+.app-badge-hint { color: inherit; font-size: .52rem; font-weight: 850; text-transform: uppercase; letter-spacing: .08em; opacity: 1; }
 .app-badge-name { color: inherit; font-size: .78rem; font-weight: 900; }
 @media (min-width: 761px) and (max-width: 1699px) {
   .topbar-inner { grid-template-columns: minmax(0, 1fr) auto; gap: .65rem 1rem; padding: .45rem 0; }

@@ -8,11 +8,11 @@ import {
   getTabFromUrl,
   TAB_GROUPS,
   tabHref,
-  SystemTestsTab,
   variantToSellerProduct,
 } from './App';
 import { OFFLINE_FIXTURE } from './catalog';
 import { ProductCard } from './components/ProductCard';
+import { SystemTestsTab } from './SystemTestsTab';
 
 const stylesCss = readFileSync(new URL('./styles.css', import.meta.url), 'utf8');
 

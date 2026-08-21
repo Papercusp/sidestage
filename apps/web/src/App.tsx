@@ -1,10 +1,8 @@
-import { useCallback, useMemo, useState } from 'react';
+import { lazy, Suspense, useCallback, useMemo, useState } from 'react';
 import { useRestSyncQuery } from '@papercusp/sync';
 import { TAB_GROUPS, tabHref, type TabId, useUrlTab } from './app-routing';
-import { ArchitectureTab } from './ArchitectureTab';
 import { AppDownloadButtons } from './components/AppDownloadButtons';
 import { DemoIdentityControl } from './BuyerIdentityControl';
-import { BuildHistoryTab } from './BuildHistoryTab';
 import { BuyerTab } from './BuyerTab';
 import { BuyerCheckoutProvider, useBuyerCheckout } from './BuyerCheckout';
 import { useDemoIdentity } from './buyer-identity';
@@ -16,21 +14,26 @@ import {
 } from './event-identity';
 import type { GuideEvent } from './events/api';
 import { ChannelGuide } from './events/ChannelGuide';
-import { OrdersTab } from './OrdersTab';
-import { SellerTab } from './SellerTab';
 import {
   useSellerCatalog,
   variantsToTranscriptOptions,
   variantToSellerProduct,
 } from './seller-products';
-import { SystemTestsTab } from './SystemTestsTab';
-import { TestTab } from './TestTab';
+
+const ArchitectureTab = lazy(() => import('./ArchitectureTab')
+  .then((module) => ({ default: module.ArchitectureTab })));
+const BuildHistoryTab = lazy(() => import('./BuildHistoryTab')
+  .then((module) => ({ default: module.BuildHistoryTab })));
+const OrdersTab = lazy(() => import('./OrdersTab')
+  .then((module) => ({ default: module.OrdersTab })));
+const SellerTab = lazy(() => import('./SellerTab')
+  .then((module) => ({ default: module.SellerTab })));
+const SystemTestsTab = lazy(() => import('./SystemTestsTab')
+  .then((module) => ({ default: module.SystemTestsTab })));
 
 // Test-compat re-exports: the app shell remains the public face of these.
 export { eventWatchHref, getTabFromUrl, TAB_GROUPS, tabHref, TABS, type TabId } from './app-routing';
 export { variantsToTranscriptOptions, variantToSellerProduct, type CatalogProduct } from './seller-products';
-export { SystemTestsTab } from './SystemTestsTab';
-export { TestTab } from './TestTab';
 
 export function appLayoutForTab(tab: TabId) {
   const isSeller = tab === 'seller';
@@ -50,6 +53,46 @@ function TopbarHeldItemsButton() {
     <button className="button secondary topbar-held-items" type="button" onClick={checkout.openHeldItems}>
       Held items <span aria-label={`${checkout.heldItemCount} held items`}>{checkout.heldItemCount}</span>
     </button>
+  );
+}
+
+function SellerRoute({
+  selectedProductId,
+  onActiveProductChange,
+}: {
+  selectedProductId: string | null;
+  onActiveProductChange: (productId: string | null) => void;
+}) {
+  // Seller inventory is intentionally owned by the Studio route. Keeping the
+  // hook here means Watch/Orders never download the seller workbench or issue
+  // its pageSize=100 catalog request merely because the shell is mounted.
+  const sellerVariants = useSellerCatalog();
+  const sellerProducts = useMemo(
+    () => sellerVariants.map((variant, index) => variantToSellerProduct(variant, index)),
+    [sellerVariants],
+  );
+  const transcriptProducts = useMemo(
+    () => variantsToTranscriptOptions(sellerVariants),
+    [sellerVariants],
+  );
+  const selectedProduct = sellerProducts.find((product) => product.id === selectedProductId) ?? null;
+
+  return (
+    <SellerTab
+      selectedProduct={selectedProduct}
+      selectedProductId={selectedProductId}
+      sellerProducts={sellerProducts}
+      transcriptProducts={transcriptProducts}
+      onActiveProductChange={onActiveProductChange}
+    />
+  );
+}
+
+function RouteLoading() {
+  return (
+    <section className="panel" aria-busy="true" aria-live="polite">
+      <p className="muted">Loading this workspace…</p>
+    </section>
   );
 }
 
@@ -95,16 +138,6 @@ export function App() {
     url.searchParams.set('event', nextEventId);
     window.history.replaceState({ tab: 'buyer', event: nextEventId }, '', url);
   }, [navigate, tab]);
-  const sellerVariants = useSellerCatalog();
-  const sellerProducts = useMemo(
-    () => sellerVariants.map((variant, index) => variantToSellerProduct(variant, index)),
-    [sellerVariants],
-  );
-  const transcriptProducts = useMemo(
-    () => variantsToTranscriptOptions(sellerVariants),
-    [sellerVariants],
-  );
-  const selectedProduct = sellerProducts.find((product) => product.id === selectedProductId) ?? null;
   const layout = appLayoutForTab(tab);
 
   return (
@@ -210,7 +243,8 @@ export function App() {
         </header>
 
         <main className={layout.contentClassName} id="main-content" tabIndex={-1}>
-          {tab === 'buyer' ? (
+          <Suspense fallback={<RouteLoading />}>
+            {tab === 'buyer' ? (
               <BuyerTab
                 eventId={activeEventId}
                 eventTitle={DEFAULT_EVENT_TITLE}
@@ -220,17 +254,15 @@ export function App() {
             ) : null}
             {tab === 'orders' ? <OrdersTab /> : null}
             {tab === 'seller' ? (
-              <SellerTab
-                selectedProduct={selectedProduct}
+              <SellerRoute
                 selectedProductId={selectedProductId}
-                sellerProducts={sellerProducts}
-                transcriptProducts={transcriptProducts}
                 onActiveProductChange={setSelectedProductId}
               />
             ) : null}
             {tab === 'history' ? <BuildHistoryTab /> : null}
             {tab === 'test' ? <SystemTestsTab /> : null}
             {tab === 'architecture' ? <ArchitectureTab /> : null}
+          </Suspense>
           {layout.showFooter ? (
               <footer className="footer">
                 <span>SideStage preview</span>

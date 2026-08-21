@@ -2,7 +2,7 @@ import { createElement, type PropsWithChildren } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
 
-vi.mock('@stripe/stripe-js', () => ({ loadStripe: vi.fn(() => Promise.resolve({})) }));
+vi.mock('@stripe/stripe-js/pure', () => ({ loadStripe: vi.fn(() => Promise.resolve({})) }));
 vi.mock('@stripe/react-stripe-js', () => ({
   Elements: ({ children }: PropsWithChildren) => createElement('div', { 'data-stripe-elements': true }, children),
   PaymentElement: () => createElement('div', null, 'Secure payment fields'),
