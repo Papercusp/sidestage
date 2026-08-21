@@ -4,7 +4,10 @@ import { join } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   createDependencyTopologyGuard,
+  createPublicEntryBudgetGuard,
   findNearestDependencyRuntime,
+  publicEntryBudgetViolations,
+  PUBLIC_ENTRY_BUDGET_BYTES,
   resolveDevServerEnvironment,
   stripDevApiPrefix,
 } from '../vite.config';
@@ -66,6 +69,25 @@ describe('stripDevApiPrefix', () => {
     expect(stripDevApiPrefix('/api/scout/chat/stream')).toBe('/scout/chat/stream');
     expect(stripDevApiPrefix('/api')).toBe('/');
     expect(stripDevApiPrefix('/catalog')).toBe('/catalog');
+  });
+});
+
+describe('public entry performance budget', () => {
+  it('accepts a bounded entry without an eager payment loader', () => {
+    expect(publicEntryBudgetViolations([
+      { fileName: 'assets/index-good.js', code: 'export const ready = true;' },
+    ])).toEqual([]);
+    expect(createPublicEntryBudgetGuard().apply).toBe('build');
+  });
+
+  it('rejects entry growth and an eager Stripe remote loader independently', () => {
+    expect(publicEntryBudgetViolations([
+      { fileName: 'assets/index-large.js', code: 'x'.repeat(PUBLIC_ENTRY_BUDGET_BYTES + 1) },
+      { fileName: 'assets/index-stripe.js', code: 'const src = "https://js.stripe.com/v3";' },
+    ])).toEqual([
+      `assets/index-large.js is ${PUBLIC_ENTRY_BUDGET_BYTES + 1} bytes; public entry budget is ${PUBLIC_ENTRY_BUDGET_BYTES} bytes`,
+      "assets/index-stripe.js contains Stripe's remote loader; payment must stay lazy",
+    ]);
   });
 });
 

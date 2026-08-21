@@ -44,7 +44,13 @@ import {
 } from './transcript-product-focus';
 import { useLiveTranscript, type TranscriptProductOption } from './use-live-transcript';
 import { requestDeepgramToken } from './transcription';
+import { applyGridTheme } from './grid-theme-bridge';
 import './studio.css';
+
+// Studio is the only production route that renders Papergrid. Resolve the host
+// palette when this lazy chunk loads, before its first grid render, instead of
+// forcing synchronous computed-style reads on every public Watch visit.
+applyGridTheme();
 
 export const STUDIO_VIEW_TABS = [
   { id: 'inventory', label: 'Inventory' },

@@ -10,12 +10,6 @@ import './styles.css';
 // (--bg, --surface, --brand-red, …); the libs' own sheets ship dark-host
 // defaults, so without this the drawers render Restart's palette in a cream app.
 import './shared-drawer-theme.css';
-import { applyGridTheme } from './grid-theme-bridge';
-
-// papergrid ships a neutral DARK palette and expects the host to inject its own via
-// configureGridColors(). This must run after styles.css is imported (the tokens it reads are
-// defined there) and before the first render, so no grid paints the library default.
-applyGridTheme();
 
 const syncEndpoint = `${resolveApiBaseUrl()}/sync`;
 const zeroServer = resolveZeroServerUrl();

@@ -47,8 +47,13 @@ describe('public landing-page performance policy', () => {
 
   it('does not ship the WebSocket-only Zero registry in the fixed-SSE entry', () => {
     const main = read('./main.tsx');
+    const seller = read('./SellerTab.tsx');
     expect(main).toContain('syncType="SSE"');
     expect(main).not.toContain("from '@papercusp/sidestage-zero'");
+    expect(main).not.toContain("from './grid-theme-bridge'");
+    expect(main).not.toContain('applyGridTheme()');
+    expect(seller).toContain("import { applyGridTheme } from './grid-theme-bridge'");
+    expect(seller).toContain('applyGridTheme()');
     for (const prop of ['schema', 'queries', 'mutators']) {
       expect(main).not.toMatch(new RegExp('\\s' + prop + '=\\{'));
     }
@@ -59,6 +64,19 @@ describe('public landing-page performance policy', () => {
     const cart = read('./BuyerCartDrawer.tsx');
     expect(scout).toContain('{({ close, otherOpen, open }) => open ? (');
     expect(cart).toContain('{open ? <BuyerCartPanel {...panel} /> : null}');
+  });
+
+  it('lets the browser skip below-fold buyer layout without hiding it', () => {
+    const styles = read('./BuyerTab.css');
+    expect(styles).toMatch(
+      /\.buyer-current-offer-slot\s*\{[^}]*content-visibility:\s*auto;[^}]*contain-intrinsic-size:/,
+    );
+    expect(styles).toMatch(
+      /\.buyer-room-context\s*\{[^}]*content-visibility:\s*auto;[^}]*contain-intrinsic-size:/,
+    );
+    expect(styles).toMatch(
+      /\.buyer-lower-grid\s*\{[^}]*content-visibility:\s*auto;[^}]*contain-intrinsic-size:/,
+    );
   });
 
   it('ships crawl metadata and the measured contrast repairs', () => {

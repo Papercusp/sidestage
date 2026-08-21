@@ -110,6 +110,48 @@ export function createDependencyTopologyGuard({
   };
 }
 
+export const PUBLIC_ENTRY_BUDGET_BYTES = 500_000;
+
+export interface PublicEntryArtifact {
+  fileName: string;
+  code: string;
+}
+
+export function publicEntryBudgetViolations(
+  entries: readonly PublicEntryArtifact[],
+  maxBytes = PUBLIC_ENTRY_BUDGET_BYTES,
+): string[] {
+  return entries.flatMap(({ fileName, code }) => {
+    const violations: string[] = [];
+    const bytes = Buffer.byteLength(code);
+    if (bytes > maxBytes) {
+      violations.push(`${fileName} is ${bytes} bytes; public entry budget is ${maxBytes} bytes`);
+    }
+    if (code.includes('js.stripe.com')) {
+      violations.push(`${fileName} contains Stripe's remote loader; payment must stay lazy`);
+    }
+    return violations;
+  });
+}
+
+export function createPublicEntryBudgetGuard(): Plugin {
+  return {
+    name: 'sidestage-public-entry-budget',
+    apply: 'build',
+    generateBundle(_options, bundle) {
+      const entries = Object.values(bundle).flatMap((output) => (
+        output.type === 'chunk' && output.isEntry
+          ? [{ fileName: output.fileName, code: output.code }]
+          : []
+      ));
+      const violations = publicEntryBudgetViolations(entries);
+      if (violations.length > 0) {
+        throw new Error(`SideStage public entry performance budget failed:\n${violations.join('\n')}`);
+      }
+    },
+  };
+}
+
 function parsePort(value: string | undefined, fallback: number, name: string): number {
   const candidate = value?.trim();
   if (!candidate) return fallback;
@@ -143,7 +185,7 @@ const { apiOrigin, webPort } = resolveDevServerEnvironment(environment);
 
 export default defineConfig({
   envDir: isTest ? false : repositoryRoot,
-  plugins: [react(), createDependencyTopologyGuard()],
+  plugins: [react(), createDependencyTopologyGuard(), createPublicEntryBudgetGuard()],
   server: {
     host: '0.0.0.0',
     port: webPort,

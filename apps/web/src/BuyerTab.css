@@ -77,6 +77,8 @@
 .buyer-current-offer-slot {
   align-self: start;
   container-type: inline-size;
+  content-visibility: auto;
+  contain-intrinsic-size: auto 34rem;
 }
 
 .buyer-current-offer-slot[data-offer-state='idle'] {
@@ -244,6 +246,8 @@
 .buyer-room-context {
   min-width: 0;
   overflow: hidden;
+  content-visibility: auto;
+  contain-intrinsic-size: auto 22rem;
   border: 1px solid var(--border);
   border-radius: var(--radius-card);
   background: var(--surface-raised);
@@ -532,6 +536,8 @@
   align-items: start;
   gap: var(--ss-gap);
   margin-top: var(--ss-gap);
+  content-visibility: auto;
+  contain-intrinsic-size: auto 42rem;
 }
 
 .buyer-shop-panel {
