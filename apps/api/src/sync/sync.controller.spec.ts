@@ -82,7 +82,7 @@ describe('Nest boot failures must be visible', () => {
 });
 
 describe('SyncController', () => {
-  it('injects the registry and invalidation stream when Nest boots under tsx', async () => {
+  it('injects the registry and invalidation stream when Nest boots SyncModule\'s DI graph', async () => {
     // abortOnError:false is LOAD-BEARING, not tidiness. NestFactory's default is
     // abortOnError:true, and handleInitializationError then calls process.abort()
     // (nest-factory.js:123) instead of rejecting. Under the fork pool that aborts the
@@ -97,8 +97,16 @@ describe('SyncController', () => {
     // PG_POOL, which nothing in SyncModule's own graph provides, so booting it bare fails
     // to RESOLVE (a dependency error) — which is not the failure mode this test exists to
     // check. SyncSpecHostModule wraps it with NullPgPoolModule so the graph is
-    // satisfiable and this test measures what it claims to: that SyncModule's own wiring
-    // (ZeroController's adapter import included) boots under tsx.
+    // satisfiable and this test measures what it claims to: that SyncModule's DI graph
+    // (ZeroController's adapter import included) resolves and initializes cleanly.
+    //
+    // ⚠ THIS DOES NOT COVER tsx RUNTIME PATH RESOLUTION (EI-20698695526784792). This
+    // file is itself run by vitest — through vite, not tsx — so it resolves
+    // apps/api/tsconfig.json's `paths` remap for @rocicorp/zero differently than a
+    // real tsx process does at dev/prod boot; a `paths` target that vite happily
+    // loads here can still MODULE_NOT_FOUND under tsx. Only an actual tsx child
+    // process reproduces that class of regression — see
+    // zero-adapter-runtime-resolution.spec.ts, which does exactly that.
     const context = await NestFactory.createApplicationContext(SyncSpecHostModule, {
       abortOnError: false,
     });
