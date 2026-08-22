@@ -47,6 +47,16 @@ export interface BuildHistoryPlanItem {
   blockedBy: string[];
   phase: string | null;
   lineNumber: number;
+  validationAssertions: Array<{
+    id: string;
+    planItemId: string;
+    verify: string;
+    evidenceLocator: string;
+    status: 'todo' | 'validating' | 'passed' | 'failed';
+    requiresTest: boolean;
+    source: 'canonical-plan-inline';
+    sourceLineNumber: number;
+  }>;
 }
 
 export interface BuildHistoryDecision {
@@ -79,6 +89,14 @@ export interface BuildHistoryPlan {
   items: BuildHistoryPlanItem[];
   decisions: BuildHistoryDecision[];
   completedItems: BuildHistoryWorkItem[];
+  validationSummary: {
+    total: number;
+    passed: number;
+    failed: number;
+    validating: number;
+    todo: number;
+    requiringTest: number;
+  };
   project: BuildHistoryProject;
   snapshot: BuildHistorySnapshotSource;
 }
