@@ -30,6 +30,7 @@ const deployCode = deploySource
   .join('\n');
 const rollbackSource = readFileSync(rollbackScript, 'utf8');
 const composeSource = readFileSync(composeFile, 'utf8');
+const apiService = composeSource.match(/\n  api:\n([\s\S]*?)(?=\n  [a-z][\w-]*:\n)/)?.[1];
 
 /** Index of the first line matching `pattern`, or -1. */
 function lineIndex(source, pattern) {
@@ -616,6 +617,21 @@ describe('docker-compose.prod.yml keeps the api unpublished', () => {
 
   it('still routes to 3100 through traefik, which is how it is actually reached', () => {
     expect(composeSource).toMatch(/loadbalancer\.server\.port=3100/);
+  });
+
+  it('pins the api process to the same production-only port as every runtime consumer', () => {
+    // af8162e booted successfully on the application's local-dev fallback
+    // (:3110), while Traefik, Zero and both deploy health probes all targeted
+    // :3100. The image was healthy but unreachable and correctly rolled back.
+    // Production must therefore own its port explicitly instead of inheriting
+    // a fallback whose purpose is local collision avoidance.
+    expect(apiService).toBeTruthy();
+    expect(apiService).toMatch(/\n      API_PORT: 3100\n/);
+    expect(apiService).toMatch(/loadbalancer\.server\.port=3100/);
+    expect(composeSource).toContain('ZERO_QUERY_URL: http://api:3100/api/zero/query');
+    expect(composeSource).toContain('ZERO_MUTATE_URL: http://api:3100/api/zero/mutate');
+    expect(deploySource).toContain('http://127.0.0.1:3100/healthz');
+    expect(rollbackSource).toContain('http://127.0.0.1:3100/healthz');
   });
 });
 

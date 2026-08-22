@@ -154,6 +154,10 @@ services:
     # PUBLIC url, not a host loopback port; see deploy/deploy.sh's health_probe.
     environment:
       NODE_ENV: production
+      # Production's internal contract is :3100 (Traefik, Zero and deploy
+      # health probes all target it). Keep this explicit: the application
+      # fallback is the local-development port and may change independently.
+      API_PORT: 3100
       API_PREFIX: api
       DATABASE_URL: postgresql://${POSTGRES_USER:-sidestage}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-sidestage}
       DATA_BACKEND: pg
