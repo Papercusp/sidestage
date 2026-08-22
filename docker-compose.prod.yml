@@ -244,6 +244,11 @@ services:
       ZERO_QUERY_URL: http://api:3100/api/zero/query
       ZERO_MUTATE_URL: http://api:3100/api/zero/mutate
       ZERO_ADMIN_PASSWORD: ${ZERO_ADMIN_PASSWORD:?set in .env.production}
+      # Zero 1.8 defaults to anonymous metrics export at the hard-coded
+      # https://metrics.rocicorp.dev endpoint. SideStage does not consume those
+      # metrics, and a vendor HTTP 500 otherwise surfaces as a noisy exporter
+      # failure while the service remains healthy (EI-21167367249299332).
+      ZERO_ENABLE_TELEMETRY: "false"
       # NO app/shard id is set here, DELIBERATELY — do not "helpfully" add one.
       # This line used to read `ZERO_SHARD_ID: ${ZERO_SHARD_ID:-sidestage}`, and
       # @rocicorp/zero 1.3 (the version libs/sync pins) REJECTS THAT KEY ITSELF:

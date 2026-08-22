@@ -85,8 +85,8 @@ const { zeroOptions, ZERO_ENV_VAR_PREFIX } = await import(
 );
 const { parseOptions } = await import(root + '/node_modules/@rocicorp/zero/out/shared/src/options.js');
 try {
-  parseOptions(zeroOptions, { envNamePrefix: ZERO_ENV_VAR_PREFIX, argv: [], emitDeprecationWarnings: false });
-  process.stdout.write('PARSE_OK');
+  const config = parseOptions(zeroOptions, { envNamePrefix: ZERO_ENV_VAR_PREFIX, argv: [], emitDeprecationWarnings: false });
+  process.stdout.write('PARSE_OK:' + String(config.enableTelemetry));
 } catch (error) {
   process.stdout.write('PARSE_FAIL:' + String((error && error.message) || error).split('\\n')[0]);
   process.exitCode = 1;
@@ -114,7 +114,8 @@ describe('docker-compose.prod.yml zero-cache env is accepted by @rocicorp/zero',
     // Positive control: a probe that found NO ZERO_* keys would parse clean and
     // prove nothing. The prod service genuinely sets several.
     expect(Object.keys(zeroKeys).length).toBeGreaterThan(0);
-    expect(stdout, `zero rejected the prod compose env: ${stdout}`).toBe('PARSE_OK');
+    expect(zeroKeys.ZERO_ENABLE_TELEMETRY).toBe('false');
+    expect(stdout, `zero rejected the prod compose env: ${stdout}`).toBe('PARSE_OK:false');
     expect(status).toBe(0);
   });
 
