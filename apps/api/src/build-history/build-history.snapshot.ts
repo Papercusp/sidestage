@@ -16,7 +16,7 @@ export const BUILD_HISTORY_SNAPSHOT = {
     "workspace": "papercusp-workspace",
     "harness": "sidestage",
     "planPrefix": null,
-    "generatedAt": "2026-08-22T03:36:46.359Z",
+    "generatedAt": "2026-08-22T04:51:51.153Z",
     "generator": "papercusp project-history generate",
     "planCount": 54
   },
@@ -1946,23 +1946,7 @@ export const BUILD_HISTORY_SNAPSHOT = {
               "android/app/src/test/kotlin/com/sidestage/mobile/buyer/SideStageClientFactoryTest.kt"
             ]
           },
-          "commits": [
-            {
-              "sha": "6945e6498c776db25af4faf9fae14ec667852dac",
-              "url": "https://github.com/Papercusp/sidestage-mobile/commit/6945e6498c776db25af4faf9fae14ec667852dac",
-              "subject": "sync(android,crates): android + crates (5 files, +368/-15) [skip ci]",
-              "committedAt": "2026-08-14T18:17:38-04:00",
-              "files": [
-                "android/app/src/main/kotlin/com/sidestage/mobile/buyer/SideStageClientFactory.kt",
-                "android/app/src/test/kotlin/com/sidestage/mobile/buyer/SideStageClientFactoryTest.kt",
-                "crates/sidestage-bindings/Cargo.toml",
-                "crates/sidestage-bindings/src/lib.rs",
-                "crates/sidestage-bindings/src/sidestage.udl"
-              ],
-              "remoteStatus": "confirmed",
-              "attribution": "inferred"
-            }
-          ]
+          "commits": []
         },
         {
           "id": "WI-38620",
@@ -2028,80 +2012,12 @@ export const BUILD_HISTORY_SNAPSHOT = {
               "attribution": "body-reference"
             },
             {
-              "sha": "010a02b2678fc878c9377775eacfb497d63e7cc0",
-              "url": "https://github.com/Papercusp/sidestage-mobile/commit/010a02b2678fc878c9377775eacfb497d63e7cc0",
-              "subject": "sync(tools): tools (2 files, +35/-4) [skip ci]",
-              "committedAt": "2026-08-14T18:57:50-04:00",
-              "files": [
-                "tools/build-scripts/build-android.sh",
-                "tools/tests/android-release-provenance-test.sh"
-              ],
-              "remoteStatus": "confirmed",
-              "attribution": "body-reference"
-            },
-            {
-              "sha": "8819aad807d87f85865dcc381d4c0e3da6214542",
-              "url": "https://github.com/Papercusp/sidestage-mobile/commit/8819aad807d87f85865dcc381d4c0e3da6214542",
-              "subject": "sync(android,root,tools): Makefile + android + tools (5 files, +359/-7) [skip ci]",
-              "committedAt": "2026-08-14T18:47:05-04:00",
-              "files": [
-                "Makefile",
-                "android/app/build.gradle.kts",
-                "tools/build-scripts/android-release-provenance.sh",
-                "tools/build-scripts/build-android.sh",
-                "tools/tests/android-release-provenance-test.sh"
-              ],
-              "remoteStatus": "confirmed",
-              "attribution": "body-reference"
-            },
-            {
-              "sha": "6945e6498c776db25af4faf9fae14ec667852dac",
-              "url": "https://github.com/Papercusp/sidestage-mobile/commit/6945e6498c776db25af4faf9fae14ec667852dac",
-              "subject": "sync(android,crates): android + crates (5 files, +368/-15) [skip ci]",
-              "committedAt": "2026-08-14T18:17:38-04:00",
-              "files": [
-                "android/app/src/main/kotlin/com/sidestage/mobile/buyer/SideStageClientFactory.kt",
-                "android/app/src/test/kotlin/com/sidestage/mobile/buyer/SideStageClientFactoryTest.kt",
-                "crates/sidestage-bindings/Cargo.toml",
-                "crates/sidestage-bindings/src/lib.rs",
-                "crates/sidestage-bindings/src/sidestage.udl"
-              ],
-              "remoteStatus": "confirmed",
-              "attribution": "body-reference"
-            },
-            {
-              "sha": "0c152dc1890327939e07b91f48e0e006dd4bfab3",
-              "url": "https://github.com/Papercusp/sidestage-mobile/commit/0c152dc1890327939e07b91f48e0e006dd4bfab3",
-              "subject": "sync(android): android (4 files, +76/-4) [skip ci]",
-              "committedAt": "2026-08-14T17:08:11-04:00",
-              "files": [
-                "android/app/src/main/kotlin/com/sidestage/mobile/buyer/BuyerBrowseHost.kt",
-                "android/app/src/main/kotlin/com/sidestage/mobile/buyer/BuyerBrowseScreen.kt",
-                "android/app/src/main/kotlin/com/sidestage/mobile/buyer/BuyerBrowseStateHolder.kt",
-                "android/app/src/test/kotlin/com/sidestage/mobile/buyer/BuyerBrowseTest.kt"
-              ],
-              "remoteStatus": "confirmed",
-              "attribution": "body-reference"
-            },
-            {
               "sha": "fa0755bb1d7e298a5be3785e51d5b36e4d70fd89",
               "url": "https://github.com/Papercusp/sidestage/commit/fa0755bb1d7e298a5be3785e51d5b36e4d70fd89",
               "subject": "sync(api): package.json (1 file, +1/-1) [skip ci]",
               "committedAt": "2026-08-14T16:54:55-04:00",
               "files": [
                 "apps/api/package.json"
-              ],
-              "remoteStatus": "confirmed",
-              "attribution": "body-reference"
-            },
-            {
-              "sha": "61310a2023bc674191525c3d7f9ec590fe676a2c",
-              "url": "https://github.com/Papercusp/sidestage-mobile/commit/61310a2023bc674191525c3d7f9ec590fe676a2c",
-              "subject": "sync(android): android (2 files, +87/-3) [skip ci]",
-              "committedAt": "2026-08-14T16:47:03-04:00",
-              "files": [
-                "android/app/src/main/kotlin/com/sidestage/mobile/checkout/BuyerCheckoutContract.kt",
-                "android/app/src/test/kotlin/com/sidestage/mobile/checkout/BuyerCheckoutContractTest.kt"
               ],
               "remoteStatus": "confirmed",
               "attribution": "body-reference"
@@ -2124,29 +2040,6 @@ export const BUILD_HISTORY_SNAPSHOT = {
               "committedAt": "2026-08-14T15:06:00-04:00",
               "files": [
                 "apps/api/package.json"
-              ],
-              "remoteStatus": "confirmed",
-              "attribution": "body-reference"
-            },
-            {
-              "sha": "a9f3608185252ce3bc22381ae0e9956c3d9aa3d3",
-              "url": "https://github.com/Papercusp/sidestage-mobile/commit/a9f3608185252ce3bc22381ae0e9956c3d9aa3d3",
-              "subject": "sync(android): android (2 files, +20/-5) [skip ci]",
-              "committedAt": "2026-08-14T13:37:04-04:00",
-              "files": [
-                "android/app/src/androidTest/kotlin/com/sidestage/mobile/navigation/SideStageAppSmokeTest.kt",
-                "android/app/src/main/kotlin/com/sidestage/mobile/buyer/SideStageClientFactory.kt"
-              ],
-              "remoteStatus": "confirmed",
-              "attribution": "body-reference"
-            },
-            {
-              "sha": "9c3a92ec716c9d60e706bf949e7f27d5a0e7ddde",
-              "url": "https://github.com/Papercusp/sidestage-mobile/commit/9c3a92ec716c9d60e706bf949e7f27d5a0e7ddde",
-              "subject": "sync(android): build.gradle.kts (1 file, +2/-2) [skip ci]",
-              "committedAt": "2026-08-14T12:37:01-04:00",
-              "files": [
-                "android/app/build.gradle.kts"
               ],
               "remoteStatus": "confirmed",
               "attribution": "body-reference"
@@ -2175,129 +2068,7 @@ export const BUILD_HISTORY_SNAPSHOT = {
               "android/app/src/androidTest/kotlin/com/sidestage/mobile/navigation/SideStageAppSmokeTest.kt"
             ]
           },
-          "commits": [
-            {
-              "sha": "9f0c4ec33e1dce15275568568950289ad82c5a22",
-              "url": "https://github.com/Papercusp/sidestage-mobile/commit/9f0c4ec33e1dce15275568568950289ad82c5a22",
-              "subject": "sync(android): android (7 files, +627/-103) [skip ci]",
-              "committedAt": "2026-08-14T12:17:03-04:00",
-              "files": [
-                "android/app/src/androidTest/kotlin/com/sidestage/mobile/navigation/SideStageAppSmokeTest.kt",
-                "android/app/src/main/kotlin/com/sidestage/mobile/MainActivity.kt",
-                "android/app/src/main/kotlin/com/sidestage/mobile/buyer/SideStageClientFactory.kt",
-                "android/app/src/main/kotlin/com/sidestage/mobile/navigation/SideStageApp.kt",
-                "android/app/src/main/kotlin/com/sidestage/mobile/orders/BuyerOrdersContract.kt",
-                "android/app/src/main/kotlin/com/sidestage/mobile/orders/BuyerOrdersScreen.kt",
-                "android/app/src/test/kotlin/com/sidestage/mobile/orders/BuyerOrdersContractTest.kt"
-              ],
-              "remoteStatus": "confirmed",
-              "attribution": "inferred"
-            },
-            {
-              "sha": "2cad5850fa6dd67d2a523adaf59eef1a679123b4",
-              "url": "https://github.com/Papercusp/sidestage-mobile/commit/2cad5850fa6dd67d2a523adaf59eef1a679123b4",
-              "subject": "sync(android): android (2 files, +67/-0) [skip ci]",
-              "committedAt": "2026-08-14T11:47:03-04:00",
-              "files": [
-                "android/app/build.gradle.kts",
-                "android/app/src/androidTest/kotlin/com/sidestage/mobile/navigation/SideStageAppSmokeTest.kt"
-              ],
-              "remoteStatus": "confirmed",
-              "attribution": "inferred"
-            },
-            {
-              "sha": "d57da9b5b1dea8ff91ca75965adc2f8c63a88ca4",
-              "url": "https://github.com/Papercusp/sidestage-mobile/commit/d57da9b5b1dea8ff91ca75965adc2f8c63a88ca4",
-              "subject": "Preserve uncommitted mobile-fleet work (shared core, bindings, Android + iOS apps)",
-              "committedAt": "2026-08-14T11:28:26-04:00",
-              "files": [
-                "Cargo.lock",
-                "Cargo.toml",
-                "Makefile",
-                "android/.gitkeep",
-                "android/app/build.gradle.kts",
-                "android/app/proguard-rules.pro",
-                "android/app/src/main/AndroidManifest.xml",
-                "android/app/src/main/kotlin/com/sidestage/mobile/MainActivity.kt",
-                "android/app/src/main/kotlin/com/sidestage/mobile/buyer/BuyerBrowse.kt",
-                "android/app/src/main/kotlin/com/sidestage/mobile/buyer/BuyerBrowseHost.kt",
-                "android/app/src/main/kotlin/com/sidestage/mobile/buyer/BuyerBrowseScreen.kt",
-                "android/app/src/main/kotlin/com/sidestage/mobile/buyer/BuyerBrowseStateHolder.kt",
-                "android/app/src/main/kotlin/com/sidestage/mobile/buyer/BuyerCatalogSource.kt",
-                "android/app/src/main/kotlin/com/sidestage/mobile/buyer/LiveEventContract.kt",
-                "android/app/src/main/kotlin/com/sidestage/mobile/buyer/LiveEventScreen.kt",
-                "android/app/src/main/kotlin/com/sidestage/mobile/buyer/SideStageClientFactory.kt",
-                "android/app/src/main/kotlin/com/sidestage/mobile/checkout/BuyerCheckoutContract.kt",
-                "android/app/src/main/kotlin/com/sidestage/mobile/checkout/BuyerCheckoutScreen.kt",
-                "android/app/src/main/kotlin/com/sidestage/mobile/navigation/NavigationContract.kt",
-                "android/app/src/main/kotlin/com/sidestage/mobile/navigation/SideStageApp.kt",
-                "android/app/src/main/kotlin/com/sidestage/mobile/theme/SideStageTheme.kt",
-                "android/app/src/main/kotlin/com/sidestage/mobile/theme/SideStageTokens.kt",
-                "android/app/src/main/res/values/strings.xml",
-                "android/app/src/main/res/values/themes.xml",
-                "android/app/src/test/kotlin/com/sidestage/mobile/buyer/BuyerBrowseTest.kt",
-                "android/app/src/test/kotlin/com/sidestage/mobile/buyer/LiveEventContractTest.kt",
-                "android/app/src/test/kotlin/com/sidestage/mobile/checkout/BuyerCheckoutContractTest.kt",
-                "android/app/src/test/kotlin/com/sidestage/mobile/navigation/NavigationContractTest.kt",
-                "android/build.gradle.kts",
-                "android/gradle.properties",
-                "android/gradle/wrapper/gradle-wrapper.jar",
-                "android/gradle/wrapper/gradle-wrapper.properties",
-                "android/gradlew",
-                "android/gradlew.bat",
-                "android/settings.gradle.kts",
-                "crates/sidestage-bindings/Cargo.toml",
-                "crates/sidestage-bindings/smoke.rs",
-                "crates/sidestage-bindings/src/lib.rs",
-                "crates/sidestage-bindings/src/sidestage.udl",
-                "crates/sidestage-bindings/tests/android_uniffi_abi_guard.rs",
-                "crates/sidestage-bindings/tests/ktlint_bootstrap.rs",
-                "crates/sidestage-core/Cargo.toml",
-                "crates/sidestage-core/src/cart.rs",
-                "crates/sidestage-core/src/checkout.rs",
-                "crates/sidestage-core/src/client.rs",
-                "crates/sidestage-core/src/lib.rs",
-                "crates/sidestage-core/src/models.rs",
-                "crates/sidestage-core/src/orders.rs",
-                "crates/sidestage-core/src/realtime.rs",
-                "crates/sidestage-core/testdata/cart-2026-08-14.json",
-                "crates/sidestage-core/testdata/catalog-page-2026-08-14.json",
-                "crates/sidestage-core/testdata/checkout-contracts-2026-08-14.json",
-                "crates/sidestage-core/testdata/events-2026-08-14.json",
-                "crates/sidestage-core/testdata/shipping-rates-2026-08-14.json",
-                "ios/SideStage/Sources/Buyer/BuyerNavigationView.swift",
-                "ios/SideStage/Sources/Buyer/LiveEventPresentation.swift",
-                "ios/SideStage/Sources/Buyer/LiveEventView.swift",
-                "ios/SideStage/Sources/Buyer/LiveEventViewModel.swift",
-                "ios/SideStage/Sources/Cart/CartStore.swift",
-                "ios/SideStage/Sources/Cart/CartView.swift",
-                "ios/SideStage/Sources/Checkout/CheckoutPresentation.swift",
-                "ios/SideStage/Sources/Checkout/CheckoutView.swift",
-                "ios/SideStage/Sources/Checkout/CheckoutViewModel.swift",
-                "ios/SideStage/Sources/Environment/SideStageClientEnvironment.swift",
-                "ios/SideStage/Sources/Generated/SideStageTokens.swift",
-                "ios/SideStage/Sources/Navigation/AppNavigation.swift",
-                "ios/SideStage/Sources/Navigation/SideStageRootView.swift",
-                "ios/SideStage/Sources/Orders/OrdersNavigationView.swift",
-                "ios/SideStage/Sources/Orders/OrdersPresentation.swift",
-                "ios/SideStage/Sources/Orders/OrdersViewModel.swift",
-                "ios/SideStage/Sources/SideStageApp.swift",
-                "ios/SideStageTests/CheckoutPresentationTests.swift",
-                "ios/SideStageTests/LiveEventPresentationTests.swift",
-                "ios/SideStageTests/NavigationScopeTests.swift",
-                "ios/SideStageTests/OrdersPresentationTests.swift",
-                "ios/SideStageUITests/SideStageLaunchUITests.swift",
-                "tools/build-scripts/build-android.sh",
-                "tools/build-scripts/ensure-ktlint.sh",
-                "tools/build-scripts/generate-swift-design-tokens.rb",
-                "tools/build-scripts/verify-android-uniffi-abi.sh",
-                "tools/build-scripts/verify-scaffold.sh",
-                "tools/verify-ios-typecheck.sh"
-              ],
-              "remoteStatus": "confirmed",
-              "attribution": "inferred"
-            }
-          ]
+          "commits": []
         }
       ],
       "validationSummary": {
@@ -4183,84 +3954,6 @@ export const BUILD_HISTORY_SNAPSHOT = {
                 "apps/web/src/seller/offer-guard.ts",
                 "apps/web/src/transcription.test.ts",
                 "apps/web/src/transcription.ts"
-              ],
-              "remoteStatus": "confirmed",
-              "attribution": "body-reference"
-            },
-            {
-              "sha": "c593ab89a7254751bdbccc01ec406222b33a6c50",
-              "url": "https://github.com/Papercusp/sidestage-mobile/commit/c593ab89a7254751bdbccc01ec406222b33a6c50",
-              "subject": "sync(android,crates,ios): android + crates + ios (10 files, +951/-8) [skip ci]",
-              "committedAt": "2026-08-18T06:37:03-04:00",
-              "files": [
-                "android/app/src/androidTest/kotlin/com/sidestage/mobile/navigation/SideStageAppSmokeTest.kt",
-                "android/app/src/test/kotlin/com/sidestage/mobile/buyer/BuyerBrowseTest.kt",
-                "crates/sidestage-bindings/tests/whep_platform_guard.rs",
-                "crates/sidestage-core/src/whep.rs",
-                "ios/SideStage/Sources/Buyer/LiveEventView.swift",
-                "ios/SideStage/Sources/Buyer/LiveEventViewModel.swift",
-                "ios/SideStage/Sources/Buyer/WhepPlayer.swift",
-                "ios/SideStage/Sources/Buyer/WhepWebRTCEngine.swift",
-                "ios/SideStageTests/WhepPlaybackTests.swift",
-                "ios/project.yml"
-              ],
-              "remoteStatus": "confirmed",
-              "attribution": "body-reference"
-            },
-            {
-              "sha": "a7a6652c9e2b86f1412d741273893b95cf8cb767",
-              "url": "https://github.com/Papercusp/sidestage-mobile/commit/a7a6652c9e2b86f1412d741273893b95cf8cb767",
-              "subject": "sync(android): build.gradle.kts (1 file, +2/-7) [skip ci]",
-              "committedAt": "2026-08-18T06:27:05-04:00",
-              "files": [
-                "android/app/build.gradle.kts"
-              ],
-              "remoteStatus": "confirmed",
-              "attribution": "body-reference"
-            },
-            {
-              "sha": "d1c14684ceb2195803dd3b68a5e8f7842ba572f5",
-              "url": "https://github.com/Papercusp/sidestage-mobile/commit/d1c14684ceb2195803dd3b68a5e8f7842ba572f5",
-              "subject": "sync(android,crates): android + crates (9 files, +558/-64) [skip ci]",
-              "committedAt": "2026-08-18T06:17:02-04:00",
-              "files": [
-                "android/app/build.gradle.kts",
-                "android/app/src/main/kotlin/com/sidestage/mobile/buyer/LiveEventContract.kt",
-                "android/app/src/main/kotlin/com/sidestage/mobile/buyer/LiveEventScreen.kt",
-                "android/app/src/main/kotlin/com/sidestage/mobile/buyer/SideStageClientFactory.kt",
-                "android/app/src/main/kotlin/com/sidestage/mobile/buyer/WhepPlayer.kt",
-                "android/app/src/test/kotlin/com/sidestage/mobile/buyer/LiveEventContractTest.kt",
-                "crates/sidestage-bindings/src/lib.rs",
-                "crates/sidestage-bindings/src/sidestage.udl",
-                "crates/sidestage-core/src/whep.rs"
-              ],
-              "remoteStatus": "confirmed",
-              "attribution": "body-reference"
-            },
-            {
-              "sha": "9e4566a83d29d862bf5b0a2aa7cb1075db559499",
-              "url": "https://github.com/Papercusp/sidestage-mobile/commit/9e4566a83d29d862bf5b0a2aa7cb1075db559499",
-              "subject": "sync(crates): crates (4 files, +833/-0) [skip ci]",
-              "committedAt": "2026-08-18T06:07:04-04:00",
-              "files": [
-                "crates/sidestage-bindings/src/lib.rs",
-                "crates/sidestage-bindings/src/sidestage.udl",
-                "crates/sidestage-core/src/lib.rs",
-                "crates/sidestage-core/src/whep.rs"
-              ],
-              "remoteStatus": "confirmed",
-              "attribution": "body-reference"
-            },
-            {
-              "sha": "9f3355dddc8e62d0fa7d56f2d2f6dc3046252150",
-              "url": "https://github.com/Papercusp/sidestage-mobile/commit/9f3355dddc8e62d0fa7d56f2d2f6dc3046252150",
-              "subject": "sync(crates): crates (4 files, +15/-2) [skip ci]",
-              "committedAt": "2026-08-18T05:57:02-04:00",
-              "files": [
-                "crates/sidestage-bindings/src/lib.rs",
-                "crates/sidestage-bindings/src/sidestage.udl",
-                "crates/sidestage-core/src/client.rs",
-                "crates/sidestage-core/src/models.rs"
               ],
               "remoteStatus": "confirmed",
               "attribution": "body-reference"
@@ -14179,21 +13872,7 @@ export const BUILD_HISTORY_SNAPSHOT = {
               "Makefile"
             ]
           },
-          "commits": [
-            {
-              "sha": "d78c5339c0f2a63a7d52bc97a032a1aaabc9287e",
-              "url": "https://github.com/Papercusp/sidestage-mobile/commit/d78c5339c0f2a63a7d52bc97a032a1aaabc9287e",
-              "subject": "sync(root,tools): Makefile + tools (3 files, +179/-2) [skip ci]",
-              "committedAt": "2026-08-14T12:17:03-04:00",
-              "files": [
-                "Makefile",
-                "tools/build-scripts/host-smoke-swift.sh",
-                "tools/build-scripts/host-smoke/SwiftBoundarySmoke.swift"
-              ],
-              "remoteStatus": "confirmed",
-              "attribution": "inferred"
-            }
-          ]
+          "commits": []
         },
         {
           "id": "WI-38623",
@@ -14272,135 +13951,7 @@ export const BUILD_HISTORY_SNAPSHOT = {
               "ios/SideStage/Sources/Buyer/LiveEventPresentation.swift (edited)"
             ]
           },
-          "commits": [
-            {
-              "sha": "d6feac31ea97b34c88892ecc2e8f567d8dbfbfb3",
-              "url": "https://github.com/Papercusp/sidestage-mobile/commit/d6feac31ea97b34c88892ecc2e8f567d8dbfbfb3",
-              "subject": "sync(crates,ios): crates + ios (4 files, +347/-14) [skip ci]",
-              "committedAt": "2026-08-14T14:47:04-04:00",
-              "files": [
-                "crates/sidestage-bindings/tests/status_vocabulary_guard.rs",
-                "ios/SideStage/Sources/Checkout/CheckoutPresentation.swift",
-                "ios/SideStage/Sources/Checkout/CheckoutViewModel.swift",
-                "ios/SideStageTests/CheckoutPresentationTests.swift"
-              ],
-              "remoteStatus": "confirmed",
-              "attribution": "body-reference"
-            },
-            {
-              "sha": "3db6c5f756f635404739a9ab8341636ca0dd9551",
-              "url": "https://github.com/Papercusp/sidestage-mobile/commit/3db6c5f756f635404739a9ab8341636ca0dd9551",
-              "subject": "sync(ios): ios (5 files, +70/-8) [skip ci]",
-              "committedAt": "2026-08-14T14:37:42-04:00",
-              "files": [
-                "ios/SideStage/Sources/Buyer/BuyerNavigationView.swift",
-                "ios/SideStage/Sources/Buyer/LiveEventView.swift",
-                "ios/SideStage/Sources/Cart/CartView.swift",
-                "ios/SideStage/Sources/Checkout/CheckoutView.swift",
-                "ios/SideStageUITests/BuyerLoopUITests.swift"
-              ],
-              "remoteStatus": "confirmed",
-              "attribution": "body-reference"
-            },
-            {
-              "sha": "4c3a02d434ce782ebc9bd62728facac1cabcb574",
-              "url": "https://github.com/Papercusp/sidestage-mobile/commit/4c3a02d434ce782ebc9bd62728facac1cabcb574",
-              "subject": "sync(ios,tools): ios + tools (2 files, +237/-4) [skip ci]",
-              "committedAt": "2026-08-14T14:27:33-04:00",
-              "files": [
-                "ios/SideStageUITests/StubAPIServer.swift",
-                "tools/run-ios-simulator-tests.sh"
-              ],
-              "remoteStatus": "confirmed",
-              "attribution": "body-reference"
-            },
-            {
-              "sha": "3bc77a14482da75376731e2922c7c35b2122bc17",
-              "url": "https://github.com/Papercusp/sidestage-mobile/commit/3bc77a14482da75376731e2922c7c35b2122bc17",
-              "subject": "sync(ios): ios (4 files, +1021/-3) [skip ci]",
-              "committedAt": "2026-08-14T14:17:04-04:00",
-              "files": [
-                "ios/SideStage/Sources/Environment/SideStageClientEnvironment.swift",
-                "ios/SideStageTests/SideStageClientFactoryTests.swift",
-                "ios/SideStageUITests/BuyerLoopUITests.swift",
-                "ios/SideStageUITests/StubAPIServer.swift"
-              ],
-              "remoteStatus": "confirmed",
-              "attribution": "body-reference"
-            },
-            {
-              "sha": "df6acb123bfb63f1eaea48098d5b4df27e6e6f20",
-              "url": "https://github.com/Papercusp/sidestage-mobile/commit/df6acb123bfb63f1eaea48098d5b4df27e6e6f20",
-              "subject": "sync(ios): project.yml (1 file, +15/-0) [skip ci]",
-              "committedAt": "2026-08-14T13:58:41-04:00",
-              "files": [
-                "ios/project.yml"
-              ],
-              "remoteStatus": "confirmed",
-              "attribution": "body-reference"
-            },
-            {
-              "sha": "5d7c7fed05272d3f5d9b7f01a9a2d11572d7065a",
-              "url": "https://github.com/Papercusp/sidestage-mobile/commit/5d7c7fed05272d3f5d9b7f01a9a2d11572d7065a",
-              "subject": "sync(ios): ios (4 files, +982/-1) [skip ci]",
-              "committedAt": "2026-08-14T13:27:17-04:00",
-              "files": [
-                "ios/SideStage/Sources/Buyer/BuyerBrowseView.swift",
-                "ios/SideStage/Sources/Buyer/BuyerBrowseViewModel.swift",
-                "ios/SideStage/Sources/Buyer/BuyerNavigationView.swift",
-                "ios/SideStageTests/BuyerBrowsePresentationTests.swift"
-              ],
-              "remoteStatus": "confirmed",
-              "attribution": "body-reference"
-            },
-            {
-              "sha": "ee9e3e1f14d2f5db3cce95600501a3540bb60137",
-              "url": "https://github.com/Papercusp/sidestage-mobile/commit/ee9e3e1f14d2f5db3cce95600501a3540bb60137",
-              "subject": "sync(ios): BuyerBrowsePresentation.swift (1 file, +286/-0) [skip ci]",
-              "committedAt": "2026-08-14T13:17:21-04:00",
-              "files": [
-                "ios/SideStage/Sources/Buyer/BuyerBrowsePresentation.swift"
-              ],
-              "remoteStatus": "confirmed",
-              "attribution": "body-reference"
-            },
-            {
-              "sha": "c3dfc9d392ec31379503e013004ab0c01f9123d4",
-              "url": "https://github.com/Papercusp/sidestage-mobile/commit/c3dfc9d392ec31379503e013004ab0c01f9123d4",
-              "subject": "sync(tools): SwiftBoundarySmoke.swift (1 file, +63/-51) [skip ci]",
-              "committedAt": "2026-08-14T12:27:02-04:00",
-              "files": [
-                "tools/build-scripts/host-smoke/SwiftBoundarySmoke.swift"
-              ],
-              "remoteStatus": "confirmed",
-              "attribution": "body-reference"
-            },
-            {
-              "sha": "d78c5339c0f2a63a7d52bc97a032a1aaabc9287e",
-              "url": "https://github.com/Papercusp/sidestage-mobile/commit/d78c5339c0f2a63a7d52bc97a032a1aaabc9287e",
-              "subject": "sync(root,tools): Makefile + tools (3 files, +179/-2) [skip ci]",
-              "committedAt": "2026-08-14T12:17:03-04:00",
-              "files": [
-                "Makefile",
-                "tools/build-scripts/host-smoke-swift.sh",
-                "tools/build-scripts/host-smoke/SwiftBoundarySmoke.swift"
-              ],
-              "remoteStatus": "confirmed",
-              "attribution": "body-reference"
-            },
-            {
-              "sha": "681877153a37b0cbfe94e61fa3d224526b6f8239",
-              "url": "https://github.com/Papercusp/sidestage-mobile/commit/681877153a37b0cbfe94e61fa3d224526b6f8239",
-              "subject": "sync(ios): ios (2 files, +563/-0) [skip ci]",
-              "committedAt": "2026-08-14T12:01:19-04:00",
-              "files": [
-                "ios/SideStageTests/CartStoreTests.swift",
-                "ios/SideStageTests/FakeSideStageClient.swift"
-              ],
-              "remoteStatus": "confirmed",
-              "attribution": "body-reference"
-            }
-          ]
+          "commits": []
         },
         {
           "id": "WI-38625",
@@ -14482,22 +14033,7 @@ export const BUILD_HISTORY_SNAPSHOT = {
               "ios/SideStageTests/BuyerBrowsePresentationTests.swift"
             ]
           },
-          "commits": [
-            {
-              "sha": "5d7c7fed05272d3f5d9b7f01a9a2d11572d7065a",
-              "url": "https://github.com/Papercusp/sidestage-mobile/commit/5d7c7fed05272d3f5d9b7f01a9a2d11572d7065a",
-              "subject": "sync(ios): ios (4 files, +982/-1) [skip ci]",
-              "committedAt": "2026-08-14T13:27:17-04:00",
-              "files": [
-                "ios/SideStage/Sources/Buyer/BuyerBrowseView.swift",
-                "ios/SideStage/Sources/Buyer/BuyerBrowseViewModel.swift",
-                "ios/SideStage/Sources/Buyer/BuyerNavigationView.swift",
-                "ios/SideStageTests/BuyerBrowsePresentationTests.swift"
-              ],
-              "remoteStatus": "confirmed",
-              "attribution": "inferred"
-            }
-          ]
+          "commits": []
         },
         {
           "id": "WI-38865",
@@ -14542,22 +14078,7 @@ export const BUILD_HISTORY_SNAPSHOT = {
               "crates/sidestage-bindings/tests/status_vocabulary_guard.rs"
             ]
           },
-          "commits": [
-            {
-              "sha": "d6feac31ea97b34c88892ecc2e8f567d8dbfbfb3",
-              "url": "https://github.com/Papercusp/sidestage-mobile/commit/d6feac31ea97b34c88892ecc2e8f567d8dbfbfb3",
-              "subject": "sync(crates,ios): crates + ios (4 files, +347/-14) [skip ci]",
-              "committedAt": "2026-08-14T14:47:04-04:00",
-              "files": [
-                "crates/sidestage-bindings/tests/status_vocabulary_guard.rs",
-                "ios/SideStage/Sources/Checkout/CheckoutPresentation.swift",
-                "ios/SideStage/Sources/Checkout/CheckoutViewModel.swift",
-                "ios/SideStageTests/CheckoutPresentationTests.swift"
-              ],
-              "remoteStatus": "confirmed",
-              "attribution": "inferred"
-            }
-          ]
+          "commits": []
         },
         {
           "id": "WI-38627",
@@ -33824,14 +33345,14 @@ export const BUILD_HISTORY_SNAPSHOT = {
     {
       "slug": "sidestage-web-pagespeed-exceptional-2026-08-21",
       "title": "Optimize SideStage public web frontend PageSpeed",
-      "status": "ready",
-      "updatedAt": "2026-08-22T03:16:25.633Z",
-      "contentHash": "30283779f25520a7f8244fc2a87c3bcb5b605e0cb9cb3c6a649f6704b86ee32b",
-      "markdown": "---\ntitle: Optimize SideStage public web frontend PageSpeed\nslug: sidestage-web-pagespeed-exceptional-2026-08-21\nstatus: ready\ncreated: 2026-08-21\nupdated: 2026-08-22\n---\n\n## Objective\nDiagnose and eliminate the causes of poor mobile PageSpeed performance on https://sidestage.papercusp.com/, deploy the verified fix through SideStage's canonical release pipeline, and rerun PageSpeed until the result is consistently exceptional.\n\n## Success criteria\n- Mobile Lighthouse/PageSpeed Performance score is at least 95 on three consecutive post-deploy runs.\n- FCP, LCP, TBT, CLS, and Speed Index are all in Lighthouse's green/good bands on those runs (FCP <= 1.8 s, LCP <= 2.5 s, TBT <= 200 ms, CLS <= 0.1, Speed Index <= 3.4 s).\n- Accessibility, Best Practices, and SEO remain at least 95, with regressions fixed if this work causes any.\n- Relevant local tests/build checks pass; SideStage's fresh green checkpoint is rerun and the green pin is deployed.\n\n## Approach\nCapture a reproducible baseline and audit evidence; trace each costly request/task/layout shift to the code that produces it; prefer small reuse-first changes; add a recurrence guard in the project test framework; verify locally; release through git-sync -> checkpoint -> deploy; then run repeated public mobile PageSpeed tests and iterate on any remaining red/orange metric.\n\n## Now\n\n**State:** P-003 local verification is complete and authority-settled. P-004 owns deployment. Candidate 7de36403987e41fa2db3456569203b716fa5e497 is clean and confirmed on origin/staging; all SideStage tests (113 files / 986 tests), typecheck, and production build passed. D-001 records the verified project-native deploy mechanism.\n\n**Next:** Run deploy/deploy.sh --dry-run, ship the immutable 7de3640 snapshot with the guarded real deploy, verify public /healthz reports the exact SHA, then claim P-005 and run three fresh public mobile PageSpeed measurements.\n\n## Phase — Execution\n\n- **P-001** `done` Reproduce the mobile PageSpeed baseline and identify the concrete render/network/main-thread bottlenecks in the canonical SideStage implementation. importance: urgent — note: ← WI-40338 completed (done)\n- **P-002** `done` Implement the smallest durable performance fixes and add project-native regression coverage. blocked-by: P-001 importance: urgent — note: ← WI-40340 completed (done)\n- **P-003** `done` Run focused tests, production build analysis, and local Lighthouse verification; iterate until thresholds are green. blocked-by: P-002 importance: urgent — note: ← WI-40342 completed (done)\n- **P-004** `done` Drive SideStage git-sync, a fresh green checkpoint verdict, and deployment of the green pin; diagnose and repair any red gate encountered. blocked-by: P-003 importance: urgent — note: ← WI-40345 completed (done)\n- **P-005** `done` Rerun public mobile PageSpeed at least three times; iterate through code, verification, and redeploy until all stated success criteria hold consistently. blocked-by: P-004 importance: urgent — note: ✓ Public exact-SHA qualification complete at 1fb55c63b08e0fadb12de001ca2df9b66d32a968. GitHub run 32548175802 passed clean checkout/tests/all-workspace typecheck+build and exact-SHA public health. Artifact 9469209614: performance 99/99/99; accessibility 100/100/100; best practices 96/96/96; SEO 100/100/100; FCP 1663.143–1665.857ms; LCP 1728.857–1743.143ms; TBT 42–54ms; CLS 0.02378984499; Speed Index 1663.143–1665.857ms; zero late native-control SVG requests in all three runs.\n\n## Decisions\n\n### D-001 — Use SideStage's project-native immutable production deploy, not Papercusp's workspace-global checkpoint\nDate: 2026-08-21\nVerified from the live tool writer and SideStage repository on 2026-08-21: release:checkpoint-run and release:deploy gate only the Papercusp operator-home pipeline, so they cannot validate or ship SideStage. SideStage has no staging environment; its canonical production mechanism is deploy/deploy.sh from the clean canonical staging tree. That script snapshots the tree immutably, builds the production compose stack, verifies the public /healthz response carries the exact source SHA, runs release probes, and auto-rolls back on failure. P-004 therefore uses: confirmed remote egress + already-green project-native test/typecheck/build evidence + deploy/deploy.sh --dry-run + guarded real deploy + exact-SHA public health verification.\nRelated: P-004, P-005\n",
+      "status": "shipped",
+      "updatedAt": "2026-08-22T04:22:02.371Z",
+      "contentHash": "354633590d627607dde077307e06bae471d36727763600069923a739844e0774",
+      "markdown": "---\ntitle: Optimize SideStage public web frontend PageSpeed\nslug: sidestage-web-pagespeed-exceptional-2026-08-21\nstatus: shipped\ncreated: 2026-08-21\nupdated: 2026-08-22\n---\n\n## Objective\nDiagnose and eliminate the causes of poor mobile PageSpeed performance on https://sidestage.papercusp.com/, deploy the verified fix through SideStage's canonical release pipeline, and rerun PageSpeed until the result is consistently exceptional.\n\n## Success criteria\n- Mobile Lighthouse/PageSpeed Performance score is at least 95 on three consecutive post-deploy runs.\n- FCP, LCP, TBT, CLS, and Speed Index are all in Lighthouse's green/good bands on those runs (FCP <= 1.8 s, LCP <= 2.5 s, TBT <= 200 ms, CLS <= 0.1, Speed Index <= 3.4 s).\n- Accessibility, Best Practices, and SEO remain at least 95, with regressions fixed if this work causes any.\n- Relevant local tests/build checks pass; SideStage's fresh green checkpoint is rerun and the green pin is deployed.\n\n## Approach\nCapture a reproducible baseline and audit evidence; trace each costly request/task/layout shift to the code that produces it; prefer small reuse-first changes; add a recurrence guard in the project test framework; verify locally; release through git-sync -> checkpoint -> deploy; then run repeated public mobile PageSpeed tests and iterate on any remaining red/orange metric.\n\n## Now\n\n**State:** ⛔ PLAN CLOSED — SHIPPED 2026-08-22. Nothing in this plan is actionable. Anything below this line is the last pre-shipped snapshot, kept for history: it described work that is finished or abandoned, so do not start from it. Read frontmatter `status`, not this prose, to learn whether a plan is live (stamped by plans:set-plan-status).\n\nP-003 local verification is complete and authority-settled. P-004 owns deployment. Candidate 7de36403987e41fa2db3456569203b716fa5e497 is clean and confirmed on origin/staging; all SideStage tests (113 files / 986 tests), typecheck, and production build passed. D-001 records the verified project-native deploy mechanism.\n\n**Next:** none — the plan is shipped. (Pre-shipped next, no longer actionable: Run deploy/deploy.sh --dry-run, ship the immutable 7de3640 snapshot with the guarded real deploy, verify public /healthz reports the exact SHA, then claim P-005 and run three fresh public mobile PageSpeed measurements.)\n\n## Phase — Execution\n\n- **P-001** `done` Reproduce the mobile PageSpeed baseline and identify the concrete render/network/main-thread bottlenecks in the canonical SideStage implementation. importance: urgent — note: ← WI-40338 completed (done)\n- **P-002** `done` Implement the smallest durable performance fixes and add project-native regression coverage. blocked-by: P-001 importance: urgent — note: ← WI-40340 completed (done)\n- **P-003** `done` Run focused tests, production build analysis, and local Lighthouse verification; iterate until thresholds are green. blocked-by: P-002 importance: urgent — note: ← WI-40342 completed (done)\n- **P-004** `done` Drive SideStage git-sync, a fresh green checkpoint verdict, and deployment of the green pin; diagnose and repair any red gate encountered. blocked-by: P-003 importance: urgent — note: ← WI-40345 completed (done)\n- **P-005** `done` Rerun public mobile PageSpeed at least three times; iterate through code, verification, and redeploy until all stated success criteria hold consistently. blocked-by: P-004 importance: urgent — note: ✓ Public exact-SHA qualification complete at 1fb55c63b08e0fadb12de001ca2df9b66d32a968. GitHub run 32548175802 passed clean checkout/tests/all-workspace typecheck+build and exact-SHA public health. Artifact 9469209614: performance 99/99/99; accessibility 100/100/100; best practices 96/96/96; SEO 100/100/100; FCP 1663.143–1665.857ms; LCP 1728.857–1743.143ms; TBT 42–54ms; CLS 0.02378984499; Speed Index 1663.143–1665.857ms; zero late native-control SVG requests in all three runs.\n\n## Decisions\n\n### D-001 — Use SideStage's project-native immutable production deploy, not Papercusp's workspace-global checkpoint\nDate: 2026-08-21\nVerified from the live tool writer and SideStage repository on 2026-08-21: release:checkpoint-run and release:deploy gate only the Papercusp operator-home pipeline, so they cannot validate or ship SideStage. SideStage has no staging environment; its canonical production mechanism is deploy/deploy.sh from the clean canonical staging tree. That script snapshots the tree immutably, builds the production compose stack, verifies the public /healthz response carries the exact source SHA, runs release probes, and auto-rolls back on failure. P-004 therefore uses: confirmed remote egress + already-green project-native test/typecheck/build evidence + deploy/deploy.sh --dry-run + guarded real deploy + exact-SHA public health verification.\nRelated: P-004, P-005\n",
       "frontmatter": {
         "title": "Optimize SideStage public web frontend PageSpeed",
         "slug": "sidestage-web-pagespeed-exceptional-2026-08-21",
-        "status": "ready",
+        "status": "shipped",
         "created": "2026-08-21",
         "updated": "2026-08-22"
       },
@@ -33846,7 +33367,7 @@ export const BUILD_HISTORY_SNAPSHOT = {
           "authority": "system",
           "blockedBy": [],
           "phase": "Phase — Execution",
-          "lineNumber": 22,
+          "lineNumber": 24,
           "validationAssertions": []
         },
         {
@@ -33861,7 +33382,7 @@ export const BUILD_HISTORY_SNAPSHOT = {
             "P-001"
           ],
           "phase": "Phase — Execution",
-          "lineNumber": 23,
+          "lineNumber": 25,
           "validationAssertions": []
         },
         {
@@ -33876,7 +33397,7 @@ export const BUILD_HISTORY_SNAPSHOT = {
             "P-002"
           ],
           "phase": "Phase — Execution",
-          "lineNumber": 24,
+          "lineNumber": 26,
           "validationAssertions": []
         },
         {
@@ -33891,7 +33412,7 @@ export const BUILD_HISTORY_SNAPSHOT = {
             "P-003"
           ],
           "phase": "Phase — Execution",
-          "lineNumber": 25,
+          "lineNumber": 27,
           "validationAssertions": []
         },
         {
@@ -33906,7 +33427,7 @@ export const BUILD_HISTORY_SNAPSHOT = {
             "P-004"
           ],
           "phase": "Phase — Execution",
-          "lineNumber": 26,
+          "lineNumber": 28,
           "validationAssertions": []
         }
       ],
@@ -33920,7 +33441,7 @@ export const BUILD_HISTORY_SNAPSHOT = {
             "P-004",
             "P-005"
           ],
-          "lineNumber": 30
+          "lineNumber": 32
         }
       ],
       "completedItems": [
