@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { Pool } from 'pg';
 import { describe, expect, it, vi } from 'vitest';
+import type { InventoryHoldSource } from '../auction/auction.service';
 import { DEFAULT_DATABASE_URL } from './database.module';
 import { PgAuctionInventory } from './pg-auction-inventory';
 
@@ -279,7 +280,7 @@ describe.runIf(process.env.SIDESTAGE_PG_INTEGRATION === '1')('PgAuctionInventory
     const client = await pool.connect();
     const suffix = randomUUID();
     const variantId = `reserve-retry-${suffix}`;
-    const source = { kind: 'cart', id: `cart-${suffix}` };
+    const source: InventoryHoldSource = { kind: 'cart', id: `cart-${suffix}` };
 
     try {
       await client.query('BEGIN');

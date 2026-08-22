@@ -30,6 +30,7 @@ const repoRoot = process.env.SIDESTAGE_LIBS_GUARD_ROOT
 const LIB_CONTAINERS = ['libs', join('libs', 'papergrid')];
 const TS_SOURCE = /\.(ts|tsx)$/;
 const SKIP_DIRS = new Set(['node_modules', 'dist', '.git', '.vite', '_retired']);
+const PROJECT_FLAG = /(?:^|[\s'"])(?:-p|--project)(?=$|[\s='"])/;
 
 function countTsFiles(dir) {
   let n = 0;
@@ -104,11 +105,14 @@ describe('libs/** typecheck coverage rail (WI-39866)', () => {
   it('keeps every typecheck script actually type-checking (--noEmit, project-scoped)', () => {
     // A `typecheck` that emits, or that has no -p/--project, is not checking what
     // the workspace declares — it silently checks a default file set instead.
+    // Accept both shell tokens (`tsc -p tsconfig.json`) and quoted argv entries
+    // (`spawnSync(node, [compiler, '-p', 'tsconfig.json'])`); the latter is how a
+    // workspace selects a pinned compiler without trusting the ambient .bin.
     const malformed = withSource
       .filter((w) => w.pkg.scripts?.typecheck)
       .filter((w) => {
         const s = w.pkg.scripts.typecheck;
-        return !s.includes('--noEmit') || !/(^|\s)(-p|--project)(\s|=)/.test(s);
+        return !s.includes('--noEmit') || !PROJECT_FLAG.test(s);
       })
       .map((w) => `${w.rel}: ${w.pkg.scripts.typecheck}`);
     expect(malformed).toEqual([]);

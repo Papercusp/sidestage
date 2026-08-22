@@ -1,6 +1,6 @@
 # SideStage web — Vite build served as static files by nginx.
 # VITE_API_URL / VITE_MEDIAMTX_URL are baked at build time (Vite inlines them).
-FROM node:20-alpine AS build
+FROM node:22-alpine AS build
 WORKDIR /app
 ARG VITE_API_URL=/api
 ARG VITE_MEDIAMTX_URL=
