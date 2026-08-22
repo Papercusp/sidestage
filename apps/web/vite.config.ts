@@ -110,7 +110,11 @@ export function createDependencyTopologyGuard({
   };
 }
 
-export const PUBLIC_ENTRY_BUDGET_BYTES = 500_000;
+// Public mobile Lighthouse run 32542491192 exposed 77KB of unused entry JS.
+// Interaction-gating the closed cart/Scout drawer stacks reduced the entry
+// from 460.95KB to 354.54KB; keep enough routine headroom without allowing
+// those noncritical stacks (or an equivalent 100KB regression) back in.
+export const PUBLIC_ENTRY_BUDGET_BYTES = 380_000;
 
 export interface PublicEntryArtifact {
   fileName: string;

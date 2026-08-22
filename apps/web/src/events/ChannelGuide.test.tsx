@@ -16,6 +16,7 @@ const EVENTS: GuideEvent[] = [
     status: 'live',
     startsAt: '2026-08-14T11:25:00.000Z',
     endedAt: null,
+    thumbnailUrl: 'data:image/png;base64,R0lGODlhAQABAAAAACw=',
     viewers: 3,
   },
   {
@@ -94,6 +95,10 @@ describe('ChannelGuide (P-118 / D-019)', () => {
     expect(markup).toContain('Marsh &amp; Co Vintage');
     expect(markup).toContain('Ironbark Supply');
     expect(markup).toContain('Northstar Audio');
+  });
+
+  it('defers guide thumbnails that are below-fold or hidden on phones', () => {
+    expect(render()).toMatch(/<img[^>]*loading="lazy"/);
   });
 
   it('labels each row by its group: viewers, countdown, or age', () => {

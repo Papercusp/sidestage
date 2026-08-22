@@ -278,6 +278,34 @@ h1 { margin: 0; max-width: 720px; font-size: clamp(3rem, 7vw, 5.8rem); line-heig
    .button:hover outright and must, or the lift survives on a dead control. */
 .button:disabled { opacity: .48; box-shadow: none; cursor: not-allowed; }
 .button:disabled:hover { transform: none; border-color: var(--border); }
+
+/* First-paint Scout trigger. The full Vaul/Radix + chat drawer is imported
+   only after intent; this tiny, opaque launcher preserves the affordance
+   without putting closed-drawer JS/CSS on the critical path. */
+.buyer-scout-load-button {
+  position: fixed;
+  z-index: 67;
+  top: 50%;
+  right: .75rem;
+  display: inline-flex;
+  min-width: 13.25rem;
+  min-height: 3.25rem;
+  transform: translateY(-50%);
+  align-items: center;
+  gap: .75rem;
+  border: 1px solid var(--border);
+  border-radius: .875rem;
+  padding: 0 .72rem;
+  color: var(--text);
+  background: var(--surface);
+  box-shadow: 0 12px 28px -18px rgb(var(--shadow-hue) / 62%);
+  font-size: .875rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+.buyer-scout-load-button:hover { border-color: color-mix(in srgb, var(--brand-red) 45%, transparent); }
+.buyer-scout-load-button:focus-visible { outline: 2px solid var(--brand-red); outline-offset: 2px; }
+.buyer-scout-load-button:disabled { cursor: progress; }
 input:disabled, select:disabled, textarea:disabled { opacity: .55; cursor: not-allowed; }
 
 .seller-grid, .config-grid { display: grid; grid-template-columns: 1.2fr .8fr; gap: var(--ss-gap); margin-top: var(--ss-section-gap); }

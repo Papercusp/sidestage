@@ -4,7 +4,11 @@ import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { BuyerTab } from './BuyerTab';
+import {
+  BUYER_STREAM_CONNECTED_MESSAGE,
+  BuyerTab,
+  buyerStreamOverlayMessage,
+} from './BuyerTab';
 import {
   PUBLISHER_ABSENT_MESSAGE,
   PUBLISHER_RETRY_DELAYS_MS,
@@ -52,6 +56,38 @@ vi.mock('./VideoEngagementOverlay', () => ({
 }));
 
 const STATS = { viewers: 0, itemsSold: 0, totalRaisedCents: 0 } as const;
+
+describe('buyer stream first-paint copy', () => {
+  it('does not replace the LCP paragraph when publisher waiting begins', () => {
+    const idle = buyerStreamOverlayMessage({
+      connected: false,
+      waitingForPublisher: false,
+      streamState: 'idle',
+      streamError: '',
+    });
+    const waiting = buyerStreamOverlayMessage({
+      connected: false,
+      waitingForPublisher: true,
+      streamState: 'connecting',
+      streamError: 'Media server rejected the WHEP offer (404).',
+    });
+
+    expect(idle).toBe(WAITING_FOR_PUBLISHER_MESSAGE);
+    expect(waiting).toBe(idle);
+    expect(buyerStreamOverlayMessage({
+      connected: true,
+      waitingForPublisher: false,
+      streamState: 'live',
+      streamError: '',
+    })).toBe(BUYER_STREAM_CONNECTED_MESSAGE);
+    expect(buyerStreamOverlayMessage({
+      connected: false,
+      waitingForPublisher: false,
+      streamState: 'error',
+      streamError: 'Media server unavailable.',
+    })).toBe('Media server unavailable.');
+  });
+});
 
 function viewerSession() {
   const stop = vi.fn(async () => undefined);

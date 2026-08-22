@@ -41,7 +41,7 @@ beforeEach(() => {
  * deliverable, not the seller's upload control. That control is covered by
  * EventCreationPanel.thumbnail.test.tsx and the encode/validate core by
  * thumbnail.test.ts, which left exactly this wiring — BuyerTab -> EventThumbnail
- * -> <img>/poster — asserted nowhere. This file closes that.
+ * -> <img> — asserted nowhere. This file closes that.
  *
  * Rendered with renderToStaticMarkup, matching the hive's convention (there is
  * no DOM environment and no @testing-library/react). Effects do not run under
@@ -82,6 +82,12 @@ describe('BuyerTab event thumbnail', () => {
     expect(box).toContain(`src="${PNG}"`);
   });
 
+  it('does not rediscover the event image as a late video-poster LCP', () => {
+    const html = render(PNG);
+    expect(html).toContain('preload="none"');
+    expect(html).not.toContain(' poster=');
+  });
+
   it('names the event in the alt text instead of leaving it unlabelled', () => {
     const box = thumbnailBox(render(PNG));
     // The alt text is the only description a screen-reader user gets for the
@@ -109,8 +115,7 @@ describe('BuyerTab event thumbnail', () => {
       // It falls back...
       expect(thumbnailBox(html)).toContain('event-thumbnail-empty');
       // ...and, the claim that actually matters, the hostile string reaches NO
-      // attribute anywhere on the buyer page — not the <img src>, and not the
-      // <video poster>, which consumes the same value on a separate code path.
+      // attribute anywhere on the buyer page.
       expect(html).not.toContain(hostile);
     });
   }

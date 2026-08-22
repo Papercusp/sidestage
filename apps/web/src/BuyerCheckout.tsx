@@ -33,13 +33,41 @@ import {
   type BuyerShippingRate,
 } from './buyer-checkout-api';
 import { useBuyerIdentity } from './buyer-identity';
-import { BuyerCartDrawer } from './BuyerCartDrawer';
-import { BuyerScoutDrawer } from './BuyerScoutDrawer';
 import { holdRemainingMs, type BuyerCartAdapter } from './buyer-cart-adapter';
 import './buyer-checkout.css';
 
 const StripePaymentForm = lazy(() => import('./StripePaymentForm')
   .then((module) => ({ default: module.StripePaymentForm })));
+const loadBuyerCartDrawer = () => import('./BuyerCartDrawer');
+const LazyBuyerCartDrawer = lazy(() => loadBuyerCartDrawer()
+  .then((module) => ({ default: module.BuyerCartDrawer })));
+const loadBuyerScoutDrawer = () => import('./BuyerScoutDrawer');
+const LazyBuyerScoutDrawer = lazy(() => loadBuyerScoutDrawer()
+  .then((module) => ({ default: module.BuyerScoutDrawer })));
+
+function BuyerScoutLoadButton({
+  loading = false,
+  onClick,
+}: {
+  loading?: boolean;
+  onClick?: () => void;
+}) {
+  return (
+    <button
+      className="buyer-scout-load-button"
+      type="button"
+      aria-label={loading ? 'Loading Scout shopping assistant' : 'Open Scout shopping assistant'}
+      aria-busy={loading || undefined}
+      disabled={loading}
+      onClick={onClick}
+      onFocus={() => { void loadBuyerScoutDrawer(); }}
+      onPointerEnter={() => { void loadBuyerScoutDrawer(); }}
+    >
+      <span aria-hidden="true">✦</span>
+      <span>{loading ? 'Loading Scout…' : 'Ask Scout'}</span>
+    </button>
+  );
+}
 
 /**
  * The held-items review is no longer a step here — it is the shared cart drawer
@@ -292,6 +320,7 @@ function BuyerCheckoutProviderForBuyer({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string>();
   const [nowMs, setNowMs] = useState(() => Date.now());
+  const [scoutLoadState, setScoutLoadState] = useState<'idle' | 'opening' | 'loaded'>('idle');
   const expiryRefreshInFlight = useRef<string | undefined>(undefined);
 
   // REST on every transport: `cart` is literally {id, payload, updatedAt}, so
@@ -656,6 +685,9 @@ function BuyerCheckoutProviderForBuyer({
     openHeldItems();
   }, [openHeldItems]);
 
+  const requestScout = useCallback(() => setScoutLoadState('opening'), []);
+  const markScoutOpened = useCallback(() => setScoutLoadState('loaded'), []);
+
   const contextValue = useMemo<BuyerCheckoutActions>(() => ({
     holdProduct: addHeldProduct,
     openHeldItems,
@@ -669,31 +701,41 @@ function BuyerCheckoutProviderForBuyer({
   return (
     <BuyerCheckoutContext.Provider value={contextValue}>
       {children}
-      {showScout ? (
-        <BuyerScoutDrawer
-          eventId={eventId}
-          cartId={cartId}
-          heldProductIds={contextValue.heldProductIds}
-          onHoldProduct={async (product) => {
-            await addHeldProduct(product);
-          }}
-          onOpenHeldItems={openHeldItems}
-        />
+      {showScout ? scoutLoadState === 'idle' ? (
+        <BuyerScoutLoadButton onClick={requestScout} />
+      ) : (
+        <Suspense fallback={<BuyerScoutLoadButton loading />}>
+          <LazyBuyerScoutDrawer
+            eventId={eventId}
+            cartId={cartId}
+            heldProductIds={contextValue.heldProductIds}
+            openOnMount={scoutLoadState === 'opening'}
+            onOpenOnMountHandled={markScoutOpened}
+            onHoldProduct={async (product) => {
+              await addHeldProduct(product);
+            }}
+            onOpenHeldItems={openHeldItems}
+          />
+        </Suspense>
       ) : null}
-      <BuyerCartDrawer
-        open={cartOpen}
-        onOpenChange={setCartOpen}
-        heldItemCount={contextValue.heldItemCount}
-        cart={cart}
-        nowMs={nowMs}
-        busy={busy}
-        error={cartError}
-        shippingMeter={shippingMeter}
-        shippingMeterLoading={shippingMeterLoading}
-        adapter={cartAdapter}
-        onCheckout={beginCheckout}
-        onClose={() => setCartOpen(false)}
-      />
+      {cartOpen || contextValue.heldItemCount > 0 ? (
+        <Suspense fallback={null}>
+          <LazyBuyerCartDrawer
+            open={cartOpen}
+            onOpenChange={setCartOpen}
+            heldItemCount={contextValue.heldItemCount}
+            cart={cart}
+            nowMs={nowMs}
+            busy={busy}
+            error={cartError}
+            shippingMeter={shippingMeter}
+            shippingMeterLoading={shippingMeterLoading}
+            adapter={cartAdapter}
+            onCheckout={beginCheckout}
+            onClose={() => setCartOpen(false)}
+          />
+        </Suspense>
+      ) : null}
       <BuyerCheckoutDrawer
         open={open}
         step={step}

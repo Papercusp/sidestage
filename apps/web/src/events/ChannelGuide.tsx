@@ -124,6 +124,7 @@ export function ChannelGuide({
                               url={event.thumbnailUrl}
                               eventName={event.title}
                               className="channel-guide-thumb"
+                              loading="lazy"
                             />
                             <span className="channel-guide-row-text">
                               <span className="channel-guide-row-title">{event.title}</span>

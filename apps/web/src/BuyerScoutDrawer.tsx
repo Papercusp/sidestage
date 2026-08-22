@@ -1,4 +1,5 @@
 import '@papercusp/scout-chat/styles.css';
+import { useEffect } from 'react';
 import {
   ScoutChat,
   ScoutChatDrawer,
@@ -79,6 +80,9 @@ export interface BuyerScoutDrawerProps {
   eventId: string;
   cartId?: string;
   heldProductIds: readonly string[];
+  /** Open after an interaction-triggered lazy import finishes. */
+  openOnMount?: boolean;
+  onOpenOnMountHandled?: () => void;
   onHoldProduct: (product: BuyerProduct) => void | Promise<void>;
   onOpenHeldItems: () => void;
 }
@@ -87,12 +91,24 @@ export function BuyerScoutDrawer({
   eventId,
   cartId,
   heldProductIds,
+  openOnMount = false,
+  onOpenOnMountHandled,
   onHoldProduct,
   onOpenHeldItems,
 }: BuyerScoutDrawerProps) {
   const { buyerId } = useBuyerIdentity();
   const { transport, conversation, sessionStorageKey } = buyerScoutResources(buyerId);
   const pageContext: SideStageScoutPageContext = { eventId, ...(cartId ? { cartId } : {}) };
+  useEffect(() => {
+    if (!openOnMount) return undefined;
+    // ScoutChatDrawer registers its `scout:open` listener during this commit.
+    // One frame also lets its shared trigger portal settle before the pane opens.
+    const frame = window.requestAnimationFrame(() => {
+      window.dispatchEvent(new Event('scout:open'));
+      onOpenOnMountHandled?.();
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [onOpenOnMountHandled, openOnMount]);
   const renderProducts = (products: unknown[]) => {
     const mapped = products
       .map(scoutProductToBuyerProduct)

@@ -11,6 +11,8 @@ export interface EventThumbnailProps {
   eventName?: string;
   /** Extra class on the wrapper so each surface can size it. */
   className?: string;
+  /** Persistent guide rails are below-fold/hidden on phones; let them defer image work. */
+  loading?: 'eager' | 'lazy';
 }
 
 /**
@@ -24,7 +26,7 @@ export interface EventThumbnailProps {
  * of assuming the write path was the only way in. An unrenderable value falls
  * back to the placeholder rather than emitting a broken or unsafe `src`.
  */
-export function EventThumbnail({ url, eventName, className }: EventThumbnailProps) {
+export function EventThumbnail({ url, eventName, className, loading = 'eager' }: EventThumbnailProps) {
   const renderable = isRenderableThumbnailUrl(url);
   const classes = ['event-thumbnail', className].filter(Boolean).join(' ');
 
@@ -38,7 +40,11 @@ export function EventThumbnail({ url, eventName, className }: EventThumbnailProp
 
   return (
     <div className={classes}>
-      <img src={url as string} alt={eventName ? `${eventName} thumbnail` : 'Event thumbnail'} />
+      <img
+        src={url as string}
+        alt={eventName ? `${eventName} thumbnail` : 'Event thumbnail'}
+        loading={loading}
+      />
     </div>
   );
 }
