@@ -5,6 +5,53 @@
   gap: 1.5rem;
 }
 
+.build-validation-contract {
+  display: grid;
+  gap: .75rem;
+  padding: 1rem;
+  border: 1px solid color-mix(in srgb, var(--brand-yellow) 34%, var(--border));
+  border-radius: .75rem;
+  background: color-mix(in srgb, var(--brand-yellow) 5%, var(--surface));
+}
+
+.build-validation-contract.is-passed {
+  border-color: color-mix(in srgb, var(--success) 36%, var(--border));
+  background: color-mix(in srgb, var(--success) 5%, var(--surface));
+}
+
+.build-validation-contract.is-failed {
+  border-color: color-mix(in srgb, var(--danger) 42%, var(--border));
+  background: color-mix(in srgb, var(--danger) 6%, var(--surface));
+}
+
+.build-validation-contract > header,
+.build-validation-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: .5rem;
+}
+
+.build-validation-contract > header span,
+.build-validation-heading span {
+  color: var(--muted);
+  font-size: .62rem;
+  font-weight: 780;
+  letter-spacing: .065em;
+  text-transform: uppercase;
+}
+
+.build-validation-contract > header strong { display: block; margin-top: .2rem; }
+.build-validation-contract > header small,
+.build-validation-heading small { color: var(--muted); font-size: .65rem; }
+.build-validation-contract > ul { display: grid; gap: .55rem; margin: 0; padding: 0; list-style: none; }
+.build-validation-contract > ul > li { padding: .75rem; border: 1px solid var(--border); border-radius: .6rem; background: var(--surface); }
+.build-validation-contract p { margin: .55rem 0; font-size: .75rem; line-height: 1.5; }
+.build-validation-contract dl { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: .25rem .6rem; margin: 0; font-size: .66rem; }
+.build-validation-contract dt { color: var(--muted); font-weight: 750; }
+.build-validation-contract dd { margin: 0; overflow-wrap: anywhere; }
+
 .build-history-hero {
   display: flex;
   align-items: flex-end;

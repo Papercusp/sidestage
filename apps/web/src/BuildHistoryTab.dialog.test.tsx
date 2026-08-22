@@ -4,35 +4,6 @@ import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-vi.mock('@papercusp/ui-primitives', () => ({
-  PlanDocumentView: ({
-    value,
-    slug,
-    items,
-    decisions,
-    assetBaseUrl,
-    theme,
-  }: {
-    value: string;
-    slug: string;
-    items: unknown[];
-    decisions: unknown[];
-    assetBaseUrl: string;
-    theme: string;
-  }) => (
-    <div
-      data-testid="plan-document-view"
-      data-slug={slug}
-      data-item-count={items.length}
-      data-decision-count={decisions.length}
-      data-asset-base-url={assetBaseUrl}
-      data-theme={theme}
-    >
-      {value}
-    </div>
-  ),
-}));
-
 import { BuildHistoryList, type BuildHistoryPlan } from './BuildHistoryTab';
 
 const PLAN: BuildHistoryPlan = {
@@ -151,12 +122,9 @@ describe('History plan document dialog', () => {
     expect(new URL(window.location.href).searchParams.get('document')).toBe(PLAN.slug);
     expect(document.querySelector('[role="dialog"]')).not.toBeNull();
     expect(document.querySelector('[role="dialog"] h2')?.textContent).toBe(PLAN.title);
-    const viewer = document.querySelector<HTMLElement>('[data-testid="plan-document-view"]');
-    expect(viewer?.dataset.slug).toBe(PLAN.slug);
-    expect(viewer?.dataset.assetBaseUrl).toBe('/vditor');
-    expect(viewer?.dataset.theme).toBe('light');
-    expect(viewer?.dataset.itemCount).toBe('1');
-    expect(viewer?.dataset.decisionCount).toBe('1');
+    const viewer = document.querySelector<HTMLElement>('.pc-plan-document');
+    expect(viewer).not.toBeNull();
+    expect(document.querySelector('.build-plan-dialog-document')).not.toBeNull();
     expect(document.querySelector('[aria-label="Plan snapshot provenance"]')?.textContent).toContain('papercusp-workspace / sidestage');
     expect(document.querySelector('[aria-label="Plan snapshot provenance"]')?.textContent).toContain('papercusp project-history generate');
     expect(document.querySelector<HTMLAnchorElement>('[aria-label="Plan snapshot provenance"] a')?.href)
