@@ -315,11 +315,14 @@ describe('BuyerTab publisher wait (WI-39733)', () => {
     expect(container.textContent).toContain(WAITING_FOR_PUBLISHER_MESSAGE);
     expect(container.textContent).not.toContain('404');
     expect(container.textContent).not.toContain('Retry stream');
+    const video = container.querySelector('video');
+    expect(video?.controls).toBe(false);
 
     // Nothing external changes — only time passes. The old viewer stayed dark
     // here forever; this one re-offers on its own.
     await advance(PUBLISHER_RETRY_DELAYS_MS[0] ?? 1_000);
     expect(connectViewerMock).toHaveBeenCalledTimes(2);
+    expect(video?.controls).toBe(false);
 
     await advance(PUBLISHER_RETRY_DELAYS_MS[1] ?? 2_000);
     expect(connectViewerMock).toHaveBeenCalledTimes(3);
@@ -327,6 +330,7 @@ describe('BuyerTab publisher wait (WI-39733)', () => {
     // The publisher arrived: the buyer is watching, with no reload and no click.
     expect(container.textContent).toContain('Disconnect');
     expect(container.textContent).not.toContain(WAITING_FOR_PUBLISHER_MESSAGE);
+    expect(video?.controls).toBe(true);
   });
 
   it('stops after the bounded wait instead of polling a dead room forever', async () => {
@@ -422,6 +426,7 @@ describe('BuyerTab autoplay policy (WI-39774)', () => {
     expect(video).not.toBeNull();
     expect(video?.muted).toBe(true);
     expect(video?.autoplay).toBe(true);
+    expect(video?.controls).toBe(true);
   });
 
   it('retries a rejected play() muted instead of leaving the pane black', async () => {

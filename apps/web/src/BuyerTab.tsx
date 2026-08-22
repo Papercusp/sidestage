@@ -649,7 +649,13 @@ export function BuyerTab({
           <video
             ref={videoRef}
             className="buyer-player"
-            controls
+            // Empty native controls are not actionable, and Chromium paints
+            // their internal SVG buttons again during each failed WHEP offer.
+            // That late repaint made the otherwise-stable waiting paragraph a
+            // 2.7s LCP candidate on public mobile Lighthouse. Keep the empty
+            // player visually stable; expose mute/play controls once a real
+            // media session exists.
+            controls={Boolean(session)}
             playsInline
             muted
             autoPlay
