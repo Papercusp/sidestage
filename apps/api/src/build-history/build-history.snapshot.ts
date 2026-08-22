@@ -16,7 +16,7 @@ export const BUILD_HISTORY_SNAPSHOT = {
     "workspace": "papercusp-workspace",
     "harness": "sidestage",
     "planPrefix": null,
-    "generatedAt": "2026-08-22T00:50:21.123Z",
+    "generatedAt": "2026-08-22T02:51:14.719Z",
     "generator": "papercusp project-history generate",
     "planCount": 54
   },
@@ -32689,6 +32689,116 @@ export const BUILD_HISTORY_SNAPSHOT = {
             ]
           },
           "commits": [
+            {
+              "sha": "dda0ac39b12f9813e5a19c1a833e691491829e0a",
+              "url": "https://github.com/Papercusp/sidestage/commit/dda0ac39b12f9813e5a19c1a833e691491829e0a",
+              "subject": "sync(web): styles.css (1 file, +1/-243) [skip ci]",
+              "committedAt": "2026-08-21T22:40:59-04:00",
+              "files": [
+                "apps/web/src/styles.css"
+              ],
+              "remoteStatus": "local-only",
+              "attribution": "body-reference"
+            },
+            {
+              "sha": "08c31fa5f3cbeb09bec1d7e69cf4c1b647a4180e",
+              "url": "https://github.com/Papercusp/sidestage/commit/08c31fa5f3cbeb09bec1d7e69cf4c1b647a4180e",
+              "subject": "sync(web): apps/web (6 files, +264/-0) [skip ci]",
+              "committedAt": "2026-08-21T22:38:56-04:00",
+              "files": [
+                "apps/web/src/CopilotPanel.tsx",
+                "apps/web/src/EventChat.tsx",
+                "apps/web/src/copilot-panel.css",
+                "apps/web/src/event-chat.css",
+                "apps/web/src/performance-policy.test.ts",
+                "apps/web/src/test-workbench.css"
+              ],
+              "remoteStatus": "local-only",
+              "attribution": "body-reference"
+            },
+            {
+              "sha": "f0c7f28c9ba761ad662dcc19bf3df992d1666752",
+              "url": "https://github.com/Papercusp/sidestage/commit/f0c7f28c9ba761ad662dcc19bf3df992d1666752",
+              "subject": "sync(.github,web): ci.yml, ci-workflow.test.ts (2 files, +28/-5) [skip ci]",
+              "committedAt": "2026-08-21T22:14:22-04:00",
+              "files": [
+                ".github/workflows/ci.yml",
+                "apps/web/src/ci-workflow.test.ts"
+              ],
+              "remoteStatus": "local-only",
+              "attribution": "body-reference"
+            },
+            {
+              "sha": "28dcbc34383359deb5ed6142d99678e212971b64",
+              "url": "https://github.com/Papercusp/sidestage/commit/28dcbc34383359deb5ed6142d99678e212971b64",
+              "subject": "sync(.papercusp,root): .gitignore + .papercusp (2 files, +7/-1) [skip ci]",
+              "committedAt": "2026-08-21T22:01:33-04:00",
+              "files": [
+                ".gitignore",
+                ".papercusp/worktrees/green-candidate-sidestage-4048b9a464eb"
+              ],
+              "remoteStatus": "local-only",
+              "attribution": "body-reference"
+            },
+            {
+              "sha": "a7e862711be81ce4dad954bcd77c7c222ac4e618",
+              "url": "https://github.com/Papercusp/sidestage/commit/a7e862711be81ce4dad954bcd77c7c222ac4e618",
+              "subject": "sync(web): apps/web (7 files, +219/-111) [skip ci]",
+              "committedAt": "2026-08-21T21:47:52-04:00",
+              "files": [
+                "apps/web/src/App.test.tsx",
+                "apps/web/src/BuyerTab.css",
+                "apps/web/src/BuyerTab.products.test.tsx",
+                "apps/web/src/BuyerTab.tsx",
+                "apps/web/src/VideoEngagementOverlay.tsx",
+                "apps/web/src/buyer-transcript-presentation.ts",
+                "apps/web/src/performance-policy.test.ts"
+              ],
+              "remoteStatus": "local-only",
+              "attribution": "body-reference"
+            },
+            {
+              "sha": "51c897c971c51581cb4ef9ef4f7caa068a166821",
+              "url": "https://github.com/Papercusp/sidestage/commit/51c897c971c51581cb4ef9ef4f7caa068a166821",
+              "subject": "sync(web): apps/web (9 files, +176/-33) [skip ci]",
+              "committedAt": "2026-08-21T21:38:32-04:00",
+              "files": [
+                "apps/web/src/BuyerCheckout.tsx",
+                "apps/web/src/BuyerScoutDrawer.tsx",
+                "apps/web/src/BuyerTab.streaming.test.tsx",
+                "apps/web/src/BuyerTab.thumbnail.test.tsx",
+                "apps/web/src/event-creation/EventThumbnail.tsx",
+                "apps/web/src/events/ChannelGuide.test.tsx",
+                "apps/web/src/events/ChannelGuide.tsx",
+                "apps/web/src/styles.css",
+                "apps/web/vite.config.ts"
+              ],
+              "remoteStatus": "local-only",
+              "attribution": "body-reference"
+            },
+            {
+              "sha": "45bf81b1becdc112e31db3c15d08d2a007d2e72d",
+              "url": "https://github.com/Papercusp/sidestage/commit/45bf81b1becdc112e31db3c15d08d2a007d2e72d",
+              "subject": "sync(scripts): scripts (2 files, +17/-6) [skip ci]",
+              "committedAt": "2026-08-21T21:24:04-04:00",
+              "files": [
+                "scripts/api-child-supervisor.test.mjs",
+                "scripts/install-safe.test.mjs"
+              ],
+              "remoteStatus": "local-only",
+              "attribution": "body-reference"
+            },
+            {
+              "sha": "1c98556e88af75e756e879b64cb15c105448be05",
+              "url": "https://github.com/Papercusp/sidestage/commit/1c98556e88af75e756e879b64cb15c105448be05",
+              "subject": "sync(root): package.json (1 file, +1/-0) [skip ci]",
+              "committedAt": "2026-08-21T20:55:18-04:00",
+              "files": [
+                "package.json"
+              ],
+              "remoteStatus": "local-only",
+              "attribution": "body-reference"
+            },
             {
               "sha": "9fc628766c70820be219df8428348edd561f2d5c",
               "url": "https://github.com/Papercusp/sidestage/commit/9fc628766c70820be219df8428348edd561f2d5c",
