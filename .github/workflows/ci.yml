@@ -71,13 +71,25 @@ jobs:
           report_dir="$RUNNER_TEMP/public-pagespeed"
           mkdir -p "$report_dir"
 
+          lighthouse_args=(
+            --quiet
+            "--chrome-flags=--headless --no-sandbox --disable-dev-shm-usage"
+            --form-factor=mobile
+            --only-categories=performance,accessibility,best-practices,seo
+            --output=json
+          )
+
+          # A fresh GitHub runner pays a one-time Chrome/JIT startup penalty that
+          # has reproduced as multi-second unattributable TBT only on invocation
+          # one. Archive that preflight for transparency, then grade three fresh
+          # Lighthouse processes after the runner itself is warm.
+          npx --yes lighthouse@12.8.2 "$PUBLIC_ORIGIN/" \
+            "${lighthouse_args[@]}" \
+            --output-path="$report_dir/warmup.json"
+
           for run in 1 2 3; do
             npx --yes lighthouse@12.8.2 "$PUBLIC_ORIGIN/" \
-              --quiet \
-              --chrome-flags="--headless --no-sandbox --disable-dev-shm-usage" \
-              --form-factor=mobile \
-              --only-categories=performance,accessibility,best-practices,seo \
-              --output=json \
+              "${lighthouse_args[@]}" \
               --output-path="$report_dir/run-$run.json"
           done
 
