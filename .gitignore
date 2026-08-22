@@ -24,3 +24,10 @@ apps/web/public/vditor/
 # where they were the first thing a reviewer saw in a clean clone (WI-39713).
 # This rule is the recurrence guard: without it they come straight back.
 .papercup-console-active.*
+
+# Release-candidate worktrees are local verification sandboxes. If one lives
+# below the repository, Git otherwise records it as a mode-160000 gitlink; a
+# clean checkout then fails because these worktrees are not project submodules
+# and intentionally have no .gitmodules URL.
+.papercusp/worktrees/
+.papercusp/local-worktrees/
