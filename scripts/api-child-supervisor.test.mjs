@@ -7,6 +7,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import {
   DEFAULT_API_STARTUP_GRACE_MS,
   findCgroupPid,
+  readProcessCommandLine,
   superviseApiChild,
 } from './api-child-supervisor.mjs';
 
@@ -101,6 +102,10 @@ describe('SideStage API child supervisor', () => {
     const childScript = join(root, 'api-child.mjs');
     const parentScript = join(root, 'slow-watcher.mjs');
     const pidFile = join(root, 'api-child.pid');
+    let markEntrypointObserved;
+    const entrypointObserved = new Promise((resolveObserved) => {
+      markEntrypointObserved = resolveObserved;
+    });
 
     writeFileSync(childScript, 'setInterval(() => {}, 1_000);\n');
     writeFileSync(parentScript, `
@@ -122,9 +127,19 @@ describe('SideStage API child supervisor', () => {
       missingGraceMs: 100,
       startupGraceMs: DEFAULT_API_STARTUP_GRACE_MS,
       spawnOptions: { stdio: 'ignore' },
+      readCommandLine: (pid) => {
+        const commandLine = readProcessCommandLine(pid);
+        if (commandLine.includes(childScript)) markEntrypointObserved();
+        return commandLine;
+      },
     });
 
     const childPid = await waitForFile(pidFile);
+    // The PID file proves the watcher spawned its child; it does NOT prove the
+    // supervisor's polling loop observed it. Killing on that weaker signal
+    // raced the first poll, leaving the supervisor correctly waiting through
+    // its 60s startup grace while this test had a 10s ceiling.
+    await entrypointObserved;
     process.kill(childPid, 'SIGTERM');
     const result = await supervisorPromise;
 

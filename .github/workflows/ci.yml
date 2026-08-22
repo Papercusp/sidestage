@@ -2,6 +2,12 @@ name: SideStage CI
 
 on:
   workflow_dispatch:
+    inputs:
+      public_pagespeed:
+        description: Run the three-pass public mobile PageSpeed qualification
+        required: false
+        default: false
+        type: boolean
   push:
     branches: [main]
   pull_request:
@@ -23,7 +29,7 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 20.19.x
+          node-version: 22.x
           cache: npm
 
       - name: Install dependencies from the lockfile
@@ -37,3 +43,83 @@ jobs:
 
       - name: Build every workspace
         run: npm run build
+
+  public-pagespeed:
+    name: Public mobile PageSpeed (3 runs)
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.public_pagespeed }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      PUBLIC_ORIGIN: https://sidestage.papercusp.com
+    steps:
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22.x
+
+      - name: Verify public health reports the dispatched SHA
+        run: |
+          set -euo pipefail
+          health="$(curl --fail --silent --show-error --max-time 30 "$PUBLIC_ORIGIN/healthz")"
+          jq -e --arg sha "$GITHUB_SHA" \
+            '.status == "ok" and .service == "sidestage-api" and .sha == $sha' \
+            <<<"$health"
+
+      - name: Run and qualify three consecutive mobile Lighthouse reports
+        run: |
+          set -euo pipefail
+          report_dir="$RUNNER_TEMP/public-pagespeed"
+          mkdir -p "$report_dir"
+
+          for run in 1 2 3; do
+            npx --yes lighthouse@12.8.2 "$PUBLIC_ORIGIN/" \
+              --quiet \
+              --chrome-flags="--headless --no-sandbox --disable-dev-shm-usage" \
+              --form-factor=mobile \
+              --only-categories=performance,accessibility,best-practices,seo \
+              --output=json \
+              --output-path="$report_dir/run-$run.json"
+          done
+
+          jq -s '
+            to_entries | map(
+              .value as $report | {
+                run: (.key + 1),
+                fetchTime: $report.fetchTime,
+                finalUrl: $report.finalUrl,
+                runtimeError: $report.runtimeError,
+                performance: ($report.categories.performance.score * 100),
+                accessibility: ($report.categories.accessibility.score * 100),
+                bestPractices: ($report.categories["best-practices"].score * 100),
+                seo: ($report.categories.seo.score * 100),
+                fcpMs: $report.audits["first-contentful-paint"].numericValue,
+                lcpMs: $report.audits["largest-contentful-paint"].numericValue,
+                tbtMs: $report.audits["total-blocking-time"].numericValue,
+                cls: $report.audits["cumulative-layout-shift"].numericValue,
+                speedIndexMs: $report.audits["speed-index"].numericValue
+              }
+            )
+          ' "$report_dir"/run-*.json | tee "$report_dir/summary.json"
+
+          jq -e '
+            length == 3 and all(.[];
+              .runtimeError == null and
+              .performance >= 95 and
+              .accessibility >= 95 and
+              .bestPractices >= 95 and
+              .seo >= 95 and
+              .fcpMs <= 1800 and
+              .lcpMs <= 2500 and
+              .tbtMs <= 200 and
+              .cls <= 0.1 and
+              .speedIndexMs <= 3400
+            )
+          ' "$report_dir/summary.json"
+
+      - name: Upload public PageSpeed reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: public-pagespeed-${{ github.sha }}
+          path: ${{ runner.temp }}/public-pagespeed
+          retention-days: 14
