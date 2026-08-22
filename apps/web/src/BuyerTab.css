@@ -313,6 +313,13 @@
   pointer-events: auto;
 }
 
+.buyer-room-chat > .buyer-chat-deferred {
+  display: grid;
+  place-items: center;
+  padding: 1rem;
+  background: var(--surface-soft);
+}
+
 /* The same compact chat renderer also lives over the video, where its dark
    treatment is intentional. Inside the room tab it belongs to the page, so
    scope the existing cream/white/red/yellow SideStage language here instead

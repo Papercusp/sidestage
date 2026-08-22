@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRestSyncQuery, useSyncQuery } from '@papercusp/sync';
 
 import {
@@ -10,7 +10,6 @@ import {
 import {
   resolveApiBaseUrl,
 } from './catalog';
-import { EventChat } from './EventChat';
 import { DEFAULT_EVENT_ID, DEFAULT_EVENT_TITLE } from './event-identity';
 import { streamLabel, useStreamSession } from './hooks';
 import { AuctionPanel } from './AuctionPanel';
@@ -24,17 +23,80 @@ import {
   WAITING_FOR_PUBLISHER_MESSAGE,
 } from './buyer-stream-recovery';
 import { EventThumbnail } from './event-creation/EventThumbnail';
-import { isRenderableThumbnailUrl } from './event-creation/thumbnail';
 import type { GuideEvent } from './events/api';
 import { type BuyerCheckoutActions, useBuyerCheckout } from './BuyerCheckout';
 import { useDemoIdentity } from './buyer-identity';
 import {
   nextTranscriptErrorState,
   remoteTranscriptPresentation,
-  VideoEngagementOverlay,
   type EventTranscriptMoment,
-} from './VideoEngagementOverlay';
+} from './buyer-transcript-presentation';
 import './BuyerTab.css';
+
+const LazyVideoEngagementOverlay = lazy(() => import('./VideoEngagementOverlay')
+  .then((module) => ({ default: module.VideoEngagementOverlay })));
+const LazyEventChat = lazy(() => import('./EventChat')
+  .then((module) => ({ default: module.EventChat })));
+
+function DeferredBuyerEventChat({
+  eventId,
+  userId,
+  eventTitle,
+  apiBaseUrl,
+}: {
+  eventId: string;
+  userId: string;
+  eventTitle: string;
+  apiBaseUrl: string;
+}) {
+  const [ready, setReady] = useState(false);
+  const boundaryRef = useRef<HTMLElement | null>(null);
+
+  useEffect(() => {
+    if (ready || typeof IntersectionObserver === 'undefined') return undefined;
+    const boundary = boundaryRef.current;
+    if (!boundary) return undefined;
+    const observer = new IntersectionObserver((entries) => {
+      if (entries.some((entry) => entry.isIntersecting && entry.intersectionRatio >= 0.75)) {
+        setReady(true);
+      }
+    }, { threshold: 0.75 });
+    observer.observe(boundary);
+    return () => observer.disconnect();
+  }, [ready]);
+
+  const placeholder = (
+    <section
+      ref={boundaryRef}
+      className="event-chat-audience buyer-chat-deferred"
+      aria-label={`${eventTitle} audience chat`}
+    >
+      <button
+        className="button secondary small"
+        type="button"
+        disabled={ready}
+        onClick={() => setReady(true)}
+      >
+        {ready ? 'Loading live chat…' : 'Load live chat'}
+      </button>
+    </section>
+  );
+
+  if (!ready) return placeholder;
+  return (
+    <Suspense fallback={placeholder}>
+      <LazyEventChat
+        eventId={eventId}
+        role="buyer"
+        userId={userId}
+        displayName={userId}
+        eventTitle={eventTitle}
+        surface="audience-overlay"
+        apiBaseUrl={apiBaseUrl}
+      />
+    </Suspense>
+  );
+}
 
 /**
  * How many times a stream that DIED after working may re-arm the publisher wait
@@ -63,6 +125,29 @@ export interface BuyerTabProps {
 const EMPTY_BUYER_STATS: BuyerStats = { viewers: 0, itemsSold: 0, totalRaisedCents: 0 };
 const EMPTY_HOLD_OVERRIDES: Readonly<Record<string, number>> = Object.freeze({});
 export const BUYER_PRODUCT_PREVIEW_LIMIT = 3;
+export const BUYER_STREAM_CONNECTED_MESSAGE = 'Seller camera connected.';
+
+/**
+ * Keep the pre-connection paragraph stable from the first React commit through
+ * the publisher retry window. Lighthouse records a text replacement as a new
+ * LCP candidate; the old idle copy therefore turned a fast initial player into
+ * a 3.2s LCP as soon as the live-room query switched it to "Waiting…".
+ */
+export function buyerStreamOverlayMessage({
+  connected,
+  waitingForPublisher,
+  streamState,
+  streamError,
+}: {
+  connected: boolean;
+  waitingForPublisher: boolean;
+  streamState: string;
+  streamError: string | null;
+}): string {
+  if (connected) return BUYER_STREAM_CONNECTED_MESSAGE;
+  if (waitingForPublisher || streamState !== 'error') return WAITING_FOR_PUBLISHER_MESSAGE;
+  return streamError ?? 'The stream could not be connected.';
+}
 
 export interface BuyerLineupItem {
   eventId: string;
@@ -568,17 +653,18 @@ export function BuyerTab({
             playsInline
             muted
             autoPlay
-            poster={isRenderableThumbnailUrl(thumbnailUrl) ? thumbnailUrl : undefined}
+            preload="none"
             aria-label={`${resolvedTitle} stream`}
           />
           <div className="buyer-player-overlay">
             <span className="live-badge">{room.eventId}</span>
             <p>
-              {waitingForPublisher
-                ? WAITING_FOR_PUBLISHER_MESSAGE
-                : streamState === 'error'
-                  ? streamError
-                  : 'The seller stream appears here when the room is live.'}
+              {buyerStreamOverlayMessage({
+                connected: Boolean(session),
+                waitingForPublisher,
+                streamState,
+                streamError,
+              })}
             </p>
             {session ? (
               <button className="button secondary" type="button" onClick={disconnectStream}>Disconnect</button>
@@ -588,21 +674,22 @@ export function BuyerTab({
               </button>
             ) : null}
           </div>
-          <VideoEngagementOverlay
-            className="buyer-video-engagement-overlay"
-            transcript={transcript}
-          />
+          {transcript.segments.length > 0 || transcript.error || streamState === 'live' ? (
+            <Suspense fallback={null}>
+              <LazyVideoEngagementOverlay
+                className="buyer-video-engagement-overlay"
+                transcript={transcript}
+              />
+            </Suspense>
+          ) : null}
           </div>
 
           <BuyerRoomContext
             chat={(
-              <EventChat
+              <DeferredBuyerEventChat
                 eventId={eventId}
-                role="buyer"
                 userId={userId}
-                displayName={userId}
                 eventTitle={resolvedTitle}
-                surface="audience-overlay"
                 apiBaseUrl={resolveApiBaseUrl()}
               />
             )}

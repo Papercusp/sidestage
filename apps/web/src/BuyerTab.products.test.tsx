@@ -113,7 +113,7 @@ describe('BuyerTab product preview', () => {
     expect(markup).not.toContain('View all');
   });
 
-  it('keeps the real chat mounted in the accessible room panel and the video transcript-only', () => {
+  it('keeps the room panel accessible while deferring idle chat and transcript work', () => {
     const markup = render(PRODUCTS);
 
     expect(markup).toContain('class="buyer-room-tablist" role="tablist"');
@@ -121,10 +121,11 @@ describe('BuyerTab product preview', () => {
     expect(markup).toContain('aria-controls="buyer-room-panel-details"');
     expect(markup).toContain('aria-controls="buyer-room-panel-seller"');
     expect(markup).toContain('aria-label="Preview event audience chat"');
-    expect(markup).toContain('data-surface="audience-overlay"');
+    expect(markup).toContain('Load live chat');
+    expect(markup).not.toContain('data-surface="audience-overlay"');
     expect(markup).not.toContain('class="stage-panel event-chat-card"');
-    expect(markup).toContain('buyer-video-engagement-overlay');
-    expect(markup).toContain('Waiting for captions');
+    expect(markup).not.toContain('buyer-video-engagement-overlay');
+    expect(markup).not.toContain('Waiting for captions');
     expect(markup).toContain('aria-expanded="false"');
     expect(markup).not.toContain('video-engagement-chat-toggle');
     expect(markup).not.toContain('buyer-mode-switch');

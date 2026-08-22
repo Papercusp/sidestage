@@ -89,7 +89,8 @@ describe('P-005 product card and shell', () => {
     expect(markup).toContain('Now selling');
     expect(markup).toContain('Event products');
     expect(markup).toContain('>Chat</button>');
-    expect(markup).toContain('Message the room');
+    expect(markup).toContain('Load live chat');
+    expect(markup).not.toContain('Message the room');
     expect(markup).not.toContain('Share room');
     expect(markup).toContain('class="app-site-column"');
     expect(markup).toContain('class="channel-guide-panel"');

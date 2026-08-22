@@ -45,6 +45,33 @@ describe('public landing-page performance policy', () => {
     );
   });
 
+  it('loads closed cart and Scout drawer stacks only after buyer intent', () => {
+    const checkout = read('./BuyerCheckout.tsx');
+    expect(checkout).not.toMatch(/^import \{ BuyerCartDrawer \}/m);
+    expect(checkout).not.toMatch(/^import \{ BuyerScoutDrawer \}/m);
+    expect(checkout).toContain("import('./BuyerCartDrawer')");
+    expect(checkout).toContain("import('./BuyerScoutDrawer')");
+    expect(checkout).toContain("scoutLoadState === 'idle'");
+    expect(checkout).toContain('cartOpen || contextValue.heldItemCount > 0');
+    expect(checkout).toContain('<BuyerScoutLoadButton onClick={requestScout} />');
+  });
+
+  it('keeps an idle transcript overlay out of the buyer critical path', () => {
+    const buyer = read('./BuyerTab.tsx');
+    expect(buyer).not.toMatch(/^import \{[^}]*VideoEngagementOverlay[^}]*\} from/m);
+    expect(buyer).toContain("import('./VideoEngagementOverlay')");
+    expect(buyer).toContain("transcript.segments.length > 0 || transcript.error || streamState === 'live'");
+    expect(buyer).toContain("from './buyer-transcript-presentation'");
+  });
+
+  it('defers buyer chat code and presence work until its panel is visible or requested', () => {
+    const buyer = read('./BuyerTab.tsx');
+    expect(buyer).not.toMatch(/^import \{ EventChat \} from/m);
+    expect(buyer).toContain("import('./EventChat')");
+    expect(buyer).toContain('intersectionRatio >= 0.75');
+    expect(buyer).toContain("ready ? 'Loading live chat…' : 'Load live chat'");
+  });
+
   it('does not ship the WebSocket-only Zero registry in the fixed-SSE entry', () => {
     const main = read('./main.tsx');
     const seller = read('./SellerTab.tsx');
