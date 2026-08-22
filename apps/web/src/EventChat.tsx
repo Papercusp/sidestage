@@ -4,6 +4,7 @@ import { DEMO_PRINCIPAL_HEADER, useSyncMutate, useSyncPrincipal, useSyncQuery } 
 import { ChatRequestError, requestChatJson } from './chat-api';
 import { sellerPrivateRequestHeaders } from './events/api';
 import { MESSAGE_IMPORTANCE_ORDER, triageMessages, type MessageImportance, type TriagedMessage } from './message-triage';
+import './event-chat.css';
 
 export type EventChatRole = 'buyer' | 'seller';
 

@@ -7,6 +7,7 @@ import {
 } from '@papercusp/sync';
 import { browserEventId } from './event-identity';
 import { resolveApiOrigin } from './EventChat';
+import './copilot-panel.css';
 
 export type CopilotProposalStatus = 'pending' | 'approved' | 'skipped' | 'blocked' | 'executed';
 

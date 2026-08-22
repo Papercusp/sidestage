@@ -72,6 +72,33 @@ describe('public landing-page performance policy', () => {
     expect(buyer).toContain("ready ? 'Loading live chat…' : 'Load live chat'");
   });
 
+  it('keeps lazy workspace CSS out of the landing render-blocking stylesheet', () => {
+    const entryStyles = read('./styles.css');
+    const eventChat = read('./EventChat.tsx');
+    const copilot = read('./CopilotPanel.tsx');
+    const eventChatStyles = read('./event-chat.css');
+    const copilotStyles = read('./copilot-panel.css');
+    const testStyles = read('./test-workbench.css');
+
+    expect(Buffer.byteLength(entryStyles)).toBeLessThanOrEqual(50_000);
+    for (const selector of [
+      '.event-chat-heading',
+      '.copilot-panel',
+      '.load-simulator-panel',
+      '.judge-panel',
+      '.rehearsal-panel',
+    ]) {
+      expect(entryStyles).not.toContain(selector);
+    }
+    expect(eventChat).toContain("import './event-chat.css'");
+    expect(copilot).toContain("import './copilot-panel.css'");
+    expect(eventChatStyles).toContain('.event-chat-heading');
+    expect(copilotStyles).toContain('.copilot-panel');
+    expect(testStyles).toContain('.load-simulator-panel');
+    expect(testStyles).toContain('.judge-panel');
+    expect(testStyles).toContain('.rehearsal-panel');
+  });
+
   it('does not ship the WebSocket-only Zero registry in the fixed-SSE entry', () => {
     const main = read('./main.tsx');
     const seller = read('./SellerTab.tsx');
