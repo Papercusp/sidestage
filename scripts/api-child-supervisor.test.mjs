@@ -153,6 +153,10 @@ describe('SideStage API child supervisor', () => {
     const childScript = join(root, 'api-child.mjs');
     const parentScript = join(root, 'persistent-watcher.mjs');
     const pidFile = join(root, 'api-child.pid');
+    let markEntrypointObserved;
+    const entrypointObserved = new Promise((resolveObserved) => {
+      markEntrypointObserved = resolveObserved;
+    });
 
     writeFileSync(childScript, 'setInterval(() => {}, 1_000);\n');
     writeFileSync(parentScript, `
@@ -172,10 +176,16 @@ describe('SideStage API child supervisor', () => {
       missingGraceMs: 100,
       startupGraceMs: 2_000,
       spawnOptions: { stdio: 'ignore' },
+      readCommandLine: (pid) => {
+        const commandLine = readProcessCommandLine(pid);
+        if (commandLine.includes(childScript)) markEntrypointObserved();
+        return commandLine;
+      },
     });
 
-    const parentPid = await waitForFile(pidFile);
-    process.kill(parentPid, 'SIGTERM');
+    const childPid = await waitForFile(pidFile);
+    await entrypointObserved;
+    process.kill(childPid, 'SIGTERM');
     const result = await supervisorPromise;
 
     expect(result.exitCode).toBe(1);
