@@ -1,5 +1,13 @@
+/* Every root BuyerProductRail can render must span the whole result row.
+   .sc-products is a 2-col (<640px) / 3-col (>=640px) grid, so any branch left
+   out of this list silently collapses into one column. The rail renders three
+   different roots -- the empty/end-of-drop notice, the bare <ul> for a single
+   product, and the faded wrapper for two or more -- and all three are grid
+   children. BuyerScoutDrawer.test.tsx derives this list from the component
+   itself, so a new branch fails there rather than shipping one-track. */
 .sc-products > .buyer-product-rail-wrap,
-.sc-products > .buyer-product-rail {
+.sc-products > .buyer-product-rail,
+.sc-products > .buyer-rail-empty {
   min-width: 0;
   grid-column: 1 / -1;
 }
