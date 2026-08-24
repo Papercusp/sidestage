@@ -32,6 +32,7 @@ describe('API testing guide contract', () => {
       'npm run check',
       'npm run build',
       'docker-compose.acceptance.yml',
+      'up -d --build --wait api',
       'export ACCEPTANCE_RUN_ID=',
       'export POSTGRES_USER=',
       'export POSTGRES_PASSWORD=',

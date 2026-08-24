@@ -138,4 +138,12 @@ describe('API runtime workspace packages', () => {
     );
     expect(postgresService).toMatch(/\n      start_period: 120s\n/);
   });
+
+  it('keeps the acceptance API port aligned with its healthcheck', () => {
+    const compose = readFileSync(resolve(repoRoot, 'infra/docker-compose.acceptance.yml'), 'utf8');
+    const apiService = compose.match(/\n  api:\n([\s\S]*?)(?=\n  [a-z][\w-]*:\n|$)/)?.[1] ?? '';
+
+    expect(apiService, 'acceptance API service block not found').toContain('API_PORT: 3100');
+    expect(apiService).toContain("http://127.0.0.1:3100/healthz");
+  });
 });

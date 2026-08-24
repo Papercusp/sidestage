@@ -78,7 +78,7 @@ export POSTGRES_USER=sidestage
 export POSTGRES_PASSWORD=sidestage_dev
 export POSTGRES_DB=sidestage
 compose_args=(-p sidestage-api-smoke -f docker-compose.yml -f infra/docker-compose.acceptance.yml)
-docker compose "${compose_args[@]}" up -d --build api
+docker compose "${compose_args[@]}" up -d --build --wait api
 docker compose "${compose_args[@]}" exec -T api node -e '
   fetch("http://127.0.0.1:3100/healthz")
     .then(async (response) => {

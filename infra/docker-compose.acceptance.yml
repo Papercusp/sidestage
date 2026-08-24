@@ -63,6 +63,7 @@ services:
     environment:
       NODE_ENV: test
       API_PREFIX: api
+      API_PORT: 3100
       SIDESTAGE_SHA: ${SIDESTAGE_SHA:?requested SHA is required}
       DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
       DATA_BACKEND: pg
