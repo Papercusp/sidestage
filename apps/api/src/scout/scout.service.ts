@@ -286,6 +286,74 @@ class LegacyReplyModelAdapter implements ScoutModelAdapter {
 }
 
 /**
+ * Keeps the configured runtime model as the preferred path, but makes provider
+ * availability an enhancement rather than a buyer-facing dependency. The
+ * adapter is created per turn, so once the primary misses a required tool or
+ * throws, the rest of THAT turn stays on the deterministic model instead of
+ * mixing providers mid-answer.
+ */
+class RuntimeFallbackModelAdapter implements ScoutModelAdapter {
+  readonly model: string;
+  private failedOver = false;
+
+  constructor(
+    private readonly primary: ScoutModelAdapter,
+    private readonly fallback: ScoutModelAdapter,
+    private readonly onFailure: (stage: 'complete' | 'stream', error: unknown) => void,
+  ) {
+    this.model = primary.model;
+  }
+
+  async complete(request: ScoutModelRequest): Promise<ScoutModelResponse> {
+    if (this.failedOver) return this.fallback.complete(request);
+    try {
+      const response = await this.primary.complete(request);
+      const requiredTool = request.toolChoice === 'required' ? request.tools[0]?.name : undefined;
+      if (requiredTool && !response.toolCalls.some((call) => call.name === requiredTool)) {
+        throw new Error(`Scout model did not call required tool: ${requiredTool}`);
+      }
+      return response;
+    } catch (error) {
+      this.failOver('complete', error);
+      return this.fallback.complete(request);
+    }
+  }
+
+  async *stream(request: ScoutModelRequest): AsyncGenerator<ScoutModelStreamEvent> {
+    if (this.failedOver) {
+      yield* this.fallback.stream(request);
+      return;
+    }
+
+    let emittedText = false;
+    try {
+      for await (const event of this.primary.stream(request)) {
+        if (event.type === 'text' && event.text) emittedText = true;
+        yield event;
+      }
+      if (!emittedText) {
+        this.failOver('stream', new Error('Scout runtime model returned no reply text'));
+        yield* this.fallback.stream(request);
+      }
+    } catch (error) {
+      // Once text is on the wire it cannot be retracted; concatenating a second
+      // model's answer would be less coherent than the existing terminal error.
+      if (emittedText) {
+        this.onFailure('stream', error);
+        throw error;
+      }
+      this.failOver('stream', error);
+      yield* this.fallback.stream(request);
+    }
+  }
+
+  private failOver(stage: 'complete' | 'stream', error: unknown): void {
+    if (!this.failedOver) this.onFailure(stage, error);
+    this.failedOver = true;
+  }
+}
+
+/**
  * Makes the application invariants explicit at the runtime seam. A cart named
  * by the client is read first, then the canonical catalog is searched before
  * any answer. Once that bounded sequence is complete, the runner moves to its
@@ -413,8 +481,19 @@ export class ScoutService {
       ...history,
       { role: 'user', content: message },
     ];
+    const deterministicModel = new LegacyReplyModelAdapter(this.fallbackModel, context);
     const baseModel = this.runtimeModel
-      ?? new LegacyReplyModelAdapter(this.fallbackModel, context);
+      ? new RuntimeFallbackModelAdapter(
+        this.runtimeModel,
+        deterministicModel,
+        (stage, error) => {
+          const detail = error instanceof Error ? error.message : String(error);
+          this.log.warn(
+            `Scout runtime model ${this.runtimeModel?.model ?? 'unknown'} ${stage} failed (${detail}); using deterministic fallback`,
+          );
+        },
+      )
+      : deterministicModel;
     // A cart-state question is answered from the cart alone. Requiring a
     // catalog search here is what turned "what do I have held?" into search
     // terms, so the buyer got unrelated products instead of their own holds.
