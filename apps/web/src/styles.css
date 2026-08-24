@@ -495,6 +495,13 @@ a.app-badge:active { transform: translateY(1px); box-shadow: 0 2px 0 color-mix(i
     min-block-size: 44px;
     min-height: 44px;
   }
+
+  /* The identity row has a more specific component rule; keep its two
+     controls on the same floor without weakening the desktop sizing. */
+  .topbar .topbar-demo-user .demo-identity-row :where(input, .button) {
+    min-block-size: 44px;
+    min-height: 44px;
+  }
 }
 
 .buyer-tab { min-height: 650px; font-size: var(--ss-font); }

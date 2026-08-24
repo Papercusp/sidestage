@@ -139,6 +139,9 @@ describe('P-005 product card and shell', () => {
     expect(stylesCss).toMatch(
       /@media \(max-width: 760px\)[\s\S]*?\.skip-link,[\s\S]*?\.topbar :where\(a\[href\], button, input, select, \[role="button"\]\)\s*\{[^}]*min-block-size:\s*44px[^}]*min-height:\s*44px/,
     );
+    expect(stylesCss).toMatch(
+      /@media \(max-width: 760px\)[\s\S]*?\.topbar \.topbar-demo-user \.demo-identity-row :where\(input, \.button\)\s*\{[^}]*min-block-size:\s*44px[^}]*min-height:\s*44px/,
+    );
   });
 });
 
