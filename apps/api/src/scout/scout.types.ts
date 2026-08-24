@@ -50,7 +50,10 @@ export const SCOUT_CATEGORIES = [
 export type ScoutCategory = typeof SCOUT_CATEGORIES[number];
 
 export const SCOUT_CATEGORY_PRODUCT_TYPES: Record<ScoutCategory, readonly string[]> = {
-  Computers: ['NOTEBOOK_COMPUTER', 'PERSONAL_COMPUTER'],
+  // COMPUTER is the canonical broad enum used when an imported computer is
+  // not classified more narrowly as a notebook or desktop. Omitting it made
+  // an otherwise satisfiable typed request return an empty rail.
+  Computers: ['COMPUTER', 'NOTEBOOK_COMPUTER', 'PERSONAL_COMPUTER'],
   Laptops: ['NOTEBOOK_COMPUTER'],
   Desktops: ['PERSONAL_COMPUTER'],
   Monitors: ['MONITOR'],

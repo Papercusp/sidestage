@@ -54,6 +54,33 @@ describe('ScoutService', () => {
     expect(response.reply.toLowerCase()).not.toContain('kettle');
   });
 
+  it('returns a broadly typed COMPUTER without admitting computer accessories', async () => {
+    const base: Omit<CatalogVariant, 'id' | 'title' | 'productType'> = {
+      groupId: null,
+      brand: 'Restart',
+      sku: 'SKU',
+      condition: 'NEW',
+      handlingDays: 1,
+      priceCents: 100_00,
+      qty: 2,
+      reservedQty: 0,
+      availableQty: 2,
+    };
+    const service = new ScoutService(
+      scoutCatalogFrom(new FixtureCatalogSource([
+        { ...base, id: 'workstation', title: 'Modular workstation computer', productType: 'COMPUTER' },
+        { ...base, id: 'bag', title: 'Computer carrying bag', productType: 'CARRYING_CASE_OR_BAG' },
+      ])),
+      new DeterministicScoutReplyModel(),
+      new CartService(new InMemoryCartStore()),
+      new InMemoryScoutMemoryStore(),
+    );
+
+    const response = await service.chat({ message: 'find me computers', maxProducts: 10 });
+
+    expect(response.products.map((product) => product.productId)).toEqual(['workstation']);
+  });
+
   it('answers a held-items question from the cart, not the catalog, when nothing is held', async () => {
     const carts = new CartService(new InMemoryCartStore());
     const cart = await carts.getCart();

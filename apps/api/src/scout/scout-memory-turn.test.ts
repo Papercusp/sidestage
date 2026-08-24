@@ -87,11 +87,15 @@ describe('scout memory on a turn', () => {
     const model = new SpyModel();
     const svc = service({ memory, model });
 
-    await collect(svc, { message: 'wireless headphones' }, { buyerId: 'buyer-1' });
+    const events = await collect(svc, { message: 'wireless headphones' }, { buyerId: 'buyer-1' });
 
     expect(model.seen[0].memories?.map((m: ScoutMemory) => m.text)).toContain(
       'wireless headphones for running',
     );
+    // The admitted enhancement context must not starve an independently
+    // satisfiable catalog request. This assertion binds the buyer-visible
+    // product set as well as the memory hand-off above.
+    expect(events.some((event) => event.type === 'products' && event.products.length > 0)).toBe(true);
   });
 
   it('surfaces a recalled memory in the streamed reply', async () => {
