@@ -2,7 +2,12 @@ import { describe, expect, it } from 'vitest';
 import { CartService, InMemoryCartStore } from '../cart/cart.service';
 import { FixtureCatalogSource } from '../catalog/catalog.sources';
 import { scoutCatalogFrom } from './scout-catalog.adapter';
-import { InMemoryScoutMemoryStore, memoryScopes } from './scout-memory';
+import {
+  InMemoryScoutMemoryStore,
+  MIN_MEMORY_RELEVANCE,
+  memoryScopes,
+  memoryScore,
+} from './scout-memory';
 import { InMemoryScoutSessionStore } from './scout-session.store';
 import { DeterministicScoutReplyModel, ScoutService } from './scout.service';
 import {
@@ -96,6 +101,57 @@ describe('scout memory on a turn', () => {
 
     const events = await collect(svc, { message: 'wireless headphones' }, { buyerId: 'buyer-1' });
     expect(replyIn(events)).toContain('Last time you asked about');
+  });
+
+  /**
+   * P-002 "reject low-relevance remembered turns" — the SERVICE-level floor.
+   *
+   * The two stores already drop a memory scoring 0, so the headline scenario
+   * ("find me kettles" then "find me computers") is settled before the floor is
+   * consulted: those two share only filler, so memoryScore is exactly 0 and the
+   * store never returns the kettle turn at all. That makes any end-to-end
+   * "reply must not mention kettles" assertion VACUOUS with respect to
+   * MIN_MEMORY_RELEVANCE -- deleting safeRecall's filter left every suite green.
+   *
+   * The floor only earns its keep in the band the stores admit but it rejects:
+   * 0 < score < MIN_MEMORY_RELEVANCE, i.e. a memory sharing SOME subject token
+   * with the new turn but not enough of it. That band is what these two pin,
+   * from both sides, so the constant cannot be deleted or drifted silently.
+   */
+  it('drops a remembered turn the store admits but that falls below the relevance floor', async () => {
+    const memory = new InMemoryScoutMemoryStore();
+    await memory.remember('user:buyer-1', 'red kettles', 'turn');
+    const model = new SpyModel();
+    const svc = service({ memory, model });
+    const message = 'red suede running shoes';
+
+    // Calibration: without this the assertion below passes for the wrong
+    // reason. The STORE returns this memory (score > 0), so whatever drops it
+    // downstream is the service floor and nothing else.
+    const score = memoryScore('red kettles', message);
+    expect(score).toBeGreaterThan(0);
+    expect(score).toBeLessThan(MIN_MEMORY_RELEVANCE);
+    expect(await memory.recall(memoryScopes('buyer-1').scopes, message)).toHaveLength(1);
+
+    await collect(svc, { message }, { buyerId: 'buyer-1' });
+
+    expect(model.seen[0].memories ?? []).toHaveLength(0);
+  });
+
+  it('still admits a remembered turn sitting exactly ON the relevance floor', async () => {
+    // Pins `>=` rather than `>`: at the floor the memory is kept. Without this
+    // the test above is satisfiable by rejecting every memory ever recalled.
+    const memory = new InMemoryScoutMemoryStore();
+    await memory.remember('user:buyer-1', 'red shoes', 'turn');
+    const model = new SpyModel();
+    const svc = service({ memory, model });
+    const message = 'red boots';
+
+    expect(memoryScore('red shoes', message)).toBe(MIN_MEMORY_RELEVANCE);
+
+    await collect(svc, { message }, { buyerId: 'buyer-1' });
+
+    expect(model.seen[0].memories?.map((m: ScoutMemory) => m.text)).toContain('red shoes');
   });
 
   it('does NOT leak one buyer’s memory into another buyer’s turn', async () => {
