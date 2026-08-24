@@ -13,6 +13,20 @@ services:
       # prod this mount really does create the publication at init — no manual
       # apply step is needed here.
       - ./db/zero-publication.sql:/docker-entrypoint-initdb.d/30-zero-publication.sql:ro
+      # The marker is written before the temporary init server shuts down;
+      # healthcheck below waits for the final postmaster to start afterward.
+      - ./infra/acceptance-init-ready.sql:/docker-entrypoint-initdb.d/40-acceptance-init-ready.sql:ro
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - >-
+          pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB} &&
+          psql -U $${POSTGRES_USER} -d $${POSTGRES_DB} -tAc
+          "SELECT pg_postmaster_start_time() > ready_at FROM acceptance_init_marker WHERE id = true"
+          | grep -q t
+      interval: 2s
+      timeout: 5s
+      retries: 30
 
   typesense:
     restart: "no"

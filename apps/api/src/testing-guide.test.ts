@@ -31,6 +31,10 @@ describe('API testing guide contract', () => {
       'npm run check',
       'npm run build',
       'docker-compose.acceptance.yml',
+      'export ACCEPTANCE_RUN_ID=',
+      'export POSTGRES_USER=',
+      'export POSTGRES_PASSWORD=',
+      'export POSTGRES_DB=',
       '/healthz',
     ]) {
       expect(guide, `TESTING.md must document ${command}`).toContain(command);
