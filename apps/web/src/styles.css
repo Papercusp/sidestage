@@ -485,6 +485,18 @@ a.app-badge:active { transform: translateY(1px); box-shadow: 0 2px 0 color-mix(i
 }
 @media (max-width: 460px) { .topbar-brand-group { flex-wrap: wrap; gap: .55rem; } .topbar-install-and-identity { flex: 1 0 100%; align-items: stretch; flex-direction: column; width: 100%; } .topbar-demo-user { width: 100%; } .app-badges { flex: 1 0 100%; width: 100%; } .app-badge { flex: 1; min-height: 2.65rem; padding-inline: .55rem; } .app-badge-hint { font-size: .52rem; } .app-badge-name { font-size: .75rem; } }
 
+/* EI-20440454409624584: global chrome is the first touch surface on a phone.
+   Keep every visible chrome control, plus the keyboard-only skip target, at the
+   44px enhanced touch floor. Content links remain free to use their normal
+   inline rhythm; this rule is intentionally scoped to the chrome. */
+@media (max-width: 760px) {
+  .skip-link,
+  .topbar :where(a[href], button, input, select, [role="button"]) {
+    min-block-size: 44px;
+    min-height: 44px;
+  }
+}
+
 .buyer-tab { min-height: 650px; font-size: var(--ss-font); }
 .buyer-heading { display: flex; align-items: flex-end; justify-content: space-between; gap: 1.5rem; }
 .buyer-heading h2 { margin: .55rem 0 .45rem; font-size: 1.55rem; letter-spacing: -.04em; }

@@ -105,25 +105,32 @@ const renderProbe = () => {
 
 /**
  * Tap targets below the 44x44 CSS-px floor (WCAG 2.5.5 / iOS HIG), phone only.
- * Reported as ADVISORY, not a failure: inline text links are legitimately
- * smaller and flagging them would drown the real signal.
+ * Global chrome is a failure; content links remain advisory because inline text
+ * links are legitimately smaller and flagging them would drown the real signal.
  */
 const tapTargets = () => {
-  const small = [];
-  for (const el of document.querySelectorAll('button, a[href], input, select, [role="button"]')) {
-    const r = el.getBoundingClientRect();
-    if (r.width === 0 && r.height === 0) continue;
-    if (getComputedStyle(el).display === 'inline') continue;
-    if (r.width < 44 || r.height < 44) {
-      small.push({
-        el: el.tagName.toLowerCase(),
-        w: Math.round(r.width),
-        h: Math.round(r.height),
-        text: (el.textContent || '').trim().slice(0, 30),
-      });
+  const measure = (selector) => {
+    const small = [];
+    for (const el of document.querySelectorAll(selector)) {
+      const r = el.getBoundingClientRect();
+      if (r.width === 0 && r.height === 0) continue;
+      if (getComputedStyle(el).display === 'inline') continue;
+      if (r.width < 44 || r.height < 44) {
+        small.push({
+          el: el.tagName.toLowerCase(),
+          w: Math.round(r.width),
+          h: Math.round(r.height),
+          text: (el.textContent || '').trim().slice(0, 30),
+        });
+      }
     }
-  }
-  return small.slice(0, 12);
+    return small;
+  };
+
+  return {
+    small: measure('button, a[href], input, select, [role="button"]').slice(0, 12),
+    globalChrome: measure('.skip-link, .topbar button, .topbar a[href], .topbar input, .topbar select, .topbar [role="button"]'),
+  };
 };
 
 /**
@@ -217,7 +224,9 @@ for (const w of WIDTHS) {
     const render = await page.evaluate(renderProbe);
     const ov = await page.evaluate(overflowAudit);
     const a = await page.evaluate(audit, PALETTE);
-    const taps = w.id === 'phone' ? await page.evaluate(tapTargets) : [];
+    const taps = w.id === 'phone'
+      ? await page.evaluate(tapTargets)
+      : { small: [], globalChrome: [] };
     const identitySwitch = w.id === 'laptop' && tab === 'buyer'
       ? await identitySwitchProbe(page)
       : null;
@@ -238,7 +247,8 @@ for (const w of WIDTHS) {
       contrast: a.counts.contrast, drift: a.counts.drift, collisions: a.counts.collisions,
       contrastDetail: a.contrast.slice(0, 5),
       consoleErrors: consoleErrors.slice(0, 6),
-      smallTapTargets: taps,
+      smallTapTargets: taps.small,
+      globalChromeTapTargets: taps.globalChrome,
       identitySwitch,
     });
     page.removeAllListeners('console');
@@ -260,6 +270,7 @@ for (const r of results) {
   if (r.contrast > 0) bad.push(`CONTRAST(${r.contrast})`);
   if (r.collisions > 0) bad.push(`D003(${r.collisions})`);
   if (r.consoleErrors.length > 0) bad.push(`CONSOLE(${r.consoleErrors.length})`);
+  if (r.globalChromeTapTargets.length > 0) bad.push(`CHROME-TAP(${r.globalChromeTapTargets.length})`);
   if (r.identitySwitch && !r.identitySwitch.hitTarget?.ownsCenter) {
     bad.push(`SWITCH-HIT(${r.identitySwitch.hitTarget?.owner ?? 'none'})`);
   }
@@ -269,6 +280,7 @@ for (const r of results) {
   for (const o of r.offenders) console.log(`     ↳ escapes: ${o.el} right=${o.right} > vw=${o.vw} (w=${o.width})`);
   for (const c of r.contrastDetail) console.log(`     ↳ contrast ${c.ratio} (<${c.floor}) ${c.el} "${c.text}"`);
   for (const e of r.consoleErrors) console.log(`     ↳ console: ${e}`);
+  for (const t of r.globalChromeTapTargets) console.log(`     ↳ global chrome tap target: ${t.el}(${t.w}x${t.h}) "${t.text}"`);
   if (r.identitySwitch) {
     console.log(`     ${r.identitySwitch.hitTarget?.ownsCenter && r.identitySwitch.clickOk ? '✓' : '✗'} Switch pointer: center=${r.identitySwitch.hitTarget?.owner ?? 'none'} storage=${JSON.stringify(r.identitySwitch.stored)}`);
     if (r.identitySwitch.error) console.log(`     ↳ Switch error: ${r.identitySwitch.error}`);

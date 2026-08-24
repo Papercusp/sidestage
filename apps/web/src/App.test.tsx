@@ -134,6 +134,12 @@ describe('P-005 product card and shell', () => {
       /@media \(max-width: 680px\)\s*\{[^}]*\.topbar-install-and-identity\s*\{[^}]*flex-wrap:\s*wrap[^}]*}[^}]*\.topbar-demo-user\s*\{[^}]*flex:\s*1 0 100%[^}]*width:\s*100%/,
     );
   });
+
+  it('keeps phone global chrome controls at the enhanced 44px touch floor', () => {
+    expect(stylesCss).toMatch(
+      /@media \(max-width: 760px\)[\s\S]*?\.skip-link,[\s\S]*?\.topbar :where\(a\[href\], button, input, select, \[role="button"\]\)\s*\{[^}]*min-block-size:\s*44px[^}]*min-height:\s*44px/,
+    );
+  });
 });
 
 describe('Seller workbench shell', () => {
