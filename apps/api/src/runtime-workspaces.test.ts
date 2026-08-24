@@ -128,4 +128,14 @@ describe('API runtime workspace packages', () => {
       expect(envExample).toMatch(new RegExp(`^${variable}=$`, 'm'));
     }
   });
+
+  it('gives acceptance Postgres initialization a healthcheck grace period', () => {
+    const compose = readFileSync(resolve(repoRoot, 'infra/docker-compose.acceptance.yml'), 'utf8');
+    const postgresService = compose.match(/\n  postgres:\n([\s\S]*?)(?=\n  [a-z][\w-]*:\n|$)/)?.[1] ?? '';
+
+    expect(postgresService, 'acceptance postgres service block not found').toContain(
+      'acceptance_init_marker',
+    );
+    expect(postgresService).toMatch(/\n      start_period: 120s\n/);
+  });
 });

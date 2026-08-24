@@ -28,6 +28,7 @@ describe('API testing guide contract', () => {
       'npm run test:file -- apps/api/src/path/to/file.test.ts',
       'npm run test --workspace @papercusp/sidestage-api',
       'npm run typecheck --workspace @papercusp/sidestage-api',
+      'npm run test:file -- apps/api/src/runtime-workspaces.test.ts apps/api/src/vertex-env-wiring.test.ts',
       'npm run check',
       'npm run build',
       'docker-compose.acceptance.yml',

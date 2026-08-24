@@ -24,6 +24,10 @@ services:
           psql -U $${POSTGRES_USER} -d $${POSTGRES_DB} -tAc
           "SELECT pg_postmaster_start_time() > ready_at FROM acceptance_init_marker WHERE id = true"
           | grep -q t
+      # The init scripts build the complete schema and seed data before the
+      # temporary server restarts. Do not spend the failure budget while that
+      # deliberate initialization is still in progress on a loaded host.
+      start_period: 120s
       interval: 2s
       timeout: 5s
       retries: 30
