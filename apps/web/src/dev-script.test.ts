@@ -21,8 +21,10 @@ describe("root dev:web script", () => {
 });
 
 describe("web package test scripts", () => {
-  it("keeps focused test:file verification available through the workspace", () => {
+  it("pins package tests to the web project and keeps focused runs available", () => {
+    expect(webPackage.scripts?.test).toBe(
+      "vitest run --config ../../vitest.config.mts --project sidestage-web",
+    );
     expect(webPackage.scripts?.["test:file"]).toBe("vitest run");
-    expect(webPackage.scripts?.["test:file"]).toBe(webPackage.scripts?.test);
   });
 });

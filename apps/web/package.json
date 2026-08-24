@@ -10,7 +10,7 @@
     "prebuild": "npm run assets:vditor",
     "build": "tsc --noEmit && vite build",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run",
+    "test": "vitest run --config ../../vitest.config.mts --project sidestage-web",
     "test:file": "vitest run",
     "clean": "rm -rf dist .vite"
   },
