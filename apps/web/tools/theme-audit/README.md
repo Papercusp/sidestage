@@ -20,8 +20,15 @@ Chromium's **default blue** on a fire-red/taxi-yellow theme. Nothing caught it:
 
 ## Run it
 
-Needs the dev app running (`npm run dev` → web :5173, api :3100) and `playwright`
-resolvable (it is installed in the papercusp repo).
+Needs the dev app running (`npm run dev` → web :5173, api :3100). `playwright` is a
+declared devDependency of `apps/web` (EI-21343954787970444 — it used to resolve only by
+accident via a sibling repo's install), so a normal `npm run install:safe` provides it.
+If the Chromium build is missing from `~/.cache/ms-playwright`, run
+`npm run qa:browsers --workspace @papercusp/sidestage-web` (wraps
+`playwright install chromium`) once. `npm run qa:sweep` / `npm run qa:responsive` run
+the two main entry points without the bare `node` invocation; the guard test
+`src/tools-declared-deps.test.ts` fails if any `tools/**` script ever imports an
+undeclared package again.
 
 ```bash
 node tools/theme-audit/qa-sweep.mjs        # all four tabs: contrast + drift + D-003 + screenshots

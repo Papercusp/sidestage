@@ -12,6 +12,9 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run --config ../../vitest.config.mts --project sidestage-web",
     "test:file": "vitest run",
+    "qa:sweep": "node tools/theme-audit/qa-sweep.mjs",
+    "qa:responsive": "node tools/theme-audit/probe-responsive.mjs",
+    "qa:browsers": "playwright install chromium",
     "clean": "rm -rf dist .vite"
   },
   "dependencies": {
@@ -42,6 +45,7 @@
     "@types/react": "^19.1.8",
     "@types/react-dom": "^19.1.6",
     "@vitejs/plugin-react": "^4.7.0",
+    "playwright": "^1.59.1",
     "vite": "^7.3.6"
   }
 }
