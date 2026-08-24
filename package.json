@@ -35,8 +35,8 @@
     "node": ">=22.0.0"
   },
   "devDependencies": {
-    "@papercusp/test-config": "*",
     "@linaria/react": "^4.5.4",
+    "@papercusp/test-config": "*",
     "@types/react-dom": "^19.2.4",
     "canvas-hypertxt": "^1.0.3",
     "concurrently": "^9.2.1",
