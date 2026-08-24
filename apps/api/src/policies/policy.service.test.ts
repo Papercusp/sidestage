@@ -253,6 +253,21 @@ describe('PolicyService lifecycle', () => {
     expect(unchanged.returns.windowDays).toBe(30);
   });
 
+  it('returns 422 POLICY_VALIDATION_FAILED when expectedRevision is omitted from publish', async () => {
+    const { service } = harness();
+    const draft = await service.createDraft('demo-seller', { eventId: null, body: body() }, ctx, 'key-1');
+
+    await expectPolicyError(
+      service.publish('demo-seller', draft.id, undefined, ctx, 'key-2'),
+      'POLICY_VALIDATION_FAILED', 422,
+    );
+    await expectPolicyError(
+      service.publish('demo-seller', draft.id, 99, ctx, 'key-3'),
+      'POLICY_REVISION_CONFLICT', 409,
+    );
+    expect((await service.getRevision('demo-seller', draft.id)).state).toBe('draft');
+  });
+
   it('rejects a publish that fails validation, records the rejection, and writes no outbox row', async () => {
     const { store, service } = harness();
     const draft = await service.createDraft('demo-seller', { eventId: null, body: body((b) => { b.returns.windowDays = 91; }) }, ctx, 'key-1');

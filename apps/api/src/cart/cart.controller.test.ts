@@ -1,3 +1,4 @@
+import { BadRequestException } from '@nestjs/common';
 import { describe, expect, it, vi } from 'vitest';
 import { CartController } from './cart.controller';
 import { CartService, emptyCart, InMemoryCartStore } from './cart.service';
@@ -75,6 +76,17 @@ describe('CartController buyer principal boundary', () => {
       title: 'Harbor Kettle',
       priceCents: 7_600,
     }, undefined)).toThrow('Buyer principal is required');
+  });
+
+  it('returns a client validation error for malformed add-item bodies', () => {
+    const controller = new CartController(new CartService(new InMemoryCartStore()));
+
+    expect(() => controller.addItem({ productId: 'mug' } as never, 'demo-avi'))
+      .toThrow(BadRequestException);
+    expect(() => controller.addItem(undefined as never, 'demo-avi'))
+      .toThrow(BadRequestException);
+    expect(() => controller.addItem({ productId: 'mug', title: 'Kettle', priceCents: -1 }, 'demo-avi'))
+      .toThrow('priceCents must be a non-negative integer');
   });
 
   it('checks ownership before an expired-cart read can release inventory or persist cleanup', async () => {

@@ -514,7 +514,13 @@ export class PolicyService {
       if (current.state !== 'draft' && current.state !== 'validated') {
         throw new PolicyError(409, { code: 'POLICY_NOT_PUBLISHABLE', message: `a ${current.state} revision cannot be published` });
       }
-      if (expectedRevision === undefined || expectedRevision !== current.revision) {
+      if (expectedRevision === undefined) {
+        throw new PolicyError(422, {
+          code: 'POLICY_VALIDATION_FAILED',
+          message: 'expectedRevision is required for this route',
+        });
+      }
+      if (expectedRevision !== current.revision) {
         throw new PolicyError(409, { code: 'POLICY_REVISION_CONFLICT', message: 'the revision changed under you; reload before publishing' });
       }
       // Re-validate inside the publish path: capabilities may have changed since draft.
