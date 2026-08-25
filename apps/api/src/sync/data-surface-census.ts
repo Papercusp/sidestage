@@ -284,6 +284,7 @@ export const PROCESS_LOCAL_SURFACES: readonly SourceSurface[] = [
   local('apps/api/src/policies/policy.service.ts', 'revisions', 'policies', ['seller-owned'], 'memory backend authority', 'replicate', 'seller_policy_revision', 'P-011/P-019'),
   local('apps/api/src/policies/policy.service.ts', 'idem', 'policy-idempotency', ['seller-owned', 'operational'], 'memory backend authority', 'replicate', 'policy_idempotency', 'P-011/P-019'),
   local('apps/api/src/run-of-show/run-of-show.service.ts', 'plans', 'run-of-show', ['seller-owned'], 'memory backend authority', 'replicate', 'event_run_of_show', 'P-011/P-019'),
+  local('apps/api/src/scout/scout.service.ts', 'failedOver', 'scout-model-fallback', ['operational'], 'per-turn provider fallback latch, not an authority', 'runtime-only', 'none; the adapter is constructed per Scout turn and resets at the turn boundary', 'P-020'),
   local('apps/api/src/scout/scout-session.store.ts', 'sessions', 'scout-session', ['buyer-owned'], 'memory backend authority', 'replicate', 'scout_session and scout_memory', 'P-011/P-018'),
   local('apps/api/src/scout/scout-turn-bus.service.ts', 'owners', 'scout-turn-owner', ['buyer-owned', 'streaming'], 'ephemeral resumable-turn owner boundary', 'runtime-only', 'retain the per-turn buyer principal binding beside the replay channel', 'P-018/P-020'),
   local('apps/api/src/scout/scout-turn-bus.service.ts', 'ownerGcTimers', 'scout-turn-owner-gc', ['operational'], 'bounded cleanup scheduler', 'runtime-only', 'bounded timeout lifecycle; no durable state', 'P-020'),
