@@ -1,5 +1,4 @@
-schema=1
 host=main-server-Precision-7865-Tower
+pid=3585807
+started=1787772755
 identity=v1-fa4418ad13cb0352977b6aca26b3960cbf2c86d75e13df440af1c46076fb2cf0
-checkout=/home/marsh-office/.papercusp/hives/sidestage-checkpoint
-updated=1787772755
