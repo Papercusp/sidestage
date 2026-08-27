@@ -16,7 +16,7 @@ export const BUILD_HISTORY_SNAPSHOT = {
     "workspace": "papercusp-workspace",
     "harness": "sidestage",
     "planPrefix": null,
-    "generatedAt": "2026-08-27T04:50:17.343Z",
+    "generatedAt": "2026-08-27T06:50:10.575Z",
     "generator": "papercusp project-history generate",
     "planCount": 54
   },
@@ -32956,7 +32956,7 @@ export const BUILD_HISTORY_SNAPSHOT = {
           "title": "Implement approved SideStage Buyer web-page design",
           "state": "done",
           "completedAt": "2026-08-14T17:29:12.181Z",
-          "completionAuthority": "committed",
+          "completionAuthority": "proposed",
           "completionSummary": "Implemented and finalized the approved SideStage Buyer page, including the D-007 audience-chat overlay correction while preserving the governing D-009 guide rail. Browser artifacts: /tmp/sidestage-buyer-bright-desktop-open-final.png, /tmp/sidestage-buyer-dark-desktop-open-final.png, /tmp/sidestage-buyer-bright-mobile-open-final.png, /tmp/sidestage-buyer-bright-mobile-closed-final.png.",
           "completionEvidence": {
             "summary": "Implemented and finalized the approved SideStage Buyer page, including the D-007 audience-chat overlay correction while preserving the governing D-009 guide rail. Browser artifacts: /tmp/sidestage-buyer-bright-desktop-open-final.png, /tmp/sidestage-buyer-dark-desktop-open-final.png, /tmp/sidestage-buyer-bright-mobile-open-final.png, /tmp/sidestage-buyer-bright-mobile-closed-final.png.",
@@ -33077,7 +33077,7 @@ export const BUILD_HISTORY_SNAPSHOT = {
           "title": "Implement approved SideStage Seller web-page design",
           "state": "done",
           "completedAt": "2026-08-14T17:29:15.854Z",
-          "completionAuthority": "committed",
+          "completionAuthority": "proposed",
           "completionSummary": "Implemented and finalized the approved SideStage Seller page, including full available default board sizing, left-side controls, the D-007 audience overlay correction, and the D-009 guide rail. Browser artifacts: /tmp/sidestage-seller-desktop-active-event-final.png, /tmp/sidestage-seller-desktop-management-chat-final.png, /tmp/sidestage-seller-mobile-overlay-final.png.",
           "completionEvidence": {
             "summary": "Implemented and finalized the approved SideStage Seller page, including full available default board sizing, left-side controls, the D-007 audience overlay correction, and the D-009 guide rail. Browser artifacts: /tmp/sidestage-seller-desktop-active-event-final.png, /tmp/sidestage-seller-desktop-management-chat-final.png, /tmp/sidestage-seller-mobile-overlay-final.png.",
