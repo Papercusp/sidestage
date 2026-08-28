@@ -16,7 +16,7 @@ export const BUILD_HISTORY_SNAPSHOT = {
     "workspace": "papercusp-workspace",
     "harness": "sidestage",
     "planPrefix": null,
-    "generatedAt": "2026-08-27T22:50:39.454Z",
+    "generatedAt": "2026-08-28T00:50:22.073Z",
     "generator": "papercusp project-history generate",
     "planCount": 54
   },
