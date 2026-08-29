@@ -19,7 +19,10 @@ set -euo pipefail
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
 source "$SCRIPT_DIR/deploy-lock.sh"
 
-PROD_HOST="${PROD_HOST:-178.156.254.59}"
+# GCP hetzner-restore-prod (us-central1-a), reserved static IP
+# hetzner-restore-prod-ip -- kept in step with deploy.sh. See plan
+# hetzner-to-gcp-restore-2026-08-28 D-010.
+PROD_HOST="${PROD_HOST:-34.72.21.31}"
 PROD_SSH_KEY="${SSH_KEY:-$HOME/.ssh/papercusp-latitude-frame}"
 PROD_DIR="/opt/SideStage"
 COMPOSE="docker compose -f docker-compose.prod.yml --env-file .env.production"

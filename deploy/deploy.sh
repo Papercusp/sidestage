@@ -27,7 +27,12 @@ SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
 source "$SCRIPT_DIR/deploy-lock.sh"
 cd "$(git rev-parse --show-toplevel)"
 
-PROD_HOST="${PROD_HOST:-178.156.254.59}"
+# GCP hetzner-restore-prod (us-central1-a), reserved static IP
+# hetzner-restore-prod-ip. Replaced the Hetzner estate address on 2026-08-28
+# after that provider network-suspended the hosts; see plan
+# hetzner-to-gcp-restore-2026-08-28 D-010. This value and .env.production's
+# MEDIAMTX_PUBLIC_IP must stay equal -- the deploy asserts it below.
+PROD_HOST="${PROD_HOST:-34.72.21.31}"
 PROD_SSH_KEY="${SSH_KEY:-$HOME/.ssh/papercusp-latitude-frame}"
 PROD_DIR="/opt/SideStage"
 COMPOSE="docker compose -f docker-compose.prod.yml --env-file .env.production"
@@ -263,7 +268,7 @@ say "Checking .env.production exists on prod"
   echo "  STRIPE_SECRET_KEY=… STRIPE_PUBLISHABLE_KEY=… STRIPE_WEBHOOK_SECRET=…" >&2
   echo "  DEEPGRAM_API_KEY=…" >&2
   echo "  PUBLIC_HOSTNAME=sidestage.papercusp.com" >&2
-  echo "  MEDIAMTX_PUBLIC_IP=178.156.254.59" >&2
+  echo "  MEDIAMTX_PUBLIC_IP=\$PROD_HOST   # must equal this host's public IPv4" >&2
   echo "  TURN_AUTH_SECRET=<strong random secret>" >&2
   exit 2
 }
@@ -278,6 +283,32 @@ say "Public hostname: $PUBLIC_HOSTNAME (health gate: $HEALTH_URL)"
 # build so checkout can never silently deploy with empty rates or payments.
 say "Validating required production configuration"
 "${SSH[@]}" "cd $PROD_DIR && SIDESTAGE_SHA=config-check $COMPOSE config --quiet"
+
+# MEDIAMTX_PUBLIC_IP is the estate's one setting that fails SILENTLY: MediaMTX
+# copies it verbatim into ICE candidates and coturn advertises it as
+# --external-ip, so a stale value leaves every health check green while media
+# never connects. Compose only proves the variable is NON-EMPTY (`:?`), which a
+# dead address satisfies. Nothing else checks it -- deploy/verify-mediamtx-ice.mjs
+# exists but was wired to nothing (measured 2026-08-28: repo-wide grep found only
+# its own unit test importing it), and that test's IP literals are synthetic SDP
+# fixtures, so it passes against any deployed host. That gap is exactly how the
+# Hetzner-era address survived a host move. The address MediaMTX advertises
+# must be the address of the host we are deploying to, so assert precisely that.
+say "Verifying MEDIAMTX_PUBLIC_IP matches this deploy target"
+MEDIAMTX_PUBLIC_IP_ON_PROD="$("${SSH[@]}" "grep -sh -m1 -E '^[[:space:]]*MEDIAMTX_PUBLIC_IP=' $PROD_DIR/.env.production" 2>/dev/null || true)"
+MEDIAMTX_PUBLIC_IP_ON_PROD="${MEDIAMTX_PUBLIC_IP_ON_PROD#*=}"
+MEDIAMTX_PUBLIC_IP_ON_PROD="${MEDIAMTX_PUBLIC_IP_ON_PROD//[$'\r\n']/}"
+MEDIAMTX_PUBLIC_IP_ON_PROD="${MEDIAMTX_PUBLIC_IP_ON_PROD//[\"\' ]/}"
+if [[ "$MEDIAMTX_PUBLIC_IP_ON_PROD" != "$PROD_HOST" ]]; then
+  echo "ERROR: .env.production has MEDIAMTX_PUBLIC_IP='$MEDIAMTX_PUBLIC_IP_ON_PROD'" >&2
+  echo "       but this deploy targets PROD_HOST='$PROD_HOST'." >&2
+  echo "       MediaMTX would advertise an ICE host candidate nobody can reach and" >&2
+  echo "       coturn would advertise the same wrong --external-ip, so WebRTC media" >&2
+  echo "       would fail while /healthz stays green. Set both to this host's public" >&2
+  echo "       IPv4 (they are deliberately the same value) and redeploy." >&2
+  exit 2
+fi
+say "OK: MediaMTX/coturn advertise $MEDIAMTX_PUBLIC_IP_ON_PROD (= deploy target)"
 
 # Existing Postgres volumes do not replay /docker-entrypoint-initdb.d when the
 # schema file changes. Apply the repository's idempotent schema before building
