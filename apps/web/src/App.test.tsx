@@ -79,6 +79,7 @@ describe('P-005 product card and shell', () => {
     expect(markup).toContain('aria-current="page"');
     expect(markup).toContain('href="#main-content"');
     expect(markup).toContain('Live commerce');
+    expect(markup).toContain('Avi&#x27;s Potato Patch');
     expect(markup.match(/Demo user impersonation/g)).toHaveLength(1);
     expect(markup).toContain('id="global-demo-user-id"');
     expect(markup).not.toContain('Seller demo user');

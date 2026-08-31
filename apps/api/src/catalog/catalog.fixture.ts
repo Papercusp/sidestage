@@ -1,7 +1,7 @@
 import type { CatalogVariant } from './catalog.types';
 
 /**
- * The single clean-clone demo fixture — the same eight variants db/seed/demo.sql
+ * The single clean-clone demo fixture — the same ten variants db/seed/demo.sql
  * seeds into Postgres, so memory mode and a seeded database show the same shop.
  * Every other demo product array in the repo is deleted in favor of this file
  * (sidestage-code-quality-2026-08-13 P-102).
@@ -149,5 +149,39 @@ export const DEMO_CATALOG_FIXTURE: readonly CatalogVariant[] = [
     availableQty: 2,
     imageUrl: '/demo-products/lift-desk-walnut.webp',
     description: 'The same dual-motor Lift desk with a dark walnut top — the low-stock colorway.',
+  },
+  {
+    id: 'demo-potato-golden-russet',
+    groupId: 'demo-potato-harvest',
+    title: "Avi's Potato Patch Harvest",
+    brand: "Avi's Potato Patch",
+    productType: 'PRODUCE',
+    sku: 'AVI-POTATO-RUSSET',
+    color: 'Golden Russet',
+    condition: 'NEW',
+    handlingDays: 2,
+    priceCents: 1299,
+    qty: 18,
+    reservedQty: 0,
+    availableQty: 18,
+    imageUrl: '/demo-products/potato-golden-russet.webp',
+    description: "Avi's golden russet potatoes, selected from a small-batch late-summer harvest.",
+  },
+  {
+    id: 'demo-potato-purple-majesty',
+    groupId: 'demo-potato-harvest',
+    title: "Avi's Potato Patch Harvest",
+    brand: "Avi's Potato Patch",
+    productType: 'PRODUCE',
+    sku: 'AVI-POTATO-PURPLE',
+    color: 'Purple Majesty',
+    condition: 'NEW',
+    handlingDays: 2,
+    priceCents: 1499,
+    qty: 11,
+    reservedQty: 0,
+    availableQty: 11,
+    imageUrl: '/demo-products/potato-purple-majesty.webp',
+    description: "Avi's Purple Majesty potatoes with a vivid skin and rich, earthy flavor.",
   },
 ];

@@ -9,7 +9,7 @@ import { productDescriptionText } from './product-description-text';
  * Everything product-shaped on this app flows through fetchCatalog() against
  * the API's /catalog read model (which serves the real Restart-imported
  * catalog, or the API's own seed fixture in memory mode). The fixture below is
- * the offline-fallback rendering of the same eight demo.sql products, used
+ * the offline-fallback rendering of the same ten demo.sql variants, used
  * only when the API is unreachable — every other demo product array is gone.
  */
 export interface CatalogVariant {
@@ -256,7 +256,7 @@ export function variantToBuyerProduct(variant: CatalogVariant): BuyerProduct {
   };
 }
 
-/** The eight demo.sql products, for explicit development rendering and tests. */
+/** The ten demo.sql variants, for explicit development rendering and tests. */
 export const OFFLINE_FIXTURE: readonly CatalogVariant[] = [
   { id: 'demo-espresso-matte-black', groupId: 'demo-espresso-machine', title: 'Barista Pro Espresso Machine', brand: 'BrewHaus', productType: 'KITCHEN_APPLIANCE', sku: 'BH-ESP-200-BLK', color: 'Matte Black', condition: 'NEW', handlingDays: 2, priceCents: 49999, qty: 12, reservedQty: 0, availableQty: 12, imageUrl: '/demo-products/barista-pro-matte-black.webp' },
   { id: 'demo-espresso-cream', groupId: 'demo-espresso-machine', title: 'Barista Pro Espresso Machine', brand: 'BrewHaus', productType: 'KITCHEN_APPLIANCE', sku: 'BH-ESP-200-CRM', color: 'Cream', condition: 'NEW', handlingDays: 2, priceCents: 49999, qty: 5, reservedQty: 0, availableQty: 5, imageUrl: '/demo-products/barista-pro-cream.webp' },
@@ -266,4 +266,6 @@ export const OFFLINE_FIXTURE: readonly CatalogVariant[] = [
   { id: 'demo-camera-silver', groupId: 'demo-creator-camera', title: 'Creator 4K Mirrorless Camera', brand: 'FrameForge', productType: 'CAMERA', sku: 'FF-C4K-SLV', color: 'Silver', condition: 'NEW', handlingDays: 3, priceCents: 89999, qty: 3, reservedQty: 0, availableQty: 3, imageUrl: '/demo-products/creator-4k-silver.webp' },
   { id: 'demo-desk-natural-oak', groupId: 'demo-standing-desk', title: 'Lift Electric Standing Desk', brand: 'Field Office', productType: 'OFFICE_FURNITURE', sku: 'FO-LIFT-OAK', color: 'Natural Oak', condition: 'NEW', handlingDays: 7, priceCents: 54999, qty: 10, reservedQty: 0, availableQty: 10, imageUrl: '/demo-products/lift-desk-natural-oak.webp' },
   { id: 'demo-desk-walnut', groupId: 'demo-standing-desk', title: 'Lift Electric Standing Desk', brand: 'Field Office', productType: 'OFFICE_FURNITURE', sku: 'FO-LIFT-WAL', color: 'Walnut', condition: 'NEW', handlingDays: 7, priceCents: 54999, qty: 2, reservedQty: 0, availableQty: 2, imageUrl: '/demo-products/lift-desk-walnut.webp' },
+  { id: 'demo-potato-golden-russet', groupId: 'demo-potato-harvest', title: "Avi's Potato Patch Harvest", brand: "Avi's Potato Patch", productType: 'PRODUCE', sku: 'AVI-POTATO-RUSSET', color: 'Golden Russet', condition: 'NEW', handlingDays: 2, priceCents: 1299, qty: 18, reservedQty: 0, availableQty: 18, imageUrl: '/demo-products/potato-golden-russet.webp' },
+  { id: 'demo-potato-purple-majesty', groupId: 'demo-potato-harvest', title: "Avi's Potato Patch Harvest", brand: "Avi's Potato Patch", productType: 'PRODUCE', sku: 'AVI-POTATO-PURPLE', color: 'Purple Majesty', condition: 'NEW', handlingDays: 2, priceCents: 1499, qty: 11, reservedQty: 0, availableQty: 11, imageUrl: '/demo-products/potato-purple-majesty.webp' },
 ];

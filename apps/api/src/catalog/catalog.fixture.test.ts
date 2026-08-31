@@ -152,6 +152,16 @@ describe('the demo catalog sells on a COLOUR axis', () => {
     expect(page.rows.map((variant) => variant.id)).toEqual(['demo-desk-walnut']);
     expect(page.rows[0].color).toBe('Walnut');
   });
+
+  it('finds the potato colorways by their buyer-facing product name', async () => {
+    const page = await new FixtureCatalogSource().search({ q: 'potato' });
+
+    expect(page.rows.map((variant) => variant.id)).toEqual([
+      'demo-potato-golden-russet',
+      'demo-potato-purple-majesty',
+    ]);
+    expect(page.rows.map((variant) => variant.color)).toEqual(['Golden Russet', 'Purple Majesty']);
+  });
 });
 
 describe('catalog source selection', () => {
@@ -198,7 +208,7 @@ describe('catalog source selection', () => {
 
 describe('DEMO_CATALOG_FIXTURE tracks db/seed/demo.sql', () => {
   /**
-   * The same eight products exist in three places — this fixture (memory
+   * The same ten variants exist in three places — this fixture (memory
    * mode), db/seed/demo.sql (a seeded database) and the web app's
    * OFFLINE_FIXTURE (API unreachable). The fixture's own docstring promises
    * memory mode and a seeded database show the SAME shop, and nothing enforced

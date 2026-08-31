@@ -16,6 +16,8 @@ describe('catalog sync fallback mapping', () => {
     ]);
     expect(filterOfflineCatalog({ productType: 'CAMERA', availability: 'in-stock' }))
       .toHaveLength(2);
+    expect(filterOfflineCatalog({ q: 'potato', availability: 'in-stock' }).map((row) => row.id))
+      .toEqual(['demo-potato-golden-russet', 'demo-potato-purple-majesty']);
   });
 
   it('keeps the pending-page row fallback identity stable across renders', () => {

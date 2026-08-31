@@ -160,7 +160,7 @@ export function App() {
                 <span className="wordmark-mark" aria-hidden="true">S</span>
                 <span className="wordmark-copy">
                   <strong>SideStage</strong>
-                  <small>Live commerce</small>
+                  <small>Live commerce · Avi's Potato Patch</small>
                 </span>
               </a>
               <div className="topbar-install-and-identity">
