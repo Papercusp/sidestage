@@ -452,7 +452,7 @@ export class PgCatalogSource implements CatalogSource {
   }
 }
 
-/** Clean-clone fallback: the same eight variants demo.sql seeds. */
+/** Clean-clone fallback: the same ten variants demo.sql seeds. */
 @Injectable()
 export class FixtureCatalogSource implements CatalogSource {
   private readonly fixture: CatalogVariant[];
