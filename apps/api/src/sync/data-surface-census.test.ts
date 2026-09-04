@@ -156,6 +156,37 @@ describe('Universal Zero data-surface census', () => {
     }
   });
 
+  it('keeps P-011 closed against unresolved process-local authority', () => {
+    const unresolvedQueries = SYNC_QUERY_SURFACES
+      .filter((surface) => surface.authority.includes('pending P-011 persistence'))
+      .map((surface) => surface.name);
+    const unresolvedLocals = PROCESS_LOCAL_SURFACES
+      .filter((surface) => surface.migrationOwner.split('/').includes('P-011'))
+      .filter((surface) => surface.authority === 'temporary authority')
+      .map((surface) => `${surface.source}#${surface.name}`);
+
+    expect(unresolvedQueries).toEqual([]);
+    expect(unresolvedLocals).toEqual([]);
+    expect(SYNC_QUERY_SURFACES.find((surface) => surface.name === 'judge.latest')).toMatchObject({
+      authority: 'Postgres-backed domain service',
+      backingTables: ['judge_run', 'judge_case_result'],
+    });
+    expect(SYNC_QUERY_SURFACES.find((surface) => surface.name === 'rehearsal.preflight')).toMatchObject({
+      authority: 'Postgres-backed domain service',
+      backingTables: ['event', 'event_config', 'seller_policy_revision', 'event_lineup_item'],
+    });
+    expect(PROCESS_LOCAL_SURFACES.find((surface) => surface.domain === 'actions-policy')).toMatchObject({
+      authority: 'resolver-less test/rehearsal fallback; never production authority',
+      zeroDisposition: 'runtime-only',
+      replacement: expect.stringContaining('ConfigEventPolicyResolver'),
+    });
+    expect(PROCESS_LOCAL_SURFACES.find((surface) => surface.domain === 'shipping-rates')).toMatchObject({
+      authority: 'bounded recomputable carrier-response cache; never checkout authority',
+      zeroDisposition: 'runtime-only',
+      replacement: expect.stringContaining('checkout_order.payload'),
+    });
+  });
+
   it('fails closed when any discovered surface is not in the census', () => {
     expect(findUnclassified(['events.guide', 'new.private.query'], SYNC_QUERY_SURFACES.map((surface) => surface.name)))
       .toEqual(['new.private.query']);

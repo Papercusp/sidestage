@@ -117,12 +117,16 @@ const query = (
   backingTables: readonly string[],
   identityScope: string,
   migrationOwner: string,
+  authority?: string,
 ): NamedSurface => ({
   name,
   source,
   domain,
   audiences,
-  authority: backingTables.length > 0 ? 'Postgres-backed domain service' : 'domain service pending P-011 persistence',
+  authority: authority
+    ?? (backingTables.length > 0
+      ? 'Postgres-backed domain service'
+      : 'domain service pending P-011 persistence'),
   zeroDisposition: 'replicate',
   identityScope,
   fallback: 'SSE invalidation then bounded REST polling',
@@ -133,7 +137,16 @@ const query = (
 
 /** Every SyncQueryRegistry registration in apps/api. */
 export const SYNC_QUERY_SURFACES: readonly NamedSurface[] = [
-  query('build.history', 'build-history/build-history.module.ts', 'build-history', ['operational'], [], 'operator-visible', 'P-020'),
+  query(
+    'build.history',
+    'build-history/build-history.module.ts',
+    'build-history',
+    ['operational'],
+    [],
+    'operator-visible',
+    'P-020',
+    'committed Papercusp build-history snapshot; deterministic across API restarts',
+  ),
   query('cart.byId', 'cart/cart.module.ts', 'cart', ['buyer-owned'], ['cart'], 'selected buyer/cart owner', 'P-018'),
   query('catalog.page', 'catalog/catalog.module.ts', 'catalog', ['public'], ['product_catalog', 'storefront_product'], 'public projection', 'P-017'),
   query('catalog.types', 'catalog/catalog.module.ts', 'catalog', ['public'], ['product_catalog'], 'public projection', 'P-017'),
@@ -158,9 +171,17 @@ export const SYNC_QUERY_SURFACES: readonly NamedSurface[] = [
   // made the query look trivially Zero-able; it is now REST-only.
   query('events.guide', 'events/event.module.ts', 'event-directory', ['public'], ['event', 'chat_presence'], 'published public projection decorated with live presence + computed playbackUrl', 'P-017'),
   query('events.mine', 'events/event.module.ts', 'event-directory', ['seller-owned'], ['event'], 'selected seller; rows carry the computed withheldFromGuide policy verdict', 'P-019'),
-  query('judge.latest', 'judge/judge.module.ts', 'judge', ['operational'], [], 'operator-visible', 'P-020'),
+  query('judge.latest', 'judge/judge.module.ts', 'judge', ['operational'], ['judge_run', 'judge_case_result'], 'operator-visible', 'P-020'),
   query('orders.byBuyer', 'checkout/checkout.module.ts', 'orders', ['buyer-owned'], ['checkout_order'], 'selected buyer', 'P-018'),
-  query('rehearsal.preflight', 'rehearsals/rehearsal.module.ts', 'rehearsal', ['seller-owned', 'operational'], [], 'event seller owner', 'P-020'),
+  query(
+    'rehearsal.preflight',
+    'rehearsals/rehearsal.module.ts',
+    'rehearsal',
+    ['seller-owned', 'operational'],
+    ['event', 'event_config', 'seller_policy_revision', 'event_lineup_item'],
+    'event seller owner',
+    'P-020',
+  ),
 ];
 
 const mutator = (
@@ -252,7 +273,16 @@ export const PROCESS_LOCAL_SURFACES: readonly SourceSurface[] = [
   local('apps/api/src/actions/action-audit.store.ts', 'audits', 'action-audit', ['seller-owned', 'operational'], 'development fallback authority', 'replicate', 'action_audit_entry', 'P-011/P-019'),
   local('apps/api/src/catalog/catalog.sources.ts', 'owners', 'catalog-ownership', ['seller-owned'], 'development fallback authority', 'replicate', 'storefront_product.seller_id', 'P-011/P-019'),
   local('apps/api/src/actions/action-audit.store.ts', 'requestIds', 'action-audit-request-index', ['seller-owned', 'operational'], 'derived idempotency index', 'runtime-only', 'action_audit_entry event/client-request unique index', 'P-011/P-019'),
-  local('apps/api/src/actions/action.service.ts', 'policies', 'actions-policy', ['seller-owned'], 'temporary authority', 'replicate', 'seller_policy_revision', 'P-011/P-019'),
+  local(
+    'apps/api/src/actions/action.service.ts',
+    'policies',
+    'actions-policy',
+    ['seller-owned'],
+    'resolver-less test/rehearsal fallback; never production authority',
+    'runtime-only',
+    'ConfigEventPolicyResolver reads event_config and seller_policy_revision at every enforcement',
+    'P-011/P-019',
+  ),
   local('apps/api/src/actions/targeted-offer.store.ts', 'offers', 'offers', ['buyer-owned', 'seller-owned'], 'development fallback authority', 'replicate', 'targeted_offer', 'P-011/P-018/P-019'),
   local('apps/api/src/actions/targeted-offer.store.ts', 'requestIds', 'offers-request-index', ['buyer-owned', 'seller-owned', 'operational'], 'derived idempotency index', 'runtime-only', 'targeted_offer event/client-request unique index', 'P-011/P-018/P-019'),
   local('apps/api/src/actions/action.service.ts', 'idempotentExecutions', 'action-idempotency', ['seller-owned', 'operational'], 'in-flight dedupe', 'runtime-only', 'policy_idempotency plus bounded in-flight promise cache', 'P-011/P-019'),
@@ -288,7 +318,16 @@ export const PROCESS_LOCAL_SURFACES: readonly SourceSurface[] = [
   local('apps/api/src/scout/scout-session.store.ts', 'sessions', 'scout-session', ['buyer-owned'], 'memory backend authority', 'replicate', 'scout_session and scout_memory', 'P-011/P-018'),
   local('apps/api/src/scout/scout-turn-bus.service.ts', 'owners', 'scout-turn-owner', ['buyer-owned', 'streaming'], 'ephemeral resumable-turn owner boundary', 'runtime-only', 'retain the per-turn buyer principal binding beside the replay channel', 'P-018/P-020'),
   local('apps/api/src/scout/scout-turn-bus.service.ts', 'ownerGcTimers', 'scout-turn-owner-gc', ['operational'], 'bounded cleanup scheduler', 'runtime-only', 'bounded timeout lifecycle; no durable state', 'P-020'),
-  local('apps/api/src/shipping/shipping.service.ts', 'rateCache', 'shipping-rates', ['buyer-owned', 'operational'], 'external-result cache', 'command-with-synced-result', 'persist quote inputs/status/final result; retain bounded cache', 'P-011/P-018/P-020'),
+  local(
+    'apps/api/src/shipping/shipping.service.ts',
+    'rateCache',
+    'shipping-rates',
+    ['buyer-owned', 'operational'],
+    'bounded recomputable carrier-response cache; never checkout authority',
+    'runtime-only',
+    'checkout_order.payload persists the selected rate, address, and shipping cents; the cache is rebuildable',
+    'P-011/P-018/P-020',
+  ),
   local('apps/api/src/sync/sync-query.registry.ts', 'handlers', 'sync-registry', ['operational'], 'runtime registry', 'runtime-only', 'shared typed Zero query registry', 'P-012'),
   // ── Mutable non-Map instance fields (WS cutover P-001c) ───────────────────
   // These were invisible to the census until its completeness guard stopped
