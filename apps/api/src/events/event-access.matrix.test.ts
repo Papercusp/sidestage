@@ -15,9 +15,9 @@ import { RunOfShowController } from '../run-of-show/run-of-show.controller';
 import { StatsController } from '../stats/stats.module';
 import { SyncController } from '../sync/sync.controller';
 import { TranscriptionController } from '../transcription/transcription.controller';
+import { EVENT_ACCESS } from './event-access.registry';
 import { EventController } from './event.controller';
 
-type AccessPolicy = 'public-viewer' | 'seller-owned' | 'principal-partitioned' | 'capability-scoped' | 'operational';
 type ControllerType = { name: string; prototype: object };
 
 const REPO_ROOT = resolve(__dirname, '../../../..');
@@ -38,97 +38,6 @@ const EVENT_CONTROLLERS: readonly { source: string; controller: ControllerType }
   { source: 'apps/api/src/sync/sync.controller.ts', controller: SyncController },
   { source: 'apps/api/src/transcription/transcription.controller.ts', controller: TranscriptionController },
 ];
-
-/**
- * Reviewed access policy for every event-facing HTTP endpoint and named sync
- * query. A route/query addition must be classified here before its discovery
- * test can pass, making private-by-accident and public-by-accident drift loud.
- */
-const EVENT_ACCESS: {
-  endpoints: Readonly<Record<string, AccessPolicy>>;
-  syncQueries: Readonly<Record<string, AccessPolicy>>;
-} = {
-  endpoints: {
-    'POST /actions/events/:eventId/register': 'seller-owned',
-    'GET /actions/events/:eventId/items': 'seller-owned',
-    'GET /actions/events/:eventId/audit': 'seller-owned',
-    'POST /actions/events/:eventId/execute': 'seller-owned',
-    'POST /actions/audit/:auditId/rollback': 'seller-owned',
-    'POST /auctions/access/guest': 'public-viewer',
-    'POST /auctions/start': 'seller-owned',
-    'GET /auctions/events/:eventId/active': 'public-viewer',
-    'GET /auctions/events/:eventId/stream': 'public-viewer',
-    'GET /auctions/inventory/:productId': 'public-viewer',
-    'GET /auctions/:id': 'public-viewer',
-    'POST /auctions/:id/bids': 'public-viewer',
-    'POST /auctions/:id/cancel': 'seller-owned',
-    'POST /auctions/:id/close': 'seller-owned',
-    'GET /cart/:id': 'principal-partitioned',
-    'POST /cart/items': 'principal-partitioned',
-    'PATCH /cart/:cartId/items/:productId': 'principal-partitioned',
-    'DELETE /cart/:cartId/items/:productId': 'principal-partitioned',
-    'GET /chat/events/:eventId/messages': 'public-viewer',
-    'POST /chat/events/:eventId/messages': 'public-viewer',
-    'POST /chat/events/:eventId/transcript': 'seller-owned',
-    'POST /chat/events/:eventId/transcript/product-focus': 'seller-owned',
-    'POST /chat/events/:eventId/presence': 'public-viewer',
-    'DELETE /chat/events/:eventId/presence/:role': 'principal-partitioned',
-    'DELETE /chat/events/:eventId/messages/:messageId': 'seller-owned',
-    'GET /chat/metrics': 'seller-owned',
-    'GET /chat/events/:eventId/presence': 'public-viewer',
-    'GET /events/:eventId/config': 'seller-owned',
-    'PUT /events/:eventId/config': 'seller-owned',
-    'GET /copilot/events/:eventId/proposals': 'seller-owned',
-    'POST /copilot/events/:eventId/turns': 'seller-owned',
-    'POST /copilot/proposals/:proposalId/approve': 'seller-owned',
-    'POST /copilot/proposals/:proposalId/skip': 'seller-owned',
-    'POST /copilot/proposals/:proposalId/confirm-action': 'seller-owned',
-    'GET /events': 'public-viewer',
-    'GET /events/mine': 'seller-owned',
-    'DELETE /events/:eventId': 'seller-owned',
-    // Schedule / go live / end (D-002). Seller-owned for the same reason the
-    // unpublish above is: it moves an event's lifecycle, and the handler proves
-    // ownership via findOwned before writing anything.
-    'PATCH /events/:eventId/lifecycle': 'seller-owned',
-    'GET /v1/seller/policies/effective': 'seller-owned',
-    'GET /v1/seller/policies/:id': 'seller-owned',
-    'POST /v1/seller/policies': 'seller-owned',
-    'PATCH /v1/seller/policies/:id': 'seller-owned',
-    'POST /v1/seller/policies/:id/validate': 'seller-owned',
-    'POST /v1/seller/policies/:id/publish': 'seller-owned',
-    'GET /v1/seller/policies/:id/audit': 'seller-owned',
-    'GET /rehearsals/preflight/:eventId': 'seller-owned',
-    'GET /rehearsals/client-clock': 'operational',
-    'POST /rehearsals/client-realtime/:eventId': 'seller-owned',
-    'POST /rehearsals/all': 'operational',
-    'POST /rehearsals/:kind': 'operational',
-    'GET /events/:eventId/run-of-show': 'seller-owned',
-    'PUT /events/:eventId/run-of-show': 'seller-owned',
-    'GET /events/:eventId/stats': 'public-viewer',
-    'GET /events/:eventId/products/:productId/pricing-history': 'public-viewer',
-    'POST /sync/rest-query-batch': 'principal-partitioned',
-    'GET /sync/sse': 'principal-partitioned',
-    'POST /transcription/deepgram-token': 'seller-owned',
-  },
-  syncQueries: {
-    'event.actions.items': 'seller-owned',
-    'event.lineup.items': 'public-viewer',
-    'event.auction.active': 'public-viewer',
-    'event.chat.messages': 'public-viewer',
-    'event.chat.presence': 'public-viewer',
-    'event.chat.stats': 'public-viewer',
-    'event.chat.transcript': 'public-viewer',
-    'event.config': 'seller-owned',
-    'event.copilot.proposals': 'seller-owned',
-    'event.pricingHistory': 'public-viewer',
-    'event.replay.chapters': 'public-viewer',
-    'event.runOfShow': 'seller-owned',
-    'event.stats': 'public-viewer',
-    'events.guide': 'public-viewer',
-    'events.mine': 'seller-owned',
-    'rehearsal.preflight': 'seller-owned',
-  },
-};
 
 function sourceFiles(root: string): string[] {
   const output: string[] = [];
