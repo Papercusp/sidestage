@@ -8,9 +8,11 @@ import {
   activeAuctionUrl,
   auctionBidErrorMessage,
   auctionStreamUrl,
+  getAuctionGuestSession,
   parseAuctionEvent,
   parseBidDollars,
   placeAuctionBid,
+  resetAuctionGuestSession,
   secondsRemaining,
   suggestedBidCents,
   type BuyerAuction,
@@ -105,6 +107,61 @@ describe('buyer auction model', () => {
     expect(fetchMock.mock.calls[3]?.[1]).toEqual(expect.objectContaining({
       headers: expect.objectContaining({ 'idempotency-key': 'bid:req-stable' }),
     }));
+  });
+
+  /*
+   * P-007 — a demo-identity change is an atomic browser boundary.
+   *
+   * The auction credential is the one piece of buyer state that NO remount can
+   * clear: a module-level promise plus an HttpOnly cookie. The test that would
+   * lull you is "the cache was nulled" — that passes while the leak is fully
+   * intact, because the next mint restores the SAME `guest_*` principal from
+   * the cookie (auction-access.service `issueGuest` returns `existing` first).
+   * So what is asserted here is the ROTATING REQUEST, which is the only part
+   * the server can act on.
+   */
+  it('rotates the guest credential at a demo-identity boundary instead of restoring the previous buyer’s', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ bidderId: 'guest_second', expiresAt: '2099-01-01T00:00:00.000Z' }),
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    // First demo buyer establishes a session normally.
+    await getAuctionGuestSession('https://boundary.sidestage.example/');
+    expect(fetchMock.mock.calls[0]?.[0]).toBe('https://boundary.sidestage.example/auctions/access/guest');
+
+    // The identity changes. The cached promise is dropped AND the next mint
+    // must ask the server for a new principal rather than the cookie's.
+    resetAuctionGuestSession();
+    await getAuctionGuestSession('https://boundary.sidestage.example/');
+
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(fetchMock.mock.calls[1]?.[0]).toBe('https://boundary.sidestage.example/auctions/access/guest?rotate=1');
+
+    // Rotation is consumed, not sticky: the second buyer's own session then
+    // persists across ordinary re-reads instead of re-minting on every bid.
+    await getAuctionGuestSession('https://boundary.sidestage.example/');
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it('keeps the rotation pending when the rotating mint fails, so a retry cannot silently restore the previous buyer', async () => {
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce({ ok: false, status: 503, text: async () => 'upstream down' })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ bidderId: 'guest_after_retry', expiresAt: '2099-01-01T00:00:00.000Z' }),
+      });
+    vi.stubGlobal('fetch', fetchMock);
+
+    resetAuctionGuestSession();
+    await expect(getAuctionGuestSession('https://flaky.sidestage.example/')).rejects.toBeInstanceOf(AuctionRequestError);
+
+    // The retry is STILL a rotating request. Consuming the flag on the request
+    // rather than on success would have made this one non-rotating, which reads
+    // as recovery and is in fact the leak reopening.
+    await getAuctionGuestSession('https://flaky.sidestage.example/');
+    expect(fetchMock.mock.calls[1]?.[0]).toBe('https://flaky.sidestage.example/auctions/access/guest?rotate=1');
   });
 
   it('maps conflict, rate-limit, and session failures to actionable buyer feedback', () => {

@@ -1,10 +1,11 @@
-import { lazy, Suspense, useCallback, useMemo, useState } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useMemo, useState } from 'react';
 import { useRestSyncQuery } from '@papercusp/sync';
 import { TAB_GROUPS, tabHref, type TabId, useUrlTab } from './app-routing';
 import { AppDownloadButtons } from './components/AppDownloadButtons';
 import { DemoIdentityControl } from './BuyerIdentityControl';
 import { BuyerTab } from './BuyerTab';
 import { BuyerCheckoutProvider, useBuyerCheckout } from './BuyerCheckout';
+import { resetAuctionGuestSession } from './auction';
 import { useDemoIdentity } from './buyer-identity';
 import {
   DEFAULT_EVENT_TITLE,
@@ -100,6 +101,41 @@ export function App() {
   const [tab, navigate] = useUrlTab();
   const { userId, impersonate } = useDemoIdentity();
   const [selectedProductId, setSelectedProductId] = useState<string | null>(null);
+
+  /*
+   * THE DEMO-IDENTITY BOUNDARY (P-007).
+   *
+   * A demo-identity change is an ATOMIC browser boundary: nothing the previous
+   * user typed, selected, fetched or was streaming may survive into the next
+   * one. The mechanism is the remount key on the tab content below rather than
+   * a reset effect per surface, and that is a correctness choice, not a brevity
+   * one — a remount drops EVERY descendant's local state at once (Studio pins,
+   * event/room/stream/run log, Event Manager's picker/search/message/start-time
+   * and run-of-show drafts), aborts their in-flight queries, and runs the media
+   * session's cleanup effect, so a surface added later is covered by
+   * construction instead of by remembering to extend a reset list.
+   *
+   * What the key deliberately does NOT cover is the public shell ABOVE it —
+   * the Channel Guide's directory and the room the visitor is watching are
+   * public browsing state the item says to PRESERVE, and they are preserved
+   * for free by living outside the key.
+   *
+   * Two things a remount cannot reach, so they are handled here:
+   *
+   *   `selectedProductId` is lifted to this shell (it outlives the Studio's own
+   *   remount by design), so the new seller would otherwise inherit the
+   *   previous seller's staged product.
+   *
+   *   The auction guest session is a MODULE-level cache plus an HttpOnly
+   *   cookie; no unmount can touch either. `resetAuctionGuestSession` drops the
+   *   cache and makes the next mint a rotating one, which is what actually
+   *   re-keys the bidder — see the note on that function for why clearing the
+   *   cache alone would look fixed and not be.
+   */
+  useEffect(() => {
+    setSelectedProductId(null);
+    resetAuctionGuestSession();
+  }, [userId]);
 
   /* P-118 / D-019: the active event is app state, not a hard-pin. It seeds
      from ?event= so existing share links keep resolving, and the Channel Guide
@@ -243,7 +279,14 @@ export function App() {
         </header>
 
         <main className={layout.contentClassName} id="main-content" tabIndex={-1}>
-          <Suspense fallback={<RouteLoading />}>
+          {/*
+            P-007's identity boundary. Everything inside this fragment is
+            per-user, so it remounts as a unit when the demo identity changes;
+            the guide rail, the watched room and the topbar above it are public
+            and stay put. See the boundary note in `App` for why this is a key
+            rather than a reset pass over each surface.
+          */}
+          <Suspense key={userId} fallback={<RouteLoading />}>
             {tab === 'buyer' ? (
               <BuyerTab
                 eventId={activeEventId}

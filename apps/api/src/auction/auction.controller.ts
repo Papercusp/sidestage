@@ -1,4 +1,4 @@
-import { Inject, Body, Controller, Get, Headers, Ip, Param, Post, Res, Sse, type MessageEvent } from '@nestjs/common';
+import { Inject, Body, Controller, Get, Headers, Ip, Param, Post, Query, Res, Sse, type MessageEvent } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
 import { from, interval, merge, type Observable } from 'rxjs';
 import { map } from 'rxjs/operators';
@@ -26,9 +26,18 @@ export class AuctionController {
     @Headers() headers: HeadersMap,
     @Ip() ip: string,
     @Res({ passthrough: true }) response: PassthroughResponse,
+    // P-007: `?rotate=1` asks for a FRESH anonymous principal instead of
+    // restoring the cookie's. The demo identity boundary needs it because the
+    // guest cookie is HttpOnly and the page cannot drop it, so without this a
+    // demo user who switches identity keeps bidding as the previous buyer.
+    // Still rate-limited on the same bucket, and still server-authored — the
+    // caller can ask for a new id, never for a particular one.
+    @Query('rotate') rotate?: string,
   ) {
     this.access.consumeRateLimit('guest-session', ip || 'unknown', 30, 60 * 60_000);
-    const issued = this.access.issueGuest(auctionHeader(headers, 'cookie'));
+    const issued = this.access.issueGuest(auctionHeader(headers, 'cookie'), {
+      rotate: rotate === '1' || rotate === 'true',
+    });
     if (issued.setCookie) response.setHeader('Set-Cookie', issued.setCookie);
     return issued.principal;
   }

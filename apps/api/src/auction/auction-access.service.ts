@@ -98,8 +98,28 @@ export class AuctionAccessService {
     return { sellerId };
   }
 
-  issueGuest(cookieHeader: string | undefined): { principal: AuctionGuestPrincipal; setCookie?: string } {
-    const existing = this.readGuest(cookieHeader);
+  /**
+   * Mint or restore the anonymous bidder principal for this browser.
+   *
+   * `rotate` exists for P-007's identity boundary. The guest cookie is HttpOnly
+   * by design, so the page CANNOT drop it — and without rotation a demo user
+   * who switches identity mid-session keeps bidding as the previous demo
+   * buyer's `guest_*` principal, which is what decides "You won" and which
+   * buyer's orders get invalidated. Clearing the client's cached promise alone
+   * would not have fixed that; the cookie is the credential.
+   *
+   * This does NOT let the page choose an identity, which is the property the
+   * signed cookie exists to protect: a rotating caller can only ask for a NEW
+   * server-authored anonymous principal, never for a named one, and the id is
+   * still minted here. It is also not an escalation — any client may already
+   * drop its own non-HttpOnly state or open a fresh profile to the same effect,
+   * and the per-IP `guest-session` rate limit bounds the churn either way.
+   */
+  issueGuest(
+    cookieHeader: string | undefined,
+    opts: { rotate?: boolean } = {},
+  ): { principal: AuctionGuestPrincipal; setCookie?: string } {
+    const existing = opts.rotate ? null : this.readGuest(cookieHeader);
     if (existing) return { principal: existing };
 
     const issuedAt = Math.floor(this.now() / 1_000);

@@ -65,6 +65,34 @@ describe('AuctionAccessService', () => {
     expect(statusOf(() => access.requireGuest(cookie))).toBe(401);
   });
 
+  it('rotates to a NEW guest principal on request, which is what re-keys a demo-identity switch', () => {
+    // P-007. The guest cookie is HttpOnly, so the page cannot drop it: without
+    // this branch a demo user who switches identity keeps the previous demo
+    // buyer's `guest_*` id, and that id is what decides "You won" and which
+    // buyer's orders are invalidated. The client-side cache clear alone is
+    // provably insufficient — the assertion on line 2 below is exactly the
+    // behaviour that makes it insufficient.
+    const access = accessAt(() => Date.parse('2026-08-14T20:00:00.000Z'));
+    const first = access.issueGuest(undefined);
+    const cookie = first.setCookie?.split(';', 1)[0];
+
+    // Without rotation the SAME principal comes back and no cookie is reissued.
+    expect(access.issueGuest(cookie)).toEqual({ principal: first.principal });
+
+    const rotated = access.issueGuest(cookie, { rotate: true });
+    expect(rotated.principal.bidderId).toMatch(/^guest_[0-9a-f-]{36}$/);
+    expect(rotated.principal.bidderId).not.toBe(first.principal.bidderId);
+    // A rotation must REPLACE the credential, not merely return a different id:
+    // with no Set-Cookie the browser would keep presenting the old one.
+    expect(rotated.setCookie).toContain('HttpOnly');
+
+    const rotatedCookie = rotated.setCookie?.split(';', 1)[0];
+    expect(access.requireGuest(rotatedCookie)).toEqual(rotated.principal);
+    // The page still cannot NAME an identity — rotation only asks for a fresh
+    // server-authored one, so the signed-cookie authority is unchanged.
+    expect(rotated.principal.bidderId).not.toBe('guest_forged');
+  });
+
   it('bounds idempotency keys, payloads, and per-bucket write rates', () => {
     const access = accessAt(() => 1_000);
     expect(access.requireIdempotencyKey('bid:req-1234')).toBe('bid:req-1234');

@@ -62,8 +62,9 @@ export function auctionBidUrl(auctionId: string, apiBaseUrl?: string): string {
   return `${resolveAuctionApiOrigin(apiBaseUrl)}/auctions/${encodeURIComponent(auctionId)}/bids`;
 }
 
-export function auctionGuestAccessUrl(apiBaseUrl?: string): string {
-  return `${resolveAuctionApiOrigin(apiBaseUrl)}/auctions/access/guest`;
+export function auctionGuestAccessUrl(apiBaseUrl?: string, rotate = false): string {
+  const url = `${resolveAuctionApiOrigin(apiBaseUrl)}/auctions/access/guest`;
+  return rotate ? `${url}?rotate=1` : url;
 }
 
 export function parseBidDollars(value: string): number | null {
@@ -141,6 +142,35 @@ function clearGuestSession(apiBaseUrl?: string): void {
 }
 
 /**
+ * Set once the NEXT guest session must be a fresh principal rather than the
+ * cookie's. Module scope on purpose: it has to outlive every component, which
+ * is the whole reason the leak exists.
+ */
+let rotateNextGuestSession = false;
+
+/**
+ * Drop this browser's auction credential at a demo-identity boundary (P-007).
+ *
+ * Two halves, and BOTH are needed — this is the part that is easy to get wrong.
+ * `guestSessionCache` is a module-level promise that no component remount can
+ * clear, so it survives an identity change; but nulling it alone changes
+ * nothing, because the credential is not the promise, it is the HttpOnly
+ * `sidestage_auction_guest` cookie the API signed, and `issueGuest` RESTORES
+ * that cookie's principal on the next call (auction-access.service.ts). A
+ * client-only clear would therefore re-fetch the SAME `guest_*` bidder and read
+ * as fixed while the second demo buyer still bids, wins and receives orders as
+ * the first one. The rotate flag is what actually re-keys it, server-side.
+ *
+ * Deliberately NOT called from the 401 retry inside `placeAuctionBid`: there
+ * the cookie is expired or unreadable, so `issueGuest` mints a fresh principal
+ * anyway, and rotating would spend a rate-limit slot to reach the same place.
+ */
+export function resetAuctionGuestSession(): void {
+  guestSessionCache = null;
+  rotateNextGuestSession = true;
+}
+
+/**
  * Establishes anonymous continuity without accepting identity from the page.
  * The API authors a signed HttpOnly cookie; JavaScript receives only the
  * public bidder id needed to render "You won" correctly.
@@ -148,9 +178,17 @@ function clearGuestSession(apiBaseUrl?: string): void {
 export function getAuctionGuestSession(apiBaseUrl?: string): Promise<AuctionGuestSession> {
   const origin = resolveAuctionApiOrigin(apiBaseUrl);
   if (guestSessionCache?.origin !== origin) {
-    const promise = requestJson<AuctionGuestSession>(auctionGuestAccessUrl(apiBaseUrl), {
+    // Consumed here rather than in `resetAuctionGuestSession` so a failed mint
+    // does not silently drop the rotation: the `catch` below clears the cache,
+    // and the retry must still be a ROTATING request or it would restore the
+    // previous demo user's principal from the cookie after all.
+    const rotate = rotateNextGuestSession;
+    const promise = requestJson<AuctionGuestSession>(auctionGuestAccessUrl(apiBaseUrl, rotate), {
       method: 'POST',
       credentials: 'include',
+    }).then((session) => {
+      rotateNextGuestSession = false;
+      return session;
     }).catch((error) => {
       clearGuestSession(apiBaseUrl);
       throw error;
