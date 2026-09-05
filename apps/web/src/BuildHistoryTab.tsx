@@ -15,6 +15,8 @@ export {
   historyDocumentCloseHref,
   historyDocumentHref,
   historyHref,
+  historyWorkItemCloseHref,
+  historyWorkItemHref,
   planCommits,
   summarizeBuildHistory,
   summarizeBuildItemEvidence,
@@ -48,6 +50,13 @@ function readHistoryDocument(): string | null {
   return new URL(window.location.href).searchParams.get('document')?.trim() || null;
 }
 
+/** Deep links to one work-item record (`?work-item=`) must open on FIRST load, not
+ *  only after a click — otherwise a shared permalink lands on the list (WI-38718). */
+function readHistoryWorkItem(): string | null {
+  if (typeof window === 'undefined') return null;
+  return new URL(window.location.href).searchParams.get('work-item')?.trim() || null;
+}
+
 /** SideStage owns transport, page chrome, actions, and CSS—not History behavior. */
 export function BuildHistoryTab() {
   const query = useRestSyncQuery<BuildHistoryPlan>({
@@ -59,6 +68,7 @@ export function BuildHistoryTab() {
   const plans = query.data ?? [];
   const initialTarget = useMemo(readHistoryTarget, []);
   const initialDocument = useMemo(readHistoryDocument, []);
+  const initialWorkItem = useMemo(readHistoryWorkItem, []);
   const now = useMemo(() => new Date(), [query.data]);
 
   return (
@@ -82,7 +92,13 @@ export function BuildHistoryTab() {
       ) : query.loading ? (
         <p className="build-history-loading" role="status">Gathering completed work…</p>
       ) : (
-        <BuildHistoryList plans={plans} initialTarget={initialTarget} initialDocument={initialDocument} now={now} />
+        <BuildHistoryList
+          plans={plans}
+          initialTarget={initialTarget}
+          initialDocument={initialDocument}
+          initialWorkItem={initialWorkItem}
+          now={now}
+        />
       )}
     </section>
   );

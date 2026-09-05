@@ -67,6 +67,35 @@
   gap: .55rem;
 }
 
+/* WI-38718 — the per-entry "Read full work item" / "Read full plan" pair. */
+.build-item-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: .5rem;
+  margin-top: .55rem;
+}
+
+/* The work-item record viewer reuses .build-plan-dialog's chrome but not its
+   three-row grid: its body is one scrolling column, not a document pane. */
+.build-work-item-dialog {
+  width: min(94vw, 64rem);
+  height: min(88vh, 48rem);
+  grid-template-rows: auto minmax(0, 1fr);
+}
+
+.build-work-item-dialog-body {
+  display: grid;
+  align-content: start;
+  gap: 1.1rem;
+  overflow-y: auto;
+  padding: 1.1rem 1.2rem 1.4rem;
+}
+
+.build-work-item-dialog-evidence {
+  margin: 0;
+}
+
 .build-history-head-actions {
   flex: none;
   justify-content: flex-end;
