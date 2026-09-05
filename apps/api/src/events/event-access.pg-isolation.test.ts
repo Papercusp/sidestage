@@ -133,10 +133,27 @@ describe.runIf(ARMED)('two-seller isolation under the pg backend', () => {
       .send({ name: 'hijacked' });
     expect(hijack.status).toBe(404);
 
-    // The owner's row must be untouched by the attempt.
+    // The owner's CONFIG must be untouched by the attempt.
     const after = await principal(nest.request.get(`/events/${AVI_EVENT}/config`), AVI);
     expect(after.status).toBe(200);
     expect(JSON.stringify(after.body)).not.toContain('hijacked');
+
+    // ...and so must the owner's DIRECTORY ROW, which is a SEPARATE write.
+    //
+    // Asserting only the config view above leaves this cell green even when the
+    // event-table upsert guard is gone: PUT /config writes twice — the directory
+    // row via `publishFromConfig` (pg-event-store.publish, guarded by
+    // `WHERE event.seller_id = EXCLUDED.seller_id`) and the config payload via
+    // `persistOwned` (guarded by its own `owner.seller_id = $3`). Those guards are
+    // REDUNDANT — either one alone still yields the 404 — so the config-only
+    // assertion could not distinguish "both guards held" from "only the second
+    // held while the first rewrote the owner's title to 'hijacked'". The upsert
+    // sets title/seller_name/thumbnail without a transaction around the pair, so
+    // the corrupted-title state is reachable the moment that WHERE is weakened.
+    // Checking the seller's own directory listing pins the first guard directly.
+    const ownerRows = await principal(nest.request.get('/events/mine'), AVI);
+    expect(ownerRows.status).toBe(200);
+    expect(JSON.stringify(ownerRows.body)).not.toContain('hijacked');
   });
 
   it('GET /events/mine shows each seller only its own rows', async () => {

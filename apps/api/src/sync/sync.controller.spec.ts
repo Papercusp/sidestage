@@ -227,6 +227,51 @@ describe('SyncController', () => {
       vi.useRealTimers();
     }
   });
+
+  /**
+   * P-008 clause 2 (principal-aware invalidation), plan
+   * sidestage-demo-user-isolation-2026-08-14, Decision D-011.
+   *
+   * The cell above proves the principal filter for two BUYERS on a buyer-scoped
+   * query. This one proves it for two SELLERS on `events.mine` — the seller
+   * directory, which is the query this plan exists to isolate. It is not a
+   * restatement: seller writes fan out from a different call site
+   * (`event.controller.ts` and `event-config.controller.ts` both call
+   * `invalidate('events.mine', undefined, { principal })`), and a seller's
+   * invalidation reaching a foreign seller is a live-refresh cross-identity
+   * leak — the receiving Studio would re-fetch and repaint on a stranger's edit.
+   *
+   * Asserting the NEGATIVE directly is the point: Mira must receive her own
+   * event and not Avi's. Racing two `firstValueFrom` takes would only prove
+   * each got something, so Avi's invalidation is published FIRST and Mira's
+   * second — if the filter were absent, Mira's stream would resolve with Avi's
+   * payload and the assertion fails on identity, not on timing.
+   */
+  it('keeps one seller\'s events.mine invalidation off another seller\'s stream', async () => {
+    vi.useFakeTimers();
+    try {
+      const { controller, invalidations } = createSync();
+      const miraEvent = firstValueFrom(
+        controller.syncEvents(undefined, 'seller-mira').pipe(
+          filter((event) => event.type === 'invalidate'),
+          take(1),
+        ),
+      );
+
+      const aviOnly = invalidations.invalidate('events.mine', undefined, {
+        principal: 'seller-avi',
+      });
+      const miraOnly = invalidations.invalidate('events.mine', undefined, {
+        principal: 'seller-mira',
+      });
+
+      await expect(miraEvent).resolves.toMatchObject({ data: JSON.stringify(miraOnly) });
+      expect(JSON.stringify(miraOnly)).not.toContain('seller-avi');
+      expect(aviOnly.principal).toBe('seller-avi');
+    } finally {
+      vi.useRealTimers();
+    }
+  });
 });
 
 describe('SyncQueryRegistry', () => {
