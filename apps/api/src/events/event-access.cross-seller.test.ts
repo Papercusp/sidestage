@@ -26,7 +26,7 @@ import { AUCTION_INVENTORY } from '../auction/auction.service';
 import { CopilotProposalService } from '../copilot/copilot.service';
 import { baselinePolicyBody } from '../policies/policy-rules';
 import { DEMO_PRINCIPAL_HEADER } from '../sync/sync-request-context';
-import { endpointsWithPolicy, syncQueriesWithPolicy } from './event-access.registry';
+import { endpointsWithPolicy, sellerOwnedBranchRoutes, syncQueriesWithPolicy } from './event-access.registry';
 
 /** Seller A, addressed in its buyer spelling so the role projection is live. */
 const AVI = 'buyer-avi';
@@ -528,6 +528,105 @@ describe('two-seller access matrix — the create seam', () => {
     const after = await principal(nest.request.get(`/events/${AVI_EVENT}/config`), AVI);
     expect(after.body).toEqual(before.body);
   });
+});
+
+/* -------------------------------------------------------------------------
+ * Conditional seller-ownership branches.
+ *
+ * These routes are NOT `seller-owned` — a buyer travels them freely — but they
+ * ownership-check the caller the moment it presents a seller principal. The
+ * registry's one-label-per-route model could not express that, so the owned-cell
+ * population (derived from `endpointsWithPolicy('seller-owned')`) never asked
+ * for a cell here, and the ownership check on `POST /chat/events/:eventId/
+ * messages` could be DELETED with the entire matrix still green (P-008 item (d),
+ * probe D2). The check was right; the proof was missing.
+ *
+ * Each cell asserts all four halves of the branch, because only the pair proves
+ * it is a BRANCH: the seller path is closed against a foreign event AND
+ * indistinguishable from an absent one (D-003), it stays open on the seller's
+ * own event, and the public path on that same foreign event is untouched.
+ * ---------------------------------------------------------------------- */
+
+interface BranchCell {
+  route: string;
+  /** Travel the route AS A SELLER — the branch that must be ownership-checked. */
+  asSeller: (http: Http, principal: string, eventId: string) => Promise<{ status: number; body: unknown }>;
+  /** Travel the same route on its public/partitioned path — must stay open. */
+  asBuyer: (http: Http, principal: string, eventId: string) => Promise<{ status: number; body: unknown }>;
+}
+
+const BRANCH_CELLS: BranchCell[] = [
+  {
+    route: 'POST /chat/events/:eventId/messages',
+    asSeller: (http, p, id) =>
+      outcome(
+        http.post(`/chat/events/${id}/messages`)
+          .set(DEMO_PRINCIPAL_HEADER, p)
+          .send({ role: 'seller', text: 'Host line from the branch cell' }),
+      ),
+    asBuyer: (http, p, id) =>
+      outcome(
+        http.post(`/chat/events/${id}/messages`)
+          .set(DEMO_PRINCIPAL_HEADER, p)
+          .send({
+            role: 'buyer',
+            userId: 'buyer-onlooker',
+            displayName: 'Onlooker',
+            text: 'Buyer line from the branch cell',
+          }),
+      ),
+  },
+  {
+    route: 'POST /chat/events/:eventId/presence',
+    asSeller: (http, p, id) =>
+      outcome(
+        http.post(`/chat/events/${id}/presence`)
+          .set(DEMO_PRINCIPAL_HEADER, p)
+          .send({ role: 'seller' }),
+      ),
+    asBuyer: (http, p, id) =>
+      outcome(
+        http.post(`/chat/events/${id}/presence`)
+          .set(DEMO_PRINCIPAL_HEADER, p)
+          .send({ role: 'buyer' }),
+      ),
+  },
+  {
+    route: 'DELETE /chat/events/:eventId/presence/:role',
+    asSeller: (http, p, id) =>
+      outcome(http.delete(`/chat/events/${id}/presence/seller`).set(DEMO_PRINCIPAL_HEADER, p)),
+    asBuyer: (http, p, id) =>
+      outcome(http.delete(`/chat/events/${id}/presence/buyer`).set(DEMO_PRINCIPAL_HEADER, p)),
+  },
+];
+
+describe('two-seller access matrix — conditional seller-ownership branches', () => {
+  it('exercises every declared seller-ownership branch', () => {
+    expect(BRANCH_CELLS.map((cell) => cell.route).sort()).toEqual(sellerOwnedBranchRoutes());
+  });
+
+  for (const cell of BRANCH_CELLS) {
+    it(`${cell.route} refuses seller B on seller A's event`, async () => {
+      const foreign = await cell.asSeller(nest.request, MIRA, AVI_EVENT);
+      const absent = await cell.asSeller(nest.request, MIRA, ABSENT_EVENT);
+
+      expect(foreign.status).toBe(404);
+      expect(foreign).toEqual(absent);
+    });
+
+    it(`${cell.route} still admits seller B on its own event`, async () => {
+      const own = await cell.asSeller(nest.request, MIRA, MIRA_EVENT);
+      expect(own.status).toBeLessThan(400);
+    });
+
+    it(`${cell.route} leaves the public path open on the same foreign event`, async () => {
+      // The branch must gate the SELLER, not the route: if this ever starts
+      // failing alongside the cell above, the check was widened into a
+      // wholesale lock and buyers lost a public surface.
+      const buyer = await cell.asBuyer(nest.request, MIRA, AVI_EVENT);
+      expect(buyer.status).toBeLessThan(400);
+    });
+  }
 });
 
 /* -------------------------------------------------------------------------
