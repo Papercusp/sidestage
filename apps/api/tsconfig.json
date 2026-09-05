@@ -5,6 +5,15 @@
     "moduleResolution": "Node",
     "outDir": "dist",
     "rootDir": "src",
+    // Test files here import `@papercusp/test-config`, whose package entry resolves
+    // to libs/test-config/src/*.ts — so those sources join THIS program and are
+    // compiled under THESE options. They import with explicit `.ts` extensions, so
+    // without this flag the whole library reports TS5097 against a config that is
+    // otherwise fine. TypeScript only permits the flag when not emitting, which is
+    // exactly what this config is for: `typecheck` runs it with --noEmit.
+    // The emitting build uses tsconfig.build.json, which excludes tests (and hence
+    // libs/test-config) and therefore does not need — and cannot have — this flag.
+    "allowImportingTsExtensions": true,
     "experimentalDecorators": true,
     "emitDecoratorMetadata": true,
     "esModuleInterop": true,

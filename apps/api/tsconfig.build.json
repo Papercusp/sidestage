@@ -1,0 +1,24 @@
+{
+  // Emitting build config. `tsconfig.json` stays the TYPECHECK config and keeps
+  // including test files, so `npm run typecheck` still checks them.
+  //
+  // Why this file exists (P-008, plan sidestage-demo-user-isolation-2026-08-14):
+  // test files import `@papercusp/test-config`, which drags libs/test-config/src
+  // into whatever program includes them. Those sources import with explicit `.ts`
+  // extensions, legal only under the root config's `allowImportingTsExtensions` —
+  // and TypeScript permits that flag ONLY when it is not emitting. So the exact
+  // same tsconfig passed `tsc --noEmit` (typecheck) and failed `tsc` (build) with
+  // a wall of TS5097 pointing at libs/test-config, not at anything in apps/api.
+  //
+  // Excluding tests from the EMITTING program is the fix and is correct anyway:
+  // test files were never meant to ship in dist/. This mirrors the pattern already
+  // used by libs/zero, libs/scout-runtime, libs/system-test-{contract,runner}.
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    // Emitting, so the typecheck config's allowImportingTsExtensions must go
+    // (TS5096 otherwise). Safe here precisely because the exclude below keeps
+    // libs/test-config — the only source needing it — out of this program.
+    "allowImportingTsExtensions": false
+  },
+  "exclude": ["src/**/*.test.ts", "src/**/*.spec.ts", "src/**/*.test.tsx"]
+}

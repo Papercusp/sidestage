@@ -97,6 +97,17 @@ import { RunOfShowPanel } from './RunOfShowPanel';
  */
 import { StageClockProvider } from './stage-clock';
 
+/**
+ * The actorId (2nd arg) of the Nth `executeSellerAction` call.
+ *
+ * `vi.fn(async () => ({ ok: true }))` infers its parameter list from that
+ * zero-arg factory, so `mock.calls` is typed `[][]` and any index access is
+ * TS2493 — a build-only failure, since vitest never typechecks. Centralised
+ * here so the identity-switch assertions read as intent rather than as casts.
+ */
+const actorIdOfCall = (index: number): string | undefined =>
+  (mocks.executeSellerAction.mock.calls[index] as unknown as [string, string, unknown] | undefined)?.[1];
+
 describe('RunOfShowPanel integration', () => {
   beforeEach(() => {
     mocks.auctionInvalidate.mockClear();
@@ -196,7 +207,10 @@ describe('RunOfShowPanel integration', () => {
         button?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
       });
       expect(mocks.executeSellerAction).toHaveBeenCalledOnce();
-      expect(mocks.executeSellerAction.mock.calls[0]?.[1]).toBe('seller-mira');
+      // `vi.fn(async () => …)` infers a zero-arg tuple for `mock.calls`, so index
+      // access is a compile error (TS2493) even though the call really carries
+      // three args. Same cast idiom as the first cell in this file.
+      expect(actorIdOfCall(0)).toBe('seller-mira');
 
       // The demo user switches. Same component instance, new actor prop.
       await act(async () => {
@@ -219,9 +233,9 @@ describe('RunOfShowPanel integration', () => {
       });
 
       expect(mocks.executeSellerAction).toHaveBeenCalledTimes(2);
-      expect(mocks.executeSellerAction.mock.calls[1]?.[1]).toBe('seller-avi');
+      expect(actorIdOfCall(1)).toBe('seller-avi');
       // The decisive assertion: the second push must NOT carry the first seller.
-      expect(mocks.executeSellerAction.mock.calls[1]?.[1]).not.toBe('seller-mira');
+      expect(actorIdOfCall(1)).not.toBe('seller-mira');
     } finally {
       await act(async () => root.unmount());
       delete (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT;
