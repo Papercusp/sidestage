@@ -12,7 +12,11 @@ import {
   sellerDockDefaultLayout,
   type SellerPanelId,
 } from './seller-dock-layout';
-import { SELLER_DOCK_RESET_EVENT, createSellerDockStore } from './seller-dock-store';
+import {
+  SELLER_DOCK_RESET_EVENT,
+  SELLER_DOCK_STORAGE_PREFIX,
+  createSellerDockStore,
+} from './seller-dock-store';
 import { SellerDockBoard } from './SellerDockBoard';
 import { SellerDockToolbar } from './SellerDockToolbar';
 import { observeSellerDockAccessibility } from './seller-dock-accessibility';
@@ -128,6 +132,16 @@ export interface SellerDockProps {
   /** Reset event scoped to this board, so sibling boards keep their layout. */
   resetEventName?: string;
   /**
+   * Storage prefix the board's layout row and its board size share (P-007).
+   *
+   * Supplied by the caller as `sellerDockStoragePrefix(sellerId)` so two demo
+   * sellers cannot inherit or overwrite each other's saved geometry. It reaches
+   * BOTH the layout store and `SellerDockBoard`'s size read/write on purpose:
+   * the size is stored on the layout row, so splitting the two prefixes would
+   * make every resize a silent no-op against a row that does not exist.
+   */
+  keyPrefix?: string;
+  /**
    * Rendered when a persisted layout names a panel this build cannot render.
    *
    * Typed as the workbench's own `PanelComponent` rather than restating the
@@ -147,15 +161,19 @@ export function SellerDock({
   layoutSeed = sellerDockDefaultLayout,
   foregroundPanelId,
   resetEventName = SELLER_DOCK_RESET_EVENT,
+  keyPrefix = SELLER_DOCK_STORAGE_PREFIX,
   missingComponent,
   children,
 }: SellerDockProps) {
   // A fresh store per mount would re-seed and drop the user's saved layout, so
   // it is memoised for the life of the component.
   const layoutStore = useMemo(
-    () => store ?? createSellerDockStore({ seed: layoutSeed, foregroundPanelId }),
-    [foregroundPanelId, layoutSeed, store],
+    () => store ?? createSellerDockStore({ seed: layoutSeed, foregroundPanelId, keyPrefix }),
+    [foregroundPanelId, keyPrefix, layoutSeed, store],
   );
+  // Same object identity across renders so the board's size effects, which
+  // depend on it, do not re-run on every parent render.
+  const boardSizeOptions = useMemo(() => ({ keyPrefix }), [keyPrefix]);
   const shellRef = useRef<HTMLDivElement>(null);
 
   useEffect(
@@ -177,7 +195,11 @@ export function SellerDock({
           same reasoning as P-010's toolbar — a later lane adds a layer around
           this block rather than editing decisions that belong to an earlier one.
         */}
-        <SellerDockBoard layoutName={layoutName} resetEventName={resetEventName}>
+        <SellerDockBoard
+          layoutName={layoutName}
+          resetEventName={resetEventName}
+          boardSizeOptions={boardSizeOptions}
+        >
           <div className="seller-dock-host">
           {/*
             `registry` and `missingComponent` are supplied by the caller rather

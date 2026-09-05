@@ -18,6 +18,9 @@ import {
   migrateSellerEventManagerLayout,
   requestSellerDockLayoutReset,
   sellerDockStorageKey,
+  sellerDockStoragePrefix,
+  readSellerDockBoardSize,
+  writeSellerDockBoardSize,
 } from './seller-dock-store';
 
 /**
@@ -76,6 +79,84 @@ describe('sellerDockStorageKey', () => {
     expect(KEY).toBe(`${SELLER_DOCK_STORAGE_PREFIX}:${SELLER_DOCK_LAYOUT_NAME}`);
     expect(sellerDockStorageKey('buyer')).toBe(`${SELLER_DOCK_STORAGE_PREFIX}:buyer`);
     expect(sellerDockStorageKey()).not.toBe(sellerDockStorageKey('buyer'));
+  });
+});
+
+/*
+ * P-007 — a demo-identity change is an atomic browser boundary.
+ *
+ * The dock layout is the one Studio surface that deliberately OUTLIVES that
+ * boundary (it is persisted so it survives reloads), which is exactly why it
+ * has to carry the seller. These tests drive the real store against a real
+ * in-memory Storage for the same reason the suite above does: a shared row is
+ * invisible to typecheck and to any single-seller render, and only shows up as
+ * one demo seller silently inheriting — and then overwriting — another's board.
+ */
+describe('sellerDockStoragePrefix — P-007 seller isolation', () => {
+  it('gives two demo sellers separate rows for the same board', () => {
+    const avi = sellerDockStorageKey(SELLER_DOCK_LAYOUT_NAME, sellerDockStoragePrefix('seller-avi'));
+    const rae = sellerDockStorageKey(SELLER_DOCK_LAYOUT_NAME, sellerDockStoragePrefix('seller-rae'));
+
+    expect(avi).toBe(`${SELLER_DOCK_STORAGE_PREFIX}:seller-avi:${SELLER_DOCK_LAYOUT_NAME}`);
+    expect(avi).not.toBe(rae);
+  });
+
+  it('keeps each seller’s boards separate from each other as well', () => {
+    const prefix = sellerDockStoragePrefix('seller-avi');
+
+    expect(sellerDockStorageKey(SELLER_DOCK_LAYOUT_NAME, prefix))
+      .not.toBe(sellerDockStorageKey(SELLER_MANAGER_DOCK_LAYOUT_NAME, prefix));
+  });
+
+  it('falls back to the shared prefix when no seller is named, so SSR and tests keep the pre-P-007 row', () => {
+    expect(sellerDockStoragePrefix(null)).toBe(SELLER_DOCK_STORAGE_PREFIX);
+    expect(sellerDockStoragePrefix(undefined)).toBe(SELLER_DOCK_STORAGE_PREFIX);
+    expect(sellerDockStoragePrefix('   ')).toBe(SELLER_DOCK_STORAGE_PREFIX);
+  });
+
+  it('encodes the id so a seller containing ":" cannot collide with another seller/board pair', () => {
+    // Unencoded these two would BOTH be `sidestage.dock:a:b:seller`.
+    const nested = sellerDockStorageKey(SELLER_DOCK_LAYOUT_NAME, sellerDockStoragePrefix('a:b'));
+    const sibling = sellerDockStorageKey(`b:${SELLER_DOCK_LAYOUT_NAME}`, sellerDockStoragePrefix('a'));
+
+    expect(nested).not.toBe(sibling);
+    expect(nested).toBe(`${SELLER_DOCK_STORAGE_PREFIX}:a%3Ab:${SELLER_DOCK_LAYOUT_NAME}`);
+  });
+
+  it('does not let one seller read or overwrite another seller’s saved layout', async () => {
+    const aviStore = createSellerDockStore({ keyPrefix: sellerDockStoragePrefix('seller-avi') });
+    const moved = sellerDockDefaultLayout();
+    // A geometry change of exactly the kind dragging a sash produces.
+    (moved.root as { children: Array<{ size?: number }> }).children[0].size = 750;
+    await aviStore.save(SELLER_DOCK_LAYOUT_NAME, moved);
+
+    const raeStore = createSellerDockStore({ keyPrefix: sellerDockStoragePrefix('seller-rae') });
+    const raeRow = await raeStore.load(SELLER_DOCK_LAYOUT_NAME);
+
+    // Rae gets the SEED, not Avi's dragged board...
+    expect(raeRow.layoutJson).toEqual(sellerDockDefaultLayout());
+    // ...and Rae's own load did not overwrite Avi's row.
+    const aviReloaded = await createSellerDockStore({
+      keyPrefix: sellerDockStoragePrefix('seller-avi'),
+    }).load(SELLER_DOCK_LAYOUT_NAME);
+    expect((aviReloaded.layoutJson as LayoutDoc).root).toEqual(moved.root);
+  });
+
+  it('keeps the board SIZE on the same seller-scoped row as the layout', async () => {
+    // The size is a read-modify-write of the layout row, so a prefix that
+    // reached the store but not the size read would make every resize a silent
+    // no-op. This is the regression that split prefixes would produce.
+    const keyPrefix = sellerDockStoragePrefix('seller-avi');
+    await createSellerDockStore({ keyPrefix }).load(SELLER_DOCK_LAYOUT_NAME);
+
+    expect(writeSellerDockBoardSize({ width: 1024, height: 640 }, SELLER_DOCK_LAYOUT_NAME, { keyPrefix }))
+      .toBe(true);
+    expect(readSellerDockBoardSize(SELLER_DOCK_LAYOUT_NAME, { keyPrefix }))
+      .toEqual({ width: 1024, height: 640 });
+    // The other seller has no row at all, so their board is not resized to it.
+    expect(readSellerDockBoardSize(SELLER_DOCK_LAYOUT_NAME, {
+      keyPrefix: sellerDockStoragePrefix('seller-rae'),
+    })).toBeUndefined();
   });
 });
 

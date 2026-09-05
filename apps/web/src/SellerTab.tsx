@@ -33,6 +33,7 @@ import {
 import {
   SELLER_ACTIVE_DOCK_RESET_EVENT,
   SELLER_MANAGER_DOCK_RESET_EVENT,
+  sellerDockStoragePrefix,
 } from './seller-dock-store';
 import type { SellerDockPanelContextValue } from './seller-dock-panel-props';
 import { SellerDockMissingPanel, sellerPanelRegistry } from './seller-dock-panels';
@@ -718,11 +719,28 @@ export function SellerTab({
           <SellerMobileStudio panels={panels} />
         ) : (
           <SellerDock
-            key={layoutName}
+            /*
+             * The board remounts on a seller change as well as a board change
+             * (P-007). `SellerDockBoard` reads its persisted size in a
+             * `useState` INITIALISER so the board paints at the restored size on
+             * the first frame; without the seller in this key that initialiser
+             * never re-runs, and the new seller's board would paint at the
+             * previous seller's dimensions while its layout came from the
+             * correct row.
+             */
+            key={`${layoutName}:${userId}`}
             panels={panels}
             registry={sellerPanelRegistry}
             layoutName={layoutName}
             layoutSeed={layoutSeed}
+            /*
+             * P-007: the dock layout is the one Studio surface that deliberately
+             * outlives an identity change, so it is keyed by the SELLER as well
+             * as the board. Without this every demo seller shares one saved
+             * board and impersonating a second seller both inherits and then
+             * overwrites the first seller's geometry.
+             */
+            keyPrefix={sellerDockStoragePrefix(userId)}
             foregroundPanelId={studioView === 'event-manager' ? 'event-manager' : undefined}
             resetEventName={resetEventName}
             missingComponent={SellerDockMissingPanel}

@@ -74,6 +74,40 @@ export function sellerDockStorageKey(
 }
 
 /**
+ * The storage prefix holding ONE demo seller's Studio boards.
+ *
+ * P-007 treats a demo-identity change as an atomic browser boundary, and a dock
+ * layout is the one piece of Studio state that deliberately OUTLIVES the
+ * remount: it is in localStorage precisely so it survives reloads. Without a
+ * seller component every demo seller therefore shares a single
+ * `sidestage.dock:seller` row, and impersonating a second seller inherits the
+ * first one's board — the layout is the wrong shape for their panels and any
+ * drag they make overwrites the original seller's saved geometry.
+ *
+ * The seller goes in the PREFIX rather than into `sellerDockStorageKey`'s
+ * format for one reason: three call sites compose that key — the layout store,
+ * the board-size read/modify/write, and the self-healing discard path — and the
+ * board size is stored ON the layout row, so a prefix that reached only some of
+ * them would leave `writeSellerDockBoardSize` doing a read-modify-write against
+ * a row that does not exist and silently returning false. One `keyPrefix`
+ * threaded through `SellerDock` keeps all three on the same row by construction.
+ *
+ * The id is percent-encoded because D-013 permits every non-empty demo id,
+ * including one containing `:` — unencoded, `seller-a:b` under layout `c` and
+ * `seller-a` under layout `b:c` would name the same row. An empty or absent
+ * seller falls back to the shared prefix, which is the pre-P-007 key: an SSR
+ * render and a test that never names a seller keep their existing row rather
+ * than being migrated onto an `undefined` one.
+ */
+export function sellerDockStoragePrefix(
+  sellerId: string | null | undefined,
+  prefix: string = SELLER_DOCK_STORAGE_PREFIX,
+): string {
+  const seller = typeof sellerId === 'string' ? sellerId.trim() : '';
+  return seller.length > 0 ? `${prefix}:${encodeURIComponent(seller)}` : prefix;
+}
+
+/**
  * Window event that asks the mounted seller dock to restore its default layout.
  *
  * Namespaced because it is dispatched on `window`, which is shared with every
