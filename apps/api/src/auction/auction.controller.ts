@@ -1,4 +1,4 @@
-import { Inject, Body, Controller, Get, Headers, Ip, Param, Post, Query, Res, Sse, type MessageEvent } from '@nestjs/common';
+import { Inject, Body, Controller, Get, Headers, Ip, NotFoundException, Param, Post, Query, Res, Sse, type MessageEvent } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
 import { from, interval, merge, type Observable } from 'rxjs';
 import { map } from 'rxjs/operators';
@@ -140,8 +140,7 @@ export class AuctionController {
       ctx.actorKind = 'seller';
       ctx.actorId = seller.sellerId;
       this.access.consumeRateLimit('seller-close', seller.sellerId, 20, 60_000);
-      const existing = await this.auctions.getAuction(id);
-      await this.ownership.requireOwnedForSeller(existing?.eventId, seller.sellerId);
+      await this.requireOwnedAuction(id, seller.sellerId);
       const auction = await this.auctions.closeAuction(id);
       ctx.eventId = auction.eventId;
       this.audit.record({ ...ctx, outcome: 'accepted', reasonCode: 'AUCTION_CLOSED' });
@@ -160,14 +159,39 @@ export class AuctionController {
       ctx.actorKind = 'seller';
       ctx.actorId = seller.sellerId;
       this.access.consumeRateLimit('seller-cancel', seller.sellerId, 20, 60_000);
-      const existing = await this.auctions.getAuction(id);
-      await this.ownership.requireOwnedForSeller(existing?.eventId, seller.sellerId);
+      await this.requireOwnedAuction(id, seller.sellerId);
       const auction = await this.auctions.cancelAuction(id);
       ctx.eventId = auction.eventId;
       this.audit.record({ ...ctx, outcome: 'accepted', reasonCode: 'AUCTION_CANCELLED' });
       return auction;
     } catch (error) {
       this.audit.record({ ...ctx, outcome: 'rejected', reasonCode: this.audit.reasonCode(error) });
+      throw error;
+    }
+  }
+
+  /**
+   * Resolve an auction the calling seller owns, or fail with a not-found that
+   * is IDENTICAL for an absent id and for another seller's id.
+   *
+   * Probing existence before ownership leaked whether an auction id was real:
+   * an absent id answered `Auction was not found` (thrown by getAuction) while
+   * a foreign id got past that lookup and answered `Event not found for this
+   * seller.` (thrown by the ownership guard). Both are 404, but the differing
+   * body let any credentialed seller enumerate every auction id in the system
+   * one probe at a time — the D-003 anti-enumeration contract names these
+   * secondary auction identifiers explicitly.
+   *
+   * Collapsing both paths onto one body is the fix; the absent-id message is
+   * kept as the canonical one so the response stays truthful for the common
+   * case and no caller learns which branch it took.
+   */
+  private async requireOwnedAuction(id: string, sellerId: string): Promise<void> {
+    try {
+      const existing = await this.auctions.getAuction(id);
+      await this.ownership.requireOwnedForSeller(existing?.eventId, sellerId);
+    } catch (error) {
+      if (error instanceof NotFoundException) throw new NotFoundException('Auction was not found');
       throw error;
     }
   }
