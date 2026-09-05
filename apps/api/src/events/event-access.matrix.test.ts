@@ -105,6 +105,50 @@ function discoveredEndpoints(): string[] {
   return sorted(endpoints);
 }
 
+const CONTROLLER_DECORATOR = /^\s*@Controller\(\s*(?:'([^']*)'|"([^"]*)")?/;
+const ROUTE_DECORATOR = /^\s*@(Get|Post|Put|Patch|Delete)\(\s*(?:'([^']*)'|"([^"]*)")?/;
+/** A `private`/`protected` member ends the handler we were attributing lines to. */
+const MEMBER_BOUNDARY = /^\s*(?:private|protected)\s/;
+const OWNERSHIP_CALL = /\bthis\.ownership\.require(?:Owned|OwnedForSeller)\s*\(/;
+
+/**
+ * Route handlers that call the ownership guard DIRECTLY in their own body.
+ *
+ * Handlers under a plain `seller-owned` policy reach ownership through a
+ * `requireSeller`-style helper or an unconditional call; what this scan is for
+ * is the other shape — a route classified `public-viewer` or
+ * `principal-partitioned` that ALSO ownership-checks a seller principal on a
+ * conditional branch. Attribution is line-based: a route decorator opens a
+ * handler and the next `private`/`protected` member closes it, so an ownership
+ * call inside a shared private helper is never blamed on the route above it.
+ */
+function handlersCallingOwnershipDirectly(): string[] {
+  const routes = new Set<string>();
+  for (const { source } of EVENT_CONTROLLERS) {
+    let prefix = '';
+    let route: string | null = null;
+    for (const line of read(join(REPO_ROOT, source)).split('\n')) {
+      const controller = CONTROLLER_DECORATOR.exec(line);
+      if (controller) {
+        prefix = controller[1] ?? controller[2] ?? '';
+        route = null;
+        continue;
+      }
+      const handler = ROUTE_DECORATOR.exec(line);
+      if (handler) {
+        route = `${handler[1].toUpperCase()} ${routePath(prefix, handler[2] ?? handler[3] ?? '')}`;
+        continue;
+      }
+      if (MEMBER_BOUNDARY.test(line)) {
+        route = null;
+        continue;
+      }
+      if (route && OWNERSHIP_CALL.test(line)) routes.add(route);
+    }
+  }
+  return sorted([...routes]);
+}
+
 function discoveredEventSyncQueries(): string[] {
   const names = new Set<string>();
   for (const file of sourceFiles(API_ROOT).filter((path) => path.endsWith('.module.ts'))) {
@@ -129,5 +173,36 @@ describe('event access registry', () => {
 
   it('requires every event-scoped named query to have an explicit access policy', () => {
     expect(sorted(Object.keys(EVENT_ACCESS.syncQueries))).toEqual(discoveredEventSyncQueries());
+  });
+
+  it('requires every conditional seller-ownership branch to be declared', () => {
+    // A route that ownership-checks a seller but is NOT classified
+    // `seller-owned` is the shape one label cannot express, and the shape the
+    // cross-seller matrix therefore never demands a cell for. Discovery must
+    // equal declaration, so growing a new one fails HERE rather than passing
+    // silently with its check untested (P-008 item (d), probe D2).
+    const undeclaredBranches = handlersCallingOwnershipDirectly()
+      .filter((route) => EVENT_ACCESS.endpoints[route] !== 'seller-owned');
+
+    expect(undeclaredBranches).toEqual(sorted(EVENT_ACCESS.sellerOwnedBranches));
+  });
+
+  it('declares no seller-ownership branch that the controllers do not have', () => {
+    // The other direction: a branch left in the registry after its check was
+    // deleted would otherwise sit there claiming coverage of nothing.
+    const discovered = new Set(handlersCallingOwnershipDirectly());
+    const stale = sorted(EVENT_ACCESS.sellerOwnedBranches).filter((route) => !discovered.has(route));
+
+    expect(stale).toEqual([]);
+  });
+
+  it('keeps every declared branch on a route with a non-owner primary policy', () => {
+    // A branch route must still be a real, classified endpoint — and one whose
+    // primary policy is something OTHER than seller-owned, or it belongs in the
+    // ordinary owned-cell population instead of this exception list.
+    for (const route of EVENT_ACCESS.sellerOwnedBranches) {
+      expect(Object.keys(EVENT_ACCESS.endpoints)).toContain(route);
+      expect(EVENT_ACCESS.endpoints[route]).not.toBe('seller-owned');
+    }
   });
 });

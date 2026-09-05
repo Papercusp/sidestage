@@ -23,6 +23,7 @@ export type AccessPolicy =
 export const EVENT_ACCESS: {
   endpoints: Readonly<Record<string, AccessPolicy>>;
   syncQueries: Readonly<Record<string, AccessPolicy>>;
+  sellerOwnedBranches: readonly string[];
 } = {
   endpoints: {
     'POST /actions/events/:eventId/register': 'seller-owned',
@@ -104,6 +105,31 @@ export const EVENT_ACCESS: {
     'events.mine': 'seller-owned',
     'rehearsal.preflight': 'seller-owned',
   },
+
+  /**
+   * Routes whose PRIMARY policy is not `seller-owned`, but which ALSO enforce
+   * seller ownership on a conditional branch: the caller is ownership-checked
+   * only when it presents a seller principal, and travels the public or
+   * partitioned path otherwise.
+   *
+   * One label per route cannot express that shape, and that is exactly how
+   * these branches escaped proof. `event-access.cross-seller.test.ts` derives
+   * its owner-only cells from `endpointsWithPolicy('seller-owned')`, so a
+   * route parked under `public-viewer` was never asked for an owned cell —
+   * deleting the ownership check on `POST /chat/events/:eventId/messages` left
+   * the whole matrix green (measured 2026-09-05, P-008 item (d) probe D2).
+   * The check was correct; the matrix simply could not see it.
+   *
+   * Declaring the branch here puts it back inside both proofs:
+   * `event-access.matrix.test.ts` fails when a controller grows a new
+   * ownership call on a route that is not `seller-owned` and is not listed
+   * here, and the cross-seller matrix fails when a listed branch has no cell.
+   */
+  sellerOwnedBranches: [
+    'DELETE /chat/events/:eventId/presence/:role',
+    'POST /chat/events/:eventId/messages',
+    'POST /chat/events/:eventId/presence',
+  ],
 };
 
 export function endpointsWithPolicy(policy: AccessPolicy): string[] {
@@ -111,6 +137,11 @@ export function endpointsWithPolicy(policy: AccessPolicy): string[] {
     .filter(([, value]) => value === policy)
     .map(([route]) => route)
     .sort();
+}
+
+/** The declared conditional seller-ownership branches, sorted. */
+export function sellerOwnedBranchRoutes(): string[] {
+  return [...EVENT_ACCESS.sellerOwnedBranches].sort();
 }
 
 export function syncQueriesWithPolicy(policy: AccessPolicy): string[] {
