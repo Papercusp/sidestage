@@ -22,6 +22,26 @@
  * DELETE THIS FILE when apps/api moves to node16/nodenext/bundler resolution,
  * which is also the note left on the @rocicorp/zero paths block.
  */
+/**
+ * The BARREL, declared here for the same node10-resolution reason as the
+ * subpath below. Narrowed to the hermetic-database helpers the pg-gated
+ * isolation suite calls (event-access.pg-isolation.test.ts).
+ */
+declare module '@papercusp/test-config' {
+  /** A throwaway database on the reused test container, plus its teardown. */
+  export interface MigratedTestDb {
+    /** Connection string for the freshly created database. */
+    url: string;
+    /** Generated database name. */
+    name: string;
+    /** Drop the database; serialised behind the shared drop lock. */
+    drop: () => Promise<unknown>;
+  }
+
+  /** Create a fresh database and apply an ordered list of .sql file paths. */
+  export function createMigratedTestDb(sqlFilePaths: string[]): Promise<MigratedTestDb>;
+}
+
 declare module '@papercusp/test-config/nest' {
   import type { INestApplication, ModuleMetadata } from '@nestjs/common';
 

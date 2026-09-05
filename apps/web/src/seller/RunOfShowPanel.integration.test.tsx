@@ -107,7 +107,10 @@ describe('RunOfShowPanel integration', () => {
   });
 
   /** Mount the panel and hand back the "Take live" button (P-010). */
-  async function mountAndFindTakeLive(onActiveProductChange: (id: string | null) => void) {
+  async function mountAndFindTakeLive(
+    onActiveProductChange: (id: string | null) => void,
+    actorId = 'seller-1',
+  ) {
     (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
     const container = document.createElement('div');
     const root = createRoot(container);
@@ -116,7 +119,7 @@ describe('RunOfShowPanel integration', () => {
         <StageClockProvider stagedProductId="planned-a">
           <RunOfShowPanel
             eventId="demo-room"
-            actorId="seller-1"
+            actorId={actorId}
             activeProduct={null}
             onActiveProductChange={onActiveProductChange}
           />
@@ -158,6 +161,67 @@ describe('RunOfShowPanel integration', () => {
       expect(mocks.itemsInvalidate).toHaveBeenCalled();
       expect(onActiveProductChange).toHaveBeenCalledWith('planned-b');
       expect(container.textContent).not.toContain('could not be taken live');
+    } finally {
+      await act(async () => root.unmount());
+      delete (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT;
+    }
+  });
+
+  it('pushes as the CURRENTLY selected seller after an identity switch, never the previous one', async () => {
+    /*
+     * P-008 clause 4 (two-seller event-manager regression), plan Decision D-011.
+     *
+     * The READ side of this surface is already two-seller proven server-side:
+     * `GET/PUT /events/:eventId/run-of-show` and `event.runOfShow` are
+     * seller-owned cells in event-access.cross-seller.test.ts and die under the
+     * M1 ownership mutation. What had NO guard is the WRITE seam here — the
+     * actor this panel executes AS.
+     *
+     * The exposure if it regressed: the dock is remounted per demo user by
+     * P-007's `key={userId}`, so a captured actor is invisible in normal use.
+     * Strip or bypass that key and a panel that captured `actorId` once keeps
+     * pushing as the PREVIOUS seller — seller B's "Take live" executes on the
+     * server as seller A. That is a cross-identity WRITE, the same exposure
+     * class as a cross-identity read, so it belongs to this plan's invariant.
+     *
+     * Asserted by re-rendering the SAME instance with a new actor rather than
+     * remounting: a remount would pass even against a captured actor, since
+     * each mount captures its own correct one. Deterministic, no race.
+     */
+    const onActiveProductChange = vi.fn();
+    const { container, root, button } = await mountAndFindTakeLive(onActiveProductChange, 'seller-mira');
+    try {
+      expect(button).toBeDefined();
+      await act(async () => {
+        button?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+      });
+      expect(mocks.executeSellerAction).toHaveBeenCalledOnce();
+      expect(mocks.executeSellerAction.mock.calls[0]?.[1]).toBe('seller-mira');
+
+      // The demo user switches. Same component instance, new actor prop.
+      await act(async () => {
+        root.render(
+          <StageClockProvider stagedProductId="planned-a">
+            <RunOfShowPanel
+              eventId="demo-room"
+              actorId="seller-avi"
+              activeProduct={null}
+              onActiveProductChange={onActiveProductChange}
+            />
+          </StageClockProvider>,
+        );
+      });
+      const afterSwitch = [...container.querySelectorAll('button')]
+        .find((candidate) => candidate.textContent === 'Take live');
+      expect(afterSwitch).toBeDefined();
+      await act(async () => {
+        afterSwitch?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+      });
+
+      expect(mocks.executeSellerAction).toHaveBeenCalledTimes(2);
+      expect(mocks.executeSellerAction.mock.calls[1]?.[1]).toBe('seller-avi');
+      // The decisive assertion: the second push must NOT carry the first seller.
+      expect(mocks.executeSellerAction.mock.calls[1]?.[1]).not.toBe('seller-mira');
     } finally {
       await act(async () => root.unmount());
       delete (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT;

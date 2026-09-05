@@ -49,8 +49,9 @@ export class EventOwnershipGuard {
   ): Promise<OwnedEventContext> {
     const eventIdValue = typeof eventId === 'string' ? eventId.trim() : '';
     const sellerId = typeof sellerIdInput === 'string' ? sellerIdInput.trim() : '';
+    // MUTATION M10 (temporary): seller dropped from the ownership lookup
     const event = eventIdValue && sellerId
-      ? await this.events.findOwned(eventIdValue, sellerId)
+      ? await this.events.findById(eventIdValue)
       : undefined;
     if (!event) this.notFound();
     return { sellerId, event };
