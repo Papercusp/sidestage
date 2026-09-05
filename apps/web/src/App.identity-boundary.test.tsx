@@ -14,20 +14,22 @@
  * which is a decision in our tree and the thing that regresses. Delete
  * `key={userId}` and `drops the per-user subtree` fails.
  *
- * WHAT THIS FILE DELIBERATELY DOES *NOT* ASSERT, and why it matters to the next
- * reader: the public shell's DOM nodes are NOT preserved across an identity
- * change, so do not add an assertion demanding they are — it will fail, and the
- * failure would be the test's fault rather than the app's. `BuyerCheckoutProvider`
- * wraps the whole shell in App.tsx and is itself `key={buyerId}`
- * (BuyerCheckout.tsx), a deliberate reset covered by BuyerCheckout.identity.test.tsx,
- * so an identity change tears the shell's nodes down too.
+ * WHICH IDENTITY PAIR THESE TESTS SWITCH BETWEEN IS LOAD-BEARING — do not
+ * "simplify" it to two arbitrary buyer ids, or the suite silently stops testing
+ * P-007 at all. `BuyerCheckoutProvider` wraps the whole shell in App.tsx and is
+ * itself `key={buyerId}` (BuyerCheckout.tsx), a separate deliberate reset
+ * covered by BuyerCheckout.identity.test.tsx. Between two ordinary buyer
+ * personas BOTH keys change, so the subtree remounts even with App's key
+ * deleted — verified by mutation, the naive version of this suite passed 3/3
+ * against a build with `key={userId}` removed.
  *
- * That is not a clause-6 violation, because clause 6 is a guarantee about
- * public browsing STATE, not about DOM nodes, and that state lives in `App`
- * ABOVE the checkout provider (`tab`, `pinnedEventId`, `selectedProductId`) —
- * so it survives. `ChannelGuide` holds only a ticking clock, nothing a user
- * would notice losing. `preserves public browsing state` below asserts the
- * guarantee at that level, which is the level the plan item actually promises.
+ * `buyer-avi` -> `seller-avi` is the pair that isolates App's key:
+ * `normalizeRoleDemoIdentity` re-prefixes the persona, so the buyer id stays
+ * `buyer-avi` (checkout provider does NOT remount) while App's unroled `userId`
+ * goes `buyer-avi` -> `seller-avi` (App's key DOES). That is why these tests can
+ * assert the per-user subtree is dropped AND the public shell is preserved in
+ * the same breath — the second half is only true because the checkout provider
+ * held still, which is exactly clause 6's guarantee about public surfaces.
  */
 
 import { act } from 'react';
@@ -113,57 +115,82 @@ function perUserNode(): Element | null {
   return container.querySelector('#buyer');
 }
 
+/** The public shell: the <main> hosting the boundary, rendered ABOVE it. */
+function publicShellNode(): Element | null {
+  return container.querySelector('#main-content');
+}
+
 function navLink(label: string): HTMLAnchorElement | undefined {
   return [...container.querySelectorAll<HTMLAnchorElement>('a.nav-link')]
     .find((link) => link.textContent?.trim() === label);
 }
 
 describe('demo identity is an atomic browser boundary', () => {
-  it('drops the per-user subtree on an identity change', async () => {
+  it('drops the per-user subtree while the public shell stays mounted', async () => {
     await mountApp();
-    await switchDemoIdentity('demo-buyer-one');
+    await switchDemoIdentity('buyer-avi');
 
     const perUserBefore = perUserNode();
+    const publicBefore = publicShellNode();
     expect(perUserBefore).not.toBeNull();
+    expect(publicBefore).not.toBeNull();
 
-    await switchDemoIdentity('demo-buyer-two');
+    await switchDemoIdentity('seller-avi');
 
     const perUserAfter = perUserNode();
     expect(perUserAfter).not.toBeNull();
+
     // REPLACED, not re-rendered: every piece of per-user state the old subtree
-    // held went with its nodes. This is the clause the key implements.
+    // held went with its nodes. Delete `key={userId}` and this is the SAME node.
     expect(perUserAfter).not.toBe(perUserBefore);
+
+    // ...while the shell above the boundary was REUSED. The boundary is scoped
+    // to per-user surfaces rather than reloading the page under the user.
+    expect(publicShellNode()).toBe(publicBefore);
+  });
+
+  it('drops the per-user subtree between two ordinary demo personas', async () => {
+    await mountApp();
+    await switchDemoIdentity('buyer-avi');
+    const perUserBefore = perUserNode();
+    expect(perUserBefore).not.toBeNull();
+
+    await switchDemoIdentity('buyer-sam');
+
+    // The common path. Both the App key and the checkout provider's key change
+    // here, so this does not isolate App's key — it guards the everyday switch
+    // the demo actually performs.
+    expect(perUserNode()).not.toBe(perUserBefore);
   });
 
   it('does not remount the per-user subtree when the identity is rewritten unchanged', async () => {
     await mountApp();
-    await switchDemoIdentity('demo-buyer-one');
+    await switchDemoIdentity('buyer-avi');
     const perUserBefore = perUserNode();
     expect(perUserBefore).not.toBeNull();
 
-    await switchDemoIdentity('demo-buyer-one');
+    await switchDemoIdentity('buyer-avi');
 
     // Same identity => same key => no teardown. Without this control, any
-    // incidental re-render would look like a boundary crossing and the test
+    // incidental re-render would look like a boundary crossing and the tests
     // above would pass for the wrong reason.
     expect(perUserNode()).toBe(perUserBefore);
   });
 
   it('preserves public browsing state across an identity change', async () => {
     await mountApp();
-    await switchDemoIdentity('demo-buyer-one');
+    await switchDemoIdentity('buyer-avi');
 
     const orders = navLink('Orders');
     expect(orders).toBeDefined();
     await act(async () => { orders?.click(); });
     expect(navLink('Orders')?.getAttribute('aria-current')).toBe('page');
 
-    await switchDemoIdentity('demo-buyer-two');
+    await switchDemoIdentity('seller-avi');
 
-    // `tab` lives in App, ABOVE the identity boundary and above the checkout
-    // provider, so a new demo user lands on the same page rather than being
-    // bounced back to the default surface. Move this state below either key and
-    // this assertion fails.
+    // `tab` lives in App, ABOVE the boundary, so the new identity lands on the
+    // same page rather than being bounced back to the default surface. Move
+    // this state below the key and this assertion fails.
     expect(navLink('Orders')?.getAttribute('aria-current')).toBe('page');
   });
 });
