@@ -45,6 +45,11 @@
     // check that sees it is booting the API (see the guard test in
     // src/sync/zero-adapter-runtime-resolution.spec.ts).
     "paths": {
+      // Stop the type resolver at a local shim instead of opening
+      // libs/test-config's sources under THIS project's options (TS5097/TS1343).
+      // See src/types/test-config-root.d.ts. Runtime is unaffected: vitest
+      // resolves through vite. Durable fix tracked as EI-22383491035147414.
+      "@papercusp/test-config": ["src/types/test-config-root.d.ts"],
       "@rocicorp/zero/server": ["../../node_modules/@rocicorp/zero/out/zero/src/server"],
       "@rocicorp/zero/server/adapters/pg": [
         "../../node_modules/@rocicorp/zero/out/zero/src/adapters/pg"
