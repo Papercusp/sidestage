@@ -16,7 +16,7 @@ export const BUILD_HISTORY_SNAPSHOT = {
     "workspace": "papercusp-workspace",
     "harness": "sidestage",
     "planPrefix": null,
-    "generatedAt": "2026-09-07T09:46:05.267Z",
+    "generatedAt": "2026-09-07T11:07:05.739Z",
     "generator": "papercusp project-history generate",
     "planCount": 54
   },
@@ -17823,7 +17823,7 @@ export const BUILD_HISTORY_SNAPSHOT = {
           "title": "Grounded reply engine: retrieval over event items + catalog properties + Config policies; suggest-vs-auto ladder",
           "state": "done",
           "completedAt": "2026-08-13T12:26:49.652Z",
-          "completionAuthority": "committed",
+          "completionAuthority": "proposed",
           "completionSummary": "Verified and completed P-013 grounded reply engine; fixed the copilot test fixture type widening.",
           "completionEvidence": {
             "summary": "Verified and completed P-013 grounded reply engine; fixed the copilot test fixture type widening.",
@@ -18495,7 +18495,7 @@ export const BUILD_HISTORY_SNAPSHOT = {
           "title": "Config tab: eBay-style seller policies (returns/shipping/payment), guardrail thresholds, automation-ladder level",
           "state": "done",
           "completedAt": "2026-08-13T12:22:29.925Z",
-          "completionAuthority": "committed",
+          "completionAuthority": "proposed",
           "completionSummary": "Authored the SideStage P-021 Config policy design artifact.",
           "completionEvidence": {
             "summary": "Authored the SideStage P-021 Config policy design artifact.",
