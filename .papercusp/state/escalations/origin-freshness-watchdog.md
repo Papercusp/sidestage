@@ -3,7 +3,7 @@ authority: null
 body_embedding_mode: "gemma"
 body_tsv: ""
 escalation: null
-mtime_ms: 1788948665208
+mtime_ms: 1789267133319
 phase: "origin-freshness-watchdog"
 risk_tier: null
 supervisor_notes: null
