@@ -16,7 +16,7 @@ export const BUILD_HISTORY_SNAPSHOT = {
     "workspace": "papercusp-workspace",
     "harness": "sidestage",
     "planPrefix": null,
-    "generatedAt": "2026-09-23T14:50:36.403Z",
+    "generatedAt": "2026-09-23T16:50:05.063Z",
     "generator": "papercusp project-history generate",
     "planCount": 54
   },
@@ -136,14 +136,15 @@ export const BUILD_HISTORY_SNAPSHOT = {
         },
         {
           "id": "P-008",
-          "text": "Wire the shared ScoutChatDrawer into SideStage web with a launcher, SideStage-themed, integrated alongside (or replacing) CopilotPanel's chat surface. blocked-by: P-005, P-007 — note: ← WI-38964 completed (done)",
+          "text": "Wire the shared ScoutChatDrawer into SideStage web with a launcher, SideStage-themed, integrated alongside (or replacing) CopilotPanel's chat surface.  — note: ← WI-38964 completed (done)",
           "storedStatus": "done",
           "effectiveStatus": "done",
           "importance": "normal",
           "riskTier": null,
           "authority": "system",
           "blockedBy": [
-            "P-007"
+            "P-007",
+            "P-005"
           ],
           "phase": "Phase 4 — SideStage Scout chat (themed)",
           "lineNumber": 51,
@@ -166,14 +167,17 @@ export const BUILD_HISTORY_SNAPSHOT = {
         },
         {
           "id": "P-009",
-          "text": "Verify both apps end to end: Restart `test:affected` + cart/scout e2e + visual check (look unchanged); SideStage API/web tests + browser QA of drawer open/stacking, hold countdown → checkout handoff, and streaming scout chat, desktop + mobile viewports. blocked-by: P-004, P-006, P-008 blocked-by: P-004, P-006, P-008, P-012 — note: → WI-39276",
+          "text": "Verify both apps end to end: Restart `test:affected` + cart/scout e2e + visual check (look unchanged); SideStage API/web tests + browser QA of drawer open/stacking, hold countdown → checkout handoff, and streaming scout chat, desktop + mobile viewports.   — note: → WI-39276",
           "storedStatus": "wip",
           "effectiveStatus": "wip",
           "importance": "normal",
           "riskTier": null,
           "authority": "system",
           "blockedBy": [
-            "P-008"
+            "P-008",
+            "P-004",
+            "P-006",
+            "P-012"
           ],
           "phase": "Phase 5 — Verification + ship",
           "lineNumber": 57,
@@ -31768,14 +31772,15 @@ export const BUILD_HISTORY_SNAPSHOT = {
         },
         {
           "id": "P-010",
-          "text": "Full dress rehearsal: one button chaining preflight + every rehearsal into a single go / no-go verdict with the blocking reasons listed.  blocked-by: P-008",
+          "text": "Full dress rehearsal: one button chaining preflight + every rehearsal into a single go / no-go verdict with the blocking reasons listed.",
           "storedStatus": "done",
           "effectiveStatus": "done",
           "importance": "high",
           "riskTier": null,
           "authority": "system",
           "blockedBy": [
-            "P-002"
+            "P-002",
+            "P-008"
           ],
           "phase": "Phase 2 — Preflight expansion + tab mechanics",
           "lineNumber": 36,
