@@ -16,7 +16,7 @@ export const BUILD_HISTORY_SNAPSHOT = {
     "workspace": "papercusp-workspace",
     "harness": "sidestage",
     "planPrefix": null,
-    "generatedAt": "2026-09-19T10:55:11.998Z",
+    "generatedAt": "2026-09-23T13:37:05.112Z",
     "generator": "papercusp project-history generate",
     "planCount": 54
   },
@@ -1926,7 +1926,7 @@ export const BUILD_HISTORY_SNAPSHOT = {
           "title": "SideStage Android Orders bridge decodes unified order history as legacy checkout sessions",
           "state": "done",
           "completedAt": "2026-08-14T22:17:35.832Z",
-          "completionAuthority": "committed",
+          "completionAuthority": "proposed",
           "completionSummary": "Android now decodes unified Buyer order history through a backward-compatible UniFFI order_history bridge and renders the paid order instead of the unavailable state.",
           "completionEvidence": {
             "summary": "Android now decodes unified Buyer order history through a backward-compatible UniFFI order_history bridge and renders the paid order instead of the unavailable state.",
