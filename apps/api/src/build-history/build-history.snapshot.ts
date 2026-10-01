@@ -16,7 +16,7 @@ export const BUILD_HISTORY_SNAPSHOT = {
     "workspace": "papercusp-workspace",
     "harness": "sidestage",
     "planPrefix": null,
-    "generatedAt": "2026-10-01T02:52:32.755Z",
+    "generatedAt": "2026-10-01T04:50:07.243Z",
     "generator": "papercusp project-history generate",
     "planCount": 54
   },
@@ -11663,6 +11663,17 @@ export const BUILD_HISTORY_SNAPSHOT = {
               "attribution": "body-reference"
             }
           ]
+        },
+        {
+          "id": "WI-39643",
+          "kind": "task",
+          "title": "Web: Event Manager lifecycle controls — start date/time, Go live, End event, Unpublish — on the event detail header, invalidating the guide…",
+          "state": "done",
+          "completedAt": "2026-10-01T04:16:47.582Z",
+          "completionAuthority": "proposed",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
         }
       ],
       "validationSummary": {
@@ -15814,6 +15825,17 @@ export const BUILD_HISTORY_SNAPSHOT = {
             "testResult": "All green. apps/web tsc EXIT=0; root npm test REAL_EXIT=0; grader's battery 104/104. Live-by-hand: dock 0:06 then Lineup 0:33 elapsed + '0:33 on stage' on the same slot (clock SURVIVED the surface switch — a per-surface clock resets to 0:00 on remount, so survival is the falsifier). Artifact /tmp/sidestage-lineup-shipped-14h30.png shows real data flowing, NOT the Lineup itself.",
             "verifiedHow": "manual"
           },
+          "commits": []
+        },
+        {
+          "id": "WI-39619",
+          "kind": "task",
+          "title": "ONE shared stage clock: lift `StageLog` out of `SellerTab` local state into a shared provider both the Studio dock panel and the Lineup tim…",
+          "state": "done",
+          "completedAt": "2026-10-01T04:16:43.666Z",
+          "completionAuthority": "proposed",
+          "completionSummary": null,
+          "completionEvidence": null,
           "commits": []
         }
       ],
