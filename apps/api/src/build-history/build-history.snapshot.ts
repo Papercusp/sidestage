@@ -16,7 +16,7 @@ export const BUILD_HISTORY_SNAPSHOT = {
     "workspace": "papercusp-workspace",
     "harness": "sidestage",
     "planPrefix": null,
-    "generatedAt": "2026-10-12T14:50:03.320Z",
+    "generatedAt": "2026-10-12T18:57:50.982Z",
     "generator": "papercusp project-history generate",
     "planCount": 54
   },
@@ -6115,7 +6115,7 @@ export const BUILD_HISTORY_SNAPSHOT = {
       "slug": "sidestage-blocked-items-audit-2026-08-15",
       "title": "Audit and reconcile every blocked SideStage plan and work item",
       "status": "awaiting-acceptance",
-      "updatedAt": "2026-08-31T19:37:52.976Z",
+      "updatedAt": "2026-08-15",
       "contentHash": "679f0bd987e4a0b284bb3533435183ec426cfececadbed5fa5d8e1130c5e032f",
       "markdown": "---\ntitle: Audit and reconcile every blocked SideStage plan and work item\nslug: sidestage-blocked-items-audit-2026-08-15\nstatus: awaiting-acceptance\ncreated: 2026-08-15\nupdated: 2026-08-15\n---\n\n## Now\n\n**State:** Approved for execution via route A.\n\n**Next:** Inventory every effective plan block and blocked/held work-item, then reconcile stale state safely.\n\n## Background\n\nSideStage currently has 61 non-archived plans and an initial census of 16 work-items stored as blocked. This audit must distinguish valid dependencies from stale plan/work-item state, temporary claim holds, external blockers, and needs-human gates; clear only demonstrably invalid blocks; and preserve live peer work.\n\n\n## Phase 1 — Full block audit and reconciliation\n\n- **P-001** `done` Inventory every non-archived SideStage plan item plus every blocked, held, needs-human, and externally blocked work-item; record the complete cohort. importance: high — note: ← WI-39231 completed (done)\n- **P-002** `done` Trace every candidate block to its writer, dependency graph, current plan Decisions, holder liveness, checkpoint, and external capability; classify valid versus stale or contradictory. blocked-by: P-001 importance: high — note: ← WI-39253 completed (done)\n- **P-003** `done` Clear every demonstrably invalid block or stale temporary hold without disturbing live peer work, and record the exact evidence for each mutation. blocked-by: P-002 importance: high — note: ← WI-39270 completed (done)\n- **P-004** `done` Re-read all SideStage plans and work-items, verify convergence, and deliver a full residue report naming each remaining block and the exact requirement to clear it. blocked-by: P-003 importance: high — note: ← WI-39271 completed (done)\n\n\n\n",
       "frontmatter": {
@@ -15833,6 +15833,17 @@ export const BUILD_HISTORY_SNAPSHOT = {
           "title": "ONE shared stage clock: lift `StageLog` out of `SellerTab` local state into a shared provider both the Studio dock panel and the Lineup tim…",
           "state": "done",
           "completedAt": "2026-10-01T04:16:43.666Z",
+          "completionAuthority": "proposed",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
+        },
+        {
+          "id": "WI-39674",
+          "kind": "task",
+          "title": "`LineupTimeline` component: ordered slots off `buildRunOfShowView`, drag + keyboard reorder, inline minutes and notes editing, per-slot col…",
+          "state": "done",
+          "completedAt": "2026-10-12T18:30:53.134Z",
           "completionAuthority": "proposed",
           "completionSummary": null,
           "completionEvidence": null,
