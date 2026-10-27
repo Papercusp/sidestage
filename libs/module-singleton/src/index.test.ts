@@ -6,6 +6,7 @@ import {
   listPinnedModuleKeys,
   moduleEvaluationCount,
   pinModuleState,
+  readPinnedModuleState,
   resetPinnedModuleStateForTest,
 } from './index.js';
 
@@ -107,6 +108,30 @@ describe('pinModuleState', () => {
     });
     expect(again).toBe(0);
     expect(reran).toBe(false);
+  });
+});
+
+describe('readPinnedModuleState', () => {
+  it('keeps an uninitialized subject absent and uncounted', () => {
+    expect(readPinnedModuleState('k.absent')).toBeUndefined();
+    expect(moduleEvaluationCount('k.absent')).toBe(0);
+    expect(listPinnedModuleKeys()).toEqual([]);
+  });
+
+  it('observes existing shared state without increasing evaluation counts', () => {
+    const state = pinModuleState('k.reader', () => ({ value: 1 }));
+    expect(readPinnedModuleState('k.reader')).toBe(state);
+    state.value = 2;
+    expect(readPinnedModuleState('k.reader')).toEqual({ value: 2 });
+    expect(moduleEvaluationCount('k.reader')).toBe(1);
+    expect(listModuleDuplications()).toEqual([]);
+  });
+
+  it('preserves falsy pinned values', () => {
+    pinModuleState('k.zero', () => 0);
+    pinModuleState('k.null', () => null);
+    expect(readPinnedModuleState('k.zero')).toBe(0);
+    expect(readPinnedModuleState('k.null')).toBeNull();
   });
 });
 
