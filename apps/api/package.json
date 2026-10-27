@@ -10,8 +10,8 @@
     "pretypecheck": "npm run build --workspace @papercusp/system-test-contract && npm run build --workspace @papercusp/system-test-runner && npm run build --workspace @papercusp/scout-runtime && npm run build --workspace @papercusp/sse && npm run build --workspace @papercusp/typesense && npm run build --workspace @papercusp/sidestage-zero",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "pretest": "npm run build --workspace @papercusp/system-test-contract && npm run build --workspace @papercusp/system-test-runner && npm run build --workspace @papercusp/scout-runtime && npm run build --workspace @papercusp/sse && npm run build --workspace @papercusp/typesense && npm run build --workspace @papercusp/sidestage-zero",
-    "test": "vitest run --project sidestage-node",
-    "test:file": "vitest run",
+    "test": "NODE_ENV=test vitest run --project sidestage-node",
+    "test:file": "NODE_ENV=test vitest run",
     "clean": "rm -rf dist",
     "benchmark:copilot-latency": "tsx scripts/copilot-latency-benchmark.ts"
   },
