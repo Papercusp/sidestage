@@ -16,7 +16,7 @@ export const BUILD_HISTORY_SNAPSHOT = {
     "workspace": "papercusp-workspace",
     "harness": "sidestage",
     "planPrefix": null,
-    "generatedAt": "2026-10-28T04:51:01.677Z",
+    "generatedAt": "2026-10-28T09:51:39.012Z",
     "generator": "papercusp project-history generate",
     "planCount": 54
   },
@@ -752,6 +752,105 @@ export const BUILD_HISTORY_SNAPSHOT = {
               "attribution": "inferred"
             }
           ]
+        },
+        {
+          "id": "WI-6554700010041774",
+          "kind": "feature",
+          "title": "Promote Restart's `libs/drawer-stack` to a standalone `Papercusp/drawer-stack` GitHub repo and consume it as a git submodule at `libs/drawer-stack` in BOTH Restart and SideStage (imports stay `@papercusp/drawer-stack`; wire into each repo's npm workspaces; SideStage installs via `npm run install:saf",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010041775",
+          "kind": "feature",
+          "title": "Create `Papercusp/cart-drawer` (`@papercusp/cart-drawer`): a themable CartDrawer shell extracted from `CartShell.tsx` — Vaul panel + drawer-stack registration, line-item list, quantity stepper, totals, empty state; slots for item renderer, header/footer, and checkout pane; ALL backend ops behind a `",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010041776",
+          "kind": "feature",
+          "title": "Create `Papercusp/scout-chat` (`@papercusp/scout-chat`): a themable ScoutChatDrawer + launcher extracted from `ScoutDrawer.tsx` + `RecommenderChat.tsx` — streaming transcript + composer over `@papercusp/sse` `resilientPostStream`, chat-protocol card slots, `Last-Event-ID` resume + ETag transcript re",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010041777",
+          "kind": "feature",
+          "title": "Restart adopts both libs: `CartShell`/`ScoutDrawer`/`RecommenderChat` become thin app wrappers supplying the shop-sdk cart adapter and the `/api/scout` transport. Visuals unchanged — `t4-3-search-pdp-cart` + `scout-fab` e2e stay green, plus a visual spot-check of the live shop.  — note: ← WI-38889 c",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010041778",
+          "kind": "feature",
+          "title": "Wire SideStage to the shared libs: add `drawer-stack`, `cart-drawer`, `scout-chat`, and `chat-protocol` submodules to `.gitmodules` + workspaces, add the `vaul` dep via `install:safe`, and author the SideStage theme token sheet mapped from the existing web styles.  — note: ← WI-38915 completed (done",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010041779",
+          "kind": "feature",
+          "title": "Build the SideStage cart drawer: a `CartAdapter` over the holds/expiry APIs (2-min server-authored `expiresAt`, prune-on-read, release/remove), per-item countdown rendered in the item slot, buyer-tab entry point, handing off to the existing BuyerCheckout flow — preserving the shipped held-items beha",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010041780",
+          "kind": "feature",
+          "title": "Extend SideStage `apps/api` scout module to the shared streaming contract: SSE `POST /scout/chat/stream` emitting `token`/`products`/`tool_start` with `Last-Event-ID` resume, plus an ETag'd transcript `GET` — porting the reconnect-safe streaming core from Restart's `apps/scout-service` and keeping `",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010041781",
+          "kind": "feature",
+          "title": "Wire the shared ScoutChatDrawer into SideStage web with a launcher, SideStage-themed, integrated alongside (or replacing) CopilotPanel's chat surface. blocked-by: P-005, P-007 — note: ← WI-38964 completed (done)",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010041782",
+          "kind": "feature",
+          "title": "Port user-keyed long-term memory + cart tools into the SideStage scout backend (per D-003): a memory store keyed to server-resolved buyer identity, and a get_cart-style tool over the holds/expiry cart, following Restart scout-service’s memory + cart-proxy modules; establish the auth trust boundary (",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
         }
       ],
       "validationSummary": {
@@ -899,6 +998,28 @@ export const BUILD_HISTORY_SNAPSHOT = {
             "testResult": "PASS — Vitest: 5 files, 53 tests; TypeScript: tsc --noEmit exited 0 with no diagnostics.",
             "verifiedHow": "unit"
           },
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010041785",
+          "kind": "feature",
+          "title": "Implement the production Tabbed utility rail: add a compact Active Event inventory panel using the existing event.actions.items, event.adjustStock, and event.addItems seams; register it beside Run of Show in the dock; migrate saved layouts idempotently; add the mobile Inventory mode; ship focused un",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010041786",
+          "kind": "feature",
+          "title": "Run focused SideStage web tests and typecheck, repair every failure, and record exact verification evidence.   — note: ← WI-39215 completed (done)",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
           "commits": []
         }
       ],
@@ -1242,6 +1363,50 @@ export const BUILD_HISTORY_SNAPSHOT = {
             "testResult": "All five rubric criteria rated healthy; scorecards:freshness returned fresh, emitted=true, complete=true, count=1, with no missing or extra rubric keys. P-002 and P-003 were independently re-read as done; plan audit #1 covered P-001 through P-004 with no uncovered items.",
             "verifiedHow": "already-passing"
           },
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010041788",
+          "kind": "feature",
+          "title": "Trace the seller principal end-to-end and inspect WI-38668/P-118's authored rubric, score writer, audit evidence, and completion verdict.  — note: ← WI-39032 completed (done)",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010041789",
+          "kind": "feature",
+          "title": "Replace hardcoded demo seller publication with the actual seller principal and display identity across event creation/update and seller-scoped reads, with regression tests.   — note: ← WI-39035 completed (done)",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010041790",
+          "kind": "feature",
+          "title": "Separate seeded showcase events from the normal real-data Channel Guide so real seller events are authoritative without losing explicit demo-mode support, with regression tests.   — note: ← WI-39036 completed (done)",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010041791",
+          "kind": "feature",
+          "title": "Run focused API/web tests, typecheck, live API/browser verification, record the corrected audit finding, and close only against an explicit end-to-end acceptance rubric.   — note: ← WI-39053 completed (done)",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
           "commits": []
         }
       ],
@@ -2073,6 +2238,116 @@ export const BUILD_HISTORY_SNAPSHOT = {
             ]
           },
           "commits": []
+        },
+        {
+          "id": "WI-6554700010041792",
+          "kind": "feature",
+          "title": "Scaffold `sidestage-mobile` repo mirroring papercup-rust-mobile: Cargo workspace (sidestage-core / sidestage-bindings / sidestage-cli), tools/build-scripts (cargo-ndk + xcframework), Makefile, design-tokens seeded from the SideStage web app  — note: ← WI-38611 completed (done)",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010041793",
+          "kind": "feature",
+          "title": "sidestage-core API client: auth/session, events feed + detail, product catalog + typo-tolerant search (API-proxied), cart, Square sandbox checkout incl. shipping — typed models mirroring apps/api contracts, cargo-tested off-device  — note: ← WI-38612 completed (done)",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010041794",
+          "kind": "feature",
+          "title": "sidestage-core realtime leg: live event sync (transcript, on-deck product, auction bid/price state) semantics-matched to the web sync path, with reconnect + offline tolerance  — note: ← WI-38613 completed (done)",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010041795",
+          "kind": "feature",
+          "title": "UniFFI bindings surface (.udl) + cargo-ndk build producing the Android .so + generated Kotlin; CLI-style host smoke proves the boundary  — note: ← WI-38614 completed (done)",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010041796",
+          "kind": "feature",
+          "title": "Android Studio project (gradle kts) with Compose navigation limited to two top-level tabs: Buyer and Orders. Buyer hosts Events feed → Live event → Cart/Checkout; Orders hosts buyer order status/detail; theming from design-tokens. Seller/History/Config/Test tabs are excluded per D-008  — note: ← WI-",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010041797",
+          "kind": "feature",
+          "title": "Buyer tab live event screen: stream playback, on-deck product rail, auction bid UI driven by realtime core state, add-to-cart + buy-now. No Seller/History/Config/Test surface per D-008  — note: ← WI-38616 completed (done)",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010041798",
+          "kind": "feature",
+          "title": "Buyer tab checkout only: Square sandbox payment + shipping calculation with web Buyer-flow parity; excludes Seller order management and History/Config/Test surfaces [scope: D-008]  — note: ← WI-38617 completed (done)",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010041799",
+          "kind": "feature",
+          "title": "Buyer tab search + browse only: events and products with typo-tolerant web Buyer-flow parity; excludes Seller/History/Config/Test surfaces [scope: D-008]  — note: ← WI-38618 completed (done)",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010041800",
+          "kind": "feature",
+          "title": "Buyer + Orders verification only [scope: D-008; mockup gate: D-009]: cargo tests cover the mobile Rust contracts for auth/events/realtime/products/search/cart/shipping/Square checkout and buyer order list/detail; layout-independent core/realtime/UniFFI tests ship with P-003/P-004 and may proceed bef",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010041801",
+          "kind": "feature",
+          "title": "Buyer + Orders device verification only [scope: D-008]: debug APK on emulator, full Buyer e2e (browse/search → watch → bid or buy → cart → Square sandbox checkout), then verify the resulting order in the Orders list/detail; publish via the existing mobile release pipeline; exclude Seller/History/Con",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
         }
       ],
       "validationSummary": {
@@ -2401,6 +2676,50 @@ export const BUILD_HISTORY_SNAPSHOT = {
               "attribution": "inferred"
             }
           ]
+        },
+        {
+          "id": "WI-6554700010041802",
+          "kind": "feature",
+          "title": "Audit the SideStage webapp structure, runtime boundaries, data flows, infrastructure, and existing documentation so every architecture claim is source-backed.  — note: ← WI-39227 completed (done)",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010041803",
+          "kind": "feature",
+          "title": "Specify the Architecture page using existing SideStage navigation and visual primitives, with responsive diagrams covering system context, frontend, backend, data, realtime/media, AI/Scout, payments, testing, deployment, and security.   — note: ← WI-39228 completed (done)",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010041804",
+          "kind": "feature",
+          "title": "Implement the new Architecture navbar item immediately after Tests, the routed page, diagram components/styles, and focused regression tests.   — note: ← WI-39229 completed (done)",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010041805",
+          "kind": "feature",
+          "title": "Run focused tests, type/build checks, and Verdict browser verification at mobile and desktop widths; correct any coverage or presentation gaps.   — note: ← WI-39235 completed (done)",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
         }
       ],
       "validationSummary": {
@@ -4150,6 +4469,116 @@ export const BUILD_HISTORY_SNAPSHOT = {
           "state": "done",
           "completedAt": "2026-08-17T17:11:22.217Z",
           "completionAuthority": "proposed",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010041806",
+          "kind": "feature",
+          "title": "Pin a baseline and turn the audit into versioned executable fixtures: record commit/environment, reproduce clean-checkout test/build/local-demo failures, preserve the false-availability proof, and map every challenge requirement to its command, test, source boundary, and expected outcome. Acceptance",
+          "state": "dropped",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010041807",
+          "kind": "feature",
+          "title": "Repair every baseline npm test, npm run typecheck, and npm run build failure, including ownership-before-cleanup and database-parameter regressions; retain recurrence tests and ensure the top-level test command reaches the web suite. Acceptance: all three commands exit zero twice from a clean worktr",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010041808",
+          "kind": "feature",
+          "title": "Define one structured claim/evidence contract for price, availability, listing state, shipping/returns policy, and catalog properties, including evidence relevance, context fingerprints, edited replies, and typed missing/stale/conflicting-evidence reasons. Add adversarial fixtures first.   — note: ←",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010041809",
+          "kind": "feature",
+          "title": "Extend the existing reply guard/judge/approval seam to bind claims to fresh evidence and enforce price, availability, policy, and tone immediately before send. Rebuild/revalidate bindings for seller edits. Acceptance: supported edits send; unsupported/stale claims never persist or broadcast and retu",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010041810",
+          "kind": "feature",
+          "title": "Add unit, integration, and protocol tests for zero stock/“999,” stale price, invented policy, forged/irrelevant citations, tone mismatch, injection, concurrent inventory change, and valid edits. Exercise deterministic and configured real-provider paths without treating synthetic scores as system pro",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010041811",
+          "kind": "feature",
+          "title": "Extend the existing Postgres schema/store with normalized offers, immutable accepted/rejected audits, idempotency outcomes, before/after snapshots, and rollback links, including constraints, retention, migrations, and repository contracts. Acceptance: rejected decisions are durable evidence but neve",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010041812",
+          "kind": "feature",
+          "title": "Rewire GuardedActionService transactionally to the durable stores while preserving PolicyActionGuard and PgActionItemStore. Add restart-safe idempotency, optimistic rollback, recovery/readback, restart tests, and concurrency tests. Acceptance: duplicates apply once and rollback refuses to erase a ne",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010041813",
+          "kind": "feature",
+          "title": "Carry requiredProperties through CopilotPanel, API input, proposal creation, and pipeline; inject ParallelResearchFallback with real catalog/labelled fallback providers plus shared deadline, cancellation, provenance, and safe incomplete-context behavior. Acceptance: a missing catalog property trigge",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010041814",
+          "kind": "feature",
+          "title": "Extend existing latency/rehearsal surfaces into a production-like real-provider benchmark for catalog-only, fallback, timeout, and concurrent load. Persist/emit sample count, TTFT/completion p50/p95, provider/config provenance, and error rate. Acceptance: complete-response p95 is below 2,000 ms; oth",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010041815",
+          "kind": "feature",
+          "title": "Make npm run dev supply the documented sunday-drop event with deterministic catalog/listing/policy data and correct seller ownership when optional infrastructure is absent; retain Docker mode. Add a startup smoke covering presence, seller copilot, one product question, and one guarded action without",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
           "completionSummary": null,
           "completionEvidence": null,
           "commits": []
@@ -6100,6 +6529,182 @@ export const BUILD_HISTORY_SNAPSHOT = {
               "attribution": "inferred"
             }
           ]
+        },
+        {
+          "id": "WI-6554700010041818",
+          "kind": "feature",
+          "title": "Repair the Event Manager dock seed/recovery and ship an explicit, discoverable seller Start auction workflow with focused regression tests.  — note: ← WI-38878 completed (done)",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010041819",
+          "kind": "feature",
+          "title": "Enable first-class seller chat composing/replying while preserving triage, optimistic delivery, accessibility, and error feedback.  — note: ← WI-39091 completed (done)",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010041820",
+          "kind": "feature",
+          "title": "Replace process-memory chat history with the existing Postgres data-layer pattern and add public-boundary protections: authoritative seller capability, idempotent sends, pagination, rate limiting, moderation actions, and metrics.  — note: ← WI-39068 completed (done)",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010041822",
+          "kind": "feature",
+          "title": "Persist auction aggregates, bids, lifecycle transitions, and winner orders in Postgres using the existing DatabaseModule/store pattern; make start, bid, automatic/manual close, inventory reservation ownership, and restart recovery transactional; add migration and focused restart/concurrency tests.  ",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010041823",
+          "kind": "feature",
+          "title": "Establish the public auction write boundary: authenticate seller start/close, derive or verify buyer identity server-side, add bid idempotency, rate limits, payload/amount ceilings, and auditable rejection paths without breaking the intentional guest buyer experience.   — note: ← WI-38966 completed ",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010041824",
+          "kind": "feature",
+          "title": "Harden auction realtime and client recovery: authenticated mutations, reconnect/resume from authoritative snapshots, outbid/conflict feedback, closed/winner recovery after refresh, accessible disabled/error states, and no stale-live UI after the clock expires.   — note: ← WI-38985 completed (done)",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010041825",
+          "kind": "feature",
+          "title": "Run auction acceptance coverage against the current tree: focused and full API/web tests, restart and concurrent-bid rehearsals, seller-to-two-buyers browser flow on desktop/mobile, and public-boundary abuse probes with evidence.   — note: ← WI-39001 completed (done)",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010041826",
+          "kind": "feature",
+          "title": "Promote the verified auction build through the release pipeline, repair any red checkpoint, trigger a fresh verdict, deploy the green pin, and verify the public SideStage auction surface and health without destructive production test data.   — note: closed 2026-09-04 as completion residue: the lane ",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010041827",
+          "kind": "feature",
+          "title": "Produce a complete, machine-readable census of every SideStage client-visible data surface before migration: every Postgres table, process-local store, API controller read/write, registered sync query/invalidation, component-owned fetch/EventSource/cache, and external command result. Classify each a",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010041830",
+          "kind": "feature",
+          "title": "Remove the browser seller-credential prompt, session storage, bearer headers, and seller-access endpoint; use the selected demo principal for seller auction actions.  — note: ← WI-39112 completed (done)",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010041831",
+          "kind": "feature",
+          "title": "Remove the shared credential requirement from seller chat and transcription paths while preserving demo-principal ownership checks, rate limits, payload validation, guest bid identity, and audit logging.   — note: ← WI-39183 completed (done)",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010041832",
+          "kind": "feature",
+          "title": "Remove obsolete seller-token deployment configuration, update regression coverage, and verify API/web typechecks, focused/full tests, and the browser auction start/close flow.   — note: ← WI-39185 completed (done)",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010041833",
+          "kind": "feature",
+          "title": "Implement the owner-approved Watch room experience in the real SideStage web app: compose the existing authoritative AuctionPanel as the conditional Now selling/current-offer module and add accessible Chat, Details, and Seller tabs using existing durable chat and product/event data paths; preserve a",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010041834",
+          "kind": "feature",
+          "title": "Add focused component and interaction regression coverage for the Watch current-offer composition and Chat/Details/Seller tabs, then run exact web typecheck/tests and verify desktop/mobile keyboard, responsive, console, and network behavior in a real browser.   — note: ← WI-39223 completed (done)",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010041835",
+          "kind": "feature",
+          "title": "Remove the visible Polling copy from Watch > Live Auction while preserving live-update behavior and accessibility; add or update focused regression coverage.  — note: ← WI-39245 completed (done)",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010041836",
+          "kind": "feature",
+          "title": "Retheme the Chat tab using the established SideStage visual language while preserving chat behavior and responsive layout; add or update focused regression coverage and browser-verify desktop/mobile.  — note: ← WI-39246 completed (done)",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
         }
       ],
       "validationSummary": {
@@ -6345,6 +6950,50 @@ export const BUILD_HISTORY_SNAPSHOT = {
             "verifiedHow": "manual"
           },
           "commits": []
+        },
+        {
+          "id": "WI-6554700010041837",
+          "kind": "feature",
+          "title": "Inventory every non-archived SideStage plan item plus every blocked, held, needs-human, and externally blocked work-item; record the complete cohort.  — note: ← WI-39231 completed (done)",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010041838",
+          "kind": "feature",
+          "title": "Trace every candidate block to its writer, dependency graph, current plan Decisions, holder liveness, checkpoint, and external capability; classify valid versus stale or contradictory.   — note: ← WI-39253 completed (done)",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010041839",
+          "kind": "feature",
+          "title": "Clear every demonstrably invalid block or stale temporary hold without disturbing live peer work, and record the exact evidence for each mutation.   — note: ← WI-39270 completed (done)",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010041840",
+          "kind": "feature",
+          "title": "Re-read all SideStage plans and work-items, verify convergence, and deliver a full residue report naming each remaining block and the exact requirement to clear it.   — note: ← WI-39271 completed (done)",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
         }
       ],
       "validationSummary": {
@@ -6508,6 +7157,39 @@ export const BUILD_HISTORY_SNAPSHOT = {
               "attribution": "inferred"
             }
           ]
+        },
+        {
+          "id": "WI-6554700010041841",
+          "kind": "feature",
+          "title": "Bind each newly created cart aggregate to the normalized buyer principal and add service-level owned read/write methods; preserve internal cart lifecycle APIs for trusted server workflows.  — note: ← WI-39221 completed (done)",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010041842",
+          "kind": "feature",
+          "title": "Require the canonical demo-principal boundary on CartController and cart.byId, route REST fallback requests with the selected buyer principal, and classify the routes as principal-partitioned.   — note: Implemented canonical demo-principal enforcement on CartController and cart.byId, principal-parti",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010041843",
+          "kind": "feature",
+          "title": "Add cross-buyer denial and same-buyer success regressions across controller, named sync query, and web REST helpers; run focused and full API/web verification.   — note: Added same-buyer, cross-buyer, missing-principal, named-sync, web-header, and no-side-effects-before-owner-check regressions. Curr",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
         }
       ],
       "validationSummary": {
@@ -7152,6 +7834,94 @@ export const BUILD_HISTORY_SNAPSHOT = {
               "attribution": "inferred"
             }
           ]
+        },
+        {
+          "id": "WI-6554700010041844",
+          "kind": "feature",
+          "title": "Implement one shared ticking clock for scheduled Channel Guide rows, with an accessible countdown, exact start time, and an honest no-start-time fallback.  — note: ← WI-39143 completed (done)",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010041845",
+          "kind": "feature",
+          "title": "Make the public guide reject synthetic seller/probe records, remove runtime placeholder seller fallback, and safely withdraw the known production acceptance event.  — note: ← WI-39144 completed (done)",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010041846",
+          "kind": "feature",
+          "title": "Add focused web/API regressions for countdown rollover, seller provenance filtering, and acceptance-event cleanup.   — note: ← WI-39232 completed (done)",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010041848",
+          "kind": "feature",
+          "title": "Specify three active-now visual treatments using identical Channel Guide data; keep live status distinct from current-watching and scheduled countdown states.  — note: ← WI-39152 completed (done)",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010041849",
+          "kind": "feature",
+          "title": "Build an isolated comparison URL showing the three treatments side by side with responsive layout and existing SideStage design tokens.   — note: ← WI-39158 completed (done)",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010041850",
+          "kind": "feature",
+          "title": "Add focused regressions, validate the design spec, and browser-verify desktop plus narrow views before delivering the URL.   — note: ← WI-39164 completed (done)",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010041851",
+          "kind": "feature",
+          "title": "Extract the approved Signal rail active-now treatment into a production-ready Channel Guide live-status component with token-only styles and focused accessibility/semantic regression coverage, using new isolated files only while P-001/P-002 remain in flight; do not edit ChannelGuide.tsx, channel-gui",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010041852",
+          "kind": "feature",
+          "title": "Integrate the approved Signal rail treatment into the real ChannelGuide live rows after the countdown/hygiene atoms settle, preserve current-watching and scheduled semantics, then run focused/full verification and responsive browser QA.   — note: ← WI-39207 completed (done)",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
         }
       ],
       "validationSummary": {
@@ -7507,6 +8277,50 @@ export const BUILD_HISTORY_SNAPSHOT = {
             "testResult": "CHECK_EXIT=0 — api 36/36 test files passed, web 48/48 test files passed, typecheck clean. D004_MISSING=NONE. DEPLOY_EXIT=0. Live: HTTP_ROOT=200, HTTP_HEALTHZ=200 on https://sidestage.buyrestart.com. Prod containers api/web/postgres/redis/typesense/mediamtx all running. sidestage-api-1 restarts=0, BOOT_SCAN=CLEAN, 'Nest application successfully started'.",
             "verifiedHow": "integration"
           },
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010041853",
+          "kind": "feature",
+          "title": "Survey the exact port delta: diff Restart shop-api shipping/checkout (shipping.service.ts rate calculation, checkout providers, webhook flow) against SideStage's existing apps/api/src/checkout + shipping modules AND the web app's buyer flow; record the port set and any Restart dependencies needing s",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010041854",
+          "kind": "feature",
+          "title": "Port the shipping calculator: bring Restart's shipping.service rate-calculation capability into apps/api/src/shipping alongside the existing box-packer, expose calculator endpoints via shipping.controller, with vitest coverage ported/adapted from Restart's shipping tests.   — note: ← WI-38635 comple",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010041855",
+          "kind": "feature",
+          "title": "Buyer-facing checkout UI with shipping calculator in apps/web: cart review, address entry, live shipping-rate calculation, Square sandbox checkout session against the existing checkout API; follow the app's existing panel/tab patterns; component tests via renderToStaticMarkup like the rest of the su",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010041856",
+          "kind": "feature",
+          "title": "Integration verify + prod deploy: end-to-end cart→rates→checkout-session locally with npm run check green, deploy via deploy/deploy.sh serialized with the P-110 Typesense rollout on the shared prod host (D-003), live-verify on sidestage.buyrestart.com.  — note: ← WI-38637 completed (done)",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
           "commits": []
         }
       ],
@@ -8734,6 +9548,193 @@ export const BUILD_HISTORY_SNAPSHOT = {
             "verifiedHow": "unit"
           },
           "commits": []
+        },
+        {
+          "id": "WI-6554700010041857",
+          "kind": "feature",
+          "title": "Real data layer: pg pool (DATABASE_URL) + thin repository modules; port auction/cart/checkout inventory holds to the schema's reserve_inventory()/release_inventory() functions behind the existing service interfaces; keep the in-memory implementations as injectable test fakes (they are good fakes) — ",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010041858",
+          "kind": "feature",
+          "title": "One product source: catalog read-model endpoint on the API (reads product_catalog/storefront_product incl. the seeded demo rows) + a single useCatalog hook in web; delete the three demo arrays, keep exactly one seed-backed demo fixture  — note: Catalog read model live: /catalog (tsv search w/ trgm f",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010041859",
+          "kind": "feature",
+          "title": "Wire buyer commerce: \"Hold item\" calls the reservation API (visible availableQty decrement); buyer chat becomes the same EventChat component/API the seller uses; delete the local fake chat  — note: InventoryModule promoted from the auction seam (one hold provider for auctions + buyer holds): GET /in",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010041860",
+          "kind": "feature",
+          "title": "Split App.tsx: SellerTab/ConfigTab/TestTab each to their own file; extract shared useStreamSession + useCopyState hooks; no component file over ~250 lines — note: App.tsx 552→78 lines: SellerTab/ConfigTab/TestTab/TabHeader own files; app-routing.ts (tabs+URL state), event-identity.ts (shared event c",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010041861",
+          "kind": "feature",
+          "title": "Make Config real: persist event settings + guardrail toggles (event_config table), and feed them into the API guardrail module so the toggle IS the policy  — note: event_config table (schema.sql + live) + EventConfigModule: GET/PUT /events/:eventId/config with Pg/InMemory stores; policyFromConfig de",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010041862",
+          "kind": "feature",
+          "title": "Real preflight: Test-tab checks probe /healthz, media base, catalog endpoint, and judge readiness instead of hardcoded literals — note: TestTab preflight rows are live probes: catalog (real product count incl. 10,000+ floor rendering), copilot grounding (config+policy fetch), stream input (media bas",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010041863",
+          "kind": "feature",
+          "title": "Density pass per the approved mockups: compact tokens for Config/Test (13px/8px/32px rhythm), non-compact Buyer (15.5px/24px/44px), console Seller; consolidate the 4 CSS files behind one token block — note: Density token system in styles.css (--ss-font/pad/control-h/gap/section-gap/h1-max) with thre",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010041864",
+          "kind": "feature",
+          "title": "Implement the approved Seller Event setup screen: inventory picker over the real catalog (search/type/stock filters, paging) feeding create-event AND add-to-live-event with event price + qty limits (reservation-backed), plus the four spec listing actions — Push (to stage), Swap, Markdown (via the gu",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010041865",
+          "kind": "feature",
+          "title": "Bring the Seller console and Buyer tab fully to the approved mockup designs: transcript mention-chips driving On deck, copilot approve/edit/skip reply cards, event-manager queue with Manage lineup entry, buyer auction block styling + stats row + product-card layout per the mockup annotations  — note",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010041866",
+          "kind": "feature",
+          "title": "Search parity with Restart per the original spec [owner 2026-08-13 'copy the restart search functionality, the same one we are using in the wholesale grid']: port the Typesense-backed catalog search (Restart shop-api catalog.service + procurement-catalog.service pattern — index schema, sync from",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010041867",
+          "kind": "feature",
+          "title": "NO dummy data anywhere [owner 2026-08-13]: live event stats endpoint (viewers from chat presence, items sold + raised from paid checkout orders + auction winner orders) wired into the Buyer stats row; sweep and replace every remaining hardcoded placeholder (DEMO_BUYER_STATS, seller copilot note ",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010041868",
+          "kind": "feature",
+          "title": "Shared-library adoption in ALL components [owner 2026-08-13 'RichGrid papergrid, zero for sync']: product/catalog grids on @papercusp/grid-core RichGrid (buyer product rail, event-setup picker), client data reads/writes through the @papercusp sync layer (replace hand-rolled fetch+useState hooks ",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010041869",
+          "kind": "feature",
+          "title": "AUTHOR PRD.md + TDD.md in the repo (contest criterion 2: 'reviewers read PRD + TDD FIRST') — no such documents exist anywhere in the tree despite the evaluation flow requiring them; link them from README + submission packet  — note: docs/PRD.md (problem/users/4-tab shape/spec requirements incl. dept",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010041870",
+          "kind": "feature",
+          "title": "Implement the ratified Config contract (docs/config-policies.md, P-021 design): seller_policy_sets with immutable draft→validated→published revisions, returns/warranty/shipping/payment policy fields, automation level + limits, audit records — the current Config tab (name/tone/3 toggles) is a thin sl",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010041871",
+          "kind": "feature",
+          "title": "Add the missing spec action kinds to the guarded-action service: push (to stage), swap, stock-adjust — spec names 'push, swap, markdown, or stock adjustment'; implemented kinds today are only markdown/price-adjust/targeted-offer — then P-108's Event-setup buttons get real endpoints for all four  — n",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010041872",
+          "kind": "feature",
+          "title": "Sync-layer adoption (split from P-112 for parallel lanes): client data reads/writes through the @papercusp sync layer (libs/sync in-tree) replacing hand-rolled fetch+useState/poll hooks — catalog.ts useCatalog, hooks.ts, buyer.ts, auction.ts, judge.ts, event-creation/catalog.ts, events/events.ts — r",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010041873",
+          "kind": "feature",
+          "title": "Fix duplicate React in the committed lockfile (tracked as WI-38708): libs/papergrid/node_modules/react@18.3.1 vs root react@19.2.8 — full root-level `npx vitest run apps/web` crosses the copies (useSyncExternalStore null, 8 files/19 tests red). Fix per dockview D-017: root-cause the papergrid react ",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
         }
       ],
       "validationSummary": {
@@ -9248,6 +10249,83 @@ export const BUILD_HISTORY_SNAPSHOT = {
             "verifiedHow": "live-drove-ui"
           },
           "commits": []
+        },
+        {
+          "id": "WI-6554700010041874",
+          "kind": "feature",
+          "title": "Inventory current routes, user roles, active plan Decisions, approved mockups, known intentional limits, and enumerate every reachable interactive element.  — note: ← WI-39218 completed (done)",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010041875",
+          "kind": "feature",
+          "title": "Establish isolated Verdict browser runs, verify the live stack, create two clean demo-user personas, and record baseline console/network evidence.   — note: ← WI-39247 completed (done)",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010041881",
+          "kind": "feature",
+          "title": "Parallel Studio lane: Event Manager desktop deep coverage — My Events, event search/selection, all section tabs, Settings derivations, Rehearse, Create-event form validation, reset/fullscreen local controls, responsive checks, console/network evidence, and source-based confirmation of WI-39274. Read",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010041882",
+          "kind": "feature",
+          "title": "Parallel Studio lane: Inventory mobile and responsive coverage — inventory list/search/filter/empty/local selection/price/quantity/pagination, viewport transitions, reload persistence, keyboard/accessibility checks, and console/network evidence. Read-only under D-010; do not add, submit, save, or mu",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010041883",
+          "kind": "feature",
+          "title": "Parallel Studio lane: Active Event and Copilot mobile/edge coverage — all reachable controls, panels, overlays, auction/chat state, invalid-room/error states, responsive transitions, reload persistence, keyboard/accessibility checks, and console/network evidence. Read-only under D-010; do not prepar",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010041884",
+          "kind": "feature",
+          "title": "Parallel Studio lane: Studio shell and route-matrix coverage — enumerate and exercise every Studio navigation entry and section, responsive layouts, local-only fullscreen/reset controls, loading/empty/error states, external links, focus order, and console/network inspection. Read-only under D-010; d",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010041885",
+          "kind": "feature",
+          "title": "Parallel Studio lane: adversarial cross-surface/spec audit — reconcile rendered behavior with current plan Decisions and source/API writers, inspect negative and contradictory states without mutation, detect untested reachable elements, verify persistence boundaries, and produce reproducible evidenc",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
         }
       ],
       "validationSummary": {
@@ -9404,6 +10482,28 @@ export const BUILD_HISTORY_SNAPSHOT = {
             "testResult": "PASS — focused 12/12; web 85 files/575 tests; typecheck/build/diff check green. Live run rendered 16 proposals; desktop queue/inspector columns measured 208px/562px; narrow fallback measured one 349px column, horizontally scrollable queue, no page overflow; selecting proposal 2 left exactly one aria-pressed item and updated the inspector to the identical question.",
             "verifiedHow": "live-drove-ui"
           },
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010041886",
+          "kind": "feature",
+          "title": "Refactor CopilotPanel into a selectable queue rail and focused review inspector, add responsive fallback styling, and add focused component/integration regression coverage.  — note: ← WI-39234 completed (done)",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010041887",
+          "kind": "feature",
+          "title": "Verify the selected layout through targeted tests, typecheck/build, and the real SideStage browser runtime; resolve any regressions and close the plan with evidence.   — note: ← WI-39242 completed (done)",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
           "commits": []
         }
       ],
@@ -9957,6 +11057,94 @@ export const BUILD_HISTORY_SNAPSHOT = {
               "attribution": "inferred"
             }
           ]
+        },
+        {
+          "id": "WI-6554700010041888",
+          "kind": "feature",
+          "title": "Generate and inspect eight coordinated photorealistic product images  — note: ← WI-38935 completed (done)",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010041889",
+          "kind": "feature",
+          "title": "Add optimized image assets and update API, web offline, and Postgres catalog mirrors   — note: ← WI-38944 completed (done)",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010041890",
+          "kind": "feature",
+          "title": "Add regression coverage and run focused catalog tests plus the web build   — note: ← WI-38950 completed (done)",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010041891",
+          "kind": "feature",
+          "title": "Verify the rendered catalog and colorway switching in a browser   — note: Postgres-backed browser acceptance green in isolated Verdict run /tmp/verdict-sidestage-p008-final.ayjyQg; screenshot /tmp/sidestage-p008-final-catalog.webp. Buyer expanded to all 6 items; current event-demo-01-v1 and six vari",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010041892",
+          "kind": "feature",
+          "title": "Define and guard the owned-image contract for all 50 event-demo-200 groups: stable filenames and alt text, exactly one real image per group reused across four variants, zero placeholder URLs, file-existence checks, and Postgres-visible acceptance criteria.  — note: ← WI-39017 completed (done)",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010041893",
+          "kind": "feature",
+          "title": "Generate, inspect, normalize, and save the complete 50-group product-photo set with the built-in image generator, reusing only exact existing matches and converting final assets to stable WebPs under apps/web/public/demo-products.   — note: ← WI-39037 completed (done)",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010041894",
+          "kind": "feature",
+          "title": "Wire the live event-demo-200 group and variant seed writers to owned local image paths, take a pre-destructive workspace/database snapshot, rerun the idempotent seed against the standing database, and prove reserved inventory remains unchanged.   — note: ← WI-39040 completed (done)",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010041895",
+          "kind": "feature",
+          "title": "Add recurrence guards and run focused catalog/seed tests, full API and web suites, TypeScript, production build, and exact source/dist asset-count validation on the settled tree.   — note: ← WI-39047 completed (done)",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
         }
       ],
       "validationSummary": {
@@ -11088,6 +12276,61 @@ export const BUILD_HISTORY_SNAPSHOT = {
             ]
           },
           "commits": []
+        },
+        {
+          "id": "WI-6554700010041896",
+          "kind": "feature",
+          "title": "Thread the selected demo identity through the existing SyncProvider.userId seam into polling, prefetch, batch, and SSE transports and into a typed server request context consumed by SyncController and SyncQueryRegistry. Include the principal in TanStack query keys, batcher instance keys, and SSE upd",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010041897",
+          "kind": "feature",
+          "title": "Extend the existing persistence model with enforceable seller/buyer ownership wherever event or session anchoring is insufficient. Backfill legacy seller-owned rows to the documented demo seller, bind Scout sessions to buyer identity, and add the minimum composite keys, foreign keys, and indexes nee",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010041898",
+          "kind": "feature",
+          "title": "Make EventService/PgEventStore the authoritative seller-ownership oracle and repair the event directory/config/policy lifecycle. Resolve GET /events/mine and events.mine from the request principal; require ownership for config GET/PUT and event.config; pass the seller into publishFromConfig; prevent",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010041899",
+          "kind": "feature",
+          "title": "Apply the shared event-owner guard to every seller-owned event surface: run-of-show REST/sync, action register/items/audit/execute/rollback, Copilot list/turn/review/confirm and sync, seller auction start/close and credential mapping, plus rehearsal/chat/stats routes or queries classified as seller-",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010041900",
+          "kind": "feature",
+          "title": "Owner-scope seller inventory while preserving the buyer-facing catalog as an intentional shared projection. Extend storefront_product and inventory_reservation access paths with seller identity; require the selected seller for restock and seller event hold/release; validate that event reservation so",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
         }
       ],
       "validationSummary": {
@@ -11674,6 +12917,72 @@ export const BUILD_HISTORY_SNAPSHOT = {
           "completionSummary": null,
           "completionEvidence": null,
           "commits": []
+        },
+        {
+          "id": "WI-6554700010041907",
+          "kind": "feature",
+          "title": "Homepage default event follows the Channel Guide's topmost row instead of the hardcoded `sunday-drop`; `?event=` deep links still win",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010041908",
+          "kind": "feature",
+          "title": "Remove the \"Current event preflight / Event readiness\" section from the Settings tab entirely (panel + call site + test + dead CSS; keep the shared rehearsals preflight the Tests tab uses)",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010041909",
+          "kind": "feature",
+          "title": "API: event lifecycle transitions — store methods (in-memory + PG) and one owner-guarded endpoint that sets a scheduled start time, takes an event live, and ends it",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010041910",
+          "kind": "feature",
+          "title": "API: auto-flip `scheduled` -> `live` once `starts_at` passes, as a declared server-side sweep",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010041911",
+          "kind": "feature",
+          "title": "Web: Event Manager lifecycle controls — start date/time, Go live, End event, Unpublish — on the event detail header, invalidating the guide/directory after each write  — note: Lifecycle controls + client legality mirror + differential test; 4 repo guards satisfied",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010041912",
+          "kind": "feature",
+          "title": "Verify end-to-end against the running app (homepage default, lifecycle round-trip, settings section gone) and run the affected suites  — note: ← WI-39673 completed (done)",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
         }
       ],
       "validationSummary": {
@@ -12064,6 +13373,61 @@ export const BUILD_HISTORY_SNAPSHOT = {
               "attribution": "inferred"
             }
           ]
+        },
+        {
+          "id": "WI-6554700010041913",
+          "kind": "feature",
+          "title": "Fix selected event row color parsing so CSS Color 4 channel scales retain intended contrast; add regression coverage.  — note: ← WI-38839 completed (done)",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010041914",
+          "kind": "feature",
+          "title": "Curate exactly 200 demo catalog variants in the existing catalog/option tables across color-only, size-only, and color-plus-size products; extend query/model coverage for color and size.  — note: ← WI-38840 completed (done)",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010041915",
+          "kind": "feature",
+          "title": "Move Create event into a compact sticky toolbar above the catalog and render color plus size variant metadata responsively.  — note: ← WI-38841 completed (done)",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010041916",
+          "kind": "feature",
+          "title": "Add focused API/component/data tests covering the 200-variant invariant, option normalization, selection contrast, sticky scroll behavior, and responsive layout.   — note: ← WI-38842 completed (done)",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010041917",
+          "kind": "feature",
+          "title": "Run focused and full verification plus desktop and mobile SideStage QA, record evidence, and close the plan.   — note: ← WI-38843 completed (done)",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
         }
       ],
       "validationSummary": {
@@ -12487,6 +13851,72 @@ export const BUILD_HISTORY_SNAPSHOT = {
             ]
           },
           "commits": []
+        },
+        {
+          "id": "WI-6554700010041918",
+          "kind": "feature",
+          "title": "Extend the existing event directory with a seller-scoped events.mine read, including drafts, plus store and API coverage.  — note: ← WI-38987 completed (done)",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010041919",
+          "kind": "feature",
+          "title": "Implement the Event Manager My events / Create event switch, searchable seller event rail, selection-driven detail, and URL-addressable manager view.   — note: ← WI-38988 completed (done)",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010041920",
+          "kind": "feature",
+          "title": "Run focused API/web tests, typecheck/build, and Verdict desktop/mobile interaction QA; close with evidence.   — note: ← WI-39004 completed (done)",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010041921",
+          "kind": "feature",
+          "title": "Extend the selected-event My Events detail navigation to Lineup → Settings → Rehearse and embed the existing RunOfShowPlannerPanel in the Rehearse tab.  — note: ← WI-39016 completed (done)",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010041922",
+          "kind": "feature",
+          "title": "Retire the standalone Event Settings and Run-of-show planner dock panes, and migrate persisted manager layouts to the single Event Manager pane.   — note: ← WI-39019 completed (done)",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010041923",
+          "kind": "feature",
+          "title": "Add tab-order, planner-embedding, and manager-layout migration tests; run focused web tests, typecheck/build verification, and browser QA while preserving Active Event's live Run of show timeline.   — note: ← WI-39022 completed (done)",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
         }
       ],
       "validationSummary": {
@@ -12696,6 +14126,50 @@ export const BUILD_HISTORY_SNAPSHOT = {
               "attribution": "body-reference"
             }
           ]
+        },
+        {
+          "id": "WI-6554700010041924",
+          "kind": "feature",
+          "title": "Split event-scoped readiness from synthetic/system test suites and establish reusable panel boundaries.  — note: ← WI-38810 completed (done)",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010041925",
+          "kind": "feature",
+          "title": "Embed shared event settings/readiness in the current-event surface and Event Manager after event creation.   — note: Delivered under WI-38810. P-002: shared settings/readiness is mounted in Studio and populated Event Manager. P-003: Settings/Rehearse left main navigation and Tests is synthetic-only.",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010041926",
+          "kind": "feature",
+          "title": "Remove Settings/Rehearse from main navigation and restore Tests naming/routing for synthetic suites.   — note: Delivered under WI-38810. P-002: shared settings/readiness is mounted in Studio and populated Event Manager. P-003: Settings/Rehearse left main navigation and Tests is synthetic-only. P-004",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010041927",
+          "kind": "feature",
+          "title": "Add focused tests and run browser verification for both event entry points and Tests.   — note: Delivered under WI-38810. P-002: shared settings/readiness is mounted in Studio and populated Event Manager. P-003: Settings/Rehearse left main navigation and Tests is synthetic-only. P-004: focused/unit/",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
         }
       ],
       "validationSummary": {
@@ -13001,6 +14475,50 @@ export const BUILD_HISTORY_SNAPSHOT = {
               "apps/web/src/buyer-checkout-api.test.ts"
             ]
           },
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010041928",
+          "kind": "feature",
+          "title": "Extend inventory reservations and cart items with a server-authored two-minute expiresAt contract; lazily expire holds in both Postgres and in-memory inventory and cover it with service/controller tests.  — note: ← WI-38819 completed (done)",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010041929",
+          "kind": "feature",
+          "title": "Make cart reads prune expired items, release/remove held items through the existing APIs, and ensure checkout cannot start from an expired cart while paid checkout commits the reservation.   — note: ← WI-38820 completed (done)",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010041930",
+          "kind": "feature",
+          "title": "Turn the buyer checkout drawer's first state into a Held items list with per-item countdowns, automatic expiry cleanup, an accessible held-list entry point, and a Checkout button that enters the existing flow.   — note: ← WI-38821 completed (done)",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010041931",
+          "kind": "feature",
+          "title": "Run focused API/web tests, typecheck/build as relevant, and Verdict desktop/mobile browser QA for hold → held list → checkout plus expiry behavior.   — note: ← WI-38822 completed (done)",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
           "commits": []
         }
       ],
@@ -13407,6 +14925,50 @@ export const BUILD_HISTORY_SNAPSHOT = {
               "package-lock.json"
             ]
           },
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010041932",
+          "kind": "feature",
+          "title": "Extract the Papercusp read-only Vditor plan document viewer into the existing shared @papercusp/ui-primitives surface, preserving frontmatter, outline navigation, plan/decision highlighting, clickable references, jump search, local-runtime assets, and a raw-text fallback.  — note: ← WI-38996 complet",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010041933",
+          "kind": "feature",
+          "title": "Extend the SideStage History data projection with complete plan markdown plus plan-item/decision metadata and production-safe committed snapshot/source metadata.  — note: ← WI-39026 completed (done)",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010041934",
+          "kind": "feature",
+          "title": "Rename Releases to History and replace Open plan link with an accessible deep-linkable popup using the shared plan viewer.   — note: ← WI-39044 completed (done)",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010041935",
+          "kind": "feature",
+          "title": "Add focused shared-renderer, SideStage API/UI, navigation, accessibility, and browser verification; validate and lint the UI spec.   — note: ← WI-39049 completed (done)",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
           "commits": []
         }
       ],
@@ -13854,6 +15416,28 @@ export const BUILD_HISTORY_SNAPSHOT = {
               "attribution": "inferred"
             }
           ]
+        },
+        {
+          "id": "WI-6554700010041937",
+          "kind": "feature",
+          "title": "Expose authoritative reservedQty through catalog API/web types, add the Inventory-only read-only Reserved column, and invalidate catalog.page for buyer reservation mutations.  — note: ← WI-38962 completed (done)",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010041938",
+          "kind": "feature",
+          "title": "Add focused regression coverage and verify API/web tests, typecheck, and the rendered Inventory UI.   — note: ← WI-38978 completed (done)",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
         }
       ],
       "validationSummary": {
@@ -14218,6 +15802,17 @@ export const BUILD_HISTORY_SNAPSHOT = {
               "attribution": "body-reference"
             }
           ]
+        },
+        {
+          "id": "WI-6554700010041939",
+          "kind": "feature",
+          "title": "Expose authoritative total qty in the catalog read model and change the existing inventory mutation/storage seam from additive restock to absolute quantity-and-price save semantics, preserving reservations and rejecting qty below reserved.  — note: ← WI-39104 completed (done)",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
         }
       ],
       "validationSummary": {
@@ -14974,6 +16569,94 @@ export const BUILD_HISTORY_SNAPSHOT = {
           "state": "done",
           "completedAt": "2026-08-14T16:03:03.761Z",
           "completionAuthority": "proposed",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010041942",
+          "kind": "feature",
+          "title": "iOS project scaffold in sidestage-mobile/ios: project.yml (xcodegen) with SideStage / SideStageCore / SideStageTests / SideStageUITests targets, ExportOptions.plist — requires the sidestage-mobile repo from the Android plan's P-001  — note: ← WI-38621 completed (done)",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010041943",
+          "kind": "feature",
+          "title": "xcframework build of sidestage-core + UniFFI Swift bindings wired into SideStageCore; host smoke proves the Swift boundary — requires Android plan P-002/P-004 (core + bindings exist)  — note: ← WI-38622 completed (done)",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010041944",
+          "kind": "feature",
+          "title": "SwiftUI two-tab navigation shell (Buyer + Orders only): Buyer events feed → Live event → Cart/Checkout plus Orders list/detail, themed from the shared design tokens; no Seller/History/Config/Test tabs (IA mirrors the Android mobile shell) — note: ← WI-38623 completed (done)",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010041945",
+          "kind": "feature",
+          "title": "Buyer-tab live event screen only: stream playback, on-deck product rail, auction bid UI driven by realtime core state, add-to-cart + buy-now; no Seller/History/Config/Test surfaces  — note: ← WI-38624 completed (done)",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010041946",
+          "kind": "feature",
+          "title": "Buyer-tab cart + Square sandbox checkout incl. shipping; a successful purchase refreshes the Orders-tab list/detail/receipt surfaces — parity with web + Android; no Seller/History/Config/Test surfaces  — note: ← WI-38625 completed (done)",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010041947",
+          "kind": "feature",
+          "title": "Buyer-tab event + product browse/search with typo-tolerant parity through the shared core; Orders remains the separate second tab; no Seller/History/Config/Test surfaces  — note: ← WI-38626 completed (done)",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010041948",
+          "kind": "feature",
+          "title": "Buyer + Orders-only verification: SideStageTests unit coverage plus SideStageUITests smoke for Buyer browse/live/bid/cart/checkout and Orders list/detail; exclude Seller/History/Config/Test-tab surfaces; shared-core changes ride the cargo suite in the same repo; Xcode test execution remains macOS-ga",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010041949",
+          "kind": "feature",
+          "title": "macOS-gated simulator verification: Buyer + Orders e2e (browse → watch → bid → cart → Square sandbox checkout → Orders list/detail); IPA export via ExportOptions + publish through the mobile release pipeline; no Seller/History/Config/Test-tab coverage  — note: ← WI-38628 completed (done)",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
           "completionSummary": null,
           "completionEvidence": null,
           "commits": []
@@ -15848,6 +17531,105 @@ export const BUILD_HISTORY_SNAPSHOT = {
           "completionSummary": null,
           "completionEvidence": null,
           "commits": []
+        },
+        {
+          "id": "WI-6554700010041950",
+          "kind": "feature",
+          "title": "ONE shared stage clock: lift `StageLog` out of `SellerTab` local state into a shared provider both the Studio dock panel and the Lineup timeline read, so elapsed/pace cannot disagree between surfaces  — note: Closed with P-006: SellerTab's duplicate runOfShowLog deleted, dock's stageLog prop removed",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010041951",
+          "kind": "feature",
+          "title": "Guarded markdown control: stepper + resulting-price preview + policy floor/max drawn as a hard stop, reading `priceFloorCentsByProduct` and `maxMarkdownPercent` from `SellerEventPolicy`. Shared component, used by the timeline and reusable by the dock panel  — note: ← WI-39620 completed (done)",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010041952",
+          "kind": "feature",
+          "title": "Buyer picker replacing the free-text buyer ID field on targeted offers — sourced from buyers present in the event (bidders/room), never a typed opaque id — note: ← WI-39640 completed (done)",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010041953",
+          "kind": "feature",
+          "title": "Make the Studio dock's \"Take live\" actually stage the item server-side (guarded `executeSellerAction` push) as well as setting local selection — required by D-005, since the server-truth clock would otherwise leave that button visibly inert  — note: see D-008",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010041954",
+          "kind": "feature",
+          "title": "`LineupTimeline` component: ordered slots off `buildRunOfShowView`, drag + keyboard reorder, inline minutes and notes editing, per-slot collapsible commerce drawer (price/stock/auction/offer), reserved-not-in-show tray  — note: component + 11 tests green; NOT mounted yet — P-005 wires it",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010041955",
+          "kind": "feature",
+          "title": "Wire `LineupTimeline` into the Lineup section of `EventManager.tsx`; retire the separate `RunOfShowPlannerPanel` mount and the permanent guardrail banner (fault 8)  — note: ← WI-39684 completed (done)",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010041956",
+          "kind": "feature",
+          "title": "Keep `RunOfShowPanel` (Studio dock) consistent — adopt the shared markdown control and buyer picker so the two surfaces cannot drift; no forked copies  — note: ← WI-39691 completed (done)",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010041957",
+          "kind": "feature",
+          "title": "Tests in the project's own framework (vitest, `npm run test:apps` / `test:file`) for the new components; existing `run-of-show.ts` math stays untouched and its tests must still pass  — note: ← WI-39695 completed (done)",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010041958",
+          "kind": "feature",
+          "title": "Verify in the running app for real (`npm run dev`, drive the seller Lineup), then author the acceptance rubric and have it graded before the plan ships  — note: ← WI-39696 completed (done)",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
         }
       ],
       "validationSummary": {
@@ -16376,6 +18158,105 @@ export const BUILD_HISTORY_SNAPSHOT = {
               "attribution": "inferred"
             }
           ]
+        },
+        {
+          "id": "WI-6554700010041959",
+          "kind": "feature",
+          "title": "Audit the current Lineup, run-of-show planner, shipped mockups, and SideStage visual tokens; define the shared content model for all concepts.  — note: ← WI-39106 completed (done)",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010041960",
+          "kind": "feature",
+          "title": "Build three interactive browser mockup directions that merge draggable run-of-show planning into a redesigned Lineup, with desktop and mobile behavior.   — note: ← WI-39116 completed (done)",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010041961",
+          "kind": "feature",
+          "title": "Author UI-IR specs for the concepts and run design-phase validation plus anti-pattern lint; correct every blocking issue.   — note: ← WI-39200 completed (done)",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010041962",
+          "kind": "feature",
+          "title": "Run browser visual and interaction QA across the concepts, then present a comparison and recommendation to Avi without modifying production.   — note: ← WI-39205 completed (done)",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010041963",
+          "kind": "feature",
+          "title": "Search the design registry for SideStage-native panel, action, input, status, product-list, and drawer patterns; capture the current desktop Active Event screen as the visual reference.   — note: ← WI-39115 completed (done)",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010041964",
+          "kind": "feature",
+          "title": "Define three Active Event ad-hoc auction launch concepts—on-deck actions, run-of-show row actions, and a dedicated auction launcher panel—and validate/lint their UI IR.   — note: ← WI-39121 completed (done)",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010041965",
+          "kind": "feature",
+          "title": "Generate one high-fidelity SideStage visual mockup for each validated auction concept using the current Active Event capture as reference.   — note: ← WI-39123 completed (done)",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010041966",
+          "kind": "feature",
+          "title": "Compare live-operation speed, screen density, error prevention, extensibility, and mobile adaptation; present the three auction mockups and a recommendation to Avi.   — note: ← WI-39130 completed (done)",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010041967",
+          "kind": "feature",
+          "title": "Implement Avi's approved combined Active Event design in the canonical SideStage staging tree: embed the next-product auction launcher inside RunOfShowPanel, reuse event.auction.active plus the existing auction.start command and seller credential boundary, support opening bid and duration, keep late",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
         }
       ],
       "validationSummary": {
@@ -19070,6 +20951,314 @@ export const BUILD_HISTORY_SNAPSHOT = {
               "attribution": "inferred"
             }
           ]
+        },
+        {
+          "id": "WI-6554700010041968",
+          "kind": "feature",
+          "title": "Scaffold standalone public repo (npm workspaces); port libs/sync, libs/papergrid, ui-primitives, blue-frost theme; scrub secrets; incremental commit discipline from commit 1 — note: ← WI-38471 completed (done)",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010041969",
+          "kind": "feature",
+          "title": "Port product DB: dump product_catalog + storefront_product (+ images) from Restart; docker-compose (PG, optional Typesense); seed scripts; clean-clone run verified — note: ← WI-38698 completed (done)",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010041970",
+          "kind": "feature",
+          "title": "Generalized variations: axes + option values + per-variant SKU/price/qty/images schema; extend reservation triggers; seed multi-variant demo products; variant picker data model — note: ← WI-38474 completed (done)",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010041971",
+          "kind": "feature",
+          "title": "Port scout chat+cart service + frontend; checkout (Square sandbox) + shipping box-packer — note: ← WI-38481 completed (done)",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010041972",
+          "kind": "feature",
+          "title": "4-tab shell (Buyer/Seller/Config/Test), URL-state routing, blue frost theme, product card component ported from papercusp learning-tab cards — note: ← WI-38475 completed (done)",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010041973",
+          "kind": "feature",
+          "title": "Event creation: browse full catalog via papergrid grid+search/filter, multi-select, per-item event price + qty — note: ← WI-38482 completed (done)",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010041974",
+          "kind": "feature",
+          "title": "Event list/detail; add catalog items from within event; edit item price/qty; markdown control  — note: ← WI-38483 completed (done)",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010041975",
+          "kind": "feature",
+          "title": "LiveKit room per event: seller publishes cam+mic, buyers subscribe; share link — note: ← WI-38484 completed (done)",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010041976",
+          "kind": "feature",
+          "title": "Streaming STT → live transcript pane (voice-worker/Deepgram pattern)  — note: ← WI-38485 completed (done)",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010041977",
+          "kind": "feature",
+          "title": "Transcript product-mention detection → active-item suggestion; manual active-item picker  — note: ← WI-38486 completed (done)",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010041978",
+          "kind": "feature",
+          "title": "Event chat over sync layer: buyer send, seller full-chat view, presence + active-user stats — note: ← WI-38487 completed (done)",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010041979",
+          "kind": "feature",
+          "title": "Message triage: importance classification → focused queue for seller  — note: ← WI-38488 completed (done)",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010041980",
+          "kind": "feature",
+          "title": "Grounded reply engine: retrieval over event items + catalog properties + Config policies; suggest-vs-auto ladder  — note: ← WI-38479 completed (done)",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010041981",
+          "kind": "feature",
+          "title": "Guardrail gate BEFORE any send: price floor (event price/markdown rules), availability (availableQty), policy compliance, tone; block+explain UX   — note: ← WI-38489 completed (done)",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010041982",
+          "kind": "feature",
+          "title": "Sub-2s research fallback: parallel catalog+web retrieval when properties insufficient; TTFT/complete latency budget instrumented and surfaced (p50/p95)  — note: ← WI-38490 completed (done)",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010041983",
+          "kind": "feature",
+          "title": "Guarded action layer: markdown, price/qty adjust, targeted per-buyer offer — every write audited + rollbackable (depth area)   — note: ← WI-38491 completed (done)",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010041984",
+          "kind": "feature",
+          "title": "Auction engine: start on any event item (single active enforced), qty hold at start via reservedQty, starting price, bid ordering, countdown, close → winner order — note: ← WI-38492 completed (done)",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010041985",
+          "kind": "feature",
+          "title": "Buyer bidding UI + realtime bid/price sync  — note: ← WI-38493 completed (done)",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010041986",
+          "kind": "feature",
+          "title": "Buyer tab: stream player, event product cards, chat, stats, share link — note: ← WI-38494 completed (done)",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010041987",
+          "kind": "feature",
+          "title": "Checkout: cart, payment details (Square sandbox), shipping calc; buy-now for offers + auction wins  — note: ← WI-38495 completed (done)",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010041988",
+          "kind": "feature",
+          "title": "Config tab: eBay-style seller policies (returns/shipping/payment), guardrail thresholds, automation-ladder level — note: ← WI-38480 completed (done)",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010041989",
+          "kind": "feature",
+          "title": "Test tab load simulator: N users × M msg/s ws clients; coverage-scripted corpus (price/shipping/policy/variant/stock questions, offers, bids) — note: ← WI-38496 completed (done)",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010041990",
+          "kind": "feature",
+          "title": "Auto-responder judge: LLM-judge grading replies for grounding/policy/price-correctness/tone; score report in Test tab  — note: ← WI-38497 completed (done)",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010041991",
+          "kind": "feature",
+          "title": "CI vitest suite; README with the exact run command + exact test command (contest executes both) — note: ← WI-38498 completed (done)",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010041992",
+          "kind": "feature",
+          "title": "PRD: first seller workflow, copilot-to-automation ladder, 3-5 seller pilot design, GMV + operator-load success metrics — note: ← WI-38476 completed (done)",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010041993",
+          "kind": "feature",
+          "title": "TDD: streaming ingestion, catalog grounding, reply guardrails, action auditability/rollback, latency budgets, marketplace integrations — note: canonical WI-38477 completed; WI-38478 closed as duplicate with evidence preserved and linked",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010041994",
+          "kind": "feature",
+          "title": "Public deploy (shop.buyrestart.com infra path) + live URL — note: ← WI-38499 completed (done)",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010041995",
+          "kind": "feature",
+          "title": "Submission: template fill, repo access for reviewers, disclosure lines, final walkthrough — note: ← WI-38610 completed (done)",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
         }
       ],
       "validationSummary": {
@@ -20176,6 +22365,171 @@ export const BUILD_HISTORY_SNAPSHOT = {
             ]
           },
           "commits": []
+        },
+        {
+          "id": "WI-6554700010041996",
+          "kind": "feature",
+          "title": "Inventory every SideStage client-side server-state read/write and map it to named sync queries, useSyncQuery/useSyncMutate consumers, REST fallbacks, server writers, and invalidation emitters; record every verified exception with file/line evidence.  — note: ← WI-38807 completed (done)",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010041997",
+          "kind": "feature",
+          "title": "Register a buyer-scoped orders.byBuyer named sync query with authenticated buyer scoping, stable ordering, a bounded result shape, and the existing GET /checkout/orders semantics preserved as the REST fallback.   — note: ← WI-38813 completed (done)",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010041998",
+          "kind": "feature",
+          "title": "Replace OrdersTab's fetch/useState/refreshKey read path with useSyncQuery({ queryName: 'orders.byBuyer', args }) while preserving explicit loading, empty, and error recovery states.   — note: ← WI-38816 completed (done)",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010041999",
+          "kind": "feature",
+          "title": "Emit buyer-scoped orders.byBuyer invalidations from every order-producing or status-changing writer: checkout creation, payment success/failure or expiry, auction-win materialization, offer acceptance, cancellation, and any administrative/status transition discovered by P-001.   — note: ← WI-38817 c",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010042000",
+          "kind": "feature",
+          "title": "Remove the normal Orders header Refresh control and refreshKey state; retain only a clearly error-scoped Try again action for genuine transport/query failure.   — note: ← WI-38825 completed (done)",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010042001",
+          "kind": "feature",
+          "title": "Add repository-native regressions proving a buyer's Orders view updates after every representative order/status writer without navigation or manual refresh; include a contract guard that fails when SideStage client server-state data paths add direct fetch/EventSource/refetch polling outside approved",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010042002",
+          "kind": "feature",
+          "title": "Add a repository-native architectural audit plus focused server/client regressions, then verify in two concurrent browser sessions that Orders, Channel Guide, seller event state, cart/checkout, pricing history, presence/transcript, and workbench results update without navigation or normal-state Refr",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010042003",
+          "kind": "feature",
+          "title": "Migrate BuyerTab's Channel Guide and active-event thumbnail reads to a named events.guide query; invalidate it after event config publication and chat presence changes so title, thumbnail, status, ordering, and viewer counts update without an event switch.   — note: ← WI-38846 completed (done)",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010042004",
+          "kind": "feature",
+          "title": "Migrate EventManager's config/action-item read model and its setup, inventory reservation, registration, guarded action, stock-adjust, and auction-start writes to named sync queries/mutations; replace post-command refresh() with server invalidations scoped by eventId and productId.   — note: ← WI-38",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010042005",
+          "kind": "feature",
+          "title": "Create cart.byId and checkout/order mutation seams, then migrate BuyerCheckoutProvider and CopilotPanel cart, shipping-rate, checkout-session, payment-confirmation, scout, and seller-reply calls to useSyncQuery/useSyncMutate; reuse the existing buyer checkout/chat abstractions instead of maintaining",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010042006",
+          "kind": "feature",
+          "title": "Register event.pricingHistory and emit eventId/productId-scoped invalidations from checkout payment transitions, targeted-offer/action changes, auction lifecycle changes, and rollback; also invalidate event.stats on checkout order status changes.   — note: ← WI-38875 completed (done)",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010042007",
+          "kind": "feature",
+          "title": "Wrap chat presence heartbeat/leave and transcript ingestion in useSyncMutate using the existing REST routes as fallbacks; keep the transcription audio WebSocket itself as the documented non-query transport exception.   — note: ← WI-38880 completed (done)",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010042008",
+          "kind": "feature",
+          "title": "Move TestTab server preflight reads and rehearsal-run commands behind named sync query/mutation seams while retaining raw SSE round-trip, clock-skew, media-loopback, and load-simulator traffic as explicit measurement-only exceptions.   — note: ← WI-38883 completed (done)",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010042009",
+          "kind": "feature",
+          "title": "Remove AuctionPanel's direct fetchActiveAuction error fallback/local dual cache and the normal Build History Refresh button; rely on their existing useSyncQuery automatic polling/SSE invalidation, retaining only error-scoped retry controls.   — note: ← WI-38885 completed (done)",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010042010",
+          "kind": "feature",
+          "title": "Fix EI-20438337753986077 by scoping EventStatsService's paid-order aggregate to the requested eventId and add cross-event isolation coverage.   — note: ← WI-38909 completed (done)",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
         }
       ],
       "validationSummary": {
@@ -20585,6 +22939,61 @@ export const BUILD_HISTORY_SNAPSHOT = {
             ]
           },
           "commits": []
+        },
+        {
+          "id": "WI-6554700010042011",
+          "kind": "feature",
+          "title": "Inspect all six current SideStage pages at desktop and mobile sizes.  — note: ← WI-38720 completed (done)",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010042012",
+          "kind": "feature",
+          "title": "Search the active design registry and define the shared redesign system.   — note: ← WI-38721 completed (done)",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010042013",
+          "kind": "feature",
+          "title": "Create six per-page design reports.   — note: ← WI-38722 completed (done)",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010042014",
+          "kind": "feature",
+          "title": "Create six responsive page mockups in a standalone review artifact.   — note: ← WI-38723 completed (done)",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010042015",
+          "kind": "feature",
+          "title": "Validate design specs and browser-verify the finished artifact.   — note: ← WI-38737 completed (done)",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
         }
       ],
       "validationSummary": {
@@ -20946,6 +23355,61 @@ export const BUILD_HISTORY_SNAPSHOT = {
             "testResult": "PASS: 59 plans match All time; ready/draft/shipped/superseded statuses are exposed; acceptance-sidestage-demo-product-imagery-2026-08-14 and shared-cart-scout-drawer-libs-2026-08-14 are present; both migrated/shared plan documents open with source, hash, metadata, outline, item states, and decisions; 375px and 1280px layouts have matching viewport/document widths and no horizontal overflow; exact production preview console says No console messages and all captured requests are 200/201. Responsive evidence: /tmp/verdict-sidestage-history.UxpO5K/verdict-mobile.png, verdict-tablet.png, verdict-desktop.png. One intermittent Vite-dev ERR_INCOMPLETE_CHUNKED_ENCODING remains separately tracked as EI-20469731693440793 and did not reproduce in the production build.",
             "verifiedHow": "live-drove-ui"
           },
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010042016",
+          "kind": "feature",
+          "title": "Freeze the exact source/destination inventory, classify shared-library plans, and prove there are no slug conflicts.  — note: ← WI-39107 completed (done)",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010042017",
+          "kind": "feature",
+          "title": "Create a pre-destructive backup and transactionally migrate every out-of-scope SideStage plan plus dependent plan/work-item references into the sidestage harness.   — note: ← WI-39108 completed (done)",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010042018",
+          "kind": "feature",
+          "title": "Change the History generator and summary logic so the complete sidestage harness is exported and shipped plans are terminal; add focused regression tests.   — note: ← WI-39109 completed (done)",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010042019",
+          "kind": "feature",
+          "title": "Regenerate the committed History snapshot and run focused API/web tests plus type/build checks.   — note: ← WI-39110 completed (done)",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010042020",
+          "kind": "feature",
+          "title": "Browser-verify All time completeness, migrated/shared plans, statuses, popup documents, and console/network health.   — note: ← WI-39111 completed (done)",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
           "commits": []
         }
       ],
@@ -21517,6 +23981,127 @@ export const BUILD_HISTORY_SNAPSHOT = {
           "title": "P-022: Stripe paid-order e2e on prod → close WI-39225 — Lane work-item for plan sidestage-public-release-drive-2026-08-16 item P-022. Confirm Stripe key MODE first (NEVER a live-mode charge; if live, coordinate test-mode toggle); hold→checkout→test-card payment→webhook→order persisted with status; record evidence, close WI-39225 (headline refuted — comment 68730; the paid-order residual is all that keeps it open). Completion requires concrete evidence.",
           "state": "done",
           "completedAt": "2026-08-16T12:18:17.523Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010042021",
+          "kind": "feature",
+          "title": "Fix EI-20538641531453022: public Watch flow shows transcript-unavailable alert during an otherwise healthy live stream. Repro first, fix, add/extend a test, verify console-clean on the watch surface.  — note: ← EI-20538641531453022 completed (done)",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010042022",
+          "kind": "feature",
+          "title": "Fix EI-20553580781817620: Studio principal switch retries stale room presence and emits repeated 404 console errors. Fix the retry/presence teardown, add a test, verify console-clean through a principal switch.  — note: ← EI-20553580781817620 completed (done)",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010042023",
+          "kind": "feature",
+          "title": "Resolve EI-20548127444751427: 31 moderate advisories in the production dependency graph. Run `npm run audit:prod` + full `npm audit`, land safe upgrades (install via install:safe), verify `npm run check` + `npm run build` stay green, document irreducible residuals on the work item.  — note: ← EI-205",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010042024",
+          "kind": "feature",
+          "title": "Fix EI-20547757006412993: Vitest config incompatible with Vite native config loader, plus the esbuild→oxc deprecation warnings in apps/web vitest runs. Keep the whole suite green.  — note: ← EI-20547757006412993 completed (done)",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010042025",
+          "kind": "feature",
+          "title": "Prod verification sweep for rubric evidence: buyer-loop spot checks on https://sidestage.buyrestart.com (search incl. typo-tolerance, Channel Guide thumbnails, join room, chat, hold/availability) + seller-surface spot checks + zero-console-errors + responsive at phone/tablet/desktop. READ-ONLY again",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010042026",
+          "kind": "feature",
+          "title": "Ops re-verification: `./deploy/deploy.sh --dry-run` green; /healthz vs .deployed-sha consistency; rollback.sh procedure current; README + docs/submission.md claims accurate at HEAD (live URL, run/test commands, clean-clone path). NO real deploy without leader sign-off.  — note: WI-39398 verified all",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010042027",
+          "kind": "feature",
+          "title": "Auction-release residual: campaign-complete sidestage-auction-chat-public-release P-009 (promote the verified auction build per that plan's D-024/D-026). FIRST check holder su-2469e liveness (coord:presence) — if live, coordinate and assist, do NOT contest the claim; if dead/stalled, report to leade",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010042028",
+          "kind": "feature",
+          "title": "LEADER-ONLY (su-66132): after Phase 1 lanes settle, emit gate `release-fixes-landed`, then run the campaign P-010 independent release grade: scorecards:emit on rubric release-readiness-sidestage-2026-08-14 with concrete per-criterion evidence, flip campaign P-010 done, and deliver the release report",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010042029",
+          "kind": "feature",
+          "title": "Stripe paid-order e2e on prod: confirm Stripe key MODE first (test vs live — if live, coordinate test-mode toggle; NEVER a live-mode charge), then run hold→checkout→test-card payment→webhook→order persisted with status; record evidence and CLOSE WI-39225 (its Square+500 headline already refuted — co",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010042030",
+          "kind": "feature",
+          "title": "Console-clean: fix EI-20589266065184157 (presence heartbeat keeps POSTing a left room's endpoint — add leave-room cancellation/backoff) and EI-20587893882016538 (hold-release race console 400). Small client patches, both root-caused with repro on the items. Re-verify zero console errors through buye",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010042031",
+          "kind": "feature",
+          "title": "P-024 (label): Prod redeploy + post-deploy console re-verify (final full-green evidence step, per D-003). (1) Re-verify campaign deploy-governance decision refs D-024/D-005 (and D-023's cleared externalBlocker) still permit a prod deploy. (2) Deploy current staging to sidestage prod via the same mec",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
           "completionAuthority": "work-item-ledger",
           "completionSummary": null,
           "completionEvidence": null,
@@ -22428,6 +25013,116 @@ export const BUILD_HISTORY_SNAPSHOT = {
           "completionSummary": null,
           "completionEvidence": null,
           "commits": []
+        },
+        {
+          "id": "WI-6554700010042032",
+          "kind": "feature",
+          "title": "Clean-clone reviewer rehearsal: fresh clone OUTSIDE the shared tree → README-only path (npm install, npm run dev, npm test) reaches a working app; npm run check + npm run build green; CI (ci.yml) green at HEAD. Evidence: full command transcript + versions. (PRD success criterion 1)  — note: ← WI-387",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010042033",
+          "kind": "feature",
+          "title": "Buyer loop E2E on PROD: typo-tolerant search + browse → Channel Guide (thumbnails render) → join room → live chat → hold item (availability decrements, idempotent, releases correctly) → auction bid → close → winner order retains reservation → Square-sandbox checkout incl. box-packing shipping → orde",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010042034",
+          "kind": "feature",
+          "title": "Seller loop E2E on PROD: create event with thumbnail (appears in buyer guide — EI-20426845001666103 regression), stream via MediaMTX, transcript product-mention drives on-deck, copilot suggestions carry labelled grounding sources, approve/edit/skip, guarded actions (push/swap/markdown/stock-adjust) ",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010042035",
+          "kind": "feature",
+          "title": "Guardrail adversarial battery: scripted attempts to violate price floors/markdown cap, claim phantom inventory, hit buyer-sensitive topics, break declared tone — every one blocked SERVER-SIDE pre-send; uncertain replies stay in review; every guarded action leaves a complete audit row; rollback path ",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010042036",
+          "kind": "feature",
+          "title": "Judge + load + latency thresholds: Test-tab judge passes threshold on all 4 dimensions (grounding, policy, price-correctness, tone); load rehearsal at N-user × M-msg/s covers all scripted scenario kinds green; on-demand product research latency measured against the sub-2-second budget with tracking ",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010042037",
+          "kind": "feature",
+          "title": "Data integrity + no-dummy-data sweep: prod serves the real catalog (Typesense search + SQL fallback verified by degrading one path in staging); availability always derived from reservations (attempt an oversell, must fail); config/policy round-trips persist; NO dummy/placeholder data on any surface ",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010042038",
+          "kind": "feature",
+          "title": "Design + responsiveness integrity: all four tabs match approved designs on R3 tokens (qa-sweep drift oracle clean); dockview chrome correct; responsive at phone/tablet/desktop widths; zero console errors across both loops; retheme D-006 caveat re-checked. — note: ← WI-38799 completed (done)",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010042039",
+          "kind": "feature",
+          "title": "Ops readiness: deploy.sh dry-run + real deploy reproducible green; /healthz + .deployed-sha correct; one rollback exercised and timed; docs current — submission.md live-URL line updated (found stale in the 2026-08-14 spec audit); zero OPEN critical/major bugs against prod surfaces at cut time. — not",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010042040",
+          "kind": "feature",
+          "title": "Fix loop: every red from the lanes above filed as a work-item with repro, fixed, lane re-run green; no lane closes on a workaround; find→fix summary appended to this plan.  — note: ← WI-38863 completed (done)",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010042041",
+          "kind": "feature",
+          "title": "Independent release grade: a non-implementer grades release-readiness-sidestage-2026-08-14 via scorecards:emit with concrete evidence per criterion; PASS (no criterion below its bar) = public-release confident; any FAIL routes back to the fix loop and re-grades.   — note: ← WI-38802 released",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
         }
       ],
       "validationSummary": {
@@ -23205,6 +25900,72 @@ export const BUILD_HISTORY_SNAPSHOT = {
               "attribution": "inferred"
             }
           ]
+        },
+        {
+          "id": "WI-6554700010042042",
+          "kind": "feature",
+          "title": "Define the versioned allow-listed suite manifest and result contract for actions, auction, checkout, injection, load, and judge. Specify case IDs, prerequisites, required evidence, pass/fail/blocked semantics, requested/deployed SHA fields, budgets, retention, and the rule that mocks, fakes, or fall",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010042043",
+          "kind": "feature",
+          "title": "Build an ephemeral acceptance-environment provisioner that deploys the requested SideStage commit with real PostgreSQL, Typesense, Redis, MediaMTX, API, web, and worker services, records image digests and health checks, and refuses production endpoints/credentials. Reuse the existing Docker Compose ",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010042044",
+          "kind": "feature",
+          "title": "Add the durable test-run model and reporter: run, suite, case, artifact, environment, transition, cancellation, retention, and cleanup records with migrations and a state machine for queued/provisioning/running/passed/failed/blocked/cancelled/timed-out/cleanup-failed. Reuse the admin-test-runs repor",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010042045",
+          "kind": "feature",
+          "title": "Implement the authenticated launcher/controller and isolated worker boundary. The API accepts only catalog suite IDs plus bounded versioned parameters, checks seller/operator authorization, queues work outside the public web process, enforces concurrency/time/cost limits and cancellation, and never ",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010042046",
+          "kind": "feature",
+          "title": "Create deterministic acceptance fixtures, namespace leases, and cleanup/reaper logic for per-run PostgreSQL schema/database, Typesense collections, Redis keys, MediaMTX paths, users/events/orders/idempotency keys, and external sandbox metadata. Prove two concurrent runs cannot collide, production id",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010042047",
+          "kind": "feature",
+          "title": "Build shared black-box clients and evidence collectors for authenticated HTTP, SSE/WebSocket, Playwright browsers, PostgreSQL/Typesense/Redis assertions, MediaMTX probes, logs, traces, screenshots, and metrics. Assertions must cross deployed protocols and then confirm persisted/subscriber-visible st",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
         }
       ],
       "validationSummary": {
@@ -23674,6 +26435,61 @@ export const BUILD_HISTORY_SNAPSHOT = {
               "/home/builduser/.papercusp/hives/sidestage/apps/web/src/events/channel-guide.css"
             ]
           },
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010042056",
+          "kind": "feature",
+          "title": "Palette mockups: 2–3 distinct red/yellow scheme directions rendered on real SideStage surfaces (browse rail, live show page, console header), delivered to Avi as a browsable artifact; his pick gates P-002. Leader-owned. [owner 2026-08-13 \"show me some mockups of the new color scheme\"] — note: ← ",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010042057",
+          "kind": "feature",
+          "title": "Encode the picked direction in apps/web/src/styles.css :root — full token set (brand red/yellow, warm neutrals, surfaces, hover/active, semantic set per D-003), contrast-checked.   — note: ← WI-38658 completed (done)",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010042058",
+          "kind": "feature",
+          "title": "Hex sweep: migrate stray hardcoded colors in auction.css, BuyerProductRail.css and TSX inline styles onto the token set; add missing role tokens rather than inlining.   — note: ← WI-38701 (su-ffc48): sweep + QA + deploy, 372 AA failures → 0, live on sidestage.buyrestart.com",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010042059",
+          "kind": "feature",
+          "title": "Full-surface visual QA on the running app: drive every surface (browse, show page, auction, rail, console, checkout, orders/impersonation), screenshot, compare against the mockup direction; fix drift.   — note: ← WI-38660 completed (done)",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010042060",
+          "kind": "feature",
+          "title": "Deploy re-themed site to sidestage.buyrestart.com and live-verify (bundle serves new tokens, spot-check pages).   — note: ← WI-38661 completed (done)",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
           "commits": []
         }
       ],
@@ -24269,6 +27085,105 @@ export const BUILD_HISTORY_SNAPSHOT = {
             "verifiedHow": "live-drove-ui"
           },
           "commits": []
+        },
+        {
+          "id": "WI-6554700010042061",
+          "kind": "feature",
+          "title": "Build a single reusable expandable Run of Show timeline component for the Active Event board. Completed slots collapse; the current product is expanded with price, stock, elapsed/budget, seller notes, and pricing history; the next slot exposes Take live; later rows remain compact but can expand. Pre",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010042062",
+          "kind": "feature",
+          "title": "Replace the separate desktop and mobile live panes with the unified timeline in the existing Studio Lineup/Active Event surface, removing duplicate On Deck/Run of Show presentation while preserving staging actions, responsive behavior, and SideStage dock/workbench tokens.   — note: ← WI-38971 comple",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010042063",
+          "kind": "feature",
+          "title": "Run focused tests plus relevant web typecheck/test coverage; verify authenticated desktop and mobile Studio interactions with Verdict, including expanded current details, collapsed completed rows, expandable later rows, next-product Take live, console cleanliness, and responsive layout.   — note: ← ",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010042064",
+          "kind": "feature",
+          "title": "Schema + store: `event_run_of_show` PG table in db/schema.sql (+ schema-guard coverage); `RunOfShowStore` interface with InMemory + Pg implementations mirroring the EventConfigStore pattern; payload validation. Unit tests. — note: ← WI-38856 completed (done)",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010042065",
+          "kind": "feature",
+          "title": "API: run-of-show NestJS module — GET/PUT `/events/:eventId/run-of-show`, wired into app.module; sync-query registration + invalidation mirroring EventConfigSyncQueries. Unit tests. — note: RunOfShowModule: GET/PUT /events/:eventId/run-of-show, event.runOfShow sync query + invalidation, wired into ap",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010042066",
+          "kind": "feature",
+          "title": "Planning UI: RunOfShowPlanner on the event-scoped prep surface (order via move up/down, minutes budget, per-product notes), reading the event lineup; integrated into the Event Manager / prep surface in coordination with the IA-split lane. Component tests. — note: ← WI-38858 completed (done)",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010042067",
+          "kind": "feature",
+          "title": "Live dock panel: `run-of-show` Studio panel — ordered list with position marker, staged product's notes auto-surfaced, soft per-product timer, aggregate pacing delta; registered in seller-dock layout seed + panel registry. Component tests. — note: RunOfShowPanel on the active-event dock board: posit",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010042068",
+          "kind": "feature",
+          "title": "Next-up prefill: when the staged product wraps, the planned next item becomes the on-deck suggestion — advisory, one-tap, freely ignorable. Tests. — note: Next-up one-tap Put-on-deck via onActiveProductChange — advisory prefill, freely ignorable; covered in RunOfShowPanel.test",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010042069",
+          "kind": "feature",
+          "title": "Verification: typecheck + affected suites green; live browser verification of both surfaces (author a plan, go live, confirm notes/timer/pacing/next-up behavior); acceptance rubric authored post-implementation and graded by a non-implementer; ship. — note: ← WI-38867 completed (done)",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
         }
       ],
       "validationSummary": {
@@ -24650,6 +27565,50 @@ export const BUILD_HISTORY_SNAPSHOT = {
               "attribution": "inferred"
             }
           ]
+        },
+        {
+          "id": "WI-6554700010042070",
+          "kind": "feature",
+          "title": "Create the standalone @papercusp/scout-runtime package with provider-neutral message/tool types, bounded agent-turn runner, retry policy, budget and telemetry hooks, a Vertex Gemini adapter using ADC, and focused unit tests.  — note: ← WI-39039 completed (done)",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010042071",
+          "kind": "feature",
+          "title": "Migrate Restart apps/scout-service to consume @papercusp/scout-runtime while retaining Restart-specific prompts, sessions, memory, persistence, catalog/cart handlers, interactive cards, and wire events.   — note: ← WI-39048 completed (done)",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010042072",
+          "kind": "feature",
+          "title": "Integrate SideStage apps/api Scout with @papercusp/scout-runtime and implement SideStage-specific catalog/cart tool handlers plus Vertex configuration, without changing the shared drawer/SSE/chat protocol.   — note: ← WI-39071 completed (done)",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010042073",
+          "kind": "feature",
+          "title": "Run package and application unit tests, affected tests, typechecks, and focused live/integration verification for natural-language catalog questions and tool calls; resolve any regressions.   — note: ← WI-39081 completed (done)",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
         }
       ],
       "validationSummary": {
@@ -26138,6 +29097,193 @@ export const BUILD_HISTORY_SNAPSHOT = {
             "verifiedHow": "live-drove-ui"
           },
           "commits": []
+        },
+        {
+          "id": "WI-6554700010042075",
+          "kind": "feature",
+          "title": "Implement the backend Copilot module, grounding adapters, durable proposal lifecycle, and review/action API.  — note: ← WI-38939 completed (done)",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010042076",
+          "kind": "feature",
+          "title": "Connect buyer-question chat ingestion to Copilot proposal generation and publish proposal invalidations through sync.   — note: ← WI-38940 completed (done)",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010042077",
+          "kind": "feature",
+          "title": "Replace the seller Copilot panel with a sync-backed grounded proposal queue and review controls; remove buyer cart semantics.   — note: ← WI-38941 completed (done)",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010042078",
+          "kind": "feature",
+          "title": "Add backend and frontend integration coverage, run project checks, and resolve all regressions.   — note: ← WI-38943 completed (done)",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010042079",
+          "kind": "feature",
+          "title": "Establish an isolated Xvfb/Openbox virtual desktop with two independent real Firefox instances, separate Snap-safe profiles, and loopback-only geckodrivers on newly allocated display/ports; create a dedicated SideStage test event, verify buyer and Studio share its identity, and record the clean empt",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010042080",
+          "kind": "feature",
+          "title": "Exercise buyer-question ingestion and manual Prepare: question detection, live sync arrival, citations from catalog/listing/transcript/policy, deterministic or remote-model behavior, insufficient-context blocking, and duplicate/idempotent handling.   — note: ← WI-39051 completed (done)",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010042081",
+          "kind": "feature",
+          "title": "Exercise the complete review lifecycle: edit and approve a grounded reply, verify delivery to live event chat, skip a separate proposal, confirm an allowed guarded action, and verify stale/blocked or policy-denied actions fail closed.   — note: ← WI-39054 completed (done)",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010042082",
+          "kind": "feature",
+          "title": "Audit the Studio Copilot in the virtual desktop for responsive layouts, keyboard navigation, accessible labeling/status announcements, visible error/reconnect behavior, console errors, failed network requests, and capture screenshots for each material state.   — note: ← WI-39060 completed (done)",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010042084",
+          "kind": "feature",
+          "title": "Define one canonical Copilot tone vocabulary and map Warm, Playful, and Minimal to three distinct runtime tones. Acceptance: policyFromConfig maps warm→warm, playful→playful, minimal→concise; published-policy precedence remains unchanged; shared TypeScript contracts accept every supported tone.  — n",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010042085",
+          "kind": "feature",
+          "title": "Make every generation path honor the effective tone, including the no-credential deterministic production fallback, and pass optional OpenAI model configuration into the production container. Acceptance: identical grounded context yields observably distinct warm/playful/concise reply copy; the remot",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010042086",
+          "kind": "feature",
+          "title": "Strengthen regression coverage across event config persistence, policy resolution, prompt construction, reply enforcement, deterministic generation, and production configuration. Acceptance: tests fail on the previous playful→warm alias, fixed fallback wording, or missing production environment seam",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010042087",
+          "kind": "feature",
+          "title": "Verify the complete event Settings → save → Copilot proposal flow with focused/full automated checks and browser QA, then reconcile release/deploy state. Acceptance: the setting persists, each selection changes generated buyer-facing proposal text without changing safety gates, responsive UI remains",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010042088",
+          "kind": "feature",
+          "title": "Replace the duplicated boolean question heuristic with one structured, deterministic buyer-message classifier; persist its route/category/reason on the chat message and make persisted routing metadata—not reclassification—the authoritative Copilot trigger. Acceptance: obvious product, stock, price, ",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010042089",
+          "kind": "feature",
+          "title": "Make seller-queue delivery durable and observable by reconciling persisted queued chat questions into idempotent proposals, retaining the immediate subscription fast path, and recording failures instead of swallowing them. Acceptance: a queued question missed by the in-memory event is recovered on t",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010042090",
+          "kind": "feature",
+          "title": "Close the approved/skipped/blocked proposal lifecycle back onto chat: approved replies carry assistant provenance plus source/proposal linkage, and the source buyer question is durably updated with its resolution and response id. Acceptance: approve is exactly-once and marks the source answered; ski",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010042091",
+          "kind": "feature",
+          "title": "Render routed question state and Copilot-assisted answer provenance in the buyer event chat with accessible queued, answered, skipped, and blocked semantics, preserving ordinary seller messages. Acceptance: sync refresh updates the original question state and linked approved answer without a reload;",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010042092",
+          "kind": "feature",
+          "title": "Add focused API/store/module/web regression coverage for structured routing, durable catch-up, idempotent approval linkage, lifecycle transitions, and buyer chat presentation; run affected checks and the isolated dual-Firefox live acceptance before closing the mission.   — note: ← WI-39128 completed",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
         }
       ],
       "validationSummary": {
@@ -27197,6 +30343,138 @@ export const BUILD_HISTORY_SNAPSHOT = {
               "attribution": "body-reference"
             }
           ]
+        },
+        {
+          "id": "WI-6554700010042093",
+          "kind": "feature",
+          "title": "Dockview scaffold: add dockview@^6.2.2 to apps/web, build SellerDock host (DockviewReact) with a default layout constant that mirrors the current seller-grid exactly; dock chrome themed via styles.css tokens only (no hardcoded hexes)  — note: ← WI-38687 completed (done)",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010042094",
+          "kind": "feature",
+          "title": "Extract the two inline SellerTab.tsx sections (stage-status/stage-primary and on-deck) into standalone components with unchanged markup/aria, so every seller section is a mountable component  — note: ← WI-38689 completed (done)",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010042095",
+          "kind": "feature",
+          "title": "Register all seller panels in the dock: extracted stage-status + on-deck, CopilotPanel, EventChat, EventManager, TranscriptPane; props/state flow through panel params from SellerTab (no state moves into dockview)   — note: ← WI-38694 completed (done)",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010042096",
+          "kind": "feature",
+          "title": "Layout persistence: serialize dockview layout to localStorage (per-tab key), restore on mount, Reset-layout control returning to the default seller-grid arrangement   — note: ← WI-38693 completed (done)",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010042097",
+          "kind": "feature",
+          "title": "Retheme-compliant dock chrome pass: panel tab strips, drag handles, borders, focus rings on R3 Ticket tokens per retheme D-002/D-003; add missing role tokens rather than inline colors   — note: ← WI-38699 completed (done)",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010042098",
+          "kind": "feature",
+          "title": "Tests + full seller-tab QA: unit tests for layout persistence + panel registry; drive the running app - drag, resize, close/reopen, reset, all panels functional; verify Buyer tab stays byte-identical fixed layout   — note: ← WI-38709 completed (done)",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010042099",
+          "kind": "feature",
+          "title": "Deploy to sidestage.buyrestart.com, live-verify dock behavior on prod, ping owner   — note: ← WI-38715 completed (done)",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010042100",
+          "kind": "feature",
+          "title": "Event thumbnail upload [owner 2026-08-14 verbatim: When a seller creates an event they should be able to upload an image that will be used as the thumbnail in the event browser]: image-upload field in the seller event-creation flow (apps/web event-creation + EventManager), stored via the existin",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010042101",
+          "kind": "feature",
+          "title": "Whole-board resize [owner 2026-08-14 verbatim: \"the full width and height of the entire board should also be resizeable, not just the individual components\"]: make the ENTIRE dock board's outer container user-resizable in BOTH width and height — not only the inner dockview panels. Concretely: th",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010042102",
+          "kind": "feature",
+          "title": "Fix the inert VERTICAL (column) sash in the seller dock: columns cannot be resized while horizontal/row sashes work — tracked as WI-38711 (major). Root-cause in the dockview integration (orientation-specific handler or sash hit-area), fix, and live-verify column resize in the running app. Rationale:",
+          "state": "dropped",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010042103",
+          "kind": "feature",
+          "title": "Independent acceptance grade for the dockview plan: emit a scorecard against acceptance-sidestage-dockview-2026-08-14 (6 criteria) verified on live production. MUST be graded by a non-implementer and non-author of the rubric — a self-grade does not satisfy the completion gate. Blocks setting the pla",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010042104",
+          "kind": "feature",
+          "title": "Fix the qa-sweep.mjs drift oracle: its PALETTE omits the --on-video theme-island tokens and it counts unpainted zero-width borders, producing 40 false-positive drift entries against a CORRECT production build. A false alarm in a monitor is a bug in the monitor — it makes the oracle unusable as a shi",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
         }
       ],
       "validationSummary": {
@@ -28863,6 +32141,149 @@ export const BUILD_HISTORY_SNAPSHOT = {
               "attribution": "inferred"
             }
           ]
+        },
+        {
+          "id": "WI-6554700010042106",
+          "kind": "feature",
+          "title": "Engagement meter MOCKUPS: a few distinct design options for BOTH the seller version and the buyer version, delivered to Avi as a browsable artifact page. Leader-owned. Non-blocking gate per D-008. [owner 2026-08-13: Show me a mockup of a few different options for both]  — note: ← WI-38639 comple",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010042109",
+          "kind": "feature",
+          "title": "Say-it-to-stage-it (slate #1): hands-free selling - match live seller transcript mentions to catalog variants and propose auto-staging with price overlay; one-word or single-tap confirm. Rides the existing transcription + transcript-to-variant matching subsystems.  — note: ← WI-38642 completed (done",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010042110",
+          "kind": "feature",
+          "title": "Shoppable replay chapters (slate #2): product-timestamp clip indexing + chaptered replay UI; late joiners scrub to the product moment; post-event VOD becomes an evergreen shoppable catalog with each listing carrying its demo clip.  — note: ← WI-38643 completed (done)",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010042111",
+          "kind": "feature",
+          "title": "On-camera condition evidence (slate #5): when the seller shows an item tag/serial/flaw on camera, pin that clip to the eventual order as provenance. Rides P-006 clip indexing.   — note: ← WI-38644 completed (done)",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010042112",
+          "kind": "feature",
+          "title": "Live combined-shipping meter in cart (slate #3): real box-fill visualization + add-one-more-shipping-stays-$X messaging, consuming the box-packer/rate-calc port from plan sidestage-checkout-shipping-2026-08-13 P-112 (cross-plan dep per D-005 - start AFTER that port lands; do not fork a second rate c",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010042113",
+          "kind": "feature",
+          "title": "Transcript-grounded chat answers (slate #4): copilot answers buyer questions from what the seller actually said, citing the stream moment; unanswered questions queue to the seller. Rides existing message triage.  — note: ← WI-38646 completed (done)",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010042115",
+          "kind": "feature",
+          "title": "Seller pricing-history panel: for the ACTIVE product show sold/rejected counts at each price (sold 5 @ $X, 2 rejected @ $Y), per-buyer offer accept/reject outcomes, and auction outcomes (3 auctions sold @ $Z) - aggregated from existing orders/offers/auctions data, surfaced in the seller console prod",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010042116",
+          "kind": "feature",
+          "title": "Quantity on auctions + offers: seller creation flows for auctions AND offers get a quantity input (not just price); schema + API + downstream cart/checkout respect quantity. [owner 2026-08-13]  — note: ← WI-38649 completed (done)",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010042117",
+          "kind": "feature",
+          "title": "Build-history tab on the SideStage site: mimic the papercusp releases page - list all plans and their associated completed work items, grouped per plan with completion evidence/status. [owner 2026-08-13]  — note: ← WI-38654 completed (done)",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010042118",
+          "kind": "feature",
+          "title": "Orders tab — buyer-facing \"My Orders\" page listing the current user's orders across lives/auctions/offers with status; each order row carries its video snapshot(s) per D-014 [owner 2026-08-13 \"Add an orders tab for users to see their orders\"]  — note: ← WI-38655 completed (done)",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010042119",
+          "kind": "feature",
+          "title": "Demo impersonation in the buyer tab — free-text user-id entry: enter ANY id, no auth; the app then behaves as logged-in-as-that-user and the Orders tab shows that user's orders. Demo-only, per D-013 [owner 2026-08-13 \"a way in the buyer tab to impersonate the user… enter in any id, no auth\"]  — ",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010042120",
+          "kind": "feature",
+          "title": "Buyer tab EVENT SELECTOR [owner 2026-08-13 verbatim: \"inside the buyer tab there should be even selector that shows all events created by all events\" — read: all events created by all sellers]: a selector inside the buyer tab that lists ALL events across ALL sellers and switches the active event",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010042121",
+          "kind": "feature",
+          "title": "Seller tab DEMO IMPERSONATION [owner 2026-08-13 verbatim: \"the same way the buyer tab needs a way to enter in a user name to auth as that use identity without auth, so does the seller tab\"]: mirror P-117's free-text user-id entry (enter ANY id, no auth) on the SELLER tab — the app then acts as t",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
         }
       ],
       "validationSummary": {
@@ -29640,6 +33061,61 @@ export const BUILD_HISTORY_SNAPSHOT = {
               "attribution": "inferred"
             }
           ]
+        },
+        {
+          "id": "WI-6554700010042122",
+          "kind": "feature",
+          "title": "Extend the existing checkout_order schema/store into the canonical application-owned payable order for cart, auction, and accepted-offer sources. Add lifted buyer_id, source_kind, source_id, payment_state, and unique Stripe PaymentIntent reference; make cart_id source-appropriate; enforce unique sou",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010042123",
+          "kind": "feature",
+          "title": "Replace SquareSandboxProvider with a SideStage Stripe PaymentIntent provider adapted from Restart: lazy test/live configuration, order-derived idempotency key, server-authoritative amount/currency/metadata, client secret only in the session response, and no synchronous server confirm path. Add raw-b",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010042124",
+          "kind": "feature",
+          "title": "Create one source-aware order-to-checkout service seam for cart, auction winner, and accepted payable offer. It must load/owner-check the canonical SideStage order, preserve source price/quantity/order ID, attach server-quoted shipping and address, create or resume the order's PaymentIntent, and com",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010042125",
+          "kind": "feature",
+          "title": "Replace the Square browser SDK/card component and confirm mutation with Stripe.js Payment Element inside the existing right-side BuyerCheckout drawer. Extend the drawer/provider to open from a canonical order (not only a cart), begin at address, obtain server shipping quotes, resume the same Payment",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010042126",
+          "kind": "feature",
+          "title": "Make orders.byBuyer the principal-scoped canonical read model over SideStage-owned order data and finish the Orders UI action contract. Resolve buyer identity on the server instead of trusting query/body buyerId; return normalized source, payment state, totals, immutable snapshots, and an explicit c",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
         }
       ],
       "validationSummary": {
@@ -29918,6 +33394,94 @@ export const BUILD_HISTORY_SNAPSHOT = {
             "testResult": "PASS — all four saved artifacts are 1672x941 RGB PNGs with correct copy and visual hierarchy; only the intended untracked design directory is present; owner notification reports bodyTruncated:false and 254/254 characters delivered.",
             "verifiedHow": "manual"
           },
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010042131",
+          "kind": "feature",
+          "title": "Audit the current Studio web experience and source for event activation/start controls  — note: ← WI-39119 completed (done)",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010042132",
+          "kind": "feature",
+          "title": "Search the shared UI registry and define the start-now, scheduling, and seller-visibility interaction model   — note: ← WI-39122 completed (done)",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010042133",
+          "kind": "feature",
+          "title": "Create polished visual mockups grounded in the existing Sidestage interface   — note: ← WI-39131 completed (done)",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010042134",
+          "kind": "feature",
+          "title": "Validate the mockups and deliver findings with implementation guidance   — note: ← WI-39134 completed (done)",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010042135",
+          "kind": "feature",
+          "title": "Audit the current Studio web experience and source for event activation/start controls  — note: Duplicate entries created after multi-ptool output was not surfaced; canonical work remains P-001 through P-004.",
+          "state": "dropped",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010042136",
+          "kind": "feature",
+          "title": "Search the shared UI registry and define the start-now, scheduling, and seller-visibility interaction model   — note: Duplicate entries created after multi-ptool output was not surfaced; canonical work remains P-001 through P-004.",
+          "state": "dropped",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010042137",
+          "kind": "feature",
+          "title": "Create polished visual mockups grounded in the existing Sidestage interface   — note: Duplicate entries created after multi-ptool output was not surfaced; canonical work remains P-001 through P-004.",
+          "state": "dropped",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010042138",
+          "kind": "feature",
+          "title": "Validate the mockups and deliver findings with implementation guidance   — note: Duplicate entries created after multi-ptool output was not surfaced; canonical work remains P-001 through P-004.",
+          "state": "dropped",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
           "commits": []
         }
       ],
@@ -30626,6 +34190,50 @@ export const BUILD_HISTORY_SNAPSHOT = {
               "attribution": "inferred"
             }
           ]
+        },
+        {
+          "id": "WI-6554700010042139",
+          "kind": "feature",
+          "title": "Extend the existing inventory seam with a validated batch restock mutation that increments quantity, optionally updates selling price, preserves active reservations, invalidates catalog/inventory sync queries, and has focused API/store tests.  — note: ← WI-38921 completed (done)",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010042140",
+          "kind": "feature",
+          "title": "Implement the Studio secondary tab navigation and Inventory panel by reusing the Event Manager catalog filters and InventoryPickerGrid, with selectable variants, editable price/quantity, mutation feedback, and focused web tests.   — note: ← WI-38925 completed (done)",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010042141",
+          "kind": "feature",
+          "title": "Run focused and full SideStage verification, browser-drive Current event → Event manager → Inventory, capture final screenshots, and close the plan with evidence.   — note: ← WI-38932 completed (done)",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010042142",
+          "kind": "feature",
+          "title": "Move Held items into the global top navbar immediately left of Ready for your next event; move one shared Demo user control immediately right of the Android download CTA; remove Watch/Studio-local identity controls; preserve role-specific transport identities behind one visible persona and verify re",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
         }
       ],
       "validationSummary": {
@@ -31646,6 +35254,149 @@ export const BUILD_HISTORY_SNAPSHOT = {
               "attribution": "inferred"
             }
           ]
+        },
+        {
+          "id": "WI-6554700010042143",
+          "kind": "feature",
+          "title": "Extract the transcript runtime into a stable controller owned above dock/mobile presentation; preserve provider fallback, final-segment persistence, product mention intent, and add publisher-session-driven start/stop behavior.  — note: ← WI-38955 completed (done)",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010042144",
+          "kind": "feature",
+          "title": "Build the accessible Live console caption overlay and expandable history using the existing overlay/status/action-chip language; inherit active product state and keep transcript mention staging without a duplicate picker.   — note: ← WI-38956 completed (done)",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010042145",
+          "kind": "feature",
+          "title": "Remove the Transcript pane from the desktop panel inventory/default and restored layouts, update mobile wiring so the Stage surface owns captions, and delete obsolete adapters/styles while preserving layout compatibility.   — note: ← WI-38970 completed (done)",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010042146",
+          "kind": "feature",
+          "title": "Update focused tests, validate and lint the UI IR design spec, run web type/test/build checks, and browser-verify desktop and mobile interactions, accessibility state, responsive layout, and console cleanliness.   — note: ← WI-38979 completed (done)",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010042147",
+          "kind": "feature",
+          "title": "Expose event transcript moments through the existing event-scoped sync query registry and invalidate that query whenever a seller persists a new transcript moment; add focused API contract tests.  — note: Added event.chat.transcript to ChatSyncQueries and invalidated it on every transcript write. Ve",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010042148",
+          "kind": "feature",
+          "title": "Build a shared transcript-and-Event-Chat video overlay, with a remote transcript presentation model for buyers and the existing live transcript controller for sellers; mount the shared component in both BuyerTab and StageStatusPanel.   — note: ← WI-39010 completed (done)",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010042149",
+          "kind": "feature",
+          "title": "Retire standalone seller Event Chat from default desktop/mobile layouts and migrate persisted active-event layouts, then update focused tests, UI IR, and browser QA for buyer and seller desktop/mobile.   — note: ← WI-39015 completed (done)",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010042150",
+          "kind": "feature",
+          "title": "Build a catalog-aware transcript focus domain model over rolling finalized context: active-product suppression, explicit transition evidence, ambiguity handling, stable confidence, dismissal cooldown/expiry, and focused pure tests. Link and resolve EI-20469306085034198.  — note: ← WI-39055 completed",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010042151",
+          "kind": "feature",
+          "title": "Add the deterministic-first, server-side structured semantic fallback using the existing configured model pattern; validate catalog-bound structured output, fail harmlessly, and cover remote/deterministic/error contracts.   — note: Configured strict structured classifier + REST seam landed; 8 focuse",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010042152",
+          "kind": "feature",
+          "title": "Integrate focus detection into useLiveTranscript and the Live console suggestion UI with stale-request guards, pending confirmation TTL, accept/dismiss semantics, current event catalog context, and downstream active-product transition coverage.   — note: ← WI-39057 completed (done)",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010042153",
+          "kind": "feature",
+          "title": "Run focused and full web/API verification, production builds, diff checks, and rendered desktop/mobile browser acceptance for same-product suppression, genuine transition suggestion, dismissal, acceptance, ambiguity, and classifier failure safety; close the bug and plan phase with evidence.   — note",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010042154",
+          "kind": "feature",
+          "title": "Move Deepgram authority to the SideStage API: store the permanent project key only in injected server configuration, add an authenticated short-lived token grant endpoint with explicit failure semantics, rate/abuse protections, and focused API/security tests; never expose a permanent credential thro",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010042155",
+          "kind": "feature",
+          "title": "Wire the seller transcription runtime to request a fresh short-lived Deepgram token at connection time, authenticate the Deepgram WebSocket using the supported browser contract, remove the client-exposed VITE_DEEPGRAM_TOKEN path, preserve explicit Web Speech fallback behavior, and add focused browse",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
         }
       ],
       "validationSummary": {
@@ -31869,6 +35620,116 @@ export const BUILD_HISTORY_SNAPSHOT = {
             "planItem": "P-007",
             "contentHash": "c58eca1e512c401ad286092ac5ccfb9af89cc54f7a50d4d7ac6c7c028b1fd8e3"
           },
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010042157",
+          "kind": "feature",
+          "title": "Shared rehearsal contract + API module scaffold: `RehearsalReport` / `RehearsalCaseResult` types, `rehearsals` Nest module + controller, registered in app.module.",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010042158",
+          "kind": "feature",
+          "title": "Guarded-action rehearsal (the depth area): scripted cases through the real GuardedActionService on an isolated rehearsal event — markdown beyond cap refused, price below floor refused, blocked action kind refused, unknown SKU refused, allowed markdown applies AND writes an audit record, rollback res",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010042159",
+          "kind": "feature",
+          "title": "Auction rehearsal: scripted bid storm through the real auction service — monotonic price, exactly one winner per unit, below-increment/duplicate/out-of-order bids rejected, anti-snipe extension observed.",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010042160",
+          "kind": "feature",
+          "title": "Checkout + shipping rehearsal: cart to shipping quote to totals identity (items + shipping + tax == charged), oversell prevention on the last unit, combined-shipping box-fill sanity.",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010042161",
+          "kind": "feature",
+          "title": "Injection / red-team rehearsal: hostile scripted chat (instruction override, fake authority, discount extraction, PII bait) through the real guardrail — assert nothing auto-sends, price never moves, refusals are labelled.",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010042162",
+          "kind": "feature",
+          "title": "Server-side preflight endpoint: probes the browser cannot do honestly — DB reachable + migration state, search index parity (doc count vs catalog count + index age), research-provider readiness (key + quota + one canned call, latency), config lint (price floors, markdown cap, tone, policies, lineup ",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010042163",
+          "kind": "feature",
+          "title": "Client preflight additions + event scoping: realtime round-trip probe (measured), media loopback/device check, clock-skew check; replace the hardcoded \"Sunday vintage drop\" header with the live event name.  — note: ← WI-38675 completed (done)",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010042164",
+          "kind": "feature",
+          "title": "Shared RehearsalPanel web component: renders ANY RehearsalReport uniformly (kicker/status, summary stats, per-case pass/fail with expectation vs observed), replacing the bespoke judge markup shape.   — note: Shared RehearsalPanel shipped and used by all 4 rehearsals; the judge panel deliberately KEE",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010042165",
+          "kind": "feature",
+          "title": "Run history + report export: per-event run history with pass/fail deltas between runs, and a downloadable JSON readiness report (sha + timestamp) usable as submission evidence.",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010042166",
+          "kind": "feature",
+          "title": "Full dress rehearsal: one button chaining preflight + every rehearsal into a single go / no-go verdict with the blocking reasons listed.  blocked-by: P-008",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
           "commits": []
         }
       ],
@@ -32171,6 +36032,50 @@ export const BUILD_HISTORY_SNAPSHOT = {
             "testResult": "PASS: exact URL re-resolved; title was SideStage Watch — Coming up next mockups; all 13 expected controls were present; no console messages; GET returned 200; visual capture matched the gallery.",
             "verifiedHow": "live-drove-ui"
           },
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010042167",
+          "kind": "feature",
+          "title": "Search the react-tailwind design registry, inspect relevant reusable components, and define three responsive Coming up / Next in the drop directions as validated and linted UI specifications.  — note: ← WI-39167 completed (done)",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010042168",
+          "kind": "feature",
+          "title": "Build a polished side-by-side HTML comparison gallery using the verified SideStage brand and realistic product data.   — note: ← WI-39170 completed (done)",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010042169",
+          "kind": "feature",
+          "title": "Run browser verification at desktop and mobile widths; fix layout, console, and accessibility issues found in the gallery.   — note: ← WI-39180 completed (done)",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010042170",
+          "kind": "feature",
+          "title": "Publish the gallery, re-resolve the URL independently, and hand the verified link to Avi with a concise concept summary.   — note: ← WI-39182 completed (done)",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
           "commits": []
         }
       ],
@@ -32607,6 +36512,39 @@ export const BUILD_HISTORY_SNAPSHOT = {
               "attribution": "inferred"
             }
           ]
+        },
+        {
+          "id": "WI-6554700010042171",
+          "kind": "feature",
+          "title": "Implement the production Drop Runway component, live lineup progress, sequence labels, and responsive styling.  — note: ← WI-39189 completed (done)",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010042172",
+          "kind": "feature",
+          "title": "Add focused component and integration regression coverage for numbering, progress, hold states, empty state, and view-all behavior.   — note: ← WI-39191 completed (done)",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010042173",
+          "kind": "feature",
+          "title": "Run focused tests and typecheck, then browser-verify desktop and mobile Watch-tab rendering and interactions with Verdict.   — note: ← WI-39193 completed (done)",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
         }
       ],
       "validationSummary": {
@@ -33207,6 +37145,61 @@ export const BUILD_HISTORY_SNAPSHOT = {
             ]
           },
           "commits": []
+        },
+        {
+          "id": "WI-6554700010042174",
+          "kind": "feature",
+          "title": "Introduce an ActionItemStore contract with Postgres and in-memory implementations plus an `event_lineup_item` table keyed by event/product. Persist stable eventItemId, order, reference/current event price, listed/current quantity, stage state, buyer-safe snapshot attributes, version, and timestamps;",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010042175",
+          "kind": "feature",
+          "title": "Add a public `event.lineup.items { eventId }` query in the existing ActionModule. Gate it through EventVisibilityGuard/PgEventStore so only published events resolve; read the same ActionItemStore as seller-owned `event.actions.items`; join existing catalog data for current image and variant labels w",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010042176",
+          "kind": "feature",
+          "title": "Extend the existing cart hold mutation with optional eventId/eventItemId context from Watch. Server-side, resolve the published lineup row, reject missing/unlisted/unpublished combinations without enumeration, use event price/allocation as authority, and atomically transfer or decrement the event re",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010042177",
+          "kind": "feature",
+          "title": "Complete the event-aware cart commitment lifecycle across the existing reservation, checkout, and payment flows. Persist eventId/eventItemId through the hold and sale boundary; make hold expiry, explicit removal, checkout cancellation, and payment failure idempotently release the event commitment an",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010042178",
+          "kind": "feature",
+          "title": "Move auction inventory authority onto the selected event lineup allocation. Auction start/publish must atomically create an event-scoped commitment rather than a separate global reservation; no-bid close, seller cancellation, auction expiry, and winner payment failure must release it; a winning auct",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
         }
       ],
       "validationSummary": {
@@ -33466,6 +37459,39 @@ export const BUILD_HISTORY_SNAPSHOT = {
               "design/sidestage-watch-live-auction-mockups-2026-08-14/concept-specs.json"
             ]
           },
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010042180",
+          "kind": "feature",
+          "title": "Audit the current Watch tab, auction interaction states, SideStage tokens, and reusable design-registry components.  — note: ← WI-39146 completed (done)",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010042181",
+          "kind": "feature",
+          "title": "Define and validate three improved live-auction UI directions grounded in the existing SideStage design language.   — note: ← WI-39150 completed (done)",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010042182",
+          "kind": "feature",
+          "title": "Generate and assemble the three directions into a responsive comparison gallery.   — note: ← WI-39151 completed (done)",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
           "commits": []
         }
       ],
@@ -34263,6 +38289,105 @@ export const BUILD_HISTORY_SNAPSHOT = {
             "verifiedHow": "live-drove-ui"
           },
           "commits": []
+        },
+        {
+          "id": "WI-6554700010042184",
+          "kind": "feature",
+          "title": "Reconcile the approved reports/specs/mockups with current apps/web source and in-flight changes; implement the shared desktop page shell, spacing, typography, token, navigation, and reusable control baseline without changing mobile buyer-only ownership. Acceptance: shared changes are covered by focu",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010042185",
+          "kind": "feature",
+          "title": "Implement the approved Buyer web-page design from reports/buyer.md, specs/buyer.ui-ir.json, and mockups/buyer.html in the production Buyer surface. Preserve live commerce behavior and add focused component/layout tests.   — note: ← WI-38783 completed (done)",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010042186",
+          "kind": "feature",
+          "title": "Implement the approved Orders web-page design from reports/orders.md, specs/orders.ui-ir.json, and mockups/orders.html in the production Orders surface. Preserve order data/actions and add focused component/layout tests.   — note: ← WI-38784 completed (done)",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010042187",
+          "kind": "feature",
+          "title": "Implement the approved Seller web-page design from reports/seller.md, specs/seller.ui-ir.json, and mockups/seller.html in the production Seller surface. Default the seller board to the full available page width and height; left-align Enter fullscreen and Reset layout; preserve saved custom geometry,",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010042188",
+          "kind": "feature",
+          "title": "Implement the approved Build History web-page design from reports/build-history.md, specs/build-history.ui-ir.json, and mockups/build-history.html in the production Build History surface. Preserve release/build behavior and add focused component/layout tests.   — note: ← WI-38786 completed (done)",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010042189",
+          "kind": "feature",
+          "title": "Implement the approved Config web-page design from reports/config.md, specs/config.ui-ir.json, and mockups/config.html in the production Config surface. Preserve configuration semantics and add focused component/layout tests.   — note: ← WI-38787 completed (done)",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010042190",
+          "kind": "feature",
+          "title": "Implement the approved compact sidebar-driven Test web-page workbench from reports/test.md, specs/test.ui-ir.json, and mockups/test.html in the production Test surface. Preserve rehearsal behavior, dense status rows, focused details/run pane, search/filter navigation, and add focused tests.   — note",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010042191",
+          "kind": "feature",
+          "title": "Integrate all six redesigned web pages with shared navigation and production data seams; resolve shared-file conflicts, accessibility issues, overflow, and cross-page regressions. Do not implement or rewrite mobile seller-facing visibility—the separate mobile lane owns that behavior.   — note: ← WI-",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010042192",
+          "kind": "feature",
+          "title": "Run focused page tests, affected-suite verification, typecheck/build, and Verdict browser QA of all six production web pages at desktop widths. Capture fresh evidence, verify Seller default full-page geometry and left-aligned toolbar controls, confirm no production behavior regression, and close eve",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
         }
       ],
       "validationSummary": {
@@ -34899,6 +39024,17 @@ export const BUILD_HISTORY_SNAPSHOT = {
               "attribution": "body-reference"
             }
           ]
+        },
+        {
+          "id": "WI-6554700010042193",
+          "kind": "feature",
+          "title": "Rerun public mobile PageSpeed at least three times; iterate through code, verification, and redeploy until all stated success criteria hold consistently.   — note: ✓ Public exact-SHA qualification complete at 1fb55c63b08e0fadb12de001ca2df9b66d32a968. GitHub run 32548175802 passed clean checkout/test",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
         }
       ],
       "validationSummary": {
@@ -36985,6 +41121,116 @@ export const BUILD_HISTORY_SNAPSHOT = {
               "attribution": "inferred"
             }
           ]
+        },
+        {
+          "id": "WI-6554700010042194",
+          "kind": "feature",
+          "title": "Make Postgres the sole server authority for every client-visible domain (executes auction-plan P-011: chat durability, actions/offers/audits, rehearsal/judge/operational state into durable tables with stable keys, versions, ownership, idempotent transaction boundaries).  — note: ← WI-39614 completed",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010042195",
+          "kind": "feature",
+          "title": "Create the SideStage-owned Zero contract package following Restart's libs/zero pattern — app schema + relationships, typed named ZQL query registry, createMutators registry; imported identically by the web SyncProvider and the API's zero-cache /query and /mutate handlers; schema/query/mutator parity",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010042196",
+          "kind": "feature",
+          "title": "Provision zero-cache for local, staging, and prod (executes auction-plan P-013): direct Postgres logical replication with a deliberately scoped publication, separate upstream/change DB settings, least-privilege grants, client/server @rocicorp/zero version pinning, persistent replica + unique replica",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010042197",
+          "kind": "feature",
+          "title": "Flip the app root (apps/web/src/main.tsx) to the universal WEBSOCKETS-first SyncProvider — Zero schema/queries/mutators + selected principal wired in, preserving the WEBSOCKETS → SSE → bounded POLLING fallback chain for reachability failures only; stable query identity across reconnect; connection/f",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010042198",
+          "kind": "feature",
+          "title": "Universal Zero verification (executes auction-plan P-015): per-surface parity checks across buyer/seller/operational screens, reconnect and failover drills (kill zero-cache → SSE fallback → recovery), load smoke, principal-isolation checks on WS queries. — note: ← WI-39617 completed (done)",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010042199",
+          "kind": "feature",
+          "title": "Update the in-app Architecture page (apps/web/src/ArchitectureTab.tsx): library card, tech ribbon, edge/flow diagrams and numbered flows, realtime caption — SSE-only wording becomes \"WebSocket sync (Rocicorp Zero) with SSE fallback\"; add zero-cache to the deployment topology. — note: ← WI-39683 comp",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010042200",
+          "kind": "feature",
+          "title": "Update docs/TDD.md: realtime propagation section (SSE invalidation fan-out → Zero WS sync + fallback ladder), Marketplace/infra sections gain zero-cache, latency budgets re-checked against WS path. — note: ← WI-39648 completed (done)",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010042201",
+          "kind": "feature",
+          "title": "Update docs/submission.md and docs/PRD.md where they describe the sync/data plane, keeping claims exactly truthful for the chosen execution window (if cutover is canaried or post-submission, docs say SSE is live today and Zero WS is built and staged, citing this plan). — note: ← WI-39651 completed (",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010042202",
+          "kind": "feature",
+          "title": "Land the /api/zero/query + /api/zero/mutate handlers (the parity harness already expects them: apps/api/src/sync/parity/harness.ts:27/:127 'deliberately unimplemented (needs the P-004 /zero/query handler)', surfaces.ts:113) and bring up zero-cache per infra/zero/README (dev first, then prod 178.156.",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
+        },
+        {
+          "id": "WI-6554700010042203",
+          "kind": "feature",
+          "title": "Wire libs/sync/src tests into the sidestage gate legs — vitest.config.mts currently has exactly three projects (sidestage-deploy, sidestage-node, sidestage-web) and NONE matches libs/sync/src, so the WEBSOCKETS-dispatch test + pre-existing principal-isolation and SyncContext suites run only via npm ",
+          "state": "done",
+          "completedAt": "2026-10-28T08:26:21.869Z",
+          "completionAuthority": "work-item-ledger",
+          "completionSummary": null,
+          "completionEvidence": null,
+          "commits": []
         }
       ],
       "validationSummary": {
